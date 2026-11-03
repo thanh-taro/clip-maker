@@ -44,7 +44,7 @@
     "architecture": {
       "title": "3 Architecture & spikes",
       "status": "in_progress",
-      "step": "3.2 spikes: SP-codec and SP-license running in worktrees; next SP-frame, then compositor/gpu-color/audio/timestretch; owner to provide iPhone fixtures + test on Safari/Firefox/iPhone",
+      "step": "3.2 spikes: done SP-license (adopt, D-042); SP-codec automated done, owner manual pending; running SP-frame, SP-compositor, SP-audio; next SP-gpu-color, SP-timestretch, SP-mem-phone",
       "gate": {
         "status": "pending",
         "at": null,
@@ -1202,9 +1202,21 @@
     {
       "at": "2026-11-03T12:39:26+00:00",
       "event": "decision D-042 answered: APPROVED by owner 2026-11-03: unmodified pinned mediabunny under scoped MPL-2.0 exception (ADR-0005); writer only in export worker; container budget ~110 KB gzip; typed error for no-tracks/0-packets"
+    },
+    {
+      "at": "2026-11-03T12:40:17+00:00",
+      "event": "architecture step: 3.2 spikes: done SP-license (adopt, D-042); SP-codec automated done, owner manual pending; running SP-frame, SP-compositor, SP-audio; next SP-gpu-color, SP-timestretch, SP-mem-phone"
+    },
+    {
+      "at": "2026-11-03T14:18:48+00:00",
+      "event": "SP-frame provisional adopt: all features work embedded+standalone, no COOP/COEP; WebKit frame quota 1/10; Chrome same-site storage shared; WebKit resume() hangs -> bound wait"
+    },
+    {
+      "at": "2026-11-03T15:40:13+00:00",
+      "event": "SP-compositor provisional adopt ADR-0006 w/ amendments: frame diff 0, A/V sync <0.1ms over 10 min after AAC priming fix (edit list), seek p95 met on chrome only (noisy host); long-GOP backward scrub needs cache; frame duration rule clarified"
     }
   ],
-  "updated": "2026-11-03T12:39:26+00:00",
+  "updated": "2026-11-03T15:40:13+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
