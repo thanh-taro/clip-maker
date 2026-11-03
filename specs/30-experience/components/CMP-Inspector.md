@@ -1,23 +1,42 @@
 ---
 id: CMP-Inspector
 title: Inspector
-status: draft
-tokens: []
+status: ready
+tokens: [font.family.body, font.family.mono, font.weight.medium, font.weight.semibold, border.width.hairline, border.width.focus, motion.duration.fast, color.dark.accent, color.light.accent, color.dark.bg, color.light.bg, color.dark.fg, color.light.fg, color.dark.focus, color.light.focus, color.dark.line, color.light.line, color.dark.lineStrong, color.light.lineStrong, color.dark.muted, color.light.muted, color.dark.onAccent, color.light.onAccent, color.dark.selection, color.light.selection, color.dark.surface, color.light.surface, color.dark.surface2, color.light.surface2, text.color.black, text.color.blue, text.color.cyan, text.color.green, text.color.orange, text.color.pink, text.color.purple, text.color.red, text.color.white, text.color.yellow, space.5, space.3, space.1_5, space.2_5, radius.sm, space.3_5, font.size.xs, space.1, radius.md, font.size.md, font.size.sm, space.2, radius.pill, font.size.input, font.size.lg, space.4, space.0_5, font.size.base, size.inspector, size.tab, size.control, size.toolButton, size.swatch, size.targetMin, size.touchTarget, size.icon.sm]
 ---
 
 ## Purpose
 Settings for the selection (clip, text layer or audio clip), or the frame when nothing is selected.
 
 ## Anatomy
-Sections: COPY-inspector.frame, COPY-inspector.placement, COPY-inspector.adjust, COPY-inspector.speed, COPY-inspector.sound, COPY-inspector.fades, COPY-inspector.text; look entry opens CMP-LookGallery.
+For a video clip, tabs Edit (COPY-inspector.edit), Adjust (COPY-inspector.adjust), Looks (COPY-looks.title, opens CMP-LookGallery) and Sound (COPY-inspector.sound); for a photo clip, Edit, Adjust and Looks. A text layer, an audio clip and the frame have a single section, shown under a plain title row (COPY-inspector.text, COPY-inspector.sound, COPY-inspector.frame) instead of a lone tab. The Edit tab holds Position (COPY-inspector.placement), Speed (COPY-inspector.speed) or Duration (COPY-photo.duration), and Fades (COPY-inspector.fades). The body scrolls, with a fade and a scroll indicator at the cut; whole-clip actions sit in a sticky footer.
 
 ## Variants & states
 | Variant / state | Description |
 |---|---|
-| default | To be completed in phase 2 (design). |
+| clip Adjust | Reset all (COPY-action.reset_all); groups Light (COPY-adjust.group_light: Brightness, Contrast, Highlights, Shadows), Colour (COPY-adjust.group_colour: Temperature, Tint, Saturation, Vibrance) and Effects (COPY-adjust.group_effects: Fade, Sharpen, Vignette, Grain). Each row has a label, a slider, a number field and a per-row Reset (COPY-action.reset) shown only when changed. Slider: thin track, accent fill from the centre (bipolar) or from the start, a centre tick, and a light knob with a strong ring at the default and an accent ring when changed; the number reads in the text colour when changed and muted at the default. A focused knob shows the violet focus ring. The body scrolls under a sticky footer with Hold to compare (COPY-action.compare), Copy colour and Paste colour as labelled buttons side by side (COPY-action.copy_look, COPY-action.paste_look; Paste colour unavailable with nothing copied), and Apply to all clips (COPY-action.apply_all). |
+| clip Position | Edit tab, Position section with Reset: Fit/Fill (COPY-placement.fit, COPY-placement.fill) as equal segments; Scale (COPY-placement.scale) slider and field; Offset (COPY-placement.offset) with X and Y fields (COPY-placement.offset_x, COPY-placement.offset_y); one row of nudge buttons (COPY-placement.nudge_left, COPY-placement.nudge_right, COPY-placement.nudge_up, COPY-placement.nudge_down), Rotate (COPY-action.rotate), Flip horizontal (pressed) and Flip vertical (COPY-action.flip_h, COPY-action.flip_v). |
+| clip Speed | Edit tab scrolled to Speed and Fades: the resulting length (COPY-speed.length) in the section heading; six equal quick-speed segments (RULE-06); Exact (COPY-speed.exact) slider and field; Fade in and Fade out (COPY-fades.in, COPY-fades.out) sliders and fields; Quick fade in and Quick fade out toggles (COPY-fades.quick_in, COPY-fades.quick_out). |
+| Sound · vi-VN (all original muted) | Sound tab in Vietnamese (tab labels fit four to a row). Volume (COPY-sound.volume, 0–200 %, centre mark at 100 %) with an inline Mute toggle (COPY-action.mute); while every main-track clip is muted the row is dimmed and the action reads Unmute original sound (COPY-action.unmute_all); otherwise it reads Mute original sound (COPY-action.mute_all). |
+| photo clip | Tabs Edit, Adjust and Looks (no Sound); the Edit tab shows Duration (COPY-photo.duration) slider and field in place of Speed, then Fades. |
+| text layer | Plain title row with Reset. Font (COPY-text.typeface): the one font picker, a two-by-two grid of touch-size tiles, each with an "Aa" sample in its face and the face name (COPY-text.sans, COPY-text.display, COPY-text.serif, COPY-text.rounded). Then Style (COPY-text.style: Plain, Outline, Shadow, Box) as equal segments, Colour swatches (`text.color.*`, named COPY-colour.white to COPY-colour.pink), Box colour (COPY-text.box_colour) when Box is chosen, Size (COPY-text.size), Alignment (COPY-text.align_left, COPY-text.align_centre, COPY-text.align_right), Fade (COPY-text.fade), Position fields and nudges (COPY-text.position, COPY-text.position_x, COPY-text.position_y), Earlier/Later and Bring forward/Send back (COPY-text.bring_forward, COPY-text.send_back), reached by scrolling. |
+| audio clip | Plain title row; Volume with Mute, Fade in and Fade out (0–5 s), and text-and-icon Earlier and Later (COPY-action.time_earlier, COPY-action.time_later). |
+| Frame (nothing selected) | Plain title row. Each label sits above its control. Aspect as equal segments (9:16, 1:1, 4:5, 16:9, then Original, COPY-frame.original); Frame rate as four equal segments (24, 25, 30, 60); Background as a grid of the ten palette swatches plus a Blur chip (COPY-frame.blur). |
+| narrow sheets | On narrow layouts each bottom tab opens its section as a bottom sheet (at most 40 % of the height, overlaying the timeline) with a grabber: the same rows at touch size (sliders with a `size.touchTarget` row and knob hit area, fields at `font.size.input`, swatches with touch-size hit areas). The Edit sheet's actions are drawn on CMP-Timeline (narrow / Edit sheet), the Looks sheet on CMP-LookGallery, the Audio sheet on CMP-MusicPicker and the text tools on CMP-TextEditor. The Adjust sheet keeps a sticky footer of one touch-size row: Hold to compare (fills the row), Apply to all clips, and a More icon button (COPY-action.more, vertical three dots) whose menu holds Copy colour and Paste colour. |
 
 ## Behavior
-To be completed in phase 2 (design), from the features that list this component.
+- Shows the selection's settings, or Frame when nothing is selected (SCR-Editor); on narrow layouts each bottom tab opens its section as a sheet (D-038).
+- The body scrolls; the footer with Hold to compare, Apply to all clips and Copy/Paste colour stays visible (D-039).
+- Slider drags update the preview live and are one undo step per movement (RULE-13); fields accept typed values and clamp to the rule's range.
+- Per-row Reset returns one adjustment to default; Reset all returns all (RULE-08); Apply to all is one undo step. The grouping is for reading only; adjustments are always applied in RULE-08 order.
+- Quick speed and quick fade controls set the rule's quick values; changes that would break RULE-03 stop at the limit with COPY-notice.length_limited.
+- Mute original sound becomes Unmute original sound when every main-track clip is muted (RULE-12).
 
 ## Accessibility
-Named controls, keyboard reachable, touch targets per RULE-21 (NFR-06).
+- Tabs are a tablist named COPY-inspector.label; single-section panels use a heading instead. Every slider has a paired number field with the same label (F-007 R6).
+- Option groups (Fit/Fill, style, alignment, aspect, rate, colours, font) are radio groups; colour swatches carry colour names (COPY-colour.white to COPY-colour.pink).
+- Toggles (Mute, Flip, quick fades) expose a pressed state; unavailable actions are disabled.
+- Section headings are headings; touch targets in sheets meet RULE-21.
+
+## Copy also used
+COPY-inspector.edit, COPY-inspector.resize, COPY-adjust.group_light, COPY-adjust.group_colour, COPY-adjust.group_effects, COPY-placement.mode, COPY-placement.offset, COPY-fades.quick_in, COPY-fades.quick_out, COPY-text.position, COPY-colour.black, COPY-colour.red, COPY-colour.orange, COPY-colour.yellow, COPY-colour.green, COPY-colour.cyan, COPY-colour.blue, COPY-colour.purple

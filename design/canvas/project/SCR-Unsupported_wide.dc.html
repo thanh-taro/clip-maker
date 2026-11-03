@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SCR-Unsupported / default / wide</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;family=Anton&amp;family=Playfair+Display:wght@700&amp;family=Nunito:wght@800&amp;display=swap">
+<style>
+body{margin:0;background:#0B0812;font-family:'Manrope',system-ui,sans-serif}
+.tk-dark{--bg:#0F0B16;--surface:#18121F;--surface2:#221A2F;--line:#2D2440;--lineStrong:#6F6290;--fg:#EFEAF8;--muted:#9C92B0;--accent:#FFB870;--accentHover:#FFC995;--onAccent:#1A1005;--accent2:#A47BFF;--accent2Fg:#C3A8FF;--selection:#2A1D47;--selectionLine:#4A3580;--danger:#FF8595;--success:#5BD6A0;--scrim:#07050BB3;--chrome:#140F1EB8;--dangerBg:#3A1622;--warnBg:#33240F;--focus:#A47BFF;--workArea:#0B0812;--playhead:#FFB870;--trackClip:#3B2A55;--trackClipAlt:#47306A;--trackText:#5A3E1C;--trackAudio:#1F3B33;--waveform:#5BD6A0;--trackLabel:#EFEAF8;--handle:#EFEAF8;--previewOutline:#A47BFF;--previewHandle:#FFFFFF}
+.tk-light{--bg:#FBFAFE;--surface:#FFFFFF;--surface2:#F1EDFA;--line:#E2DCF0;--lineStrong:#8C82A2;--fg:#16111F;--muted:#5E566F;--accent:#A65305;--accentHover:#8F4705;--onAccent:#FFFFFF;--accent2:#6837E0;--accent2Fg:#5429C0;--selection:#F0EAFE;--selectionLine:#CDBBF8;--danger:#C0243B;--success:#13744C;--scrim:#16111F66;--chrome:#FFFFFFD1;--dangerBg:#FCE8EC;--warnBg:#FDEBD8;--focus:#6837E0;--workArea:#ECE8F4;--playhead:#A65305;--trackClip:#DCCFF7;--trackClipAlt:#CDBBF8;--trackText:#FBDDB8;--trackAudio:#CDEFE0;--waveform:#13744C;--trackLabel:#16111F;--handle:#16111F;--previewOutline:#6837E0;--previewHandle:#FFFFFF}
+.cap{font:600 12px 'JetBrains Mono',monospace;color:#9C92B0;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ic{width:16px;height:16px;flex:none}
+.ic20{width:20px;height:20px;flex:none}
+.grow{flex:1}
+.mono{font-family:'JetBrains Mono',monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.btn{height:32px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--fg);font:600 13px 'Manrope',sans-serif;box-sizing:border-box;white-space:nowrap}
+.btn.icon{width:32px;padding:0;color:var(--muted)}
+.btn.out{border-color:var(--accent);color:var(--accent)}
+.btn.dng{border-color:var(--danger);color:var(--danger)}
+.btn.fill{background:var(--accent);color:var(--onAccent);font-weight:700}
+.btn.off{border-color:var(--line);color:var(--muted)}
+.btn.hov{background:var(--surface2)}
+.btn.t{height:44px;min-width:44px;font-size:14px}
+.fr{outline:2px solid var(--focus);outline-offset:2px}
+.panel{background:var(--surface);border:1px solid var(--lineStrong);border-radius:10px;color:var(--fg);font-size:13px;line-height:1.55;box-sizing:border-box;overflow:hidden}
+.hd{display:flex;align-items:center;gap:8px;height:44px;padding:0 4px 0 16px;border-bottom:1px solid var(--line);flex:none}
+.hd h2{margin:0;font:700 14px 'Manrope',sans-serif;flex:1;line-height:1.15}
+.lbl{font:600 12px 'Manrope',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+legend{padding:0;margin:0 0 4px}
+.seg{display:flex;gap:2px;padding:2px;border:1px solid var(--lineStrong);border-radius:10px}
+.seg label{flex:1;height:28px;display:grid;place-items:center;border-radius:7px;font:600 13px 'Manrope',sans-serif;color:var(--fg);position:relative;white-space:nowrap;padding:0 4px}
+.seg label.m{font-family:'JetBrains Mono',monospace;font-weight:500}
+.seg label.on{background:var(--selection);box-shadow:inset 0 0 0 2px var(--accent)}
+.seg label.dis{color:var(--muted);text-decoration:line-through}
+.seg.t label{height:40px}
+.sr,.seg input,.chips input{position:absolute;opacity:0;width:1px;height:1px;margin:0;overflow:hidden;clip:rect(0 0 0 0)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chips label{position:relative;height:28px;padding:0 8px;border:1px solid var(--lineStrong);border-radius:999px;display:inline-flex;align-items:center;font:600 12px 'Manrope',sans-serif;color:var(--fg);box-sizing:border-box;white-space:nowrap}
+.chips label.on{background:var(--selection);box-shadow:inset 0 0 0 1px var(--accent);border-color:var(--accent)}
+.chips.t label{height:44px;padding:0 12px;font-size:13px}
+.fld{display:inline-flex;align-items:center;gap:4px;font:600 12px 'Manrope',sans-serif;color:var(--muted)}
+.fld input{width:56px;height:28px;box-sizing:border-box;border:1px solid var(--lineStrong);border-radius:7px;background:var(--bg);color:var(--fg);font:500 16px 'JetBrains Mono',monospace;padding:0 8px;text-align:right}
+.msg{display:flex;gap:8px;align-items:flex-start;padding:8px 12px;border-radius:7px;font-size:13px;line-height:1.55}
+.msg .ic{margin-top:2px}
+.msg.warn{background:var(--warnBg);color:var(--fg)}
+.msg.err{background:var(--dangerBg);color:var(--danger)}
+.msg.note{padding:0;color:var(--muted)}
+.tabs{display:flex;border-bottom:1px solid var(--line);padding:0 8px;flex:none}
+.tabs button{flex:1;height:40px;border:0;background:transparent;font:600 13px 'Manrope',sans-serif;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button.on{color:var(--fg);border-bottom-color:var(--accent)}
+.tabs.t button{height:44px;font-size:14px}
+.bar{height:4px;border-radius:999px;background:var(--surface2);position:relative;overflow:hidden}
+.bar b{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--accent)}
+.grab{width:36px;height:4px;border-radius:999px;background:var(--lineStrong);margin:8px auto 0;flex:none}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;box-sizing:border-box;border:1px solid var(--lineStrong);border-bottom-width:2px;border-radius:7px;background:var(--surface2);color:var(--fg);font:500 12px 'JetBrains Mono',monospace}
+a{color:inherit}
+.msgw{display:grid;place-items:center;background:var(--workArea);padding:24px}
+.msgb{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;max-width:480px}
+.badge{width:64px;height:64px;border-radius:999px;background:var(--surface2);display:grid;place-items:center;color:var(--danger)}
+.badge svg{width:32px;height:32px}
+h1{margin:0;font:700 20px 'Manrope',sans-serif;line-height:1.15}
+.ub{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:14px;line-height:1.55;color:var(--fg)}
+.ub p{margin:0}
+.ub ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.ub li{display:flex;align-items:center;gap:8px;font-weight:600}
+.ub li .ic{color:var(--danger)}
+.ub .muted{color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:999px;background:var(--success);flex:none}
+.sbb{display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:500 12px 'Manrope',sans-serif}
+.srcl{display:inline-flex;align-items:center;gap:4px;color:var(--fg);text-decoration:underline;text-underline-offset:2px;font-size:12px}
+
+.cap{font:600 12px 'JetBrains Mono',monospace;color:#9C92B0;letter-spacing:.04em}
+.ed{width:1200px;height:760px;display:grid;grid-template-rows:minmax(0,1fr) 28px;background:var(--bg);color:var(--fg);font-size:13px;border:1px solid var(--line);box-sizing:border-box;overflow:hidden}
+.sb{display:flex;align-items:center;gap:12px;padding:0 8px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);background:var(--bg)}
+</style>
+</helmet>
+<div style="width: 1240px; height: 1640px; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 20px; background: #0B0812">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="cap">SCR-Unsupported / default / wide · {{t.label}} · {{t.ex}}</span>
+<div class="ed {{t.cls}}">
+  <main class="msgw"><section class="msgb">
+<span class="badge" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M9.5 7.5l5 5M14.5 7.5l-5 5"/></svg></span>
+<h1 tabindex="-1" data-copy="COPY-unsupported.title">This browser can't edit video</h1>
+<div class="ub" data-copy="COPY-unsupported.body"><p>Missing:</p>
+<ul><sc-if value="{{t.dec}}" hint-placeholder-val="{{true}}"><li><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg><span data-copy="COPY-unsupported.missing_decode">playing video</span></li></sc-if><sc-if value="{{t.enc}}" hint-placeholder-val="{{true}}"><li><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg><span data-copy="COPY-unsupported.missing_encode">creating video files</span></li></sc-if><sc-if value="{{t.eff}}" hint-placeholder-val="{{true}}"><li><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg><span data-copy="COPY-unsupported.missing_effects">drawing effects</span></li></sc-if></ul>
+<p class="muted">Open Clip Maker in an up-to-date desktop or phone browser.</p></div>
+</section></main>
+  <footer class="sb"><button class="sbb" aria-haspopup="dialog" aria-expanded="false"><span class="dot" aria-hidden="true"></span><span data-copy="COPY-privacy.badge">Your media never leaves this device</span></button><a class="srcl" href="https://github.com/thanh-taro/clip-maker" target="_blank" rel="noopener noreferrer" data-copy="COPY-privacy.source_label">Source code on GitHub<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg></a></footer>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":1640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themes: [ { cls: 'tk-dark', label: 'dark', dec: true, enc: true, eff: false, ex: 'playing video, creating video files missing' }, { cls: 'tk-light', label: 'light', dec: false, enc: false, eff: true, ex: 'drawing effects missing' } ] };
+  }
+}
+</script>
+</body>
+</html>

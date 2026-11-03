@@ -1,7 +1,7 @@
 ---
 id: SCR-Unsupported
 title: Unsupported device
-status: draft
+status: ready
 features: [F-023]
 components: [CMP-StatusBar]
 ---

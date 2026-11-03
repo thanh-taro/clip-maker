@@ -1,0 +1,463 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-03T08:11:57Z"
+  },
+  "title": "Clip Maker Design",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / selected / wide"
+    },
+    "SCR-Editor_selected_narrow.dc.html": {
+      "x": 1320,
+      "y": 0,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / selected / narrow"
+    },
+    "SCR-Editor_selected_compact.dc.html": {
+      "x": 2260,
+      "y": 0,
+      "w": 1720,
+      "h": 830,
+      "title": "SCR-Editor / selected / compact"
+    },
+    "SCR-Editor_default_compact.dc.html": {
+      "x": 2260,
+      "y": 950,
+      "w": 1720,
+      "h": 830,
+      "title": "SCR-Editor / default / compact"
+    },
+    "SCR-Editor_empty_wide.dc.html": {
+      "x": 0,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / empty / wide"
+    },
+    "SCR-Editor_empty_narrow.dc.html": {
+      "x": 0,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / empty / narrow"
+    },
+    "SCR-Editor_default_wide.dc.html": {
+      "x": 1320,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / default / wide"
+    },
+    "SCR-Editor_default_narrow.dc.html": {
+      "x": 1320,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / default / narrow"
+    },
+    "SCR-Editor_editing-text_wide.dc.html": {
+      "x": 2640,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / editing-text / wide"
+    },
+    "SCR-Editor_editing-text_narrow.dc.html": {
+      "x": 2640,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / editing-text / narrow"
+    },
+    "SCR-Editor_playing_wide.dc.html": {
+      "x": 3960,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / playing / wide"
+    },
+    "SCR-Editor_playing_narrow.dc.html": {
+      "x": 3960,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / playing / narrow"
+    },
+    "SCR-Editor_adding_wide.dc.html": {
+      "x": 5280,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / adding / wide"
+    },
+    "SCR-Editor_adding_narrow.dc.html": {
+      "x": 5280,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / adding / narrow"
+    },
+    "SCR-Editor_exporting_wide.dc.html": {
+      "x": 6600,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / exporting / wide"
+    },
+    "SCR-Editor_exporting_narrow.dc.html": {
+      "x": 6600,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / exporting / narrow"
+    },
+    "SCR-Editor_dragging-file_wide.dc.html": {
+      "x": 7920,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / dragging-file / wide"
+    },
+    "SCR-Editor_dragging-file_narrow.dc.html": {
+      "x": 7920,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / dragging-file / narrow"
+    },
+    "SCR-Unsupported_wide.dc.html": {
+      "x": 9240,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Unsupported / default / wide"
+    },
+    "SCR-Unsupported_narrow.dc.html": {
+      "x": 9240,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Unsupported / default / narrow"
+    },
+    "SCR-Editor_selected_narrow_vi.dc.html": {
+      "x": 10560,
+      "y": 2000,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / selected / narrow \u00b7 vi-VN"
+    },
+    "CMP-Toolbar.dc.html": {
+      "x": 0,
+      "y": 5000,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-Toolbar"
+    },
+    "CMP-Preview.dc.html": {
+      "x": 1320,
+      "y": 5000,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-Preview"
+    },
+    "CMP-Timeline.dc.html": {
+      "x": 2640,
+      "y": 5000,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-Timeline"
+    },
+    "CMP-MediaPanel.dc.html": {
+      "x": 3960,
+      "y": 5000,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-MediaPanel"
+    },
+    "CMP-Inspector.dc.html": {
+      "x": 5280,
+      "y": 5000,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-Inspector"
+    },
+    "CMP-LookGallery.dc.html": {
+      "x": 6600,
+      "y": 5000,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-LookGallery"
+    },
+    "CMP-TextEditor.dc.html": {
+      "x": 7920,
+      "y": 5000,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-TextEditor"
+    },
+    "CMP-MusicPicker.dc.html": {
+      "x": 9240,
+      "y": 5000,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-MusicPicker"
+    },
+    "CMP-ExportPanel.dc.html": {
+      "x": 0,
+      "y": 6320,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-ExportPanel"
+    },
+    "CMP-ExportProgress.dc.html": {
+      "x": 1320,
+      "y": 6320,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-ExportProgress"
+    },
+    "CMP-EmptyState.dc.html": {
+      "x": 2640,
+      "y": 6320,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-EmptyState"
+    },
+    "CMP-DropOverlay.dc.html": {
+      "x": 3960,
+      "y": 6320,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-DropOverlay"
+    },
+    "CMP-Notice.dc.html": {
+      "x": 5280,
+      "y": 6320,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-Notice"
+    },
+    "CMP-ConfirmDialog.dc.html": {
+      "x": 6600,
+      "y": 6320,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-ConfirmDialog"
+    },
+    "CMP-ShortcutHelp.dc.html": {
+      "x": 7920,
+      "y": 6320,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-ShortcutHelp"
+    },
+    "CMP-StatusBar.dc.html": {
+      "x": 9240,
+      "y": 6320,
+      "w": 1240,
+      "h": 1200,
+      "title": "CMP-StatusBar"
+    },
+    "FLOW-01_step1.dc.html": {
+      "x": 0,
+      "y": 7900,
+      "w": 1240,
+      "h": 840,
+      "title": "FLOW-01 / step 1"
+    },
+    "FLOW-01_step2.dc.html": {
+      "x": 1320,
+      "y": 7900,
+      "w": 1240,
+      "h": 840,
+      "title": "FLOW-01 / step 2"
+    },
+    "FLOW-01_step3.dc.html": {
+      "x": 2640,
+      "y": 7900,
+      "w": 1240,
+      "h": 840,
+      "title": "FLOW-01 / step 3"
+    },
+    "FLOW-01_step4.dc.html": {
+      "x": 3960,
+      "y": 7900,
+      "w": 1240,
+      "h": 840,
+      "title": "FLOW-01 / step 4"
+    },
+    "FLOW-01_step5.dc.html": {
+      "x": 5280,
+      "y": 7900,
+      "w": 1240,
+      "h": 840,
+      "title": "FLOW-01 / step 5"
+    },
+    "FLOW-01_step6.dc.html": {
+      "x": 6600,
+      "y": 7900,
+      "w": 1240,
+      "h": 840,
+      "title": "FLOW-01 / step 6"
+    },
+    "FLOW-01_step7.dc.html": {
+      "x": 7920,
+      "y": 7900,
+      "w": 1240,
+      "h": 840,
+      "title": "FLOW-01 / step 7"
+    },
+    "FLOW-01_step8.dc.html": {
+      "x": 9240,
+      "y": 7900,
+      "w": 1240,
+      "h": 840,
+      "title": "FLOW-01 / step 8"
+    },
+    "FLOW-01_step9.dc.html": {
+      "x": 10560,
+      "y": 7900,
+      "w": 1240,
+      "h": 840,
+      "title": "FLOW-01 / step 9"
+    },
+    "SCR-Editor_exporting-setup_wide.dc.html": {
+      "x": 11880,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / exporting-setup / wide"
+    },
+    "SCR-Editor_exporting-setup_narrow.dc.html": {
+      "x": 11880,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / exporting-setup / narrow"
+    },
+    "SCR-Editor_result_wide.dc.html": {
+      "x": 13200,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / result / wide"
+    },
+    "SCR-Editor_result_narrow.dc.html": {
+      "x": 13200,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / result / narrow"
+    },
+    "SCR-Editor_export-error_wide.dc.html": {
+      "x": 14520,
+      "y": 2000,
+      "w": 1240,
+      "h": 1640,
+      "title": "SCR-Editor / export-error / wide"
+    },
+    "SCR-Editor_export-error_narrow.dc.html": {
+      "x": 14520,
+      "y": 3760,
+      "w": 860,
+      "h": 960,
+      "title": "SCR-Editor / export-error / narrow"
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "SCR-Editor_selected_narrow.dc.html",
+    "SCR-Editor_selected_compact.dc.html",
+    "SCR-Editor_default_compact.dc.html",
+    "SCR-Editor_empty_wide.dc.html",
+    "SCR-Editor_empty_narrow.dc.html",
+    "SCR-Editor_default_wide.dc.html",
+    "SCR-Editor_default_narrow.dc.html",
+    "SCR-Editor_editing-text_wide.dc.html",
+    "SCR-Editor_editing-text_narrow.dc.html",
+    "SCR-Editor_playing_wide.dc.html",
+    "SCR-Editor_playing_narrow.dc.html",
+    "SCR-Editor_adding_wide.dc.html",
+    "SCR-Editor_adding_narrow.dc.html",
+    "SCR-Editor_exporting_wide.dc.html",
+    "SCR-Editor_exporting_narrow.dc.html",
+    "SCR-Editor_dragging-file_wide.dc.html",
+    "SCR-Editor_dragging-file_narrow.dc.html",
+    "SCR-Unsupported_wide.dc.html",
+    "SCR-Unsupported_narrow.dc.html",
+    "SCR-Editor_selected_narrow_vi.dc.html",
+    "SCR-Editor_exporting-setup_wide.dc.html",
+    "SCR-Editor_exporting-setup_narrow.dc.html",
+    "SCR-Editor_result_wide.dc.html",
+    "SCR-Editor_result_narrow.dc.html",
+    "SCR-Editor_export-error_wide.dc.html",
+    "SCR-Editor_export-error_narrow.dc.html",
+    "CMP-Toolbar.dc.html",
+    "CMP-Preview.dc.html",
+    "CMP-Timeline.dc.html",
+    "CMP-MediaPanel.dc.html",
+    "CMP-Inspector.dc.html",
+    "CMP-LookGallery.dc.html",
+    "CMP-TextEditor.dc.html",
+    "CMP-MusicPicker.dc.html",
+    "CMP-ExportPanel.dc.html",
+    "CMP-ExportProgress.dc.html",
+    "CMP-EmptyState.dc.html",
+    "CMP-DropOverlay.dc.html",
+    "CMP-Notice.dc.html",
+    "CMP-ConfirmDialog.dc.html",
+    "CMP-ShortcutHelp.dc.html",
+    "CMP-StatusBar.dc.html",
+    "FLOW-01_step1.dc.html",
+    "FLOW-01_step2.dc.html",
+    "FLOW-01_step3.dc.html",
+    "FLOW-01_step4.dc.html",
+    "FLOW-01_step5.dc.html",
+    "FLOW-01_step6.dc.html",
+    "FLOW-01_step7.dc.html",
+    "FLOW-01_step8.dc.html",
+    "FLOW-01_step9.dc.html"
+  ],
+  "notes": {
+    "d2": {
+      "x": 0,
+      "y": -260,
+      "text": "Primary layouts",
+      "kind": "title1",
+      "maxW": 3980
+    },
+    "d3": {
+      "x": 0,
+      "y": 1740,
+      "text": "SCR-Editor states (wide above, narrow below) \u00b7 unsupported \u00b7 vi-VN \u00b7 limits",
+      "kind": "title1",
+      "maxW": 15900
+    },
+    "d1": {
+      "x": 0,
+      "y": 4740,
+      "text": "Components",
+      "kind": "title1",
+      "maxW": 10400
+    },
+    "fl": {
+      "x": 0,
+      "y": 7640,
+      "text": "FLOW-01 \u00b7 Make a short vertical clip",
+      "kind": "title1",
+      "maxW": 11800
+    }
+  },
+  "designSystems": []
+}

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CMP-TextEditor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;family=Anton&amp;family=Playfair+Display:wght@700&amp;family=Nunito:wght@800&amp;display=swap">
+<style>
+body{margin:0;background:#0B0812;font-family:'Manrope',system-ui,sans-serif}
+.tk-dark{--bg:#0F0B16;--surface:#18121F;--surface2:#221A2F;--line:#2D2440;--lineStrong:#6F6290;--fg:#EFEAF8;--muted:#9C92B0;--accent:#FFB870;--accentHover:#FFC995;--onAccent:#1A1005;--accent2:#A47BFF;--accent2Fg:#C3A8FF;--focus:#A47BFF;--workArea:#0B0812;--playhead:#FFB870;--trackClip:#3B2A55;--trackClipAlt:#47306A;--trackText:#5A3E1C;--trackAudio:#1F3B33;--waveform:#5BD6A0;--trackLabel:#EFEAF8;--handle:#EFEAF8;--previewOutline:#A47BFF;--previewHandle:#FFFFFF;--success:#5BD6A0;--danger:#FF8595;--dangerBg:#3A1622;--warnBg:#33240F;--selection:#2A1D47;--selectionLine:#4A3580;--scrim:#07050BB3;--chrome:#140F1EB8}
+.tk-light{--bg:#FBFAFE;--surface:#FFFFFF;--surface2:#F1EDFA;--line:#E2DCF0;--lineStrong:#8C82A2;--fg:#16111F;--muted:#5E566F;--accent:#A65305;--accentHover:#8F4705;--onAccent:#FFFFFF;--accent2:#6837E0;--accent2Fg:#5429C0;--focus:#6837E0;--workArea:#ECE8F4;--playhead:#A65305;--trackClip:#DCCFF7;--trackClipAlt:#CDBBF8;--trackText:#FBDDB8;--trackAudio:#CDEFE0;--waveform:#13744C;--trackLabel:#16111F;--handle:#16111F;--previewOutline:#6837E0;--previewHandle:#FFFFFF;--success:#13744C;--danger:#C0243B;--dangerBg:#FCE8EC;--warnBg:#FDEBD8;--selection:#F0EAFE;--selectionLine:#CDBBF8;--scrim:#16111F66;--chrome:#FFFFFFD1}
+.tk-dark,.tk-light{--txt-white:#FFFFFF;--txt-black:#000000;--txt-red:#E5383B;--txt-orange:#F28C28;--txt-yellow:#FFD60A;--txt-green:#2DB84D;--txt-cyan:#1FC8E0;--txt-blue:#2F6FEB;--txt-purple:#8E44EC;--txt-pink:#F05BA8;color:var(--fg)}
+sc-for,sc-if{display:contents}
+.board{width:1240px;height:1200px;box-sizing:border-box;padding:20px;display:flex;flex-direction:column;gap:20px;background:#0B0812;overflow:hidden}
+.half{height:570px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.hrow{display:flex;gap:12px;align-items:flex-start}
+.cap{display:block;height:18px;line-height:18px;font:600 12px 'JetBrains Mono',monospace;color:#9C92B0;letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cell{display:flex;flex-direction:column;gap:6px;min-width:0;flex:none}
+.cell>.cap{width:0;min-width:100%}
+.btn{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--fg);font:500 13px 'Manrope',sans-serif;white-space:nowrap;flex:none;box-sizing:border-box;text-decoration:none}
+.btn.icon{width:32px;padding:0;justify-content:center;color:var(--muted)}
+.btn.fill{background:var(--accent);color:var(--onAccent);font-weight:700;padding:0 14px}
+.btn.fill[disabled]{background:var(--surface2);color:var(--muted);border-color:var(--line)}
+.btn.fill.pressed{background:var(--surface2);color:var(--fg);border-color:var(--accent);position:relative;overflow:hidden}
+.btn.out{border-color:var(--accent);color:var(--accent);font-weight:700}
+.btn.ghost{border-color:var(--line)}
+.btn.hov{background:var(--surface2)}
+.btn.on{color:var(--accent)}
+.btn.tog.on{background:var(--selection);border-color:var(--accent);color:var(--fg)}
+.btn[disabled]{color:var(--muted)}
+.btn.icon[disabled]{opacity:.5}
+.btn.sm{height:24px;padding:0 6px;font-size:12px;gap:4px}
+.btn.sm.icon{width:24px;padding:0}
+.btn.t44{height:44px;min-width:44px;border-radius:10px;font-size:14px;font-weight:600}
+.btn.t44.icon{width:44px}
+.btn.wide{width:100%;justify-content:center}
+.prog{position:absolute;left:0;bottom:0;height:2px;background:var(--accent)}
+.fr{outline:2px solid var(--focus);outline-offset:2px}
+.ic{width:16px;height:16px;flex:none}
+.ic20{width:20px;height:20px;flex:none}
+.div{width:1px;height:20px;background:var(--line);margin:0 4px;flex:none}
+.grow{flex:1;min-width:0}
+.mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+.mut{color:var(--muted)}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.panel{background:var(--surface);border:1px solid var(--lineStrong);border-radius:10px;box-sizing:border-box;color:var(--fg)}
+/* inspector */
+.insp{width:288px;background:var(--surface);border:1px solid var(--line);box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;font-size:13px;color:var(--fg);position:relative}
+.itabs{height:32px;display:flex;border-bottom:1px solid var(--line);padding:0 4px;flex:none}
+.itab{flex:1;min-width:0;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font:600 12px 'Manrope',sans-serif;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.itab.on{color:var(--fg);border-bottom-color:var(--accent)}
+.ihead{height:40px;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid var(--line);font:600 14px 'Manrope',sans-serif;flex:none;margin:0}
+.ibody{flex:1;min-height:0;overflow:hidden;position:relative;padding:12px;display:flex;flex-direction:column;gap:12px}
+.cutfade{position:absolute;left:0;right:0;bottom:0;height:16px;background:linear-gradient(180deg,transparent,var(--surface));pointer-events:none}
+.sbar{position:absolute;right:2px;width:4px;border-radius:999px;background:var(--lineStrong)}
+.ifoot{flex:none;border-top:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--surface)}
+.sec{font:600 12px 'Manrope',sans-serif;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0;height:24px;flex:none}
+.lnk{font:600 12px 'Manrope',sans-serif;letter-spacing:0;text-transform:none;color:var(--accent);background:transparent;border:0;padding:0 4px;height:24px;display:inline-flex;align-items:center;gap:4px;border-radius:7px}
+.lnk[disabled]{color:var(--muted)}
+.grp{display:flex;flex-direction:column;gap:4px}
+.row{display:grid;grid-template-columns:80px minmax(0,1fr) 48px 24px;align-items:center;gap:6px;height:28px}
+.row.t{height:44px;grid-template-columns:96px minmax(0,1fr) 56px 44px}
+.row .lb{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row.dim .lb,.row.dim .num{color:var(--muted)}
+.sl{position:relative;height:4px;border-radius:999px;background:var(--line)}
+.sl b{position:absolute;top:0;bottom:0;border-radius:999px;background:var(--accent)}
+.row.dim .sl b{background:var(--lineStrong)}
+.zero{position:absolute;left:50%;top:50%;width:1px;height:12px;background:var(--lineStrong);transform:translate(-50%,-50%)}
+.knob{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--surface);border:1px solid var(--lineStrong);box-sizing:border-box;transform:translate(-50%,-50%)}
+.knob.chg{border:2px solid var(--accent)}
+.row.t .knob{width:20px;height:20px}
+.row.t .knob::before{content:"";position:absolute;inset:-12px;border-radius:50%}
+.num{width:48px;height:24px;box-sizing:border-box;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--muted);font:500 12px 'JetBrains Mono',monospace;text-align:right;padding:0 6px}
+.num.chg{color:var(--fg)}
+.row.t .num{width:56px;height:44px;font-size:16px}
+.rst{visibility:visible}
+.rst.off{visibility:hidden}
+.opts{display:grid;gap:4px}
+.opt{height:32px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--fg);font:600 12px 'Manrope',sans-serif;display:flex;align-items:center;justify-content:center;gap:4px;padding:0 4px;white-space:nowrap;min-width:0;overflow:hidden;box-sizing:border-box}
+.opt.on{background:var(--selection);border-color:var(--accent)}
+.opt[disabled]{color:var(--muted)}
+.opt.t44{height:44px;font-size:13px}
+.fld{display:flex;flex-direction:column;gap:6px}
+.flab{font:600 12px 'Manrope',sans-serif;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;align-items:center;height:16px}
+.sws{display:grid;grid-template-columns:repeat(6,32px);gap:4px;align-items:center}
+.swb{width:32px;height:32px;display:grid;place-items:center;border:0;background:transparent;padding:0;border-radius:50%;color:var(--fg)}
+.swb.t44{width:44px;height:44px}
+.dot{display:block;width:24px;height:24px;border-radius:50%;border:1px solid var(--lineStrong);box-sizing:border-box}
+.swb.on .dot{outline:2px solid var(--accent);outline-offset:2px}
+.tgl{width:32px;height:20px;border-radius:999px;background:var(--surface2);border:1px solid var(--lineStrong);position:relative;box-sizing:border-box;flex:none;padding:0}
+.tgl::after{content:"";position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:var(--muted)}
+.tgl.on{background:var(--accent);border-color:var(--accent)}
+.tgl.on::after{left:15px;background:var(--onAccent)}
+.trow{display:flex;align-items:center;gap:8px;height:28px;font-size:13px}
+/* faces for text layers */
+.f-sans{font-family:'Manrope',sans-serif;font-weight:700}
+.f-display{font-family:'Anton',sans-serif;font-weight:400}
+.f-serif{font-family:'Playfair Display',serif;font-weight:700}
+.f-rounded{font-family:'Nunito',sans-serif;font-weight:800}
+.face{height:44px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--fg);display:flex;align-items:center;gap:8px;padding:0 8px;box-sizing:border-box;min-width:0}
+.face.on{background:var(--selection);border-color:var(--accent)}
+.face .aa{font-size:17px;line-height:1;flex:none;width:24px;text-align:center}
+.face .fn{font:600 12px 'Manrope',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* sample media */
+.sunset{background:linear-gradient(180deg,#F6A15E 0%,#E5735F 38%,#7B4A7C 64%,#2B3A63 100%)}
+.city{background:linear-gradient(180deg,#9DB4CF 0%,#7D8FA6 45%,#5C6B80 60%,#2A2F3A 100%)}
+.picnic{background:linear-gradient(180deg,#BFE3A2 0%,#8FCB7E 50%,#6FAF6A 70%,#3E6B3E 100%)}
+.water{position:absolute;left:0;right:0;bottom:0;height:34%;background:linear-gradient(180deg,#22304D,#0F1726)}
+.sun{position:absolute;left:50%;top:44%;width:26%;aspect-ratio:1;border-radius:50%;background:#FFE3A3;transform:translate(-50%,-50%)}
+/* sheets */
+.sheet{background:var(--surface);border:1px solid var(--lineStrong);border-bottom:0;border-radius:10px 10px 0 0;box-sizing:border-box;overflow:hidden;position:relative;display:flex;flex-direction:column;color:var(--fg);font-size:14px}
+.grab{width:32px;height:4px;border-radius:999px;background:var(--lineStrong);margin:6px auto 0;flex:none}
+.shead{height:44px;display:flex;align-items:center;gap:8px;padding:0 4px 0 16px;font:600 15px 'Manrope',sans-serif;flex:none;margin:0}
+/* notices */
+.note{display:flex;gap:8px;align-items:flex-start;padding:8px 4px 8px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--lineStrong);font-size:12px;line-height:1.55;color:var(--fg);box-sizing:border-box}
+.note .ic{margin-top:2px}
+
+.lcol{width:796px;display:flex;flex-direction:column;gap:12px}
+.stg{width:190px;background:var(--workArea);border:1px solid var(--line);box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;color:var(--fg)}
+.stg.ed{height:276px;padding-top:8px;gap:8px}
+.stg.sty{height:206px;justify-content:center}
+.tbar{height:32px;display:flex;align-items:center;gap:8px;padding:0 0 0 10px;border-radius:10px;background:var(--surface);border:1px solid var(--lineStrong);box-sizing:border-box;flex:none}
+.tbar .btn{height:30px;border-radius:10px}
+.cnt{font-size:12px;color:var(--muted);white-space:nowrap}
+.cnt.lim{color:var(--danger);font-weight:600}
+.frame{position:relative;overflow:hidden;flex:none}
+.tfield{position:absolute;left:5%;right:5%;text-align:center;font:700 15px 'Manrope',sans-serif;line-height:1.15;color:var(--txt-white);outline:1px dashed var(--previewOutline);outline-offset:2px}
+.tfield.lt{font-size:12px}
+.st-outline span{-webkit-text-stroke:1px var(--txt-black);paint-order:stroke fill}
+.st-shadow span{text-shadow:0 2px 4px var(--txt-black)}
+.st-box span{position:relative;padding:2px 4px;border-radius:6px;-webkit-box-decoration-break:clone}
+.st-box span::before{content:"";position:absolute;inset:0;background:var(--txt-black);opacity:.7;border-radius:6px;z-index:-1}
+.st-box{isolation:isolate}
+.sty .tfield{outline:0;font-size:13px}
+.nstage .tfield{font-size:13px}
+.caret{display:inline-block;width:2px;height:16px;background:var(--txt-white);vertical-align:-2px;margin-left:2px}
+mark{background:var(--previewOutline);color:var(--txt-white)}
+.wg{position:absolute;top:0;bottom:0;border-left:1px dashed var(--previewOutline)}
+.hint{margin:0;font-size:11px;color:var(--muted);white-space:nowrap}
+.lnote{position:absolute;left:8px;right:8px;bottom:8px;display:flex;gap:6px;align-items:flex-start;padding:6px 8px;border-radius:10px;background:var(--dangerBg);color:var(--fg);font-size:12px;line-height:1.55}
+.lnote .ic{color:var(--danger);margin-top:2px}
+.cap{height:32px;line-height:16px;white-space:normal}
+.nph{width:390px;height:532px;border:1px solid var(--line);box-sizing:border-box;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;color:var(--fg)}
+.ntb2{height:52px;display:flex;align-items:center;gap:2px;padding:4px;border-bottom:1px solid var(--line);background:var(--surface);box-sizing:border-box;flex:none}
+.nstage{height:160px;background:var(--workArea);display:grid;place-items:center;flex:none}
+.fstrip{padding:6px 8px;border-top:1px solid var(--line);background:var(--surface);flex:none}
+.fbar{height:52px;display:flex;align-items:center;gap:4px;padding:4px 12px 4px 4px;background:var(--surface);border-top:1px solid var(--line);box-sizing:border-box;flex:none}
+.fbar .aa{font-size:17px}
+.fbar .dot{width:24px;height:24px}
+.kb{flex:1;background:var(--surface2);display:grid;grid-template-columns:repeat(10,1fr);gap:6px;padding:12px 6px;align-content:start}
+.kb i{height:40px;border-radius:5px;background:var(--surface)}
+</style>
+</helmet>
+<div class="board" style="width: 1240px; height: 1200px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="{{t.cls}} half">
+<div class="hrow" style="gap:14px"><div class="lcol"><div class="hrow"><div class="cell"><span class="cap">CMP-TextEditor / caret / {{t.label}}</span><div class="stg ed"><div class="tbar"><span class="cnt mono" data-copy="COPY-text.count" aria-live="polite">11 / 500</span><button class="btn out" data-copy="COPY-text.done"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Done</button></div><div class="frame sunset" style="width:115px;height:204px"><span class="sun"></span><span class="water"></span><div class="tfield st-outline" role="textbox" aria-multiline="true" aria-label="Text" data-copy="COPY-text.field" lang="vi" style="top:150px"><span data-sample="">Đà Lạt 2026<i class="caret"></i></span></div></div><p class="hint" data-copy="COPY-text.finish_hint">Esc or Ctrl+Enter to finish</p></div></div><div class="cell"><span class="cap">CMP-TextEditor / selection / {{t.label}}</span><div class="stg ed"><div class="tbar"><span class="cnt mono" data-copy="COPY-text.count" aria-live="polite">11 / 500</span><button class="btn out" data-copy="COPY-text.done"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Done</button></div><div class="frame sunset" style="width:115px;height:204px"><span class="sun"></span><span class="water"></span><div class="tfield st-outline" role="textbox" aria-multiline="true" aria-label="Text" data-copy="COPY-text.field" lang="vi" style="top:150px"><span data-sample=""><mark>Đà Lạt</mark> 2026</span></div></div></div></div><div class="cell"><span class="cap">CMP-TextEditor / vi-VN wrap / {{t.label}}</span><div class="stg ed"><div class="tbar"><span class="cnt mono" data-copy="COPY-text.count" aria-live="polite">27 / 500</span><button class="btn out" data-copy="COPY-text.done"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Done</button></div><div class="frame sunset" style="width:115px;height:204px"><span class="sun"></span><span class="water"></span><span class="wg" style="left:5%"></span><span class="wg" style="right:5%"></span><div class="tfield st-outline" role="textbox" aria-multiline="true" aria-label="Text" data-copy="COPY-text.field" lang="vi" style="top:110px"><span data-sample="">Đà Lạt 2026 — mùa hoa dã quỳ<i class="caret"></i></span></div></div></div></div><div class="cell"><span class="cap">CMP-TextEditor / at the limit / {{t.label}}</span><div class="stg ed"><div class="tbar"><span class="cnt mono lim" data-copy="COPY-text.count" aria-live="polite">500 / 500</span><button class="btn out" data-copy="COPY-text.done"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Done</button></div><div class="frame sunset" style="width:115px;height:204px"><span class="sun"></span><span class="water"></span><div class="tfield st-outline lt" role="textbox" aria-multiline="true" aria-label="Text" data-copy="COPY-text.field" lang="vi" style="top:34px"><span data-sample="">Đà Lạt 2026 — mùa hoa dã quỳ, sương sớm và đồi thông. Đà Lạt 2026 — mùa hoa dã quỳ, sương sớm và đồi thông. Đà Lạt 2026 — mùa hoa dã quỳ, sương sớm và đồi thông. Đà Lạt 2026 — mùa hoa dã quỳ, sương sớm và đồi thông.<i class="caret"></i></span></div></div><div class="lnote" role="alert" data-copy="COPY-text.char_limit"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg>Text is at its 500-character limit.</div></div></div></div><div class="hrow"><div class="cell"><span class="cap">CMP-TextEditor / style Plain / {{t.label}}</span><div class="stg sty"><div class="frame sunset" style="width:105px;height:186px"><span class="sun"></span><span class="water"></span><div class="tfield st-plain" role="textbox" aria-multiline="true" aria-label="Text" data-copy="COPY-text.field" lang="vi" style="top:130px"><span data-sample="">Đà Lạt 2026</span></div></div></div></div><div class="cell"><span class="cap">CMP-TextEditor / style Outline / {{t.label}}</span><div class="stg sty"><div class="frame sunset" style="width:105px;height:186px"><span class="sun"></span><span class="water"></span><div class="tfield st-outline" role="textbox" aria-multiline="true" aria-label="Text" data-copy="COPY-text.field" lang="vi" style="top:130px"><span data-sample="">Đà Lạt 2026</span></div></div></div></div><div class="cell"><span class="cap">CMP-TextEditor / style Shadow / {{t.label}}</span><div class="stg sty"><div class="frame sunset" style="width:105px;height:186px"><span class="sun"></span><span class="water"></span><div class="tfield st-shadow" role="textbox" aria-multiline="true" aria-label="Text" data-copy="COPY-text.field" lang="vi" style="top:130px"><span data-sample="">Đà Lạt 2026</span></div></div></div></div><div class="cell"><span class="cap">CMP-TextEditor / style Box / {{t.label}}</span><div class="stg sty"><div class="frame sunset" style="width:105px;height:186px"><span class="sun"></span><span class="water"></span><div class="tfield st-box" role="textbox" aria-multiline="true" aria-label="Text" data-copy="COPY-text.field" lang="vi" style="top:130px"><span data-sample="">Đà Lạt 2026</span></div></div></div></div></div></div><div class="cell"><span class="cap">CMP-TextEditor / narrow, keyboard open (Font open) / {{t.label}}</span><div class="nph"><div class="ntb2"><button class="btn t44 icon" aria-label="Undo" data-copy="COPY-action.undo"><svg class="ic20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button class="btn t44 icon" aria-label="Redo" data-copy="COPY-action.redo" disabled><svg class="ic20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button><span class="grow"></span><button class="btn t44 out" data-copy="COPY-action.done"><svg class="ic20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Done</button></div><div class="nstage"><div class="frame sunset" style="width:83px;height:148px"><span class="sun"></span><span class="water"></span><div class="tfield st-outline" role="textbox" aria-multiline="true" aria-label="Text" data-copy="COPY-text.field" lang="vi" style="top:106px"><span data-sample="">Đà Lạt 2026<i class="caret"></i></span></div></div></div><div class="fstrip"><div class="opts" role="radiogroup" aria-label="Font" data-copy="COPY-text.typeface" style="grid-template-columns:repeat(2,minmax(0,1fr))"><button class="face on" role="radio" aria-checked="true"><span class="aa f-sans" aria-hidden="true" data-sample="">Aa</span><span class="fn f-sans" data-copy="COPY-text.sans">Sans</span></button><button class="face" role="radio" aria-checked="false"><span class="aa f-display" aria-hidden="true" data-sample="">Aa</span><span class="fn f-display" data-copy="COPY-text.display">Display</span></button><button class="face" role="radio" aria-checked="false"><span class="aa f-serif" aria-hidden="true" data-sample="">Aa</span><span class="fn f-serif" data-copy="COPY-text.serif">Serif</span></button><button class="face" role="radio" aria-checked="false"><span class="aa f-rounded" aria-hidden="true" data-sample="">Aa</span><span class="fn f-rounded" data-copy="COPY-text.rounded">Rounded</span></button></div></div><div class="fbar" role="toolbar" aria-label="Text" data-copy="COPY-inspector.text"><button class="btn t44 tog on" aria-pressed="true" aria-label="Font" data-copy="COPY-text.typeface"><span class="f-sans aa" aria-hidden="true" data-sample="">Aa</span></button><button class="btn t44 icon" aria-label="Colour" data-copy="COPY-text.colour"><i class="dot" style="background:var(--txt-white)"></i></button><button class="btn t44" data-copy="COPY-text.style"><svg class="ic20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>Style</button><span class="grow"></span><span class="cnt mono" data-copy="COPY-text.count">11 / 500</span></div><div class="kb" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div></div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themes: [ { cls: 'tk-dark', label: 'dark' }, { cls: 'tk-light', label: 'light' } ] };
+  }
+}
+</script>
+</body>
+</html>

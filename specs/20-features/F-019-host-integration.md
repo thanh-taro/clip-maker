@@ -28,7 +28,7 @@ The tool should feel like a native part of the portal when embedded, and work fu
 - **R4** Only allowed host origins can embed the tool. Settings messages from anywhere else are ignored.
 - **R5** The only message the tool sends is the ready signal, without content (INV-08).
 - **R6** Every M-1 feature works standalone and embedded. When embedded, the tool relies on the host frame's grants (RULE-17). Without the download or leave-page grants the browser blocks them silently and the tool can't detect it, which is why the host contract requires them. Until focus moves into the tool (the host's focus after the ready signal, a click or Tab), keys go to the host page.
-- **R7** When embedded, export works the same as standalone, including any scratch space it needs; if the browser gives the embedded tool too little storage, the export is refused before it starts with COPY-error.no_space.
+- **R7** When embedded, export works the same as standalone, including any scratch space it needs; if the browser gives the embedded tool too little storage or memory for it, the export is refused before it starts with COPY-error.no_space.
 
 ## Acceptance criteria
 - **AC1** Given the host opens the tool with theme dark, when it first displays, then it is dark with no flash of the light theme. (R1)

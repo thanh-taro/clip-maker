@@ -1,7 +1,7 @@
 # Looks
 
 The bundled looks (RULE-09) are all made for this tool. Each look's colour definition is made in
-phase 2 (design) and checked against these intents. Names are in both languages; no look is named
+phase 2 (design) and checked against these intents. Names are in both languages (copy IDs `look.<id>` in copy.md, with `-` written as `_`); no look is named
 after a brand or another product's filter.
 
 | Group | ID | en-US | vi-VN | Intent |

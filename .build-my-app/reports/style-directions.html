@@ -1,0 +1,287 @@
+<title>Clip Maker Style Directions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Unbounded:wght@500;600&display=swap">
+<style>
+/* Layout: one page, three stacked directions; each = palette + type + desktop editor (dark) + phone editor (light). Dark-first page. */
+:root{
+  --page:#0F0B16; --pageFg:#EFEAF8; --pageMuted:#9C92B0; --pageLine:#2D2440; --pageCard:#18121F;
+  --f-ui:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  --f-display:'Unbounded','Manrope',system-ui,sans-serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--page:#FBFAFE;--pageFg:#16111F;--pageMuted:#5E566F;--pageLine:#E2DCF0;--pageCard:#FFFFFF;color-scheme:light}}
+:root[data-theme="light"]{--page:#FBFAFE;--pageFg:#16111F;--pageMuted:#5E566F;--pageLine:#E2DCF0;--pageCard:#FFFFFF;color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--pageFg);font-family:var(--f-ui);font-size:15px;line-height:1.55;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:48px}
+header h1{font-family:var(--f-display);font-weight:600;font-size:clamp(24px,4vw,34px);line-height:1.15;margin:0 0 8px;text-wrap:balance}
+header p{margin:0;color:var(--pageMuted);max-width:68ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{font-size:12px;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--pageLine);border-radius:999px;padding:3px 10px;color:var(--pageMuted)}
+
+/* ---- direction palettes (each defines editor dark + light roles) ---- */
+.dir{display:grid;gap:18px;border-top:1px solid var(--pageLine);padding-top:28px}
+.dir-a{--d-bg:#0F0B16;--d-surface:#18121F;--d-surface2:#221A2F;--d-line:#2D2440;--d-fg:#EFEAF8;--d-muted:#9C92B0;--d-work:#0B0812;
+  --d-accent:#FFB870;--d-onAccent:#1A1005;--d-focus:#A47BFF;--d-sel:#2A1D47;--d-play:#FFB870;--d-clipA:#3B2A55;--d-clipB:#47306A;--d-text:#5A3E1C;--d-audio:#1F3B33;--d-wave:#5BD6A0;
+  --l-bg:#FBFAFE;--l-surface:#FFFFFF;--l-surface2:#F1EDFA;--l-line:#E2DCF0;--l-fg:#16111F;--l-muted:#5E566F;--l-work:#ECE8F4;
+  --l-accent:#B85E08;--l-onAccent:#FFFFFF;--l-focus:#6837E0;--l-sel:#F0EAFE;--l-play:#B85E08;--l-clipA:#DCCFF7;--l-clipB:#CDBBF8;--l-text:#FBDDB8;--l-audio:#CDEFE0;--l-wave:#13744C}
+.dir-b{--d-bg:#120E0A;--d-surface:#1B1510;--d-surface2:#251D16;--d-line:#33281E;--d-fg:#F5EEE6;--d-muted:#A99A88;--d-work:#0C0907;
+  --d-accent:#FFB870;--d-onAccent:#1A1005;--d-focus:#FFB870;--d-sel:#3A2913;--d-play:#FFD08F;--d-clipA:#3A2C1F;--d-clipB:#4A3725;--d-text:#5C3B6E;--d-audio:#203A30;--d-wave:#7FD9B1;
+  --l-bg:#FDFAF6;--l-surface:#FFFFFF;--l-surface2:#F6EFE6;--l-line:#EADFD1;--l-fg:#1B140D;--l-muted:#6A5C4C;--l-work:#F1EAE0;
+  --l-accent:#A85405;--l-onAccent:#FFFFFF;--l-focus:#A85405;--l-sel:#FCEBD5;--l-play:#A85405;--l-clipA:#EBDCC8;--l-clipB:#E2CDB0;--l-text:#E6D3F2;--l-audio:#D3EEE2;--l-wave:#1E7A55}
+.dir-c{--d-bg:#0F0B16;--d-surface:#18121F;--d-surface2:#221A2F;--d-line:#2D2440;--d-fg:#EFEAF8;--d-muted:#9C92B0;--d-work:#0B0812;
+  --d-accent:#A47BFF;--d-onAccent:#0F0B16;--d-focus:#A47BFF;--d-sel:#2A1D47;--d-play:#FFB870;--d-clipA:#33264C;--d-clipB:#3C2D5A;--d-text:#5A3E1C;--d-audio:#1F3B33;--d-wave:#5BD6A0;
+  --l-bg:#FBFAFE;--l-surface:#FFFFFF;--l-surface2:#F1EDFA;--l-line:#E2DCF0;--l-fg:#16111F;--l-muted:#5E566F;--l-work:#ECE8F4;
+  --l-accent:#6837E0;--l-onAccent:#FFFFFF;--l-focus:#6837E0;--l-sel:#F0EAFE;--l-play:#B85E08;--l-clipA:#DCCFF7;--l-clipB:#CDBBF8;--l-text:#FBDDB8;--l-audio:#CDEFE0;--l-wave:#13744C}
+/* map to active theme inside a mock */
+.dark{--bg:var(--d-bg);--surface:var(--d-surface);--surface2:var(--d-surface2);--line:var(--d-line);--fg:var(--d-fg);--muted:var(--d-muted);--work:var(--d-work);--accent:var(--d-accent);--onAccent:var(--d-onAccent);--focus:var(--d-focus);--sel:var(--d-sel);--play:var(--d-play);--clipA:var(--d-clipA);--clipB:var(--d-clipB);--text:var(--d-text);--audio:var(--d-audio);--wave:var(--d-wave)}
+.light{--bg:var(--l-bg);--surface:var(--l-surface);--surface2:var(--l-surface2);--line:var(--l-line);--fg:var(--l-fg);--muted:var(--l-muted);--work:var(--l-work);--accent:var(--l-accent);--onAccent:var(--l-onAccent);--focus:var(--l-focus);--sel:var(--l-sel);--play:var(--l-play);--clipA:var(--l-clipA);--clipB:var(--l-clipB);--text:var(--l-text);--audio:var(--l-audio);--wave:var(--l-wave)}
+
+.dirhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.dirhead h2{font-family:var(--f-display);font-weight:500;font-size:22px;margin:0}
+.dirhead .tag{font-family:var(--f-mono);font-size:12px;color:var(--pageMuted)}
+.dir p.lede{margin:0;max-width:72ch;color:var(--pageMuted)}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.sw{display:grid;gap:4px;font-size:11px;color:var(--pageMuted);font-family:var(--f-mono);width:84px}
+.sw i{display:block;height:38px;border-radius:7px;border:1px solid var(--pageLine)}
+
+.mocks{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:18px;align-items:start}
+@media (max-width:900px){.mocks{grid-template-columns:minmax(0,1fr)}}
+.cap{font-size:12px;color:var(--pageMuted);margin:6px 2px 0}
+
+/* ---- desktop editor mock ---- */
+.ed{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+.tb{display:flex;align-items:center;gap:6px;height:40px;padding:0 10px;border-bottom:1px solid var(--line);background:var(--surface)}
+.tb .name{font-weight:700;margin-right:6px}
+.btn{height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:7px;color:var(--fg);background:transparent;border:0;font:inherit;font-weight:500}
+.btn.q{color:var(--muted)}
+.btn.fill{background:var(--accent);color:var(--onAccent);font-weight:700}
+.sp{flex:1}
+.ic{width:16px;height:16px;flex:none}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 220px}
+@media (max-width:640px){.body{grid-template-columns:minmax(0,1fr)}.insp{display:none}}
+.stage{background:var(--work);display:grid;place-items:center;padding:16px;gap:8px}
+.frame{position:relative;height:210px;aspect-ratio:9/16;max-width:100%;border-radius:2px;overflow:hidden;
+  background:linear-gradient(180deg,#F6A15E 0%,#E5735F 38%,#7B4A7C 64%,#2B3A63 100%)}
+.frame::after{content:"";position:absolute;inset:auto 0 0 0;height:34%;background:linear-gradient(180deg,#1E2B45,#0F1726)}
+.frame .sun{position:absolute;left:50%;top:44%;width:46px;height:46px;margin-left:-23px;border-radius:50%;background:#FFE3A3;opacity:.9}
+.frame .t{position:absolute;left:0;right:0;top:72%;text-align:center;font-weight:800;font-size:17px;color:#fff;
+  text-shadow:0 0 2px #000,0 0 2px #000;z-index:1;font-family:var(--f-ui)}
+.frame .sel{position:absolute;inset:66% 12% 18% 12%;border:1.5px solid var(--focus);z-index:2}
+.pc{display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--f-mono);font-size:12px}
+.pc .play{width:30px;height:30px;border-radius:50%;background:var(--surface2);display:grid;place-items:center;color:var(--fg)}
+.insp{border-left:1px solid var(--line);background:var(--surface);padding:12px;display:grid;gap:12px;align-content:start}
+.insp h4{margin:0;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.row{display:grid;grid-template-columns:72px 1fr 30px;align-items:center;gap:8px;font-size:12px}
+.row .v{font-family:var(--f-mono);color:var(--muted);text-align:right}
+.sl{height:4px;border-radius:2px;background:var(--surface2);position:relative}
+.sl b{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--accent)}
+.sl b::after{content:"";position:absolute;right:-6px;top:-4px;width:12px;height:12px;border-radius:50%;background:var(--fg)}
+.looks{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.lk{display:grid;gap:3px;font-size:10px;color:var(--muted);text-align:center}
+.lk i{display:block;aspect-ratio:1;border-radius:5px;background:linear-gradient(180deg,#F6A15E,#7B4A7C 60%,#1E2B45)}
+.lk.on i{outline:2px solid var(--accent);outline-offset:1px}
+.lk:nth-child(2) i{filter:sepia(.45) saturate(1.3)}
+.lk:nth-child(3) i{filter:hue-rotate(-12deg) contrast(1.2) saturate(.8)}
+.lk:nth-child(4) i{filter:grayscale(1) contrast(1.2)}
+.tl{border-top:1px solid var(--line);background:var(--surface);padding:8px 10px 12px;position:relative}
+.ruler{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10px;color:var(--muted);padding:0 2px 6px}
+.track{display:flex;gap:2px;height:38px;margin-bottom:5px}
+.clip{border-radius:5px;background:var(--clipA);border:1px solid var(--line);position:relative;overflow:hidden}
+.clip:nth-child(even){background:var(--clipB)}
+.clip.on{border:2px solid var(--accent)}
+.clip small{position:absolute;left:6px;bottom:3px;font-family:var(--f-mono);font-size:10px;color:var(--fg);opacity:.8}
+.xf{width:12px;align-self:center;height:16px;border-radius:4px;background:var(--surface2);border:1px solid var(--line)}
+.tt{height:20px;display:flex;gap:2px;margin-bottom:5px}
+.tt span{border-radius:4px;background:var(--text);font-size:10px;padding:2px 6px;color:var(--fg);white-space:nowrap;overflow:hidden}
+.au{height:24px;border-radius:5px;background:var(--audio);position:relative;overflow:hidden}
+.au::before{content:"";position:absolute;inset:5px 6px;background:repeating-linear-gradient(90deg,var(--wave) 0 2px,transparent 2px 5px);
+  -webkit-mask:linear-gradient(180deg,transparent 0,#000 30%,#000 70%,transparent);mask:linear-gradient(180deg,transparent 0,#000 30%,#000 70%,transparent);opacity:.8}
+.ph{position:absolute;top:24px;bottom:8px;width:2px;background:var(--play);left:38%}
+.ph::before{content:"";position:absolute;top:-6px;left:-5px;width:12px;height:10px;background:var(--play);clip-path:polygon(0 0,100% 0,50% 100%)}
+.sb{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);background:var(--bg)}
+.dot{width:8px;height:8px;border-radius:50%;background:#5BD6A0}
+
+/* ---- phone mock ---- */
+.ph-wrap{width:100%;max-width:260px}
+.phone{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:22px;overflow:hidden;font-size:12px}
+.phone .tb{height:44px;border-radius:0}
+.phone .stage{padding:12px}
+.phone .frame{height:200px}
+.phone .tl{padding:6px 0 10px;overflow:hidden}
+.phone .track,.phone .tt,.phone .au{margin-left:-40px;width:150%}
+.phone .ph{left:50%;top:6px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);background:var(--surface)}
+.tabs span{display:grid;place-items:center;gap:2px;height:52px;font-size:10px;color:var(--muted)}
+.tabs span.on{color:var(--accent);font-weight:700}
+
+.type{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:baseline;color:var(--pageFg)}
+.type .d{font-family:var(--f-display);font-size:20px}
+.type .u{font-weight:600}
+.type .m{font-family:var(--f-mono);font-size:13px;color:var(--pageMuted)}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 24px;font-size:13.5px;color:var(--pageMuted)}
+.notes b{color:var(--pageFg);font-weight:600}
+footer{color:var(--pageMuted);font-size:13px;border-top:1px solid var(--pageLine);padding-top:18px}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Clip Maker: three ways to wear mango</h1>
+  <p>Each direction keeps the suite's base (Manrope, the same spacing, thin chrome, hairlines and no shadows) and changes how mango, the Media category's colour, carries the tool. Each shows the same M-1 editor state, SCR-Editor / selected: a 9:16 sunset clip with the Warm look and the title "Đà Lạt 2026" selected. It's drawn in dark on desktop and light on a phone, where the playhead stays fixed in the centre (D-013).</p>
+  <div class="chips"><span class="chip">quick</span><span class="chip">calm</span><span class="chip">confident</span><span class="chip">private</span><span class="chip">dark-first</span></div>
+</header>
+
+<!-- ============ A ============ -->
+<section class="dir dir-a" aria-labelledby="ha">
+  <div class="dirhead"><h2 id="ha">A · Mango on night</h2><span class="tag">suite neutrals · mango primary · violet focus</span></div>
+  <p class="lede">The portal's violet-black neutrals stay as they are, and mango becomes the tool's one strong colour: the Export button, the playhead, the selected clip and slider fills. Violet remains only for keyboard focus and selection outlines. The family resemblance is obvious, and the tool still reads as "the media one".</p>
+  <div class="swatches">
+    <div class="sw"><i style="background:#0F0B16"></i>bg</div><div class="sw"><i style="background:#18121F"></i>surface</div><div class="sw"><i style="background:#FFB870"></i>accent</div><div class="sw"><i style="background:#A47BFF"></i>focus</div><div class="sw"><i style="background:#B85E08"></i>accent·light</div><div class="sw"><i style="background:#5BD6A0"></i>audio</div>
+  </div>
+  <div class="mocks">
+    <div>
+      <div class="ed dark" role="img" aria-label="Direction A desktop editor, dark theme">
+        <div class="tb"><span class="name">Clip Maker</span>
+          <span class="btn q"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add media</span>
+          <span class="btn q">Music</span><span class="btn q">Add text</span>
+          <span class="btn q">↶</span><span class="btn q">↷</span><span class="sp"></span>
+          <span class="btn fill">Export</span></div>
+        <div class="body">
+          <div class="stage"><div class="frame"><div class="sun"></div><div class="t">Đà Lạt 2026</div><div class="sel"></div></div>
+            <div class="pc"><span class="play">▶</span>00:04:12 / 00:58:00</div></div>
+          <div class="insp"><h4>Looks</h4>
+            <div class="looks"><span class="lk on"><i></i>Warm</span><span class="lk"><i></i>Retro</span><span class="lk"><i></i>Moody</span><span class="lk"><i></i>Classic</span></div>
+            <h4>Adjust</h4>
+            <div class="row">Brightness<span class="sl"><b style="width:62%"></b></span><span class="v">+24</span></div>
+            <div class="row">Contrast<span class="sl"><b style="width:55%"></b></span><span class="v">+10</span></div>
+            <div class="row">Saturation<span class="sl"><b style="width:46%"></b></span><span class="v">−8</span></div>
+          </div>
+        </div>
+        <div class="tl"><div class="ruler"><span>0:00</span><span>0:15</span><span>0:30</span><span>0:45</span></div>
+          <div class="track"><div class="clip on" style="flex:3"><small>0:18</small></div><span class="xf"></span><div class="clip" style="flex:2"><small>0:12</small></div><div class="clip" style="flex:4"><small>0:28</small></div></div>
+          <div class="tt"><span style="flex:0 0 20%;margin-left:6%">Đà Lạt 2026</span></div>
+          <div class="au"></div><div class="ph"></div></div>
+        <div class="sb"><span class="dot"></span>Your media never leaves this device<span class="sp"></span>9:16 · 30 fps</div>
+      </div>
+      <p class="cap">Desktop · dark · 1200-wide portal area</p>
+    </div>
+    <div class="ph-wrap">
+      <div class="phone light" role="img" aria-label="Direction A phone editor, light theme">
+        <div class="tb"><span class="btn q">✕</span><span class="sp"></span><span class="btn fill">Export</span></div>
+        <div class="stage"><div class="frame"><div class="sun"></div><div class="t">Đà Lạt 2026</div><div class="sel"></div></div></div>
+        <div class="tl"><div class="ruler" style="padding:0 12px 6px"><span>0:02</span><span>0:04</span><span>0:06</span></div>
+          <div class="track"><div class="clip on" style="flex:3"></div><span class="xf"></span><div class="clip" style="flex:3"></div></div>
+          <div class="tt"><span style="flex:0 0 30%;margin-left:30%">Đà Lạt 2026</span></div><div class="au"></div><div class="ph"></div></div>
+        <div class="tabs"><span>Edit</span><span>Audio</span><span>Text</span><span class="on">Looks</span><span>Adjust</span></div>
+      </div>
+      <p class="cap">Phone · light · centre playhead</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ B ============ -->
+<section class="dir dir-b" aria-labelledby="hb">
+  <div class="dirhead"><h2 id="hb">B · Warm booth</h2><span class="tag">warm-shifted neutrals · mango everything</span></div>
+  <p class="lede">The neutrals lean warm, toward a dark wood booth, and mango does every job, focus included. It feels the most like a creative studio and is the kindest frame for skin tones and sunsets. It also differs most from the portal: next to the violet sibling tools it reads as a cousin rather than a sibling.</p>
+  <div class="swatches">
+    <div class="sw"><i style="background:#120E0A"></i>bg</div><div class="sw"><i style="background:#1B1510"></i>surface</div><div class="sw"><i style="background:#FFB870"></i>accent</div><div class="sw"><i style="background:#FFD08F"></i>playhead</div><div class="sw"><i style="background:#A85405"></i>accent·light</div><div class="sw"><i style="background:#7FD9B1"></i>audio</div>
+  </div>
+  <div class="mocks">
+    <div>
+      <div class="ed dark" role="img" aria-label="Direction B desktop editor, dark theme">
+        <div class="tb"><span class="name">Clip Maker</span>
+          <span class="btn q"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add media</span>
+          <span class="btn q">Music</span><span class="btn q">Add text</span><span class="btn q">↶</span><span class="btn q">↷</span><span class="sp"></span><span class="btn fill">Export</span></div>
+        <div class="body">
+          <div class="stage"><div class="frame"><div class="sun"></div><div class="t">Đà Lạt 2026</div><div class="sel"></div></div>
+            <div class="pc"><span class="play">▶</span>00:04:12 / 00:58:00</div></div>
+          <div class="insp"><h4>Looks</h4>
+            <div class="looks"><span class="lk on"><i></i>Warm</span><span class="lk"><i></i>Retro</span><span class="lk"><i></i>Moody</span><span class="lk"><i></i>Classic</span></div>
+            <h4>Adjust</h4>
+            <div class="row">Brightness<span class="sl"><b style="width:62%"></b></span><span class="v">+24</span></div>
+            <div class="row">Contrast<span class="sl"><b style="width:55%"></b></span><span class="v">+10</span></div>
+            <div class="row">Saturation<span class="sl"><b style="width:46%"></b></span><span class="v">−8</span></div></div>
+        </div>
+        <div class="tl"><div class="ruler"><span>0:00</span><span>0:15</span><span>0:30</span><span>0:45</span></div>
+          <div class="track"><div class="clip on" style="flex:3"><small>0:18</small></div><span class="xf"></span><div class="clip" style="flex:2"><small>0:12</small></div><div class="clip" style="flex:4"><small>0:28</small></div></div>
+          <div class="tt"><span style="flex:0 0 20%;margin-left:6%">Đà Lạt 2026</span></div><div class="au"></div><div class="ph"></div></div>
+        <div class="sb"><span class="dot"></span>Your media never leaves this device<span class="sp"></span>9:16 · 30 fps</div>
+      </div>
+      <p class="cap">Desktop · dark</p>
+    </div>
+    <div class="ph-wrap">
+      <div class="phone light" role="img" aria-label="Direction B phone editor, light theme">
+        <div class="tb"><span class="btn q">✕</span><span class="sp"></span><span class="btn fill">Export</span></div>
+        <div class="stage"><div class="frame"><div class="sun"></div><div class="t">Đà Lạt 2026</div><div class="sel"></div></div></div>
+        <div class="tl"><div class="ruler" style="padding:0 12px 6px"><span>0:02</span><span>0:04</span><span>0:06</span></div>
+          <div class="track"><div class="clip on" style="flex:3"></div><span class="xf"></span><div class="clip" style="flex:3"></div></div>
+          <div class="tt"><span style="flex:0 0 30%;margin-left:30%">Đà Lạt 2026</span></div><div class="au"></div><div class="ph"></div></div>
+        <div class="tabs"><span>Edit</span><span>Audio</span><span>Text</span><span class="on">Looks</span><span>Adjust</span></div>
+      </div>
+      <p class="cap">Phone · light</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ C ============ -->
+<section class="dir dir-c" aria-labelledby="hc">
+  <div class="dirhead"><h2 id="hc">C · Violet, mango time</h2><span class="tag">suite violet primary · mango only for time</span></div>
+  <p class="lede">This is the closest to the sibling tools: violet stays the brand and action colour, so Export, the selection and the sliders look exactly like they do in Image Annotator. Mango marks time only: the playhead and text layers on the timeline. It's the most consistent across the suite, with the least of its own character.</p>
+  <div class="swatches">
+    <div class="sw"><i style="background:#0F0B16"></i>bg</div><div class="sw"><i style="background:#18121F"></i>surface</div><div class="sw"><i style="background:#A47BFF"></i>accent</div><div class="sw"><i style="background:#FFB870"></i>playhead</div><div class="sw"><i style="background:#6837E0"></i>accent·light</div><div class="sw"><i style="background:#5BD6A0"></i>audio</div>
+  </div>
+  <div class="mocks">
+    <div>
+      <div class="ed dark" role="img" aria-label="Direction C desktop editor, dark theme">
+        <div class="tb"><span class="name">Clip Maker</span>
+          <span class="btn q"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add media</span>
+          <span class="btn q">Music</span><span class="btn q">Add text</span><span class="btn q">↶</span><span class="btn q">↷</span><span class="sp"></span><span class="btn fill">Export</span></div>
+        <div class="body">
+          <div class="stage"><div class="frame"><div class="sun"></div><div class="t">Đà Lạt 2026</div><div class="sel"></div></div>
+            <div class="pc"><span class="play">▶</span>00:04:12 / 00:58:00</div></div>
+          <div class="insp"><h4>Looks</h4>
+            <div class="looks"><span class="lk on"><i></i>Warm</span><span class="lk"><i></i>Retro</span><span class="lk"><i></i>Moody</span><span class="lk"><i></i>Classic</span></div>
+            <h4>Adjust</h4>
+            <div class="row">Brightness<span class="sl"><b style="width:62%"></b></span><span class="v">+24</span></div>
+            <div class="row">Contrast<span class="sl"><b style="width:55%"></b></span><span class="v">+10</span></div>
+            <div class="row">Saturation<span class="sl"><b style="width:46%"></b></span><span class="v">−8</span></div></div>
+        </div>
+        <div class="tl"><div class="ruler"><span>0:00</span><span>0:15</span><span>0:30</span><span>0:45</span></div>
+          <div class="track"><div class="clip on" style="flex:3"><small>0:18</small></div><span class="xf"></span><div class="clip" style="flex:2"><small>0:12</small></div><div class="clip" style="flex:4"><small>0:28</small></div></div>
+          <div class="tt"><span style="flex:0 0 20%;margin-left:6%">Đà Lạt 2026</span></div><div class="au"></div><div class="ph"></div></div>
+        <div class="sb"><span class="dot"></span>Your media never leaves this device<span class="sp"></span>9:16 · 30 fps</div>
+      </div>
+      <p class="cap">Desktop · dark</p>
+    </div>
+    <div class="ph-wrap">
+      <div class="phone light" role="img" aria-label="Direction C phone editor, light theme">
+        <div class="tb"><span class="btn q">✕</span><span class="sp"></span><span class="btn fill">Export</span></div>
+        <div class="stage"><div class="frame"><div class="sun"></div><div class="t">Đà Lạt 2026</div><div class="sel"></div></div></div>
+        <div class="tl"><div class="ruler" style="padding:0 12px 6px"><span>0:02</span><span>0:04</span><span>0:06</span></div>
+          <div class="track"><div class="clip on" style="flex:3"></div><span class="xf"></span><div class="clip" style="flex:3"></div></div>
+          <div class="tt"><span style="flex:0 0 30%;margin-left:30%">Đà Lạt 2026</span></div><div class="au"></div><div class="ph"></div></div>
+        <div class="tabs"><span>Edit</span><span>Audio</span><span>Text</span><span class="on">Looks</span><span>Adjust</span></div>
+      </div>
+      <p class="cap">Phone · light</p>
+    </div>
+  </div>
+</section>
+
+<section class="dir" aria-labelledby="hs">
+  <div class="dirhead"><h2 id="hs">Shared by all three</h2></div>
+  <div class="type"><span class="d">Unbounded, portal headings only</span><span class="u">Manrope 500/600 for UI</span><span class="m">JetBrains Mono 00:04:12 · +24 · 1080p</span></div>
+  <div class="notes">
+    <p><b>Video first.</b> The preview sits on the darkest surface. The chrome is hairlines, with no cards or shadows.</p>
+    <p><b>One filled button.</b> Only Export is filled. Everything else is a quiet icon or text button.</p>
+    <p><b>Tracks by kind.</b> Clips, text layers and audio each have their own tint. Kind is never shown by colour alone: labels and icons sit on the track.</p>
+    <p><b>Numbers in mono.</b> Times as mm:ss:ff and adjustment values line up as you drag.</p>
+    <p><b>Phone layout.</b> The preview is on top and the timeline sits under a centre playhead, with tool tabs at the bottom. Targets are at least 44 px.</p>
+    <p><b>Both themes.</b> Dark is the default for the video. Light follows the portal, and every text pair passes AA.</p>
+  </div>
+</section>
+
+<footer>Clip Maker · phase 2, step 1 (style builder). Pick A, B or C, or a mix such as "A, with B's warm playhead". Your choice goes into tokens.json and style.md.</footer>
+</div>

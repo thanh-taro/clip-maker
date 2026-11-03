@@ -39,6 +39,7 @@ Editing video in a browser depends on what the browser and device can do. The to
 SCR-Unsupported with COPY-unsupported.title and COPY-unsupported.body, listing COPY-unsupported.missing_decode, COPY-unsupported.missing_encode and COPY-unsupported.missing_effects as they apply.
 
 ## Edge cases
+- A phone browser without the device's video codec interface (one major engine on phones lacks it) → always SCR-Unsupported, as the vision brief accepts.
 - Effects too slow for smooth preview, but everything else works → the editor opens with COPY-notice.slow_device.
 
 ## Open questions

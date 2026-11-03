@@ -1,7 +1,7 @@
 ---
 id: FLOW-01
 title: Make a short vertical clip
-status: draft
+status: ready
 features: [F-001, F-002, F-003, F-004, F-007, F-008, F-010, F-011, F-012, F-015]
 screens: [SCR-Editor]
 ---

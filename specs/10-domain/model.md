@@ -50,8 +50,9 @@ What the next export produces: kind (video, animated image, audio), and for each
 
 ## Invariants
 - **INV-01** Sources are never modified. No source data, frame, sound or project content leaves
-  the device, and none survives the session: scratch space is deleted when its export ends, and
-  any left behind by a closed page is deleted the next time the tool opens.
+  the device, and none survives the session: scratch space is deleted when its export fails or is cancelled, and
+  after a success once the browser has taken the file (at the latest when the page closes); any
+  left behind is deleted the next time the tool opens.
 - **INV-02** For the same project time, the preview and an export show the same picture and play
   the same sound, as far as the export kind carries them: a video export has both, a GIF has the
   picture only (at its own size, frame rate and colour limits), an audio export the sound only. The

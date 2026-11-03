@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CMP-ExportPanel</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap">
+<style>
+body{margin:0;background:#0B0812;font-family:'Manrope',system-ui,sans-serif}
+.tk-dark{--bg:#0F0B16;--surface:#18121F;--surface2:#221A2F;--line:#2D2440;--lineStrong:#6F6290;--fg:#EFEAF8;--muted:#9C92B0;--accent:#FFB870;--accentHover:#FFC995;--onAccent:#1A1005;--accent2:#A47BFF;--accent2Fg:#C3A8FF;--selection:#2A1D47;--selectionLine:#4A3580;--danger:#FF8595;--success:#5BD6A0;--scrim:#07050BB3;--chrome:#140F1EB8;--dangerBg:#3A1622;--warnBg:#33240F;--focus:#A47BFF;--workArea:#0B0812;--playhead:#FFB870;--trackClip:#3B2A55;--trackClipAlt:#47306A;--trackText:#5A3E1C;--trackAudio:#1F3B33;--waveform:#5BD6A0;--trackLabel:#EFEAF8;--handle:#EFEAF8;--previewOutline:#A47BFF;--previewHandle:#FFFFFF;--txt-white:#FFFFFF;--txt-black:#000000;--txt-red:#E5383B;--txt-orange:#F28C28;--txt-yellow:#FFD60A;--txt-green:#2DB84D;--txt-cyan:#1FC8E0;--txt-blue:#2F6FEB;--txt-purple:#8E44EC;--txt-pink:#F05BA8}
+.tk-light{--bg:#FBFAFE;--surface:#FFFFFF;--surface2:#F1EDFA;--line:#E2DCF0;--lineStrong:#8C82A2;--fg:#16111F;--muted:#5E566F;--accent:#A65305;--accentHover:#8F4705;--onAccent:#FFFFFF;--accent2:#6837E0;--accent2Fg:#5429C0;--selection:#F0EAFE;--selectionLine:#CDBBF8;--danger:#C0243B;--success:#13744C;--scrim:#16111F66;--chrome:#FFFFFFD1;--dangerBg:#FCE8EC;--warnBg:#FDEBD8;--focus:#6837E0;--workArea:#ECE8F4;--playhead:#A65305;--trackClip:#DCCFF7;--trackClipAlt:#CDBBF8;--trackText:#FBDDB8;--trackAudio:#CDEFE0;--waveform:#13744C;--trackLabel:#16111F;--handle:#16111F;--previewOutline:#6837E0;--previewHandle:#FFFFFF;--txt-white:#FFFFFF;--txt-black:#000000;--txt-red:#E5383B;--txt-orange:#F28C28;--txt-yellow:#FFD60A;--txt-green:#2DB84D;--txt-cyan:#1FC8E0;--txt-blue:#2F6FEB;--txt-purple:#8E44EC;--txt-pink:#F05BA8}
+.cap{font:600 12px 'JetBrains Mono',monospace;color:#9C92B0;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ic{width:16px;height:16px;flex:none}
+.ic20{width:20px;height:20px;flex:none}
+.grow{flex:1}
+.mono{font-family:'JetBrains Mono',monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.btn{height:32px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--fg);font:600 13px 'Manrope',sans-serif;box-sizing:border-box;white-space:nowrap;position:relative}
+.btn.icon{width:32px;padding:0;color:var(--muted)}
+.btn.q{color:var(--fg)}
+.btn.out{border-color:var(--accent);color:var(--accent)}
+.btn.dng{border-color:var(--danger);color:var(--danger)}
+.btn.fill{background:var(--accent);color:var(--onAccent);font-weight:700}
+.btn.off,.btn.fill.off{background:var(--surface2);border-color:var(--line);color:var(--muted);font-weight:600}
+.btn.pressed{background:var(--surface2);border-color:var(--accent);color:var(--fg)}
+.btn.hov{background:var(--surface2)}
+.btn.t{height:44px;min-width:44px;font-size:14px}
+.fr{outline:2px solid var(--focus);outline-offset:2px}
+.panel{background:var(--surface);border:1px solid var(--lineStrong);border-radius:10px;color:var(--fg);font-size:13px;line-height:1.55;box-sizing:border-box;overflow:hidden}
+.hd{display:flex;align-items:center;gap:8px;height:44px;padding:0 4px 0 16px;border-bottom:1px solid var(--line);flex:none}
+.hd h2{margin:0;font:700 14px 'Manrope',sans-serif;flex:1;line-height:1.15}
+.lbl{font:600 12px 'Manrope',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.grab{width:32px;height:4px;border-radius:999px;background:var(--lineStrong);margin:8px auto 0;flex:none;display:block}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;box-sizing:border-box;border:1px solid var(--lineStrong);border-bottom-width:2px;border-radius:7px;background:var(--surface2);color:var(--fg);font:500 12px 'JetBrains Mono',monospace}
+a{color:inherit}
+.xp{background:var(--surface);color:var(--fg);font:500 13px/1.55 'Manrope',sans-serif;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;text-align:left}
+.xp.dock{width:288px;border:1px solid var(--line)}
+.xp.frag{border:1px solid var(--lineStrong);border-radius:10px}
+.xp .xhd{display:flex;align-items:center;gap:8px;height:40px;padding:0 4px 0 14px;border-bottom:1px solid var(--line);flex:none}
+.xp .xhd h2{margin:0;font:700 14px 'Manrope',sans-serif;flex:1;line-height:1.15}
+.xp fieldset{border:0;margin:0;padding:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.xp legend{padding:0;margin:0 0 4px;float:left;width:100%}
+.xtabs{display:flex;border-bottom:1px solid var(--line);padding:0 8px;flex:none}
+.xtabs button{flex:1;height:32px;border:0;background:transparent;font:600 12.5px 'Manrope',sans-serif;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;padding:0 4px}
+.xtabs button.on{color:var(--fg);border-bottom-color:var(--accent)}
+.xb{position:relative;flex:1;min-height:0;padding:12px 14px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.xseg{display:flex;gap:2px;padding:2px;border:1px solid var(--lineStrong);border-radius:10px}
+.xseg label{flex:1;height:28px;display:grid;place-items:center;border-radius:7px;font:600 12.5px 'Manrope',sans-serif;color:var(--fg);position:relative;white-space:nowrap;padding:0 4px}
+.xseg label.m{font:500 12.5px 'JetBrains Mono',monospace}
+.xseg label.on{background:var(--selection);box-shadow:inset 0 0 0 1px var(--accent)}
+.xseg label.dis{color:var(--muted);text-decoration:line-through}
+.xp input[type=radio]{position:absolute;opacity:0;width:1px;height:1px;margin:0;overflow:hidden;clip:rect(0 0 0 0)}
+.xchips{display:flex;flex-wrap:wrap;gap:4px}
+.xchips label{position:relative;height:28px;padding:0 8px;border:1px solid var(--lineStrong);border-radius:999px;display:inline-flex;align-items:center;font:600 12px 'Manrope',sans-serif;color:var(--fg);box-sizing:border-box;white-space:nowrap}
+.xchips label.on{background:var(--selection);border-color:var(--accent)}
+.xfld{display:inline-flex;align-items:center;gap:4px;font:600 12px 'Manrope',sans-serif;color:var(--muted)}
+.xfld input{width:56px;height:28px;box-sizing:border-box;border:1px solid var(--lineStrong);border-radius:7px;background:var(--bg);color:var(--fg);font:500 16px 'JetBrains Mono',monospace;padding:0 8px;text-align:right}
+.xfld.on input{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.why{font-size:12px;line-height:1.55;color:var(--muted);display:flex;gap:4px;align-items:flex-start}
+.why .ic{margin-top:2px}
+.xmsg{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border-radius:7px;font-size:13px;line-height:1.55;color:var(--fg)}
+.xmsg .ic{margin-top:2px}
+.xmsg.warn{background:var(--warnBg)}
+.xmsg.warn .ic{color:var(--accent)}
+.xmsg.note{padding:0;color:var(--muted);font-size:12px}
+.xft{flex:none;display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-top:1px solid var(--line);background:var(--surface);position:relative}
+.xft .er{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.xft .est{font:500 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:var(--fg)}
+.xft .sv{font-size:12px;color:var(--muted)}
+.xft .xa{display:flex;gap:8px}
+.xft .xa .btn.out,.xft .xa .btn.off{flex:1}
+.xfade{position:absolute;left:0;right:0;top:-16px;height:16px;background:linear-gradient(to top,var(--surface),transparent);pointer-events:none}
+.xtf{display:flex;flex-direction:column;gap:4px;font:600 12px 'Manrope',sans-serif;color:var(--muted);flex:1}
+.xtf input{height:28px;box-sizing:border-box;border:1px solid var(--lineStrong);border-radius:7px;background:var(--bg);color:var(--fg);font:500 16px 'JetBrains Mono',monospace;padding:0 8px;width:100%}
+.xrad{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:7px;font:600 13px 'Manrope',sans-serif;position:relative}
+.xrad i{width:16px;height:16px;border-radius:999px;border:2px solid var(--lineStrong);box-sizing:border-box;flex:none}
+.xrad.on{background:var(--selection)}
+.xrad.on i{border:5px solid var(--accent)}
+.xp.sheet{border:1px solid var(--lineStrong);border-bottom:0;border-radius:10px 10px 0 0}
+.xp.sheet .xhd{height:52px;padding-left:16px}
+.xp.sheet .xtabs button{height:44px;font-size:14px}
+.xp.sheet .xb{padding:12px 16px}
+.xp.sheet .xseg label{height:40px}
+.xp.sheet .xchips{flex-wrap:nowrap;overflow:hidden;margin-right:-16px;-webkit-mask-image:linear-gradient(to right,var(--fg) 80%,transparent);mask-image:linear-gradient(to right,var(--fg) 80%,transparent)}
+.xp.sheet .xchips label{height:44px;padding:0 12px;font-size:13px}
+.xp.sheet .xfld input{height:44px;width:72px}
+.xp.sheet .xft{padding:12px 16px}
+.xp.sheet .xft .btn{height:44px}
+.root{width:1240px;height:1200px;box-sizing:border-box;padding:8px;display:flex;flex-direction:column;gap:8px;background:#0B0812;overflow:hidden}
+.half{height:588px;display:flex;gap:8px;align-items:flex-start}
+.rgt{display:flex;flex-direction:column;gap:8px;flex:none}
+.rgt .row{display:flex;gap:16px;align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:8px;flex:none}
+.otb{display:flex;gap:16px}
+.otb > div{height:40px;display:flex;align-items:center;gap:4px;padding:0 8px;background:var(--surface);border:1px solid var(--line);box-sizing:border-box;flex:1;justify-content:flex-end}
+.btn.busy::after{content:"";position:absolute;left:4px;bottom:2px;width:42%;height:2px;border-radius:999px;background:var(--accent)}
+.xp.frag .xb{flex:none}
+.cap{letter-spacing:0}
+.xp.dock .xtabs{padding:0 6px}
+.xp.dock .xtabs button{flex:none;padding:0 10px}
+.ns{background:var(--surface);color:var(--fg);font:500 13px/1.55 'Manrope',sans-serif;border:1px solid var(--lineStrong);border-bottom:0;border-radius:10px 10px 0 0;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;text-align:left}
+.ns .grab{height:12px;width:auto;margin:0;background:none;display:grid;place-items:center;border-radius:0}
+.ns .grab i{width:32px;height:4px;border-radius:999px;background:var(--lineStrong)}
+.ns .shh{display:flex;align-items:center;gap:8px;height:44px;padding:0 4px 0 16px;flex:none}
+.ns .shh h2{margin:0;font:700 14px/1.15 'Manrope',sans-serif;flex:1}
+.ib{position:relative;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;background:transparent;color:var(--muted);padding:0;flex:none}
+.ns .seg{display:flex;gap:4px;min-width:0}
+.ns .seg button{flex:1 1 0;min-width:0;height:44px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--fg);font:600 13px 'Manrope',sans-serif;padding:0 2px;white-space:nowrap;box-sizing:border-box}
+.ns .seg button.on{background:var(--selection);border-color:var(--accent)}
+.ns .seg.sm button{font-size:12px}
+.ns .tabs{padding:0 12px 8px;flex:none}
+.ns .sb{flex:1;min-height:0;overflow:hidden;position:relative;padding:8px 12px;display:flex;flex-direction:column;justify-content:flex-end;gap:8px}
+.ns .cut{position:absolute;left:0;right:0;top:0;height:16px;background:linear-gradient(0deg,transparent,var(--surface));z-index:1}
+.ns .lbl{margin:0;font:600 12px/16px 'Manrope',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.ns fieldset{border:0;margin:0;padding:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.ns .fld{display:flex;align-items:center;gap:8px;font:600 13px 'Manrope',sans-serif;color:var(--muted)}
+.ns .fld input{width:72px;height:44px;box-sizing:border-box;border:1px solid var(--lineStrong);border-radius:7px;background:var(--bg);color:var(--fg);font:500 16px 'JetBrains Mono',monospace;padding:0 8px;text-align:right}
+.ns .fld.on input{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.ns .fld.bad input{border-color:var(--danger)}
+.ns .sf{flex:none;border-top:1px solid var(--line);padding:8px 12px 12px;display:flex;gap:8px;align-items:center}
+.fb{flex:1 1 0;min-width:0;height:44px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--fg);font:600 13px 'Manrope',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;padding:0 8px;box-sizing:border-box}
+.fb.out{border-color:var(--accent);color:var(--accent)}
+.fb.off{flex:none;padding:0 20px;background:var(--surface2);border-color:var(--line);color:var(--muted)}
+.xfld.bad input{border-color:var(--danger)}
+
+
+</style>
+</helmet>
+<div class="root">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="half {{t.cls}}">
+<div class="col" style="width:288px"><div class="cell"><span class="cap">CMP-ExportPanel / video · wide / {{t.label}}</span><section class="xp dock" role="dialog" aria-label="Export" data-copy="COPY-export.title" style="height:404px"><div class="xhd"><h2 data-copy="COPY-export.title">Export</h2><button class="btn icon" aria-label="Close" data-copy="COPY-action.close"><svg class="ic20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div class="xtabs" role="tablist" aria-label="Export" data-copy="COPY-export.title"><button role="tab" aria-selected="true" class="on" data-copy="COPY-export.kind_video">Video</button><button role="tab" aria-selected="false" data-copy="COPY-export.kind_gif">GIF</button><button role="tab" aria-selected="false" data-copy="COPY-export.kind_audio">Audio only</button></div><div class="xb"><fieldset><legend class="lbl" data-copy="COPY-export.resolution">Resolution</legend><div class="xseg"><label class="m"><input type="radio" name="res">480</label><label class="m"><input type="radio" name="res">720</label><label class="m on"><input type="radio" name="res" checked>1080</label><label class="m dis"><input type="radio" name="res" disabled>1440</label><label class="m dis"><input type="radio" name="res" disabled>2160</label></div><span class="why"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span data-copy="COPY-export.res_needs_source">1440 needs a larger source video or photo</span></span><span class="why"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span data-copy="COPY-export.res_no_encoder">This device can't create 2160</span></span></fieldset><fieldset><legend class="lbl" data-copy="COPY-export.quality">Quality</legend><div class="xseg"><label data-copy="COPY-export.q_smaller"><input type="radio" name="q">Smaller file</label><label class="on" data-copy="COPY-export.q_balanced"><input type="radio" name="q" checked>Balanced</label><label data-copy="COPY-export.q_best"><input type="radio" name="q">Best</label></div></fieldset><fieldset><legend class="lbl" data-copy="COPY-export.size_limit">Size limit</legend><div class="xchips"><label data-copy="COPY-export.size_target"><input type="radio" name="sz">Under 8 MB</label><label data-copy="COPY-export.size_target"><input type="radio" name="sz">Under 10 MB</label><label data-copy="COPY-export.size_target"><input type="radio" name="sz">Under 25 MB</label><label data-copy="COPY-export.size_target"><input type="radio" name="sz">Under 50 MB</label></div><label class="xfld"><span data-copy="COPY-export.size_custom">Other</span><input type="text" inputmode="numeric" value="" aria-label="Size limit in MB" data-copy="COPY-export.size_custom_label"><span>MB</span></label></fieldset></div><div class="xft"><span class="xfade" aria-hidden="true"></span><div class="er"><span class="est" data-copy="COPY-export.estimate">About 24 MB</span><span class="sv" data-copy="COPY-export.saves_as">Saves as MP4</span></div><div class="xa"><button class="btn q" data-copy="COPY-action.cancel">Cancel</button><button class="btn out" data-copy="COPY-action.export"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export</button></div></div></section></div><div class="cell"><span class="cap">CMP-ExportPanel / fallback / {{t.label}}</span><section class="xp frag" aria-label="Export" data-copy="COPY-export.title" style="width:288px"><div class="xft"><div class="er"><span class="est" data-copy="COPY-export.estimate">About 24 MB</span><span class="sv" data-copy="COPY-export.format_note">Saves as WebM. This browser can't make MP4.</span></div><div class="xa"><button class="btn q" data-copy="COPY-action.cancel">Cancel</button><button class="btn out" data-copy="COPY-action.export"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export</button></div></div></section></div></div>
+<div class="rgt"><div class="row"><div class="cell"><span class="cap">CMP-ExportPanel / narrow 390 · lower res / {{t.label}}</span><section class="ns" role="dialog" aria-label="Export" data-copy="COPY-export.title" style="width:390px;height:337px"><div class="grab" aria-hidden="true"><i></i></div><div class="shh"><h2 data-copy="COPY-export.title">Export</h2><button class="ib" aria-label="Close" data-copy="COPY-action.close"><svg class="ic20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div class="seg tabs" role="tablist" aria-label="Export" data-copy="COPY-export.title"><button class="on" role="tab" aria-selected="true" data-copy="COPY-export.kind_video">Video</button><button role="tab" aria-selected="false" data-copy="COPY-export.kind_gif">GIF</button><button role="tab" aria-selected="false" data-copy="COPY-export.kind_audio">Audio only</button></div><div class="sb"><span class="cut" aria-hidden="true"></span><fieldset><span class="lbl" data-copy="COPY-export.size_limit">Size limit</span><div class="seg sm"><button role="radio" aria-checked="false" data-copy="COPY-export.size_target">Under 8 MB</button><button role="radio" aria-checked="false" data-copy="COPY-export.size_target">Under 10 MB</button><button role="radio" aria-checked="false" data-copy="COPY-export.size_target">Under 25 MB</button><button role="radio" aria-checked="false" data-copy="COPY-export.size_target">Under 50 MB</button></div></fieldset><label class="fld on"><span data-copy="COPY-export.size_custom">Other</span><input type="text" inputmode="numeric" value="4" aria-label="Size limit in MB" data-copy="COPY-export.size_custom_label"><span>MB</span></label><div class="xmsg warn" role="status"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg><span data-copy="COPY-export.target_lower_res">4 MB is too small for 1080. 480 can make it.</span></div></div><div class="sf"><button class="fb out" data-copy="COPY-action.use_res">Use 480</button><button class="fb off" disabled data-copy="COPY-action.export"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export</button></div></section></div><div class="cell"><span class="cap">CMP-ExportPanel / narrow 320 · vi-VN / {{t.label}}</span><section class="ns" lang="vi" role="dialog" aria-label="Xuất" data-copy="COPY-export.title" style="width:320px;height:341px"><div class="grab" aria-hidden="true"><i></i></div><div class="shh"><h2 data-copy="COPY-export.title">Xuất</h2><button class="ib" aria-label="Đóng" data-copy="COPY-action.close"><svg class="ic20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div class="seg tabs" role="tablist" aria-label="Xuất" data-copy="COPY-export.title"><button class="on" role="tab" aria-selected="true" data-copy="COPY-export.kind_video">Video</button><button role="tab" aria-selected="false" data-copy="COPY-export.kind_gif">GIF</button><button role="tab" aria-selected="false" data-copy="COPY-export.kind_audio">Chỉ âm thanh</button></div><div class="sb"><span class="cut" aria-hidden="true"></span><div class="seg sm"><button role="radio" aria-checked="false" data-copy="COPY-export.size_target">Dưới 8 MB</button><button role="radio" aria-checked="false" data-copy="COPY-export.size_target">Dưới 10 MB</button><button role="radio" aria-checked="false" data-copy="COPY-export.size_target">Dưới 25 MB</button></div><label class="fld bad"><span data-copy="COPY-export.size_custom">Khác</span><input type="text" inputmode="numeric" value="1" aria-label="Giới hạn dung lượng (MB)" data-copy="COPY-export.size_custom_label"><span>MB</span></label><div class="xmsg warn" role="status"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg><span data-copy="COPY-export.target_unreachable">1 MB quá nhỏ cho video này. Nhỏ nhất có thể là 3 MB.</span></div></div><div class="sf"><button class="fb out" data-copy="COPY-action.use_target">Dùng 3 MB</button><button class="fb off" disabled data-copy="COPY-action.export">Xuất</button></div></section></div></div><div class="row"><div class="cell"><span class="cap">CMP-ExportPanel / gif / {{t.label}}</span><section class="xp frag" aria-label="Export" data-copy="COPY-export.title" style="width:288px"><div class="xb"><fieldset><legend class="lbl" data-copy="COPY-export.gif_range">Range (up to 15 s)</legend><div style="display:flex;gap:8px"><label class="xtf"><span data-copy="COPY-export.gif_from">From</span><input type="text" value="0:10"></label><label class="xtf"><span data-copy="COPY-export.gif_to">To</span><input type="text" value="0:25"></label></div></fieldset><div style="display:flex;gap:8px"><fieldset style="flex:none;width:104px"><legend class="lbl" data-copy="COPY-export.gif_size">Size</legend><div class="xseg"><label class="m"><input type="radio" name="gs">320</label><label class="m on"><input type="radio" name="gs" checked>480</label><label class="m"><input type="radio" name="gs">640</label></div></fieldset><fieldset style="flex:1;min-width:0"><legend class="lbl" data-copy="COPY-export.gif_rate" style="letter-spacing:.02em;white-space:nowrap">Frames per second</legend><div class="xseg"><label class="m"><input type="radio" name="gr">10</label><label class="m on"><input type="radio" name="gr" checked>15</label></div></fieldset></div></div></section></div><div class="cell"><span class="cap">CMP-ExportPanel / audio · no sound / {{t.label}}</span><section class="xp frag" aria-label="Export" data-copy="COPY-export.title" style="width:288px"><div class="xb" style="padding:8px 14px"><fieldset><legend class="lbl" data-copy="COPY-export.audio_format">Format</legend><label class="xrad on"><input type="radio" name="af" checked><i></i><span data-copy="COPY-export.audio_compressed">Compressed · M4A</span></label><label class="xrad"><input type="radio" name="af"><i></i><span data-copy="COPY-export.audio_wav">WAV · best quality</span></label></fieldset></div><div class="xft"><div class="er"><span class="sv" data-copy="COPY-notice.no_sound_to_export">This project has no sound to export.</span></div><div class="xa"><button class="btn q" data-copy="COPY-action.cancel">Cancel</button><button class="btn off" disabled data-copy="COPY-action.export"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export</button></div></div></section></div><div class="cell"><span class="cap">CMP-ExportPanel / needs clip / {{t.label}}</span><section class="xp frag" aria-label="Export" data-copy="COPY-export.title" style="width:288px"><div class="xft"><div class="er"><span class="sv" data-copy="COPY-notice.needs_clip">Add a video or photo to export.</span></div><div class="xa"><button class="btn q" data-copy="COPY-action.cancel">Cancel</button><button class="btn off" disabled data-copy="COPY-action.export"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export</button></div></div></section></div></div></div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themes: [ { cls: 'tk-dark', label: 'dark' }, { cls: 'tk-light', label: 'light' } ] };
+  }
+}
+</script>
+</body>
+</html>

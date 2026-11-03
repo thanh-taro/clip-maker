@@ -1,23 +1,44 @@
 ---
 id: CMP-Timeline
 title: Timeline
-status: draft
-tokens: []
+status: ready
+tokens: [font.family.body, font.family.mono, font.weight.medium, font.weight.semibold, border.width.hairline, border.width.focus, motion.duration.fast, color.dark.accent, color.light.accent, color.dark.bg, color.light.bg, color.dark.chrome, color.light.chrome, color.dark.fg, color.light.fg, color.dark.focus, color.light.focus, color.dark.handle, color.light.handle, color.dark.line, color.light.line, color.dark.lineStrong, color.light.lineStrong, color.dark.muted, color.light.muted, color.dark.onAccent, color.light.onAccent, color.dark.playhead, color.light.playhead, color.dark.selection, color.light.selection, color.dark.surface, color.light.surface, color.dark.surface2, color.light.surface2, color.dark.trackAudio, color.light.trackAudio, color.dark.trackClip, color.light.trackClip, color.dark.trackClipAlt, color.light.trackClipAlt, color.dark.trackLabel, color.light.trackLabel, color.dark.trackText, color.light.trackText, color.dark.waveform, color.light.waveform, space.5, space.3, space.1_5, space.2_5, radius.sm, space.3_5, font.size.xs, space.1, radius.md, font.size.md, font.size.sm, space.2, radius.pill, font.size.input, font.size.lg, space.4, space.0_5, radius.clip, radius.xs, radius.trackItem, font.size.base, size.toolbar, size.toolButton, size.timelineTrack, size.timelineLane, size.audioLane, size.handle, size.handleHit, size.touchTarget, size.targetMin, size.icon.sm, size.icon.md]
 ---
 
 ## Purpose
 The main track, the text layers and the audio track over time, with the playhead, trim handles, cross-fade controls, zoom and snapping.
 
 ## Anatomy
-Time ruler; playhead; main track with clip thumbnails; text layer lane; audio track with waveforms; trim handles; cross-fade controls (COPY-action.add_crossfade); zoom controls; snapping toggle.
+Toolbar (wide); time ruler with m:ss labels; playhead (head in the ruler band); main track with clip thumbnails, names and durations; text lane; audio lane with title chip and waveform; a kind icon for each lane in a left gutter; trim handles; cross-fade markers; project-end marker; zoom controls; snapping toggle.
 
 ## Variants & states
 | Variant / state | Description |
 |---|---|
-| default | To be completed in phase 2 (design). |
+| wide / default, nothing selected | Toolbar with text-and-icon Split (COPY-action.split), Start here (COPY-action.set_in), End here (COPY-action.set_out), a divider, Delete (COPY-action.delete), Duplicate (COPY-action.duplicate), a divider, Move earlier (COPY-action.move_left) and Move later (COPY-action.move_right); Snapping (COPY-action.snapping, pressed) and icon-only Zoom out, Zoom in and Fit (COPY-action.zoom_out, COPY-action.zoom_in, COPY-action.zoom_fit) at the end. Without a selection only Split is available; unavailable actions keep readable muted labels. Clip widths equal duration × the ruler scale, so content ends at the project end. The audio clip that runs past the project end shows the dashed end marker (COPY-timeline.project_end) and the part beyond it hatched and dimmed (INV-07). |
+| trimming | The selected clip has a mango outline and trim handles: neutral end tabs in the `handle` colour with a `bg` grip mark (never mango), so they read differently from the mango playhead in both themes. While dragging an end, a readout shows the resulting length (COPY-timeline.length), a separator and the labelled end time ("ends {time}"; copy ID timeline.ends_at pending in copy.md); a dashed snap line marks the snap target (the playhead). |
+| text item | Text item selected: outline and handles on the text item; the toolbar's move actions read Earlier and Later (COPY-action.time_earlier, COPY-action.time_later) with arrows and labels. |
+| audio item | Audio item selected: the same on the audio lane; gaps between audio clips are allowed; the title chip of an item that starts off-screen sticks to the visible left edge. |
+| cross-fade | A join without a cross-fade shows a dashed add chip (COPY-action.add_crossfade) only on hover, focus or selection; a join with one shows the bow-tie marker (never an ×). Activating the marker opens a popover titled COPY-crossfade.length with Shorter (COPY-crossfade.shorter), the length in seconds, Longer (COPY-crossfade.longer) and Remove (COPY-action.remove_crossfade). |
+| frames | Zoomed to frames with snapping off. The ruler shows m:ss at each second and muted frame numbers between; the toolbar shows COPY-timeline.zoom_frames, the Snapping toggle as an icon button (not pressed) and Zoom in unavailable at maximum zoom (RULE-14). Because snapping is off, so a dragged edge passes the playhead without a snap line. |
+| narrow / no sheet | Clip selected with no tool sheet open: the full timeline (ruler, main track, text lane, audio lane). The playhead stays at the horizontal centre and the tracks scroll under it (D-013); a narrow gutter carries the lane icons; clip names, text items and audio title chips stick to the visible left edge of the lanes; Zoom out and Zoom in sit on one `chrome` pill in the bottom-right corner below the audio lane, each with a `size.touchTarget` hit area (D-038). Trim handles get a `size.handleHit` hit area. |
+| narrow / sheet open | Reference layout for every phone Edit sheet. Above the sheet the transport (CMP-Preview) and a timeline peek stay visible: the ruler and the main track only, playhead centred, lane gutter with the main-track icon. The sheet is docked below the peek, takes at most 40 % of the height (60 % when the tool is under 640 px tall) and its body scrolls with a fade at the cut. Top to bottom: grabber; header row with the title COPY-inspector.label and the selection's name and duration as muted mono meta; COPY-action.add_media as a full-width outlined touch-size button (always first, so adding stays reachable while something is selected); an action grid of 4 equal columns × 2 rows of touch-size tiles, icon over a one-line label, in this order: Split (COPY-action.split), Start here (COPY-action.set_in), End here (COPY-action.set_out), Cross-fade (COPY-action.add_crossfade) / Move earlier (COPY-action.move_left), Move later (COPY-action.move_right), Duplicate (COPY-action.duplicate), Delete (COPY-action.delete, in `danger`); then one row per setting with its label on the left: Speed (COPY-inspector.speed) as 6 equal segments 0.25×, 0.5×, 1×, 1.5×, 2×, 4× (vi-VN uses a decimal comma); Fades (COPY-inspector.fades) as two equal toggles COPY-fades.in and COPY-fades.out, each with its length in mono; Position (COPY-inspector.placement) as a Fit / Fill segment (COPY-placement.fit, COPY-placement.fill) followed by four nudge buttons (COPY-placement.nudge_left, nudge_up, nudge_down, nudge_right); Scale as a slider row. In vi-VN, tile labels that do not fit one line use the short forms of the same COPY IDs rather than wrapping. |
 
 ## Behavior
-To be completed in phase 2 (design), from the features that list this component.
+- Selecting follows RULE-21; Split acts on the selected clip, else the clip under the playhead (RULE-05).
+- Trim handles change the item's start or end; the readout and snap line follow RULE-14; Start here/End here trim at the playhead without dragging.
+- Clip labels stay on one line: the name truncates with an ellipsis and the duration is the last thing to drop; under a minimum width only the duration shows and the name moves to the tooltip. Labels sit above the thumbnails and the audio title sits on its own chip before the waveform. Under 48 px of width a clip shows its duration only.
+- Times on the ruler, in the readout and in labels read m:ss; ruler labels skip the area under the playhead head (D-039).
+- Cross-fade add uses 0.5 s; the popover changes its length within RULE-10 and removes it; a change that would break RULE-03 is refused with COPY-notice.length_full.
+- During playback the view follows the playhead; a manual scroll stops following (RULE-14). On touch, scrolling scrubs and pauses playback first.
+- Zoom controls and pinch zoom are equivalent; Fit shows the whole project. With an empty project zoom controls are unavailable.
 
 ## Accessibility
-Named controls, keyboard reachable, touch targets per RULE-21 (NFR-06).
+- The region is named COPY-timeline.label; its action row is a toolbar.
+- Items are focusable in order (main track, then text, then audio) and are named by their name and duration; Alt+Left/Right move them per RULE-20.
+- Kind is shown by lane icon and position, not by colour alone.
+- Every drag has a visible control (RULE-21); handles and the cross-fade marker get a `size.handleHit` hit area on touch.
+- Snapping is a toggle button with a pressed state; the cross-fade marker exposes an expanded state while its popover is open.
+- Ruler, clip and end-marker labels use `font.size.xs` mono or body; nothing in the timeline goes below it.
+
+## Copy also used
+COPY-timeline.ends_at

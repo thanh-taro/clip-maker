@@ -9,7 +9,7 @@
     "notes": "Media tool for the TaroKit portal (iframe-embedded), a local-only CapCut alternative. Sibling of image-annotator/json-formatter etc.; match their quality bar and conventions. All media stays on device, never uploaded."
   },
   "stack": null,
-  "design_tool": null,
+  "design_tool": "claude-design-canvas",
   "phases": {
     "setup": {
       "title": "0 Setup & discovery",
@@ -23,28 +23,28 @@
     },
     "product-spec": {
       "title": "1 Product & spec",
-      "status": "gate",
+      "status": "done",
       "step": "1.3 spec review round 3 (final verification)",
       "gate": {
-        "status": "pending",
-        "at": null,
-        "note": null
+        "status": "passed",
+        "at": "2026-11-03T08:02:35+00:00",
+        "note": "23 features ready (owner-delegated); 3 review rounds converged; D-001..D-027"
       }
     },
     "design": {
       "title": "2 Design",
-      "status": "pending",
-      "step": null,
+      "status": "done",
+      "step": "design-review round 2: 3 fix agents resumed after limit (phone, wide+flow, CMP); next publish all, round-3 verify, G2",
       "gate": {
-        "status": "pending",
-        "at": null,
-        "note": null
+        "status": "passed",
+        "at": "2026-11-03T11:26:12+00:00",
+        "note": "52 boards v37; 3 review rounds; 0 blockers; follow-ups M1/M2/R3-1 in quick pass"
       }
     },
     "architecture": {
       "title": "3 Architecture & spikes",
-      "status": "pending",
-      "step": null,
+      "status": "in_progress",
+      "step": "G2 passed; follow-up pass: R3-1 + M2 done locally, M1 (export-error_wide) agent running; then publish, then phase 3 spikes",
       "gate": {
         "status": "pending",
         "at": null,
@@ -442,6 +442,162 @@
       "answer": "yes; nearest fit to requested start; no-op if result is original place (confirmed by owner at G1)",
       "asked": "2026-11-03T07:44:22+00:00",
       "answered": "2026-11-03T08:02:34+00:00"
+    },
+    {
+      "id": "D-028",
+      "question": "Style direction",
+      "options": [],
+      "recommendation": null,
+      "kind": "design",
+      "phase": "design",
+      "status": "answered",
+      "answer": "suite base + mango accent",
+      "asked": "2026-11-03T08:05:21+00:00",
+      "answered": "2026-11-03T08:05:21+00:00"
+    },
+    {
+      "id": "D-029",
+      "question": "Themes",
+      "options": [],
+      "recommendation": null,
+      "kind": "design",
+      "phase": "design",
+      "status": "answered",
+      "answer": "dark-first, light fully supported; adjectives quick, calm, confident, private",
+      "asked": "2026-11-03T08:05:22+00:00",
+      "answered": "2026-11-03T08:05:22+00:00"
+    },
+    {
+      "id": "D-030",
+      "question": "Design tool",
+      "options": [],
+      "recommendation": null,
+      "kind": "design",
+      "phase": "design",
+      "status": "answered",
+      "answer": "Claude Design canvas (same as siblings)",
+      "asked": "2026-11-03T08:05:22+00:00",
+      "answered": "2026-11-03T08:05:22+00:00"
+    },
+    {
+      "id": "D-031",
+      "question": "Style direction pick",
+      "options": [],
+      "recommendation": null,
+      "kind": "design",
+      "phase": "design",
+      "status": "answered",
+      "answer": "A · Mango on night (suite neutrals, mango action colour, violet focus)",
+      "asked": "2026-11-03T08:10:28+00:00",
+      "answered": "2026-11-03T08:10:28+00:00"
+    },
+    {
+      "id": "D-032",
+      "question": "CSP connect-src",
+      "options": [],
+      "recommendation": null,
+      "kind": "technical",
+      "phase": "design",
+      "status": "answered",
+      "answer": "'self' (own files only); WebAssembly not allowed now, new decision if needed",
+      "asked": "2026-11-03T08:27:57+00:00",
+      "answered": "2026-11-03T08:27:57+00:00"
+    },
+    {
+      "id": "D-033",
+      "question": "Gecko desktop video output",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "design",
+      "status": "answered",
+      "answer": "MP4 H.264 + Opus",
+      "asked": "2026-11-03T08:27:57+00:00",
+      "answered": "2026-11-03T08:27:57+00:00"
+    },
+    {
+      "id": "D-034",
+      "question": "Music pack curation",
+      "options": [],
+      "recommendation": null,
+      "kind": "legal",
+      "phase": "design",
+      "status": "answered",
+      "answer": "Claude shortlists ~15 CC0 candidates with licence records; owner listens and keeps 8-10",
+      "asked": "2026-11-03T08:27:58+00:00",
+      "answered": "2026-11-03T08:27:58+00:00"
+    },
+    {
+      "id": "D-035",
+      "question": "Chrome dev-only test browser",
+      "options": [],
+      "recommendation": null,
+      "kind": "legal",
+      "phase": "design",
+      "status": "answered",
+      "answer": "approved (never shipped)",
+      "asked": "2026-11-03T08:27:58+00:00",
+      "answered": "2026-11-03T08:27:58+00:00"
+    },
+    {
+      "id": "D-036",
+      "question": "Staging environment",
+      "options": [],
+      "recommendation": null,
+      "kind": "money",
+      "phase": "design",
+      "status": "answered",
+      "answer": "planned: clip-maker-staging.tarokit.app, free tier; created only in deploy phase",
+      "asked": "2026-11-03T08:27:58+00:00",
+      "answered": "2026-11-03T08:27:58+00:00"
+    },
+    {
+      "id": "D-037",
+      "question": "Reference devices",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "design",
+      "status": "answered",
+      "answer": "assume recent MacBook, owner's iPhone, mid-range Android; confirm before measuring",
+      "asked": "2026-11-03T08:27:59+00:00",
+      "answered": "2026-11-03T08:27:59+00:00"
+    },
+    {
+      "id": "D-038",
+      "question": "Narrow (phone) layout structure",
+      "options": [],
+      "recommendation": "More menu top bar; tabs Edit/Audio/Text/Looks/Adjust; status row",
+      "kind": "design",
+      "phase": "design",
+      "status": "answered",
+      "answer": "More menu (new project, shortcuts, licences, source) + undo/redo + Export; tabs Edit/Audio/Text/Looks/Adjust; status row under tabs (agent decision from audit; shown to owner at G2)",
+      "asked": "2026-11-03T08:45:18+00:00",
+      "answered": "2026-11-03T08:45:19+00:00"
+    },
+    {
+      "id": "D-039",
+      "question": "Time format, playhead/handle distinction, notice recipe",
+      "options": [],
+      "recommendation": null,
+      "kind": "design",
+      "phase": "design",
+      "status": "answered",
+      "answer": "m:ss + muted frame suffix; playhead cased line with head in ruler; trim handles with grip; bow-tie crossfade; scrolling inspector with sticky footer; one notice placement/recipe (from critique)",
+      "asked": "2026-11-03T08:53:38+00:00",
+      "answered": "2026-11-03T08:53:38+00:00"
+    },
+    {
+      "id": "D-040",
+      "question": "Approve designs (G2)",
+      "options": [],
+      "recommendation": null,
+      "kind": "design",
+      "phase": "design",
+      "status": "answered",
+      "answer": "approved 2026-11-03 with a quick follow-up pass for M1, M2, R3-1; minors during build",
+      "asked": "2026-11-03T11:26:12+00:00",
+      "answered": "2026-11-03T11:26:12+00:00"
     }
   ],
   "loops": {
@@ -452,6 +608,14 @@
       "started": "2026-11-03T07:27:07+00:00",
       "outcome": "converged",
       "ended": "2026-11-03T07:46:26+00:00"
+    },
+    "design-review": {
+      "round": 3,
+      "max": 3,
+      "active": false,
+      "started": "2026-11-03T08:36:56+00:00",
+      "outcome": "limit-reached-3-majors",
+      "ended": "2026-11-03T11:25:51+00:00"
     }
   },
   "log": [
@@ -790,9 +954,205 @@
     {
       "at": "2026-11-03T08:02:34+00:00",
       "event": "decision D-027 answered: yes; nearest fit to requested start; no-op if result is original place (confirmed by owner at G1)"
+    },
+    {
+      "at": "2026-11-03T08:02:35+00:00",
+      "event": "gate product-spec passed: 23 features ready (owner-delegated); 3 review rounds converged; D-001..D-027"
+    },
+    {
+      "at": "2026-11-03T08:02:42+00:00",
+      "event": "phase design -> in_progress"
+    },
+    {
+      "at": "2026-11-03T08:02:42+00:00",
+      "event": "phase architecture -> in_progress"
+    },
+    {
+      "at": "2026-11-03T08:05:21+00:00",
+      "event": "decision D-028 opened: Style direction"
+    },
+    {
+      "at": "2026-11-03T08:05:21+00:00",
+      "event": "decision D-028 answered: suite base + mango accent"
+    },
+    {
+      "at": "2026-11-03T08:05:22+00:00",
+      "event": "decision D-029 opened: Themes"
+    },
+    {
+      "at": "2026-11-03T08:05:22+00:00",
+      "event": "decision D-029 answered: dark-first, light fully supported; adjectives quick, calm, confident, private"
+    },
+    {
+      "at": "2026-11-03T08:05:22+00:00",
+      "event": "decision D-030 opened: Design tool"
+    },
+    {
+      "at": "2026-11-03T08:05:22+00:00",
+      "event": "decision D-030 answered: Claude Design canvas (same as siblings)"
+    },
+    {
+      "at": "2026-11-03T08:05:22+00:00",
+      "event": "set design_tool"
+    },
+    {
+      "at": "2026-11-03T08:05:22+00:00",
+      "event": "design step: design 2.1 style builder: building 3 mango variations page"
+    },
+    {
+      "at": "2026-11-03T08:07:20+00:00",
+      "event": "design step: design 2.1 style directions published (https://claude.ai/artifact/4nTzyTHqQsju1LwxNHh8EQ); awaiting owner pick"
+    },
+    {
+      "at": "2026-11-03T08:10:28+00:00",
+      "event": "decision D-031 opened: Style direction pick"
+    },
+    {
+      "at": "2026-11-03T08:10:28+00:00",
+      "event": "decision D-031 answered: A · Mango on night (suite neutrals, mango action colour, violet focus)"
+    },
+    {
+      "at": "2026-11-03T08:11:29+00:00",
+      "event": "design step: design 2.3 plan written; starting D1 components on canvas"
+    },
+    {
+      "at": "2026-11-03T08:11:57+00:00",
+      "event": "set design_canvas_url"
+    },
+    {
+      "at": "2026-11-03T08:14:16+00:00",
+      "event": "design step: design D2: Main (wide) + narrow selected drafted on canvas; awaiting owner direction review before D1 components"
+    },
+    {
+      "at": "2026-11-03T08:16:31+00:00",
+      "event": "design step: design: 4 production agents building ~45 artboards (components A/B, SCR-Editor states, FLOW-01); then audit+critique loop"
+    },
+    {
+      "at": "2026-11-03T08:27:57+00:00",
+      "event": "decision D-032 opened: CSP connect-src"
+    },
+    {
+      "at": "2026-11-03T08:27:57+00:00",
+      "event": "decision D-032 answered: 'self' (own files only); WebAssembly not allowed now, new decision if needed"
+    },
+    {
+      "at": "2026-11-03T08:27:57+00:00",
+      "event": "decision D-033 opened: Gecko desktop video output"
+    },
+    {
+      "at": "2026-11-03T08:27:57+00:00",
+      "event": "decision D-033 answered: MP4 H.264 + Opus"
+    },
+    {
+      "at": "2026-11-03T08:27:58+00:00",
+      "event": "decision D-034 opened: Music pack curation"
+    },
+    {
+      "at": "2026-11-03T08:27:58+00:00",
+      "event": "decision D-034 answered: Claude shortlists ~15 CC0 candidates with licence records; owner listens and keeps 8-10"
+    },
+    {
+      "at": "2026-11-03T08:27:58+00:00",
+      "event": "decision D-035 opened: Chrome dev-only test browser"
+    },
+    {
+      "at": "2026-11-03T08:27:58+00:00",
+      "event": "decision D-035 answered: approved (never shipped)"
+    },
+    {
+      "at": "2026-11-03T08:27:58+00:00",
+      "event": "decision D-036 opened: Staging environment"
+    },
+    {
+      "at": "2026-11-03T08:27:58+00:00",
+      "event": "decision D-036 answered: planned: clip-maker-staging.tarokit.app, free tier; created only in deploy phase"
+    },
+    {
+      "at": "2026-11-03T08:27:59+00:00",
+      "event": "decision D-037 opened: Reference devices"
+    },
+    {
+      "at": "2026-11-03T08:27:59+00:00",
+      "event": "decision D-037 answered: assume recent MacBook, owner's iPhone, mid-range Android; confirm before measuring"
+    },
+    {
+      "at": "2026-11-03T08:36:45+00:00",
+      "event": "design step: design: production done (45/47 published; FLOW-01 step8-9 blocked by permission check); copy consolidated; next: design-auditor + ui-critic round 1"
+    },
+    {
+      "at": "2026-11-03T08:36:56+00:00",
+      "event": "loop design-review started (max 3)"
+    },
+    {
+      "at": "2026-11-03T08:45:18+00:00",
+      "event": "decision D-038 opened: Narrow (phone) layout structure"
+    },
+    {
+      "at": "2026-11-03T08:45:19+00:00",
+      "event": "decision D-038 answered: More menu (new project, shortcuts, licences, source) + undo/redo + Export; tabs Edit/Audio/Text/Looks/Adjust; status row under tabs (agent decision from audit; shown to owner at G2)"
+    },
+    {
+      "at": "2026-11-03T08:53:38+00:00",
+      "event": "decision D-039 opened: Time format, playhead/handle distinction, notice recipe"
+    },
+    {
+      "at": "2026-11-03T08:53:38+00:00",
+      "event": "decision D-039 answered: m:ss + muted frame suffix; playhead cased line with head in ruler; trim handles with grip; bow-tie crossfade; scrolling inspector with sticky footer; one notice placement/recipe (from critique)"
+    },
+    {
+      "at": "2026-11-03T08:54:31+00:00",
+      "event": "design step: design-review round 1: 4 fix agents editing boards locally (no publish; Artifact publish blocked by auto-mode classifier — needs owner permission rule); then republish all + round 2 audit"
+    },
+    {
+      "at": "2026-11-03T09:25:42+00:00",
+      "event": "loop design-review round 2"
+    },
+    {
+      "at": "2026-11-03T09:38:05+00:00",
+      "event": "design step: design-review round 2: 3 fix agents (narrow, wide/compact+flow, CMP)"
+    },
+    {
+      "at": "2026-11-03T09:39:21+00:00",
+      "event": "design step: design-review round 2 fixes PAUSED: spend limit hit (resets 17:50 Asia/Saigon). Phone-board fix agent stopped mid-work; wide+flow and CMP agents may also stop. Resume: continue the 3 round-2 fix agents per .build-my-app/reports/design-fix-brief-r2.md, then publish all boards, round-3 verify, gate G2."
+    },
+    {
+      "at": "2026-11-03T09:39:21+00:00",
+      "event": "Spend limit reached during design round-2 fixes; work paused"
+    },
+    {
+      "at": "2026-11-03T11:04:12+00:00",
+      "event": "design step: design-review round 2: 3 fix agents resumed after limit (phone, wide+flow, CMP); next publish all, round-3 verify, G2"
+    },
+    {
+      "at": "2026-11-03T11:15:45+00:00",
+      "event": "loop design-review round 3"
+    },
+    {
+      "at": "2026-11-03T11:25:51+00:00",
+      "event": "loop design-review ended: limit-reached-3-majors"
+    },
+    {
+      "at": "2026-11-03T11:25:51+00:00",
+      "event": "phase design -> gate"
+    },
+    {
+      "at": "2026-11-03T11:26:12+00:00",
+      "event": "decision D-040 opened: Approve designs (G2)"
+    },
+    {
+      "at": "2026-11-03T11:26:12+00:00",
+      "event": "decision D-040 answered: approved 2026-11-03 with a quick follow-up pass for M1, M2, R3-1; minors during build"
+    },
+    {
+      "at": "2026-11-03T11:26:12+00:00",
+      "event": "gate design passed: 52 boards v37; 3 review rounds; 0 blockers; follow-ups M1/M2/R3-1 in quick pass"
+    },
+    {
+      "at": "2026-11-03T11:27:05+00:00",
+      "event": "architecture step: G2 passed; follow-up pass: R3-1 + M2 done locally, M1 (export-error_wide) agent running; then publish, then phase 3 spikes"
     }
   ],
-  "updated": "2026-11-03T08:02:34+00:00",
+  "updated": "2026-11-03T11:27:05+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
@@ -880,5 +1240,6 @@
       "q": "Per-resolution bitrate floors and size estimation (RULE-15)",
       "pass": "estimate within ±25%, target never exceeded on fixtures"
     }
-  ]
+  ],
+  "design_canvas_url": "https://claude.ai/artifact/Uiv6jfy9jrWhTLx7NaNmkh"
 }

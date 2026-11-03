@@ -52,7 +52,7 @@ Rules for every string:
 |---|---|---|---|
 | **COPY-empty.title** | Add videos, photos or music to start. They stay on your device. | Thêm video, ảnh hoặc nhạc để bắt đầu. Tất cả vẫn nằm trên máy bạn. | |
 | **COPY-drop.hint** | Drop to add | Thả để thêm | |
-| **COPY-time.position** | {current} / {length} | {current} / {length} | Times as mm:ss:ff |
+| **COPY-time.position** | {current} / {length} | {current} / {length} | Times as m:ss (h:mm:ss never needed, RULE-03); in the transport the current time adds the frame number as a separate muted suffix (e.g. 0:04 ·12) |
 
 ## Inspector
 | ID | en-US | vi-VN | Notes |
@@ -62,7 +62,7 @@ Rules for every string:
 | **COPY-inspector.adjust** | Adjust | Chỉnh màu | |
 | **COPY-inspector.speed** | Speed | Tốc độ | |
 | **COPY-inspector.sound** | Sound | Âm thanh | |
-| **COPY-inspector.fades** | Fades | Mờ dần | |
+| **COPY-inspector.fades** | Fades | Hiệu ứng mờ | |
 | **COPY-inspector.text** | Text | Chữ | |
 | **COPY-frame.aspect** | Aspect | Tỉ lệ | |
 | **COPY-frame.rate** | Frame rate | Tốc độ khung hình | |
@@ -104,7 +104,7 @@ Rules for every string:
 ## Looks
 | ID | en-US | vi-VN | Notes |
 |---|---|---|---|
-| **COPY-looks.title** | Looks | Bộ lọc màu | |
+| **COPY-looks.title** | Looks | Bộ lọc | Short: fits 320 px tabs |
 | **COPY-looks.none** | None | Không | |
 | **COPY-looks.intensity** | Intensity | Cường độ | |
 | **COPY-looks.group_natural** | Natural | Tự nhiên | |
@@ -165,7 +165,7 @@ Rules for every string:
 | **COPY-reason.no_media** | has no usable picture or sound | không có hình hoặc âm thanh dùng được | |
 | **COPY-reason.codec** | this browser can't decode it | trình duyệt này không giải mã được | |
 | **COPY-reason.folder** | folders can't be added | không thể thêm thư mục | |
-| **COPY-error.export_failed** | Export failed. Your edits are safe. Try a lower resolution. | Xuất thất bại. Chỉnh sửa của bạn vẫn còn. Hãy thử độ phân giải thấp hơn. | |
+| **COPY-error.export_failed** | Your edits are safe. Try a lower resolution. | Chỉnh sửa của bạn vẫn còn. Hãy thử độ phân giải thấp hơn. | |
 | **COPY-error.export_interrupted** | Export stopped because the page was hidden. Your edits are safe. Keep this page open and try again. | Xuất bị dừng vì trang bị ẩn. Chỉnh sửa của bạn vẫn còn. Hãy giữ trang mở và thử lại. | |
 | **COPY-error.no_space** | Not enough free space on this device for this export. | Không đủ dung lượng trống trên máy để xuất. | |
 | **COPY-confirm.new_project** | Start a new project? Unexported changes will be lost. | Bắt đầu dự án mới? Các thay đổi chưa xuất sẽ bị mất. | |
@@ -175,7 +175,7 @@ Rules for every string:
 | ID | en-US | vi-VN | Notes |
 |---|---|---|---|
 | **COPY-privacy.badge** | Your media never leaves this device | Tệp của bạn không bao giờ rời khỏi máy này | |
-| **COPY-privacy.details** | Clip Maker edits and exports entirely in your browser. Nothing is uploaded and your project isn't kept after you close the page. During an export it may use temporary space on your device. That space is deleted when the export ends, or the next time you open Clip Maker if the page closed during an export. | Clip Maker chỉnh sửa và xuất hoàn toàn trong trình duyệt. Không có gì được tải lên và không có gì được giữ lại sau khi bạn đóng trang. Khi xuất, công cụ có thể dùng tạm dung lượng trên máy; phần này sẽ bị xoá khi quá trình xuất kết thúc, hoặc khi bạn mở lại Clip Maker nếu trang bị đóng giữa chừng. | |
+| **COPY-privacy.details** | Clip Maker edits and exports entirely in your browser. Nothing is uploaded and your project isn't kept after you close the page. The first visit downloads the tool's looks, fonts and music (about 12 MB) so it works offline. During an export it may use temporary space on your device. That space is deleted when the export ends, or the next time you open Clip Maker if the page closed during an export. | Clip Maker chỉnh sửa và xuất hoàn toàn trong trình duyệt. Không có gì được tải lên và không có gì được giữ lại sau khi bạn đóng trang. Lần đầu mở, công cụ tải sẵn bộ lọc màu, phông chữ và nhạc (khoảng 12 MB) để dùng ngoại tuyến. Khi xuất, công cụ có thể dùng tạm dung lượng trên máy; phần này sẽ bị xoá khi quá trình xuất kết thúc, hoặc khi bạn mở lại Clip Maker nếu trang bị đóng giữa chừng. | |
 | **COPY-privacy.source_label** | Source code on GitHub | Mã nguồn trên GitHub | |
 | **COPY-privacy.notices** | Licences and credits | Giấy phép và ghi công | |
 | **COPY-unsupported.title** | This browser can't edit video | Trình duyệt này không chỉnh sửa video được | |
@@ -184,3 +184,209 @@ Rules for every string:
 | **COPY-unsupported.missing_effects** | drawing effects | vẽ hiệu ứng | |
 | **COPY-privacy.notices_title** | Licences and credits | Giấy phép và ghi công | Heading of the in-tool notices view |
 | **COPY-unsupported.body** | Missing: {missing}. Open Clip Maker in an up-to-date desktop or phone browser. | Thiếu: {missing}. Hãy mở Clip Maker bằng trình duyệt mới trên máy tính hoặc điện thoại. | |
+
+## Actions (more)
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-action.back** | Back | Quay lại | |
+| **COPY-action.change_settings** | Change settings | Đổi cài đặt | |
+| **COPY-action.close** | Close | Đóng | |
+| **COPY-action.dismiss** | Dismiss | Bỏ qua | |
+| **COPY-action.done** | Done | Xong | |
+| **COPY-action.full_screen** | Full screen | Toàn màn hình | |
+| **COPY-action.exit_full_screen** | Exit full screen | Thoát toàn màn hình | |
+| **COPY-action.more** | More | Thêm | |
+| **COPY-action.mute** | Mute | Tắt tiếng | |
+| **COPY-action.play** | Play | Phát | |
+| **COPY-action.pause** | Pause | Tạm dừng | |
+| **COPY-action.prev_frame** | Previous frame | Khung trước | |
+| **COPY-action.next_frame** | Next frame | Khung sau | |
+| **COPY-action.remove_crossfade** | Remove cross-fade | Bỏ chuyển mờ | |
+| **COPY-action.try_again** | Try again | Thử lại | |
+| **COPY-action.use_res** | Use {res} | Dùng {res} | |
+
+## Regions and labels
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-toolbar.label** | Editor | Trình chỉnh sửa | |
+| **COPY-inspector.label** | Clip | Clip | |
+| **COPY-inspector.edit** | Edit | Chỉnh sửa | |
+| **COPY-inspector.resize** | Resize inspector | Đổi cỡ bảng thuộc tính | |
+| **COPY-timeline.label** | Timeline | Dòng thời gian | |
+| **COPY-preview.label** | Preview at {time} | Xem trước tại {time} | |
+| **COPY-preview.comparing** | Showing original | Đang xem bản gốc | |
+| **COPY-status.facts** | {aspect} · {rate} fps · {length} | {aspect} · {rate} fps · {length} | |
+
+## Timeline
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-timeline.length** | Length {length} | Độ dài {length} | |
+| **COPY-timeline.project_end** | End | Cuối dự án | |
+| **COPY-timeline.zoom_frames** | 1 frame = {px} px | 1 khung = {px} px | |
+| **COPY-crossfade.length** | Cross-fade length | Độ dài chuyển mờ | |
+| **COPY-crossfade.shorter** | Shorter | Ngắn hơn | |
+| **COPY-crossfade.longer** | Longer | Dài hơn | |
+
+## Media panel and adding
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-media.title** | Media | Tệp đã thêm | |
+| **COPY-media.place_again** | Add to timeline | Thêm vào dòng thời gian | |
+| **COPY-media.checking** | Checking {name}… | Đang kiểm tra {name}… | |
+| **COPY-media.queue** | {n} of {total} | {n}/{total} | |
+| **COPY-media.refused** | Not added | Chưa thêm được | |
+| **COPY-media.empty** | No media yet. Videos, photos and audio you add are listed here. | Chưa có tệp nào. Video, ảnh và âm thanh bạn thêm sẽ hiện ở đây. | |
+| **COPY-media.kind_video** | Video | Video | |
+| **COPY-media.kind_photo** | Photo | Ảnh | |
+| **COPY-media.kind_audio** | Audio | Âm thanh | |
+| **COPY-empty.drop_hint** | Or drop or paste files here | Hoặc thả hay dán tệp vào đây | |
+| **COPY-drop.kinds** | Videos, photos and audio | Video, ảnh và âm thanh | |
+| **COPY-notice.added** | Added {count} files | Đã thêm {count} tệp | |
+| **COPY-notice.adding** | Adding {done} of {total}… | Đang thêm {done}/{total}… | |
+| **COPY-notice.adding_label** | Adding media | Đang thêm tệp | |
+| **COPY-notice.checking** | Checking {done} of {total} files… | Đang kiểm tra {done}/{total} tệp… | |
+| **COPY-notice.applied_all** | Applied to all {count} clips | Đã áp dụng cho cả {count} clip | |
+
+## Inspector controls
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-adjust.group_light** | Light | Ánh sáng | |
+| **COPY-adjust.group_colour** | Colour | Màu sắc | |
+| **COPY-adjust.group_effects** | Effects | Hiệu ứng | |
+| **COPY-tab.audio** | Audio | Âm thanh | Phone tab: music and sound |
+| **COPY-action.go_start** | Go to start | Về đầu | |
+| **COPY-action.go_end** | Go to end | Về cuối | |
+| **COPY-placement.mode** | Placement | Cách đặt | |
+| **COPY-placement.scale** | Scale | Thu phóng | |
+| **COPY-placement.offset** | Offset | Độ lệch | |
+| **COPY-placement.offset_x** | Horizontal offset | Lệch ngang | |
+| **COPY-placement.offset_y** | Vertical offset | Lệch dọc | |
+| **COPY-placement.nudge_left** | Nudge left | Dịch trái | |
+| **COPY-placement.nudge_right** | Nudge right | Dịch phải | |
+| **COPY-placement.nudge_up** | Nudge up | Dịch lên | |
+| **COPY-placement.nudge_down** | Nudge down | Dịch xuống | |
+| **COPY-speed.exact** | Exact | Chính xác | |
+| **COPY-speed.length** | Length {length} | Độ dài {length} | |
+| **COPY-fades.in** | Fade in | Hiện dần | |
+| **COPY-fades.out** | Fade out | Mờ dần | |
+| **COPY-fades.quick_in** | Quick fade in | Hiện nhanh | |
+| **COPY-fades.quick_out** | Quick fade out | Mờ nhanh | |
+| **COPY-sound.volume** | Volume | Âm lượng | |
+| **COPY-photo.duration** | Duration | Thời lượng | |
+
+## Text layers
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-text.field** | Text | Nội dung chữ | |
+| **COPY-text.box_colour** | Box colour | Màu nền chữ | |
+| **COPY-text.align_left** | Left | Trái | |
+| **COPY-text.align_centre** | Centre | Giữa | |
+| **COPY-text.align_right** | Right | Phải | |
+| **COPY-text.fade** | Fade | Hiện mờ | |
+| **COPY-text.position** | Position | Vị trí | |
+| **COPY-text.position_x** | Horizontal position | Vị trí ngang | |
+| **COPY-text.position_y** | Vertical position | Vị trí dọc | |
+| **COPY-text.bring_forward** | Bring forward | Đưa lên trên | |
+| **COPY-text.send_back** | Send back | Đưa xuống dưới | |
+| **COPY-text.done** | Done | Xong | |
+| **COPY-text.finish_hint** | Esc or Ctrl+Enter to finish | Esc hoặc Ctrl+Enter để xong | |
+| **COPY-text.count** | {n} / 500 | {n} / 500 | |
+| **COPY-text.char_limit** | Text is at its 500-character limit. | Chữ đã đạt giới hạn 500 ký tự. | |
+
+## Colours (RULE-11 palette)
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-colour.white** | White | Trắng | |
+| **COPY-colour.black** | Black | Đen | |
+| **COPY-colour.red** | Red | Đỏ | |
+| **COPY-colour.orange** | Orange | Cam | |
+| **COPY-colour.yellow** | Yellow | Vàng | |
+| **COPY-colour.green** | Green | Xanh lá | |
+| **COPY-colour.cyan** | Cyan | Xanh lơ | |
+| **COPY-colour.blue** | Blue | Xanh dương | |
+| **COPY-colour.purple** | Purple | Tím | |
+| **COPY-colour.pink** | Pink | Hồng | |
+
+## Looks and music (more)
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-looks.groups** | Look groups | Nhóm bộ lọc | |
+| **COPY-looks.previewing** | Previewing {look} | Đang xem thử {look} | |
+| **COPY-music.your_audio** | Your audio | Âm thanh của bạn | |
+| **COPY-music.your_audio_hint** | Bundled tracks are free to use. Or add your own: | Nhạc có sẵn được dùng miễn phí. Hoặc thêm của bạn: | |
+| **COPY-music.stop** | Stop preview | Dừng nghe thử | |
+
+## Export (more)
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-export.size_limit** | Size limit | Giới hạn dung lượng | |
+| **COPY-export.size_custom** | Other | Khác | |
+| **COPY-export.size_custom_label** | Size limit in MB | Giới hạn dung lượng (MB) | |
+| **COPY-export.res_needs_source** | {res} needs a larger source video or photo | {res} cần video hoặc ảnh gốc lớn hơn | |
+| **COPY-export.res_no_encoder** | This device can't create {res} | Thiết bị này không tạo được {res} | |
+| **COPY-export.saves_as** | Saves as {format} | Lưu dạng {format} | |
+| **COPY-export.gif_from** | From | Từ | |
+| **COPY-export.gif_to** | To | Đến | |
+| **COPY-export.audio_format** | Format | Định dạng | |
+| **COPY-export.audio_compressed** | Compressed · {format} | Nén · {format} | |
+| **COPY-export.audio_wav** | WAV · best quality | WAV · chất lượng cao nhất | |
+| **COPY-export.cancelling** | Cancelling… | Đang huỷ… | |
+| **COPY-export.progress_label** | Export progress | Tiến độ xuất | |
+| **COPY-export.keep_open** | Keep this page open until the export finishes. | Hãy giữ trang này mở cho đến khi xuất xong. | |
+
+## Licence notices
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-notices.fonts** | Typefaces | Phông chữ | |
+| **COPY-notices.code** | Code | Mã nguồn | |
+| **COPY-notices.col_title** | Title | Tên | |
+| **COPY-notices.col_source** | Source | Nguồn | |
+| **COPY-notices.col_licence** | Licence | Giấy phép | |
+
+## Shortcut help
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-help.group_playback** | Playback | Phát | |
+| **COPY-help.group_edit** | Edit | Chỉnh sửa | |
+| **COPY-help.group_history** | History | Lịch sử | |
+| **COPY-help.group_view** | View | Hiển thị | |
+| **COPY-help.group_files** | Files | Tệp | |
+| **COPY-help.group_help** | Help | Trợ giúp | |
+| **COPY-help.play_pause** | Play or pause | Phát hoặc tạm dừng | |
+| **COPY-help.frame_step** | One frame back / forward (Shift: 1 s) | Lùi / tiến một khung hình (Shift: 1 giây) | |
+| **COPY-help.go_ends** | Go to start / end | Về đầu / cuối | |
+| **COPY-help.move** | Move earlier / later (text and audio: 1 frame, Shift: 1 s) | Dời lên trước / ra sau (chữ và âm thanh: 1 khung hình, Shift: 1 giây) | |
+| **COPY-help.mute** | Mute or unmute clip | Tắt/bật tiếng clip | |
+| **COPY-help.paste** | Paste colour, or add copied files | Dán màu, hoặc thêm tệp đã sao chép | |
+| **COPY-help.hold** | Hold | Giữ | |
+| **COPY-help.zoom** | Zoom timeline in / out | Phóng to / thu nhỏ dòng thời gian | |
+| **COPY-help.snapping** | Snapping on or off | Bật/tắt hít cạnh | |
+| **COPY-help.esc** | Close a dialog or menu | Đóng hộp thoại hoặc menu | |
+| **COPY-help.finish_editing** | Finish editing text | Xong sửa chữ | |
+| **COPY-help.scope** | Shortcuts work while you are not typing. Sliders use the arrow keys, and buttons use Space and Enter, while they have focus. | Phím tắt hoạt động khi bạn không gõ chữ. Thanh trượt dùng phím mũi tên, nút dùng Space và Enter khi đang được chọn. | |
+
+## Look names (looks.md)
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-look.natural_fresh** | Fresh | Tươi | |
+| **COPY-look.natural_warm** | Warm | Ấm | |
+| **COPY-look.natural_cool** | Cool | Mát | |
+| **COPY-look.natural_vivid** | Vivid | Rực rỡ | |
+| **COPY-look.film_faded** | Faded | Phai màu | |
+| **COPY-look.film_retro** | Retro | Cổ điển | |
+| **COPY-look.film_pastel** | Pastel | Pastel | |
+| **COPY-look.film_instant** | Instant | Ảnh lấy liền | |
+| **COPY-look.cine_teal_orange** | Teal & Orange | Xanh cam | |
+| **COPY-look.cine_moody** | Moody | Trầm | |
+| **COPY-look.cine_night** | Night | Đêm | |
+| **COPY-look.cine_golden** | Golden | Hoàng kim | |
+| **COPY-look.bw_classic** | Classic | Kinh điển | |
+| **COPY-look.bw_high** | Contrast | Tương phản | |
+| **COPY-look.bw_soft** | Soft | Dịu | |
+| **COPY-look.bw_sepia** | Sepia | Nâu cổ | |
+| **COPY-notice.more** | +{n} more | +{n} thông báo khác | Collapsed notices chip |
+| **COPY-action.show_all** | Show all | Xem tất cả | |
+| **COPY-export.failed_title** | Export failed | Xuất thất bại | |
+| **COPY-export.interrupted_title** | Export stopped | Đã dừng xuất | |
+| **COPY-export.no_space_title** | Not enough space | Không đủ dung lượng | |
+| **COPY-timeline.ends_at** | ends {time} | kết thúc {time} | Trim readout |

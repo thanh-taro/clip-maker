@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CMP-StatusBar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap">
+<style>
+body{margin:0;background:#0B0812;font-family:'Manrope',system-ui,sans-serif}
+.tk-dark{--bg:#0F0B16;--surface:#18121F;--surface2:#221A2F;--line:#2D2440;--lineStrong:#6F6290;--fg:#EFEAF8;--muted:#9C92B0;--accent:#FFB870;--accentHover:#FFC995;--onAccent:#1A1005;--accent2:#A47BFF;--accent2Fg:#C3A8FF;--selection:#2A1D47;--selectionLine:#4A3580;--danger:#FF8595;--success:#5BD6A0;--scrim:#07050BB3;--chrome:#140F1EB8;--dangerBg:#3A1622;--warnBg:#33240F;--focus:#A47BFF;--workArea:#0B0812;--playhead:#FFB870;--trackClip:#3B2A55;--trackClipAlt:#47306A;--trackText:#5A3E1C;--trackAudio:#1F3B33;--waveform:#5BD6A0;--trackLabel:#EFEAF8;--handle:#EFEAF8;--previewOutline:#A47BFF;--previewHandle:#FFFFFF;--txt-white:#FFFFFF;--txt-black:#000000;--txt-red:#E5383B;--txt-orange:#F28C28;--txt-yellow:#FFD60A;--txt-green:#2DB84D;--txt-cyan:#1FC8E0;--txt-blue:#2F6FEB;--txt-purple:#8E44EC;--txt-pink:#F05BA8}
+.tk-light{--bg:#FBFAFE;--surface:#FFFFFF;--surface2:#F1EDFA;--line:#E2DCF0;--lineStrong:#8C82A2;--fg:#16111F;--muted:#5E566F;--accent:#A65305;--accentHover:#8F4705;--onAccent:#FFFFFF;--accent2:#6837E0;--accent2Fg:#5429C0;--selection:#F0EAFE;--selectionLine:#CDBBF8;--danger:#C0243B;--success:#13744C;--scrim:#16111F66;--chrome:#FFFFFFD1;--dangerBg:#FCE8EC;--warnBg:#FDEBD8;--focus:#6837E0;--workArea:#ECE8F4;--playhead:#A65305;--trackClip:#DCCFF7;--trackClipAlt:#CDBBF8;--trackText:#FBDDB8;--trackAudio:#CDEFE0;--waveform:#13744C;--trackLabel:#16111F;--handle:#16111F;--previewOutline:#6837E0;--previewHandle:#FFFFFF;--txt-white:#FFFFFF;--txt-black:#000000;--txt-red:#E5383B;--txt-orange:#F28C28;--txt-yellow:#FFD60A;--txt-green:#2DB84D;--txt-cyan:#1FC8E0;--txt-blue:#2F6FEB;--txt-purple:#8E44EC;--txt-pink:#F05BA8}
+.cap{font:600 12px 'JetBrains Mono',monospace;color:#9C92B0;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ic{width:16px;height:16px;flex:none}
+.ic20{width:20px;height:20px;flex:none}
+.grow{flex:1}
+.mono{font-family:'JetBrains Mono',monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.btn{height:32px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--fg);font:600 13px 'Manrope',sans-serif;box-sizing:border-box;white-space:nowrap;position:relative}
+.btn.icon{width:32px;padding:0;color:var(--muted)}
+.btn.q{color:var(--fg)}
+.btn.out{border-color:var(--accent);color:var(--accent)}
+.btn.dng{border-color:var(--danger);color:var(--danger)}
+.btn.fill{background:var(--accent);color:var(--onAccent);font-weight:700}
+.btn.off,.btn.fill.off{background:var(--surface2);border-color:var(--line);color:var(--muted);font-weight:600}
+.btn.pressed{background:var(--surface2);border-color:var(--accent);color:var(--fg)}
+.btn.hov{background:var(--surface2)}
+.btn.t{height:44px;min-width:44px;font-size:14px}
+.fr{outline:2px solid var(--focus);outline-offset:2px}
+.panel{background:var(--surface);border:1px solid var(--lineStrong);border-radius:10px;color:var(--fg);font-size:13px;line-height:1.55;box-sizing:border-box;overflow:hidden}
+.hd{display:flex;align-items:center;gap:8px;height:44px;padding:0 4px 0 16px;border-bottom:1px solid var(--line);flex:none}
+.hd h2{margin:0;font:700 14px 'Manrope',sans-serif;flex:1;line-height:1.15}
+.lbl{font:600 11px 'Manrope',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.grab{width:32px;height:4px;border-radius:999px;background:var(--lineStrong);margin:8px auto 0;flex:none;display:block}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;box-sizing:border-box;border:1px solid var(--lineStrong);border-bottom-width:2px;border-radius:7px;background:var(--surface2);color:var(--fg);font:500 12px 'JetBrains Mono',monospace}
+a{color:inherit}
+.sb{display:flex;align-items:center;gap:12px;height:28px;padding:0 8px;border-top:1px solid var(--line);background:var(--bg);color:var(--muted);font-size:12px;box-sizing:border-box}
+.sbb{display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:500 12px 'Manrope',sans-serif;white-space:nowrap}
+.sbb.open{background:var(--surface2);color:var(--fg)}
+.sdot{width:8px;height:8px;border-radius:999px;background:var(--success);flex:none}
+.srcl{display:inline-flex;align-items:center;gap:4px;color:var(--fg);text-decoration:underline;text-underline-offset:2px;font-size:12px;white-space:nowrap}
+.facts{font:500 12px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+.sbn{display:flex;align-items:center;height:28px;padding:0 0 0 4px;border-top:1px solid var(--line);background:var(--bg);box-sizing:border-box;position:relative}
+.sbn .sbb{height:28px;padding:0 4px;gap:4px;font-size:11px;position:relative;min-width:0}
+.sbn .sbb .ic{color:var(--success)}
+.sbn .sbb::after,.sbn .icl::after{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+.sbn .icl{position:relative;width:44px;height:28px;display:grid;place-items:center;color:var(--fg);flex:none}
+.root{width:1240px;height:1200px;box-sizing:border-box;padding:16px;display:flex;flex-direction:column;gap:16px;background:#0B0812;overflow:hidden}
+.half{height:576px;display:flex;flex-direction:column;gap:8px}
+.r2{display:flex;gap:16px;align-items:flex-start}
+.colA{width:390px;display:flex;flex-direction:column;gap:8px;flex:none}
+.cap{letter-spacing:0}
+.sb.box{border:1px solid var(--line)}
+.sbn.box{border:1px solid var(--line)}
+.pa{position:relative;width:390px;height:314px;background:var(--bg);border:1px solid var(--line);box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+.pop{position:absolute;left:8px;bottom:36px;width:360px;padding:12px 4px 12px 14px;display:flex;flex-direction:column;gap:8px}
+.pop .ph{display:flex;align-items:center;gap:8px}
+.pop .ph h2{margin:0;flex:1;font:700 13px 'Manrope',sans-serif;line-height:1.15}
+.pop .ph .ic{color:var(--success)}
+.pop p{margin:0;padding-right:10px;font-size:12px;line-height:1.55}
+.pop .lk{display:flex;gap:8px;flex-wrap:wrap;padding-right:10px}
+.nv{width:802px;height:504px;display:flex;flex-direction:column}
+.nv .hd{height:44px;padding-left:4px}
+.nv .bd{padding:8px 16px 16px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.nv h3{margin:0 0 4px;font:600 11px 'Manrope',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font:600 12px/1.15 'Manrope',sans-serif;color:var(--muted);padding:2px 8px 2px 0;border-bottom:1px solid var(--line)}
+td{padding:2px 8px 2px 0;border-bottom:1px solid var(--line);line-height:1.15}
+td.m{font:500 12px 'JetBrains Mono',monospace;color:var(--muted)}
+col.c1{width:34%}col.c2{width:46%}
+
+</style>
+</helmet>
+<div class="root">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="half {{t.cls}}">
+<div class="cell"><span class="cap">CMP-StatusBar / wide / {{t.label}}</span><footer class="sb box" style="width:1208px"><button class="sbb" aria-expanded="false" aria-haspopup="dialog"><span class="sdot" aria-hidden="true"></span><span data-copy="COPY-privacy.badge">Your media never leaves this device</span></button><a class="srcl" href="https://github.com/thanh-taro/clip-maker" target="_blank" rel="noopener noreferrer" data-copy="COPY-privacy.source_label">Source code on GitHub<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg></a><span class="grow"></span><span class="facts" data-copy="COPY-status.facts">9:16 · 30 fps · 0:58</span></footer></div>
+<div class="r2"><div class="colA"><div class="cell"><span class="cap">CMP-StatusBar / narrow · 390 / {{t.label}}</span><footer class="sbn box" style="width:390px"><button class="sbb" aria-expanded="false" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span data-copy="COPY-privacy.badge">Your media never leaves this device</span></button><span class="grow"></span><a class="icl" href="https://github.com/thanh-taro/clip-maker" target="_blank" rel="noopener noreferrer" aria-label="Source code on GitHub" data-copy="COPY-privacy.source_label"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg></a></footer></div><div class="cell"><span class="cap">CMP-StatusBar / narrow · 320 / {{t.label}}</span><footer class="sbn box" style="width:320px"><button class="sbb" aria-expanded="false" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span data-copy="COPY-privacy.badge">Your media never leaves this device</span></button><span class="grow"></span><a class="icl" href="https://github.com/thanh-taro/clip-maker" target="_blank" rel="noopener noreferrer" aria-label="Source code on GitHub" data-copy="COPY-privacy.source_label"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg></a></footer></div><div class="cell"><span class="cap">CMP-StatusBar / narrow · 320 · vi-VN / {{t.label}}</span><footer class="sbn box" lang="vi" style="width:320px"><button class="sbb" aria-expanded="false" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span data-copy="COPY-privacy.badge">Tệp của bạn không bao giờ rời khỏi máy này</span></button><span class="grow"></span><a class="icl" href="https://github.com/thanh-taro/clip-maker" target="_blank" rel="noopener noreferrer" aria-label="Mã nguồn trên GitHub" data-copy="COPY-privacy.source_label"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg></a></footer></div><div class="cell"><span class="cap">CMP-StatusBar / privacy details open / {{t.label}}</span><div class="pa"><section class="panel pop" role="dialog" aria-label="Your media never leaves this device" data-copy="COPY-privacy.badge"><div class="ph"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><h2 data-copy="COPY-privacy.badge">Your media never leaves this device</h2><button class="btn icon" aria-label="Close" data-copy="COPY-action.close"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><p data-copy="COPY-privacy.details">Clip Maker edits and exports entirely in your browser. Nothing is uploaded and your project isn't kept after you close the page. The first visit downloads the tool's looks, fonts and music (about 12 MB) so it works offline. During an export it may use temporary space on your device. That space is deleted when the export ends, or the next time you open Clip Maker if the page closed during an export.</p><div class="lk"><button class="btn out" data-copy="COPY-privacy.notices">Licences and credits</button></div></section><footer class="sb"><button class="sbb open" aria-expanded="true" aria-haspopup="dialog"><span class="sdot" aria-hidden="true"></span><span data-copy="COPY-privacy.badge">Your media never leaves this device</span></button><span class="grow"></span></footer></div></div></div><div class="cell"><span class="cap">CMP-StatusBar / licence notices view / {{t.label}}</span><section class="panel nv" role="dialog" aria-modal="true" aria-label="Licences and credits" data-copy="COPY-privacy.notices_title"><div class="hd"><button class="btn icon" aria-label="Back" data-copy="COPY-action.back"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><h2 data-copy="COPY-privacy.notices_title">Licences and credits</h2><button class="btn icon" aria-label="Close" data-copy="COPY-action.close"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div class="bd"><section><h3 data-copy="COPY-notices.fonts">Typefaces</h3><table><colgroup><col class="c1"><col class="c2"><col></colgroup><thead><tr><th data-copy="COPY-notices.col_title">Title</th><th data-copy="COPY-notices.col_source">Source</th><th data-copy="COPY-notices.col_licence">Licence</th></tr></thead><tbody><tr><td data-sample="">Manrope</td><td class="m" data-sample="">@fontsource-variable/manrope</td><td data-sample="">OFL-1.1</td></tr><tr><td data-sample="">JetBrains Mono</td><td class="m" data-sample="">@fontsource-variable/jetbrains-mono</td><td data-sample="">OFL-1.1</td></tr><tr><td data-sample="">Anton</td><td class="m" data-sample="">@fontsource/anton</td><td data-sample="">OFL-1.1</td></tr><tr><td data-sample="">Playfair Display</td><td class="m" data-sample="">@fontsource/playfair-display</td><td data-sample="">OFL-1.1</td></tr><tr><td data-sample="">Nunito</td><td class="m" data-sample="">@fontsource/nunito</td><td data-sample="">OFL-1.1</td></tr></tbody></table></section><section><h3 data-copy="COPY-notices.code">Code</h3><table><colgroup><col class="c1"><col class="c2"><col></colgroup><thead><tr><th data-copy="COPY-notices.col_title">Title</th><th data-copy="COPY-notices.col_source">Source</th><th data-copy="COPY-notices.col_licence">Licence</th></tr></thead><tbody><tr><td data-sample="">preact</td><td class="m" data-sample="">npmjs.com/package/preact</td><td data-sample="">MIT</td></tr><tr><td data-sample="">@preact/signals</td><td class="m" data-sample="">npmjs.com/package/@preact/signals</td><td data-sample="">MIT</td></tr><tr><td data-sample="">mediabunny</td><td class="m" data-sample="">npmjs.com/package/mediabunny</td><td data-sample="">MPL-2.0</td></tr><tr><td data-sample="">gifenc</td><td class="m" data-sample="">npmjs.com/package/gifenc</td><td data-sample="">MIT</td></tr><tr><td data-sample="">lucide-static</td><td class="m" data-sample="">npmjs.com/package/lucide-static</td><td data-sample="">ISC</td></tr></tbody></table></section><section><h3 data-copy="COPY-music.title">Music</h3><table><colgroup><col class="c1"><col class="c2"><col></colgroup><thead><tr><th data-copy="COPY-notices.col_title">Title</th><th data-copy="COPY-notices.col_source">Source</th><th data-copy="COPY-notices.col_licence">Licence</th></tr></thead><tbody><tr><td data-sample="">Morning Walk</td><td class="m" data-sample="">[track source page]</td><td data-sample="">CC0 1.0</td></tr><tr><td data-sample="">Paper Boats</td><td class="m" data-sample="">[track source page]</td><td data-sample="">CC0 1.0</td></tr><tr><td data-sample="">Night Market</td><td class="m" data-sample="">[track source page]</td><td data-sample="">Public domain</td></tr></tbody></table></section></div></section></div></div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themes: [ { cls: 'tk-dark', label: 'dark' }, { cls: 'tk-light', label: 'light' } ] };
+  }
+}
+</script>
+</body>
+</html>
