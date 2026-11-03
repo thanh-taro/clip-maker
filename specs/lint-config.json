@@ -1,0 +1,3 @@
+{
+  "extra_leak_words": ["CapCut", "WebCodecs", "WebGL", "WebGL2", "WebGPU", "OPFS", "Firefox", "Safari", "Chrome", "Chromium", "Gecko", "WebKit", "Preact", "Vite", "mediabunny", "ffmpeg", "FFmpeg"]
+}

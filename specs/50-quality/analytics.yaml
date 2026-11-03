@@ -1,0 +1,2 @@
+# Analytics events: none, by design (PRN-01, NFR-01). The tool sends nothing anywhere.
+events: []

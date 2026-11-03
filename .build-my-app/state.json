@@ -1,0 +1,884 @@
+{
+  "version": 2,
+  "created": "2026-11-03T06:04:39+00:00",
+  "autonomy": "balanced",
+  "profile": {
+    "goal": "personal/portfolio",
+    "experience": "experienced-developer",
+    "budget": "none-reuse-tarokit",
+    "notes": "Media tool for the TaroKit portal (iframe-embedded), a local-only CapCut alternative. Sibling of image-annotator/json-formatter etc.; match their quality bar and conventions. All media stays on device, never uploaded."
+  },
+  "stack": null,
+  "design_tool": null,
+  "phases": {
+    "setup": {
+      "title": "0 Setup & discovery",
+      "status": "done",
+      "step": null,
+      "gate": {
+        "status": "passed",
+        "at": "2026-11-03T06:05:34+00:00",
+        "note": "Greenfield; profile reused from image-annotator; balanced autonomy; tooling OK"
+      }
+    },
+    "product-spec": {
+      "title": "1 Product & spec",
+      "status": "gate",
+      "step": "1.3 spec review round 3 (final verification)",
+      "gate": {
+        "status": "pending",
+        "at": null,
+        "note": null
+      }
+    },
+    "design": {
+      "title": "2 Design",
+      "status": "pending",
+      "step": null,
+      "gate": {
+        "status": "pending",
+        "at": null,
+        "note": null
+      }
+    },
+    "architecture": {
+      "title": "3 Architecture & spikes",
+      "status": "pending",
+      "step": null,
+      "gate": {
+        "status": "pending",
+        "at": null,
+        "note": null
+      }
+    },
+    "build": {
+      "title": "4 Implementation",
+      "status": "pending",
+      "step": null,
+      "gate": {
+        "status": "pending",
+        "at": null,
+        "note": null
+      }
+    },
+    "qa": {
+      "title": "5 QA & hardening",
+      "status": "pending",
+      "step": null,
+      "gate": {
+        "status": "pending",
+        "at": null,
+        "note": null
+      }
+    },
+    "release": {
+      "title": "6 Release candidate",
+      "status": "pending",
+      "step": null,
+      "gate": {
+        "status": "pending",
+        "at": null,
+        "note": null
+      }
+    },
+    "deploy": {
+      "title": "7 Deploy",
+      "status": "pending",
+      "step": null,
+      "gate": {
+        "status": "pending",
+        "at": null,
+        "note": null
+      }
+    },
+    "iterate": {
+      "title": "8 Iterate",
+      "status": "pending",
+      "step": null,
+      "gate": {
+        "status": "pending",
+        "at": null,
+        "note": null
+      }
+    }
+  },
+  "decisions": [
+    {
+      "id": "D-001",
+      "question": "M-1 scope",
+      "options": [
+        "single-track",
+        "light multi-track",
+        "single-clip"
+      ],
+      "recommendation": "single-track",
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "light multi-track in M-1 (owner chose against recommendation; accepts ~2-3x larger M-1 + audio-mix spike)",
+      "asked": "2026-11-03T06:11:11+00:00",
+      "answered": "2026-11-03T06:11:17+00:00"
+    },
+    {
+      "id": "D-002",
+      "question": "Phone support in M-1",
+      "options": [
+        "phone quick-fix flow",
+        "full editor on phone",
+        "desktop only"
+      ],
+      "recommendation": "phone quick-fix flow",
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "full editor on phone in M-1 (owner chose against recommendation; accepts phone design/QA + memory risk)",
+      "asked": "2026-11-03T06:11:11+00:00",
+      "answered": "2026-11-03T06:11:17+00:00"
+    },
+    {
+      "id": "D-003",
+      "question": "MPL-2.0 muxer (mediabunny) vs permissive-only policy",
+      "options": [
+        "spike both then decide",
+        "allow MPL now",
+        "permissive only"
+      ],
+      "recommendation": "spike both then decide",
+      "kind": "legal",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "spike permissive muxers first in phase 3; bring ADR exception for unmodified MPL-2.0 if needed; no WASM FFmpeg AAC",
+      "asked": "2026-11-03T06:11:11+00:00",
+      "answered": "2026-11-03T06:11:17+00:00"
+    },
+    {
+      "id": "D-004",
+      "question": "On-device storage",
+      "options": [
+        "temp scratch only",
+        "saved projects",
+        "nothing on disk"
+      ],
+      "recommendation": "temp scratch only",
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "temp OPFS scratch during export only, deleted after; nothing persists between sessions in M-1; project save reconsidered with ADR later",
+      "asked": "2026-11-03T06:11:11+00:00",
+      "answered": "2026-11-03T06:11:17+00:00"
+    },
+    {
+      "id": "D-005",
+      "question": "Pitch",
+      "options": [],
+      "recommendation": "privacy-led",
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "privacy-led",
+      "asked": "2026-11-03T06:12:40+00:00",
+      "answered": "2026-11-03T06:12:41+00:00"
+    },
+    {
+      "id": "D-006",
+      "question": "Music source in M-1",
+      "options": [],
+      "recommendation": "user audio only",
+      "kind": "legal",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "user's own audio + a bundled pack of free-licence tracks (licence allow-list to confirm at brief approval)",
+      "asked": "2026-11-03T06:12:41+00:00",
+      "answered": "2026-11-03T06:12:41+00:00"
+    },
+    {
+      "id": "D-007",
+      "question": "Max export length",
+      "options": [],
+      "recommendation": "10 min",
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "10 minutes",
+      "asked": "2026-11-03T06:12:41+00:00",
+      "answered": "2026-11-03T06:12:41+00:00"
+    },
+    {
+      "id": "D-008",
+      "question": "M-1 extras",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "photo clips, fades, basic adjustments, GIF + audio-only export",
+      "asked": "2026-11-03T06:12:41+00:00",
+      "answered": "2026-11-03T06:12:41+00:00"
+    },
+    {
+      "id": "D-009",
+      "question": "Colour filters + powerful colour adjustment in M-1",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "owner request: trending colour filters (self-authored LUTs, intensity slider) + full colour adjustment panel in M-1",
+      "asked": "2026-11-03T06:13:38+00:00",
+      "answered": "2026-11-03T06:13:38+00:00"
+    },
+    {
+      "id": "D-010",
+      "question": "Music pack licence allow-list",
+      "options": [],
+      "recommendation": "CC0 + CC-BY",
+      "kind": "legal",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "CC0 / public domain only",
+      "asked": "2026-11-03T07:16:54+00:00",
+      "answered": "2026-11-03T07:16:54+00:00"
+    },
+    {
+      "id": "D-011",
+      "question": "Approve vision brief",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "approved 2026-11-03",
+      "asked": "2026-11-03T07:16:54+00:00",
+      "answered": "2026-11-03T07:16:55+00:00"
+    },
+    {
+      "id": "D-012",
+      "question": "5K screen recordings",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "accept up to 5120x2880, scaled down for editing",
+      "asked": "2026-11-03T07:36:02+00:00",
+      "answered": "2026-11-03T07:36:02+00:00"
+    },
+    {
+      "id": "D-013",
+      "question": "Touch scrubbing model",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "fixed centre playhead (owner chose against recommendation)",
+      "asked": "2026-11-03T07:36:03+00:00",
+      "answered": "2026-11-03T07:36:03+00:00"
+    },
+    {
+      "id": "D-014",
+      "question": "HDR sources",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "SDR output only; HDR converted identically in preview and export",
+      "asked": "2026-11-03T07:36:03+00:00",
+      "answered": "2026-11-03T07:36:03+00:00"
+    },
+    {
+      "id": "D-015",
+      "question": "Rotation changes Original aspect",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "yes",
+      "asked": "2026-11-03T07:36:03+00:00",
+      "answered": "2026-11-03T07:36:04+00:00"
+    },
+    {
+      "id": "D-016",
+      "question": "Text/audio on ripple",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "stay at fixed times",
+      "asked": "2026-11-03T07:36:04+00:00",
+      "answered": "2026-11-03T07:36:04+00:00"
+    },
+    {
+      "id": "D-017",
+      "question": "Offline asset download",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "all at first visit",
+      "asked": "2026-11-03T07:36:04+00:00",
+      "answered": "2026-11-03T07:36:04+00:00"
+    },
+    {
+      "id": "D-018",
+      "question": "Cancelled save dialog",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "not counted as export where detectable",
+      "asked": "2026-11-03T07:36:04+00:00",
+      "answered": "2026-11-03T07:36:05+00:00"
+    },
+    {
+      "id": "D-019",
+      "question": "GIF and unexported warning",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "GIF never clears it",
+      "asked": "2026-11-03T07:36:05+00:00",
+      "answered": "2026-11-03T07:36:05+00:00"
+    },
+    {
+      "id": "D-020",
+      "question": "Size target unreachable",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "export disabled, smallest feasible MB offered",
+      "asked": "2026-11-03T07:36:05+00:00",
+      "answered": "2026-11-03T07:36:05+00:00"
+    },
+    {
+      "id": "D-021",
+      "question": "Audio clip move overlap",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "nearest free gap where it fits whole, else cancelled",
+      "asked": "2026-11-03T07:36:06+00:00",
+      "answered": "2026-11-03T07:36:06+00:00"
+    },
+    {
+      "id": "D-022",
+      "question": "Mute original sound",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "one-time action with Unmute counterpart",
+      "asked": "2026-11-03T07:36:06+00:00",
+      "answered": "2026-11-03T07:36:06+00:00"
+    },
+    {
+      "id": "D-023",
+      "question": "Keyframes non-goal",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "non-goal for M-1/M-2; M-3 candidate",
+      "asked": "2026-11-03T07:36:06+00:00",
+      "answered": "2026-11-03T07:36:06+00:00"
+    },
+    {
+      "id": "D-024",
+      "question": "Touch scroll during playback",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "pauses, then scrubs (follows D-013) (confirmed by owner at G1)",
+      "asked": "2026-11-03T07:44:20+00:00",
+      "answered": "2026-11-03T08:02:33+00:00"
+    },
+    {
+      "id": "D-025",
+      "question": "Add music with playhead at project end",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "starts at 0 (confirmed by owner at G1)",
+      "asked": "2026-11-03T07:44:20+00:00",
+      "answered": "2026-11-03T08:02:34+00:00"
+    },
+    {
+      "id": "D-026",
+      "question": "Mixed touch+pointer devices",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "touch behaviour per input, not per device (confirmed by owner at G1)",
+      "asked": "2026-11-03T07:44:21+00:00",
+      "answered": "2026-11-03T08:02:34+00:00"
+    },
+    {
+      "id": "D-027",
+      "question": "Audio move: original place free",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "product-spec",
+      "status": "answered",
+      "answer": "yes; nearest fit to requested start; no-op if result is original place (confirmed by owner at G1)",
+      "asked": "2026-11-03T07:44:22+00:00",
+      "answered": "2026-11-03T08:02:34+00:00"
+    }
+  ],
+  "loops": {
+    "spec-review": {
+      "round": 3,
+      "max": 3,
+      "active": false,
+      "started": "2026-11-03T07:27:07+00:00",
+      "outcome": "converged",
+      "ended": "2026-11-03T07:46:26+00:00"
+    }
+  },
+  "log": [
+    {
+      "at": "2026-11-03T06:04:39+00:00",
+      "event": "initialized (autonomy=balanced)"
+    },
+    {
+      "at": "2026-11-03T06:04:39+00:00",
+      "event": "phase setup -> in_progress"
+    },
+    {
+      "at": "2026-11-03T06:05:17+00:00",
+      "event": "set profile"
+    },
+    {
+      "at": "2026-11-03T06:05:17+00:00",
+      "event": "set autonomy"
+    },
+    {
+      "at": "2026-11-03T06:05:17+00:00",
+      "event": "set environment"
+    },
+    {
+      "at": "2026-11-03T06:05:17+00:00",
+      "event": "Phase 0: greenfield; profile reused from image-annotator; autonomy balanced"
+    },
+    {
+      "at": "2026-11-03T06:05:25+00:00",
+      "event": "phase setup -> gate"
+    },
+    {
+      "at": "2026-11-03T06:05:34+00:00",
+      "event": "gate setup passed: Greenfield; profile reused from image-annotator; balanced autonomy; tooling OK"
+    },
+    {
+      "at": "2026-11-03T06:05:37+00:00",
+      "event": "phase product-spec -> in_progress"
+    },
+    {
+      "at": "2026-11-03T06:06:03+00:00",
+      "event": "product-spec step: 1.1 brainstorm: round 1 problem; market-researcher running"
+    },
+    {
+      "at": "2026-11-03T06:08:11+00:00",
+      "event": "Round 1 answers: use cases = social clips, screen recordings, family clips, quick fixes; depth = light multi-track editor; devices = desktop+phone; auto-captions = not needed. Market research saved."
+    },
+    {
+      "at": "2026-11-03T06:08:11+00:00",
+      "event": "product-spec step: 1.1 brainstorm: round 1 done; product-strategist challenging scope"
+    },
+    {
+      "at": "2026-11-03T06:09:35+00:00",
+      "event": "set spike_candidates"
+    },
+    {
+      "at": "2026-11-03T06:09:36+00:00",
+      "event": "product-spec step: 1.1 brainstorm: round 2 (positioning/MVP scope) — awaiting owner"
+    },
+    {
+      "at": "2026-11-03T06:11:11+00:00",
+      "event": "decision D-001 opened: M-1 scope"
+    },
+    {
+      "at": "2026-11-03T06:11:11+00:00",
+      "event": "decision D-002 opened: Phone support in M-1"
+    },
+    {
+      "at": "2026-11-03T06:11:11+00:00",
+      "event": "decision D-003 opened: MPL-2.0 muxer (mediabunny) vs permissive-only policy"
+    },
+    {
+      "at": "2026-11-03T06:11:11+00:00",
+      "event": "decision D-004 opened: On-device storage"
+    },
+    {
+      "at": "2026-11-03T06:11:17+00:00",
+      "event": "decision D-001 answered: light multi-track in M-1 (owner chose against recommendation; accepts ~2-3x larger M-1 + audio-mix spike)"
+    },
+    {
+      "at": "2026-11-03T06:11:17+00:00",
+      "event": "decision D-002 answered: full editor on phone in M-1 (owner chose against recommendation; accepts phone design/QA + memory risk)"
+    },
+    {
+      "at": "2026-11-03T06:11:17+00:00",
+      "event": "decision D-003 answered: spike permissive muxers first in phase 3; bring ADR exception for unmodified MPL-2.0 if needed; no WASM FFmpeg AAC"
+    },
+    {
+      "at": "2026-11-03T06:11:17+00:00",
+      "event": "decision D-004 answered: temp OPFS scratch during export only, deleted after; nothing persists between sessions in M-1; project save reconsidered with ADR later"
+    },
+    {
+      "at": "2026-11-03T06:11:17+00:00",
+      "event": "Round 2: owner chose full scope (multi-track + phone) in M-1 against strategist rec; SP-audio and SP-mem-phone become blocking spikes"
+    },
+    {
+      "at": "2026-11-03T06:12:40+00:00",
+      "event": "decision D-005 opened: Pitch"
+    },
+    {
+      "at": "2026-11-03T06:12:41+00:00",
+      "event": "decision D-005 answered: privacy-led"
+    },
+    {
+      "at": "2026-11-03T06:12:41+00:00",
+      "event": "decision D-006 opened: Music source in M-1"
+    },
+    {
+      "at": "2026-11-03T06:12:41+00:00",
+      "event": "decision D-006 answered: user's own audio + a bundled pack of free-licence tracks (licence allow-list to confirm at brief approval)"
+    },
+    {
+      "at": "2026-11-03T06:12:41+00:00",
+      "event": "decision D-007 opened: Max export length"
+    },
+    {
+      "at": "2026-11-03T06:12:41+00:00",
+      "event": "decision D-007 answered: 10 minutes"
+    },
+    {
+      "at": "2026-11-03T06:12:41+00:00",
+      "event": "decision D-008 opened: M-1 extras"
+    },
+    {
+      "at": "2026-11-03T06:12:41+00:00",
+      "event": "decision D-008 answered: photo clips, fades, basic adjustments, GIF + audio-only export"
+    },
+    {
+      "at": "2026-11-03T06:12:42+00:00",
+      "event": "product-spec step: 1.1 brainstorm: writing vision brief"
+    },
+    {
+      "at": "2026-11-03T06:13:38+00:00",
+      "event": "decision D-009 opened: Colour filters + powerful colour adjustment in M-1"
+    },
+    {
+      "at": "2026-11-03T06:13:38+00:00",
+      "event": "decision D-009 answered: owner request: trending colour filters (self-authored LUTs, intensity slider) + full colour adjustment panel in M-1"
+    },
+    {
+      "at": "2026-11-03T06:13:38+00:00",
+      "event": "product-spec step: 1.1 vision brief written — awaiting owner approval"
+    },
+    {
+      "at": "2026-11-03T07:16:54+00:00",
+      "event": "decision D-010 opened: Music pack licence allow-list"
+    },
+    {
+      "at": "2026-11-03T07:16:54+00:00",
+      "event": "decision D-010 answered: CC0 / public domain only"
+    },
+    {
+      "at": "2026-11-03T07:16:54+00:00",
+      "event": "decision D-011 opened: Approve vision brief"
+    },
+    {
+      "at": "2026-11-03T07:16:55+00:00",
+      "event": "decision D-011 answered: approved 2026-11-03"
+    },
+    {
+      "at": "2026-11-03T07:16:55+00:00",
+      "event": "product-spec step: 1.2 idea→spec: starting"
+    },
+    {
+      "at": "2026-11-03T07:26:56+00:00",
+      "event": "product-spec step: 1.3 spec review loop round 1"
+    },
+    {
+      "at": "2026-11-03T07:27:07+00:00",
+      "event": "loop spec-review started (max 3)"
+    },
+    {
+      "at": "2026-11-03T07:36:02+00:00",
+      "event": "decision D-012 opened: 5K screen recordings"
+    },
+    {
+      "at": "2026-11-03T07:36:02+00:00",
+      "event": "decision D-012 answered: accept up to 5120x2880, scaled down for editing"
+    },
+    {
+      "at": "2026-11-03T07:36:03+00:00",
+      "event": "decision D-013 opened: Touch scrubbing model"
+    },
+    {
+      "at": "2026-11-03T07:36:03+00:00",
+      "event": "decision D-013 answered: fixed centre playhead (owner chose against recommendation)"
+    },
+    {
+      "at": "2026-11-03T07:36:03+00:00",
+      "event": "decision D-014 opened: HDR sources"
+    },
+    {
+      "at": "2026-11-03T07:36:03+00:00",
+      "event": "decision D-014 answered: SDR output only; HDR converted identically in preview and export"
+    },
+    {
+      "at": "2026-11-03T07:36:03+00:00",
+      "event": "decision D-015 opened: Rotation changes Original aspect"
+    },
+    {
+      "at": "2026-11-03T07:36:04+00:00",
+      "event": "decision D-015 answered: yes"
+    },
+    {
+      "at": "2026-11-03T07:36:04+00:00",
+      "event": "decision D-016 opened: Text/audio on ripple"
+    },
+    {
+      "at": "2026-11-03T07:36:04+00:00",
+      "event": "decision D-016 answered: stay at fixed times"
+    },
+    {
+      "at": "2026-11-03T07:36:04+00:00",
+      "event": "decision D-017 opened: Offline asset download"
+    },
+    {
+      "at": "2026-11-03T07:36:04+00:00",
+      "event": "decision D-017 answered: all at first visit"
+    },
+    {
+      "at": "2026-11-03T07:36:04+00:00",
+      "event": "decision D-018 opened: Cancelled save dialog"
+    },
+    {
+      "at": "2026-11-03T07:36:05+00:00",
+      "event": "decision D-018 answered: not counted as export where detectable"
+    },
+    {
+      "at": "2026-11-03T07:36:05+00:00",
+      "event": "decision D-019 opened: GIF and unexported warning"
+    },
+    {
+      "at": "2026-11-03T07:36:05+00:00",
+      "event": "decision D-019 answered: GIF never clears it"
+    },
+    {
+      "at": "2026-11-03T07:36:05+00:00",
+      "event": "decision D-020 opened: Size target unreachable"
+    },
+    {
+      "at": "2026-11-03T07:36:05+00:00",
+      "event": "decision D-020 answered: export disabled, smallest feasible MB offered"
+    },
+    {
+      "at": "2026-11-03T07:36:06+00:00",
+      "event": "decision D-021 opened: Audio clip move overlap"
+    },
+    {
+      "at": "2026-11-03T07:36:06+00:00",
+      "event": "decision D-021 answered: nearest free gap where it fits whole, else cancelled"
+    },
+    {
+      "at": "2026-11-03T07:36:06+00:00",
+      "event": "decision D-022 opened: Mute original sound"
+    },
+    {
+      "at": "2026-11-03T07:36:06+00:00",
+      "event": "decision D-022 answered: one-time action with Unmute counterpart"
+    },
+    {
+      "at": "2026-11-03T07:36:06+00:00",
+      "event": "decision D-023 opened: Keyframes non-goal"
+    },
+    {
+      "at": "2026-11-03T07:36:06+00:00",
+      "event": "decision D-023 answered: non-goal for M-1/M-2; M-3 candidate"
+    },
+    {
+      "at": "2026-11-03T07:40:36+00:00",
+      "event": "loop spec-review round 2"
+    },
+    {
+      "at": "2026-11-03T07:40:36+00:00",
+      "event": "product-spec step: 1.3 spec review round 2 (re-review of changes)"
+    },
+    {
+      "at": "2026-11-03T07:44:20+00:00",
+      "event": "decision D-024 opened: Touch scroll during playback"
+    },
+    {
+      "at": "2026-11-03T07:44:20+00:00",
+      "event": "decision D-024 answered: pauses, then scrubs (follows D-013) (agent default per recommendation; confirm at G1)"
+    },
+    {
+      "at": "2026-11-03T07:44:20+00:00",
+      "event": "decision D-025 opened: Add music with playhead at project end"
+    },
+    {
+      "at": "2026-11-03T07:44:21+00:00",
+      "event": "decision D-025 answered: starts at 0 (agent default per recommendation; confirm at G1)"
+    },
+    {
+      "at": "2026-11-03T07:44:21+00:00",
+      "event": "decision D-026 opened: Mixed touch+pointer devices"
+    },
+    {
+      "at": "2026-11-03T07:44:21+00:00",
+      "event": "decision D-026 answered: touch behaviour per input, not per device (agent default per recommendation; confirm at G1)"
+    },
+    {
+      "at": "2026-11-03T07:44:22+00:00",
+      "event": "decision D-027 opened: Audio move: original place free"
+    },
+    {
+      "at": "2026-11-03T07:44:22+00:00",
+      "event": "decision D-027 answered: yes; nearest fit to requested start; no-op if result is original place (agent default per recommendation; confirm at G1)"
+    },
+    {
+      "at": "2026-11-03T07:44:22+00:00",
+      "event": "loop spec-review round 3"
+    },
+    {
+      "at": "2026-11-03T07:44:22+00:00",
+      "event": "product-spec step: 1.3 spec review round 3 (final verification)"
+    },
+    {
+      "at": "2026-11-03T07:46:26+00:00",
+      "event": "loop spec-review ended: converged"
+    },
+    {
+      "at": "2026-11-03T07:46:34+00:00",
+      "event": "phase product-spec -> gate"
+    },
+    {
+      "at": "2026-11-03T08:02:33+00:00",
+      "event": "decision D-024 answered: pauses, then scrubs (follows D-013) (confirmed by owner at G1)"
+    },
+    {
+      "at": "2026-11-03T08:02:34+00:00",
+      "event": "decision D-025 answered: starts at 0 (confirmed by owner at G1)"
+    },
+    {
+      "at": "2026-11-03T08:02:34+00:00",
+      "event": "decision D-026 answered: touch behaviour per input, not per device (confirmed by owner at G1)"
+    },
+    {
+      "at": "2026-11-03T08:02:34+00:00",
+      "event": "decision D-027 answered: yes; nearest fit to requested start; no-op if result is original place (confirmed by owner at G1)"
+    }
+  ],
+  "updated": "2026-11-03T08:02:34+00:00",
+  "environment": {
+    "git": "2.54.0",
+    "node": "24.19.0",
+    "pnpm": "11.25.0",
+    "python": "3.14.7",
+    "ffmpeg": "not installed (browser-side only anyway)",
+    "reference_project": "../../developer-tools/image-annotator",
+    "portal": "../../../taro-kit",
+    "stack_hint": "Preact+Vite+TypeScript+vitest+Playwright+Cloudflare static (confirm in phase 3); video via WebCodecs (spike)",
+    "cli": [
+      "gh",
+      "postman"
+    ],
+    "mcp": [
+      "claude-in-chrome",
+      "claude-docs"
+    ]
+  },
+  "spike_candidates": [
+    {
+      "id": "SP-codec",
+      "blocks": true,
+      "q": "Decode H.264/HEVC/VP9 sources and encode H.264+audio per engine (Chromium, Safari 26 macOS/iOS, Firefox desktop, Chrome Android)",
+      "pass": "feature-detect matrix; every engine has a defined output (Firefox: MP4+Opus or WebM)"
+    },
+    {
+      "id": "SP-license",
+      "blocks": true,
+      "q": "Can we ship a muxer/demuxer under the permissive-only policy (mediabunny is MPL-2.0)?",
+      "pass": "owner-approved ADR exception for unmodified MPL, or permissive alternative proven; no WASM FFmpeg AAC"
+    },
+    {
+      "id": "SP-compositor",
+      "blocks": true,
+      "q": "One paint(t) compositor (VideoDecoder->canvas) for preview and export",
+      "pass": "export within 1 frame / 2 px of preview; A/V drift <40 ms over 10 min"
+    },
+    {
+      "id": "SP-mem-phone",
+      "q": "10-min 1080p and 2-min 4K survive on iPhone and mid Android; also 5120x2880 screen recordings scaled to 2160p (D-012)",
+      "pass": "no tab crash; streaming input via Blob.slice",
+      "blocks": true
+    },
+    {
+      "id": "SP-speed",
+      "q": "Export speed",
+      "pass": ">=1x realtime 1080p30 laptop, >=0.5x phone"
+    },
+    {
+      "id": "SP-audio",
+      "q": "OfflineAudioContext chunked mix (M-2)",
+      "pass": "10-min mix sample-accurate, bounded memory",
+      "blocks": true
+    },
+    {
+      "id": "SP-ios",
+      "q": "Background tab mid-export, download path on iOS",
+      "pass": "interruption detected; clean resume/restart; save works"
+    },
+    {
+      "id": "SP-frame",
+      "q": "WebCodecs, workers, downloads, OPFS inside the portal iframe; if multithreaded encoding needs cross-origin isolation headers, the host frame contract (RULE-17) must add them — raise with portal",
+      "pass": "all work embedded or standalone fallback"
+    },
+    {
+      "id": "SP-storage",
+      "q": "Temporary on-device storage (OPFS scratch) vs suite no-persistence rule",
+      "pass": "owner rules; project save stays out until an ADR"
+    },
+    {
+      "id": "SP-gpu-color",
+      "blocks": true,
+      "q": "WebGL2/WebGPU shader colour pipeline + 3D LUT, shared preview/export",
+      "pass": "1080p30 preview >=30fps laptop, >=24fps recent phone; export vs preview deltaE<2"
+    },
+    {
+      "id": "SP-hdr",
+      "blocks": false,
+      "q": "HDR->SDR conversion identical in preview and export across engines (D-014)",
+      "pass": "HLG/PQ phone fixtures match within NFR-08 between preview and export on every engine"
+    },
+    {
+      "id": "SP-size-target",
+      "blocks": false,
+      "q": "Per-resolution bitrate floors and size estimation (RULE-15)",
+      "pass": "estimate within ±25%, target never exceeded on fixtures"
+    }
+  ]
+}
