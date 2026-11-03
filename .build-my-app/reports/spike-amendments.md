@@ -7,3 +7,10 @@
 - **ADR-0010 and SP-storage:** WebKit gives the embedded frame 1/10 of standalone quota, so no_space is a real path. Scratch names are unique per session. The start-up sweep skips files still in use, because Chrome shares storage between same-site embedded and standalone. (SP-frame)
 - **Audio:** bound the wait on WebKit's AudioContext.resume(). (SP-frame)
 - **ADR-0005:** mediabunny does not throw on a missing moov, so MOD-Container maps "no tracks / 0 packets" to a typed error. (SP-license)
+- **Audio ADR and ADR-0010 (from SP-audio):**
+  - The limiter ceiling is −1.5 dBTP internally (BS.1770 meter, 4× side-chain).
+  - AAC and Opus exports need a verify-and-trim pass: decode, check the true peak, and re-encode with a trim if it is above −1.3 dBTP (at most 3 passes).
+  - Opus priming is 312 samples, removed via the edit list.
+  - The worklet ring buffer is 400 ms.
+  - The Web Audio graph variant is rejected.
+  - WebKit's Opus encode overshoots by about 4 dB and its AAC encoder ignores `bitrate`: record both in the capability probe.

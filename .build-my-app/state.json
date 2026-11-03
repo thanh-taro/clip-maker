@@ -44,7 +44,7 @@
     "architecture": {
       "title": "3 Architecture & spikes",
       "status": "in_progress",
-      "step": "3.2 spikes: done SP-license (adopt, D-042); SP-codec automated done, owner manual pending; running SP-frame, SP-compositor, SP-audio; next SP-gpu-color, SP-timestretch, SP-mem-phone",
+      "step": "3.2 spikes: SP-license adopt; SP-frame & SP-compositor provisional adopt (amendments queued in spike-amendments.md); SP-codec/frame/compositor await owner manual runs; SP-audio running; next SP-gpu-color, SP-timestretch",
       "gate": {
         "status": "pending",
         "at": null,
@@ -1214,9 +1214,17 @@
     {
       "at": "2026-11-03T15:40:13+00:00",
       "event": "SP-compositor provisional adopt ADR-0006 w/ amendments: frame diff 0, A/V sync <0.1ms over 10 min after AAC priming fix (edit list), seek p95 met on chrome only (noisy host); long-GOP backward scrub needs cache; frame duration rule clarified"
+    },
+    {
+      "at": "2026-11-03T15:52:15+00:00",
+      "event": "architecture step: 3.2 spikes: SP-license adopt; SP-frame & SP-compositor provisional adopt (amendments queued in spike-amendments.md); SP-codec/frame/compositor await owner manual runs; SP-audio running; next SP-gpu-color, SP-timestretch"
+    },
+    {
+      "at": "2026-11-03T16:06:57+00:00",
+      "event": "SP-audio adapt: 0 underruns 10 min, export bit-identical; codecs overshoot 1.9-2.9 dB -> verify-and-trim pass at -1.5 dBTP; ring buffer 400 ms"
     }
   ],
-  "updated": "2026-11-03T15:40:13+00:00",
+  "updated": "2026-11-03T16:06:57+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
