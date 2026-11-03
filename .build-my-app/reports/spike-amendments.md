@@ -14,3 +14,9 @@
   - The worklet ring buffer is 400 ms.
   - The Web Audio graph variant is rejected.
   - WebKit's Opus encode overshoots by about 4 dB and its AAC encoder ignores `bitrate`: record both in the capability probe.
+- **RULE-08 / F-007.AC2 (spec change, owner):** check the ramp bars on the high-precision render (CPU reference + half-float layer), at Grain 0, with Vignette checked per position. On 8-bit outputs, allow no reversal above ΔL* 0.5 and require ΔE00 ≤ 1 against the reference. 8-bit and limited-range outputs can't keep 256 distinct steps. (SP-gpu-color)
+- **ADR-0006 §3.2:** use a half-float intermediate (renderable in all 3 engines), with an 8-bit fallback. Drop recompute-taps. (SP-gpu-color)
+- **ADR-0007 / ADR-0010:** encoders differ: Chrome writes limited range, WebKit and openh264 write full range, and all tag transfer as sRGB (13). MOD-Export writes the `colr` tags explicitly. The owner's player check decides the transfer tag and whether we convert to limited range ourselves. (SP-gpu-color)
+- **ADR-0007 §3 / ADR-0013:** a look is a 33³ 8-bit PNG of 4–15 KB measured, against a budget of 30 KB per look. The build rejects a look over 108 KB or with storage error above ΔE00 1. (SP-gpu-color)
+- **platform-mapping.md (RULE-22):** slow device = the start-up effects check (full chain + look + Blur, 1080p, 30 frames) renders below 30 fps. (SP-gpu-color)
+- **ADR-0016:** grade fidelity fixtures are RGB stills; the oracle is the CPU reference in float. (SP-gpu-color)

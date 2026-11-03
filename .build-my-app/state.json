@@ -44,7 +44,7 @@
     "architecture": {
       "title": "3 Architecture & spikes",
       "status": "in_progress",
-      "step": "3.2 spikes: SP-license adopt; SP-frame & SP-compositor provisional adopt (amendments queued in spike-amendments.md); SP-codec/frame/compositor await owner manual runs; SP-audio running; next SP-gpu-color, SP-timestretch",
+      "step": "3.2 spikes: done(auto) license, codec, frame, compositor, audio; running gpu-color, timestretch; owner manual runs pending (codec/frame/compositor/audio); next mem-phone, speed, storage, ios, size-target, hdr",
       "gate": {
         "status": "pending",
         "at": null,
@@ -1222,9 +1222,13 @@
     {
       "at": "2026-11-03T16:06:57+00:00",
       "event": "SP-audio adapt: 0 underruns 10 min, export bit-identical; codecs overshoot 1.9-2.9 dB -> verify-and-trim pass at -1.5 dBTP; ring buffer 400 ms"
+    },
+    {
+      "at": "2026-11-03T16:07:17+00:00",
+      "event": "architecture step: 3.2 spikes: done(auto) license, codec, frame, compositor, audio; running gpu-color, timestretch; owner manual runs pending (codec/frame/compositor/audio); next mem-phone, speed, storage, ios, size-target, hdr"
     }
   ],
-  "updated": "2026-11-03T16:06:57+00:00",
+  "updated": "2026-11-03T16:07:17+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
