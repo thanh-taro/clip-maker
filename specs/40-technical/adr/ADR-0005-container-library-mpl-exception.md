@@ -1,7 +1,7 @@
 ---
 id: ADR-0005
-title: Reading and writing media files — mediabunny under a scoped MPL-2.0 exception (pending SP-license and the owner)
-status: proposed
+title: Reading and writing media files — mediabunny under a scoped MPL-2.0 exception
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---
@@ -68,3 +68,18 @@ burden, with two unmaintained dependencies.
 - If accepted, ADR-0001's dist scan has one named MPL-2.0 runtime exception.
 
 <!-- Accepted ADRs are immutable. Write a new ADR to change a decision. -->
+
+## Outcome (2026-11-03)
+SP-license (`.build-my-app/reports/spike-license.md`) measured both options:
+- **mediabunny 1.65.0** read 26/26 corpus files in Chromium and 25/26 in WebKit. The one miss is WebKit's FLAC decoder, not the reader.
+- It wrote MP4, WebM, M4A and Ogg files that play in all three engines.
+- Reading a 4 GB file added 77 MB of memory.
+- Its size is 108 KB gzip: 73 KB for reading and 48 KB for writing.
+- The permissive path would cost about 4,550–6,600 lines of our own code (4–8 weeks) and depends on deprecated muxers.
+
+**The owner approved the exception (D-042).** Conditions:
+- mediabunny is shipped unmodified and pinned.
+- Its licence notice and source link appear in the in-tool notices (F-020.R4).
+- The writer is loaded only in the export worker.
+- The container budget is raised to about 110 KB gzip.
+- MOD-Container turns "no tracks" or "0 packets" into a typed error, because mediabunny does not throw when the moov box is missing.

@@ -44,7 +44,7 @@
     "architecture": {
       "title": "3 Architecture & spikes",
       "status": "in_progress",
-      "step": "G2 passed; follow-up pass: R3-1 + M2 done locally, M1 (export-error_wide) agent running; then publish, then phase 3 spikes",
+      "step": "3.2 spikes: SP-codec and SP-license running in worktrees; next SP-frame, then compositor/gpu-color/audio/timestretch; owner to provide iPhone fixtures + test on Safari/Firefox/iPhone",
       "gate": {
         "status": "pending",
         "at": null,
@@ -559,9 +559,9 @@
       "kind": "product",
       "phase": "design",
       "status": "answered",
-      "answer": "assume recent MacBook, owner's iPhone, mid-range Android; confirm before measuring",
+      "answer": "MacBook + owner's iPhone now; Android checks deferred until a device is available (Chrome Android coverage via later borrowed device)",
       "asked": "2026-11-03T08:27:59+00:00",
-      "answered": "2026-11-03T08:27:59+00:00"
+      "answered": "2026-11-03T11:31:04+00:00"
     },
     {
       "id": "D-038",
@@ -598,6 +598,30 @@
       "answer": "approved 2026-11-03 with a quick follow-up pass for M1, M2, R3-1; minors during build",
       "asked": "2026-11-03T11:26:12+00:00",
       "answered": "2026-11-03T11:26:12+00:00"
+    },
+    {
+      "id": "D-041",
+      "question": "Spike mode",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "architecture",
+      "status": "answered",
+      "answer": "start now, all together; owner tests Safari/Firefox/iPhone as spikes become ready",
+      "asked": "2026-11-03T11:31:12+00:00",
+      "answered": "2026-11-03T11:31:19+00:00"
+    },
+    {
+      "id": "D-042",
+      "question": "MPL-2.0 exception for mediabunny (SP-license result)",
+      "options": [],
+      "recommendation": null,
+      "kind": "legal",
+      "phase": "architecture",
+      "status": "answered",
+      "answer": "APPROVED by owner 2026-11-03: unmodified pinned mediabunny under scoped MPL-2.0 exception (ADR-0005); writer only in export worker; container budget ~110 KB gzip; typed error for no-tracks/0-packets",
+      "asked": "2026-11-03T12:39:25+00:00",
+      "answered": "2026-11-03T12:39:26+00:00"
     }
   ],
   "loops": {
@@ -1150,9 +1174,37 @@
     {
       "at": "2026-11-03T11:27:05+00:00",
       "event": "architecture step: G2 passed; follow-up pass: R3-1 + M2 done locally, M1 (export-error_wide) agent running; then publish, then phase 3 spikes"
+    },
+    {
+      "at": "2026-11-03T11:29:06+00:00",
+      "event": "architecture step: 3.2 spikes: next (13 candidates; 7 blocking); awaiting owner go-ahead and device availability"
+    },
+    {
+      "at": "2026-11-03T11:31:04+00:00",
+      "event": "decision D-037 answered: MacBook + owner's iPhone now; Android checks deferred until a device is available (Chrome Android coverage via later borrowed device)"
+    },
+    {
+      "at": "2026-11-03T11:31:12+00:00",
+      "event": "decision D-041 opened: Spike mode"
+    },
+    {
+      "at": "2026-11-03T11:31:19+00:00",
+      "event": "decision D-041 answered: start now, all together; owner tests Safari/Firefox/iPhone as spikes become ready"
+    },
+    {
+      "at": "2026-11-03T11:33:35+00:00",
+      "event": "architecture step: 3.2 spikes: SP-codec and SP-license running in worktrees; next SP-frame, then compositor/gpu-color/audio/timestretch; owner to provide iPhone fixtures + test on Safari/Firefox/iPhone"
+    },
+    {
+      "at": "2026-11-03T12:39:25+00:00",
+      "event": "decision D-042 opened: MPL-2.0 exception for mediabunny (SP-license result)"
+    },
+    {
+      "at": "2026-11-03T12:39:26+00:00",
+      "event": "decision D-042 answered: APPROVED by owner 2026-11-03: unmodified pinned mediabunny under scoped MPL-2.0 exception (ADR-0005); writer only in export worker; container budget ~110 KB gzip; typed error for no-tracks/0-packets"
     }
   ],
-  "updated": "2026-11-03T11:27:05+00:00",
+  "updated": "2026-11-03T12:39:26+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",

@@ -17,7 +17,7 @@ Status: `proposed` → `approved` → `removed`. **Every row is `proposed`** unt
 | **DEP-01** | preact | ~10.29 (suite pin; 11.x exists, adopt only with the suite) | MIT | runtime | UI chrome rendering | proposed | ADR-0002 |
 | **DEP-02** | @preact/signals | ^2.11 | MIT | runtime | App state: project, history, selection, playhead, notices | proposed | ADR-0002, ADR-0011 |
 | **DEP-03** | @preact/signals-core | transitive of DEP-02 (^1.x) | MIT | runtime | Signals runtime | proposed | ADR-0002 |
-| **DEP-04** | mediabunny | exact 1.65.x (pinned; updated deliberately) | **MPL-2.0 — needs the ADR-0005 exception and owner approval** | runtime | Reading MP4/MOV/WebM/MKV/MP3/ADTS/Ogg/FLAC/WAV in pieces; writing MP4/WebM/M4A/Ogg to a streaming target; low-level parts only, unmodified, no `@mediabunny/*` extensions | proposed (pending SP-license + owner) | ADR-0005 |
+| **DEP-04** | mediabunny | exact 1.65.x (pinned; updated deliberately) | MPL-2.0 (scoped exception, ADR-0005, owner-approved D-042) | runtime | Reading MP4/MOV/WebM/MKV/MP3/ADTS/Ogg/FLAC/WAV in pieces; writing MP4/WebM/M4A/Ogg to a streaming target; low-level parts only, unmodified, no `@mediabunny/*` extensions | approved | ADR-0005 |
 | **DEP-05** | gifenc | 1.0.3 | MIT | runtime | GIF palette quantisation and encoding (RULE-16); small, stable, unmaintained since 2021 — acceptable for a frozen format | proposed | ADR-0010 |
 | **DEP-35** | @types/dom-webcodecs | transitive of DEP-04 (0.1.x) | MIT | build (types only; nothing ships) | Type declarations pulled by DEP-04 | proposed | ADR-0005 |
 | **DEP-36** | @types/dom-mediacapture-transform | transitive of DEP-04 (0.1.x) | MIT | build (types only; nothing ships) | Type declarations pulled by DEP-04 | proposed | ADR-0005 |
