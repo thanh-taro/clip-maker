@@ -202,3 +202,34 @@ from the Mac over Wi-Fi, not from Files. Decode times therefore include network 
 - Server: `npm run serve` (`https://10.254.5.94:8461/`).
 - Fixtures: `npm run make-long` first, to regenerate the 4 GB pair, which was deleted after the Mac runs.
 - Page: `mem.html` with Web Inspector Timelines → Memory recording, then `mem.html?reps=5` for the kill count.
+
+## Owner re-run: iPhone 14 Pro, iOS Safari 27.0.1 (2026-11-04, evening)
+**Decoder concurrency (`dec.html`).** Every combination passed with no error:
+- 4K HLG + 4K SDR, 2 × 4K and 3 × 4K together;
+- two 4K decoders plus a 4K encoder;
+- 2–3 × 1080p.
+
+So **iOS does not limit us to one 4K decoder**. Drop the "one 4K decoder on phones" budget.
+
+The afternoon's t2 "Decoder failure" did not reproduce. It was most likely memory pressure: the 4K intermediates were sized to the source, 318 MB of textures. Keep the amendment to size intermediates to the output.
+
+Decode speed, from memory vs over the network: 1080p HEVC 719 vs 152 fps; the 3420×2224 H.264 screen recording 186 vs 62 fps. Network reads explained most of the afternoon's slowness.
+
+**Memory tasks** (`?src=url`): no kills or reloads, and no errors.
+
+| Task | Result |
+|---|---|
+| t1, 10-min 1080p project | **Exported 18,000 frames at 1.9× real time** (315 s). Longest gap between encoder outputs 5.8 s, so the 20 s stall limit is right. Peak 79.6 MB of textures, 332 MB written. |
+| t2, 2-min project from 4K HEVC (HLG + SDR) | Exported 3,615 frames at **0.43× real time** with 318 MB of textures. Wrapping the canvas as a `VideoFrame` took 209 of 283 s. |
+| t3, screen recording 3420×2224 | Exported at **0.52× real time** (0.21× in the afternoon). Wrapping took 38 of 49 s. |
+
+**Biggest cost on iOS:** wrapping the canvas as a `VideoFrame`: 69 % of t1 and 74 % of t2.
+
+**Recommendations for the build:**
+- Export at ≤ 1080p by default (RULE-15 already does).
+- Size the intermediates to the output.
+- Profile wrapping from an `OffscreenCanvas` in the engine worker vs `transferToImageBitmap`. Chrome failed with `transferToImageBitmap` (SP-speed), so test per engine.
+
+The phone's peak memory in MB is still not measured, because Web Inspector wasn't recorded.
+
+**Verdict: adopt with amendments.**
