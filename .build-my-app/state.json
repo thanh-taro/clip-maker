@@ -44,7 +44,7 @@
     "architecture": {
       "title": "3 Architecture & spikes",
       "status": "in_progress",
-      "step": "3.2 spikes: owner device runs done except SP-ios (C) and SP-timestretch listening+bench (step 6) — owner will do tonight; I start servers on request (ios: agent-af286b4de14e2dce3/spikes/ios ports 8470/8471; timestretch: agent-aa6fe40814866e5ed/spikes/timestretch 8452). mem/hdr agent analysing iPhone failures (10-min export writer, 4K HDR+SDR decoder failure, slow screen-recording export)",
+      "step": "3.2 spikes: tonight owner runs: step 6 (timestretch 8452), C (ios 8470/8471), mem-hdr re-run (8461 dec.html + mem.html?tasks=t1,t2,t3&src=url). Then apply spike-amendments to ADRs, G3.",
       "gate": {
         "status": "pending",
         "at": null,
@@ -1246,9 +1246,13 @@
     {
       "at": "2026-11-04T08:49:55+00:00",
       "event": "architecture step: 3.2 spikes: owner device runs done except SP-ios (C) and SP-timestretch listening+bench (step 6) — owner will do tonight; I start servers on request (ios: agent-af286b4de14e2dce3/spikes/ios ports 8470/8471; timestretch: agent-aa6fe40814866e5ed/spikes/timestretch 8452). mem/hdr agent analysing iPhone failures (10-min export writer, 4K HDR+SDR decoder failure, slow screen-recording export)"
+    },
+    {
+      "at": "2026-11-04T08:51:42+00:00",
+      "event": "architecture step: 3.2 spikes: tonight owner runs: step 6 (timestretch 8452), C (ios 8470/8471), mem-hdr re-run (8461 dec.html + mem.html?tasks=t1,t2,t3&src=url). Then apply spike-amendments to ADRs, G3."
     }
   ],
-  "updated": "2026-11-04T08:49:55+00:00",
+  "updated": "2026-11-04T08:51:42+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",

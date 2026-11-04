@@ -227,3 +227,23 @@ ADR):
 5. **Unresolved, owner steps** (see `spikes/timestretch/README.md`):
    - `bench.html` on the iPhone (Safari) and the Android phone (Chrome): ≤ 15 % per voice;
    - `listen.html` blind A/B with the owner + 1 listener, plus any real clips in `samples/`.
+
+## Owner results (2026-11-04)
+**iPhone 14 Pro bench** (iOS Safari 27):
+- WSOLA uses 0.35–0.39 % of one core per voice; the phase vocoder (PV) uses 1.5 %. Both are far under the 15 % budget.
+- Pitch: WSOLA max error 0.001 %, PV 0.092 %.
+- Worst seek render: WSOLA ≤ 4 ms, PV ≤ 12 ms.
+
+**Blind listening** (owner, 9 trials on synthetic material, Safari macOS, headphones). Ratings 1–5, where 3 means acceptable:
+
+| | WSOLA | PV |
+|---|---|---|
+| Mean rating | **3.67** | 3.22 |
+| Lowest rating | **3** | 1 (music at 2×) |
+| Trials preferred | 5 of 9 | 4 of 9 |
+
+- PV was preferred at 0.5× (speech, music) and at 1.5× music, which matches WSOLA's known slow-speed artefacts.
+- WSOLA was never rated below acceptable. PV failed badly on music at 2×.
+- A second listener and real clips were not done; they are optional and can be covered in QA.
+
+**Verdict: adopt WSOLA** (ADR-0008). Note the slow-speed quality (0.25–0.5×) as a possible M-2 improvement, for example longer analysis windows when speed is below 1.
