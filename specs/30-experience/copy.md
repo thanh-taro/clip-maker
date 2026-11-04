@@ -36,6 +36,7 @@ Rules for every string:
 | **COPY-action.new_project** | New project | Dự án mới | |
 | **COPY-action.export** | Export | Xuất | |
 | **COPY-action.cancel** | Cancel | Huỷ | |
+| **COPY-action.share** | Share | Chia sẻ | |
 | **COPY-action.zoom_in** | Zoom in | Phóng to | Timeline |
 | **COPY-action.zoom_out** | Zoom out | Thu nhỏ | Timeline |
 | **COPY-action.zoom_fit** | Fit timeline | Xem toàn bộ | |

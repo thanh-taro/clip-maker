@@ -34,6 +34,7 @@ Editing video in a browser depends on what the browser and device can do. The to
 - **AC4** Given the reference devices, when the tool opens, then the check is done within NFR-02 and the network log shows no request. (R4)
 - **AC5** Given a browser that decodes video but can encode no video output format, when the tool opens, then SCR-Unsupported lists COPY-unsupported.missing_encode. (R1)
 - **AC6** Given a device whose effects draw below the speed threshold, when the tool opens, then the editor opens with COPY-notice.slow_device and media can be added. (R1)
+- **AC7** Given a source that the device decodes slower than real time, when it is added, then it is accepted, COPY-notice.slow_device is shown once for the session, and playback keeps sound in time while the picture shows the newest decoded frame. (R1)
 
 ## UX notes
 SCR-Unsupported with COPY-unsupported.title and COPY-unsupported.body, listing COPY-unsupported.missing_decode, COPY-unsupported.missing_encode and COPY-unsupported.missing_effects as they apply.
@@ -41,5 +42,6 @@ SCR-Unsupported with COPY-unsupported.title and COPY-unsupported.body, listing C
 ## Edge cases
 - A phone browser without the device's video codec interface (one major engine on phones lacks it) → always SCR-Unsupported, as the vision brief accepts.
 - Effects too slow for smooth preview, but everything else works → the editor opens with COPY-notice.slow_device.
+- A source too heavy for the device to decode in real time (for example a very large screen recording on a phone) → accepted, with COPY-notice.slow_device once; exports are unaffected.
 
 ## Open questions

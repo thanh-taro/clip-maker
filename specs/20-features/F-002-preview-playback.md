@@ -47,5 +47,7 @@ CMP-Preview holds the picture and play controls; CMP-Timeline holds the playhead
 - The device can't keep up → frames are skipped to keep sound in sync. Sound never drifts.
 - Play at the project end → it starts from 0.
 - Empty project → the preview shows the background with COPY-empty.title.
+- The system interrupts sound (a call, another app's audio, the phone locks) → playback pauses; Play resumes it.
+- The phone is set to silent → the preview still plays its sound, as video apps do; the device volume controls it.
 
 ## Open questions

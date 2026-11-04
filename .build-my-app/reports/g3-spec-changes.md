@@ -1,3 +1,5 @@
+**Applied 2026-11-04 (owner approved: all; SC-9 yes; SC-10 option b)**
+
 # G3: proposed spec changes outside `40-technical` (from the phase 3 spikes)
 
 **For:** the owner, at gate G3. **Date:** 2026-11-04. **Status:** proposed, not applied.

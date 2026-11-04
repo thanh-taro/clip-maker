@@ -19,7 +19,7 @@ Title (COPY-export.title) with a state icon; progress text (COPY-export.progress
 |---|---|
 | running · wide | Modal dialog: COPY-export.title, COPY-export.progress (percent and time remaining in mono), an accent progress bar, COPY-export.keep_open in muted text, and a quiet COPY-action.cancel. |
 | cancelling · wide | COPY-export.cancelling; the bar freezes in a neutral fill and Cancel is disabled (readable) until the export has stopped (within 1 s, F-015.AC3). |
-| done · wide | Success icon and COPY-export.done with the RULE-15 file name in mono; COPY-action.close. |
+| done · wide | Success icon and COPY-export.done with the RULE-15 file name in mono; COPY-action.close, and next to COPY-export.done a COPY-action.share, shown only where sharing is available (F-015.R9). |
 | failed · wide | Titled with the outcome COPY-export.failed_title in the danger colour (medium size, semibold) beside the error icon; COPY-error.export_failed in normal text below; COPY-action.close and an outlined COPY-action.change_settings, which reopens CMP-ExportPanel. |
 | interrupted · wide | Titled COPY-export.interrupted_title in the danger colour beside the page-hidden icon; COPY-error.export_interrupted below; COPY-action.close and an outlined COPY-action.try_again with the same settings. |
 | no space · wide | Titled COPY-export.no_space_title in the danger colour beside the storage icon; COPY-error.no_space below, shown before the export starts; COPY-action.close and COPY-action.change_settings. |

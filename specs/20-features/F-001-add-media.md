@@ -6,10 +6,10 @@ milestone: M-1
 priority: P0
 personas: [PER-01, PER-02, PER-03, PER-04]
 entities: [ENT-Source, ENT-Clip, ENT-AudioClip, ENT-Project]
-rules: [RULE-01, RULE-02, RULE-03, RULE-05, RULE-12, RULE-13]
+rules: [RULE-01, RULE-02, RULE-03, RULE-05, RULE-12, RULE-13, RULE-22]
 screens: [SCR-Editor]
 components: [CMP-MediaPanel, CMP-DropOverlay, CMP-EmptyState, CMP-Notice]
-nfr: [NFR-01, NFR-05]
+nfr: [NFR-01, NFR-05, NFR-03]
 events: []
 depends_on: [F-023]
 ---
@@ -55,6 +55,7 @@ The empty project shows CMP-EmptyState with COPY-empty.title and COPY-action.add
 - Dropping a folder → ignored, with COPY-reason.folder.
 - Adding while the project is at the 10-minute limit → refused with COPY-notice.length_full.
 - An HDR phone video → added and shown in standard range (RULE-01).
+- A video larger than 3840 × 2160 (up to 5120 × 2880) → accepted and used scaled down (RULE-02); on some devices its preview plays below the NFR-03 rate (COPY-notice.slow_device, RULE-22); its exports are unaffected.
 - A photo over the size limit → scaled down on load (RULE-02); no message needed.
 
 ## Open questions

@@ -24,7 +24,7 @@ A short looping animated image drops into chats and issue trackers where video w
 ## Requirements
 - **R1** The user can export a range of up to 15 s as a looping GIF, choosing its size and frame rate (RULE-16).
 - **R2** The user can export the project's sound alone, in a compressed format or as WAV (RULE-16).
-- **R3** Both exports share video export's progress, cancel, failure handling and scratch-space cleanup (F-015.R3, F-015.R6, F-015.R7).
+- **R3** Both exports share video export's progress, cancel, failure handling, sharing and scratch-space cleanup (F-015.R3, F-015.R6, F-015.R7, F-015.R9).
 - **R4** A GIF export never clears unexported changes; an audio export does, like a video export (RULE-19).
 
 ## Acceptance criteria
