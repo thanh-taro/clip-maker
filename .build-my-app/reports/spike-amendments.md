@@ -86,3 +86,4 @@
   - The iOS H.264 encoder can stop draining for more than 4 s mid-export. Use a long stall watchdog (≥ 20 s), measure output gaps, and on a real stall re-create the encoder at the next keyframe.
   - `VideoFrame(canvas)` costs 51 ms per frame at 3322 × 2160 on the iPhone, so default exports of above-1080p sources to ≤ 1080p to meet NFR-04.
   - Errors are reported with `name: message`, because WebKit's `stack` omits the message.
+- **ADR-0006 / MOD-Render (from SP-ios on iPhone):** after a long lock (60 s), iOS restarted the GPU process, and the next export's new WebGL2 context was lost at frame 1. The engine must handle `webglcontextlost` at every stage: recreate the context and re-upload resources (shaders, LUTs, text textures), retrying up to 5 times 400 ms apart before failing. Only a loss mid-export fails that export (COPY-error.export_failed), and preview always recovers.
