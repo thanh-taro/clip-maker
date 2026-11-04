@@ -15,3 +15,6 @@ Entries are needed only for items that are `building` or `shipped`.
 - F-023: edge case for phone browsers without the codec interface (S-7).
 - COPY-privacy.details: mentions the ~12 MB first-visit download (S-5).
 - S-4: no change. True peak is measured on the decoded export; the internal ceiling is set in SP-audio.
+
+## 2026-11-04 — RULE-17
+- Web share is now an optional frame grant (SP-ios). Portal change request: `.build-my-app/reports/portal-change-request.md`.
