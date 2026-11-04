@@ -139,3 +139,15 @@ ADR-0004 stands: WebCodecs only, the same fallback order, and a trial encode at 
 - Safari 26 on macOS, and FLAC in real Safari.
 - iOS Safari 26: probe time on the phone, whether 2160p encode works, and decoded formats from a real HLG clip via the HDR picker.
 - The HDR VideoFrame formats still need a real HDR source file. The automated engines record only probes for 10-bit decode, which all pass except in Chromium where HEVC is unsupported.
+
+## Owner device results (2026-11-04)
+| Engine | Video output | Notes |
+|---|---|---|
+| iPhone 14 Pro, Safari 27.0.1 | MP4 H.264 + AAC at every size and rate | Probe 32 ms cold. Encode at 2160p60 runs at 0.49× real time. FLAC decode is a false positive. AAC needs its description normalised (already handled). |
+| Firefox 158, macOS | MP4 H.264 + Opus, as ADR-0004 planned | Probe 3 ms. No AAC encode. Hardware H.264 encode; VP9 and VP8 are software only and slow. |
+| Safari 27.0.1, macOS | **H.264 encode never produced a chunk with `latencyMode:'quality'`** (the queue stuck at 7, and at 33 with a cap of 32) | With `latencyMode:'realtime'`, H.264 1080p30 passes at 3.9× real time, and 3.2× for portrait. VP9 and VP8 also pass. |
+
+**Verdict: adapt.**
+- **ADR-0004 rule.** The trial encode runs with `latencyMode:'quality'` and falls back to `'realtime'` when no chunk arrives within about 2 s. The probe records which mode works per engine.
+- **Desktop Safari** therefore exports MP4 H.264 + AAC in realtime mode. QA must check its compression efficiency and size-target accuracy against quality mode.
+- **Start-up probe:** the minimal set takes 32–54 ms on every engine, inside the 300 ms budget.

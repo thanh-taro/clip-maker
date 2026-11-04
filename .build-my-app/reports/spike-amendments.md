@@ -44,3 +44,7 @@
   - **Floors:** 300/600/1000 kbps, pending the owner's visual check.
   - **480p width:** 848, not 854, because Chrome resamples 854.
   - No spec change needed: RULE-15's "met only if the bitrate ≥ floor" already covers this; the floor becomes max(table floor, measured encoder minimum).
+- **ADR-0004 (owner run of SP-codec):**
+  - Desktop Safari 27's H.264 encoder produces nothing in `latencyMode:'quality'`, but works in `'realtime'` (3.9× real time at 1080p30).
+  - The trial encode, and every export, falls back from quality to realtime when no output arrives within 2 s. The probe records the mode per engine.
+  - SP-size-target accuracy must be re-checked in realtime mode on Safari (QA).
