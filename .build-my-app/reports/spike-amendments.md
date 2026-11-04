@@ -30,3 +30,11 @@
 - **ADR-0004 §5:** keep `no-preference` and `latencyMode: 'quality'`, with an encoder queue cap of 4–8. Software H.264 is ≈ 0.8× at 1080p on the laptop, so the probe records hardware vs software and the export estimate uses it. Consider 720p as the default on slow devices. (SP-speed)
 - **ADR-0006 §7:** `VideoFrame(canvas)` is the export path. `readPixels` read-back doubles export time, and `transferToImageBitmap` → `VideoFrame` fails in Chrome. WebKit's `VideoFrame(canvas)` costs ≈ 8 ms per frame. (SP-speed)
 - **ADR-0016:** take NFR-04 timings on a quiet host and record the load average. (SP-speed)
+- **ADR-0010 / MOD-Export (from SP-storage):**
+  - **Deletion rule:** after a successful save, delete the scratch file 10 s after the click. On fail or cancel, close the handle and delete at once. At the next export or New project, delete only files whose 10 s are up. Deleting on `pagehide` is best effort only.
+  - **Sweep:** each session holds the Web Lock `clipmaker-scratch:<session>`. A file `export-<sid>-*.part` from another session is deleted only if `locks.request(ifAvailable)` grants that session's lock.
+  - **Heartbeats:** rejected.
+  - **Writes:** use 1 MB chunks.
+- **Spec change (owner approval at G3):**
+  - F-015.R7 and INV-01: replace "at the latest when the page closes" with "or, if the page closes first, the next time the tool opens".
+  - F-015.AC7: inspect storage at least 10 s after the save.
