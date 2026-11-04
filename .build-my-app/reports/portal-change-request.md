@@ -1,3 +1,5 @@
+**Status: DONE in the portal** (commit 4c4ae94, 2026-11-04, D-070/D-071/D-072). The `share` permission and the visible `clip-maker.yaml` entry are in. The catalog check blocks publishing until clip-maker.tarokit.app is live.
+
 # Portal change request: Clip Maker (from phase 3 spikes)
 
 **For:** the TaroKit portal (`taro-kit`)

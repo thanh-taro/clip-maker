@@ -26,3 +26,9 @@ Evidence: SP-frame, SP-ios (ADR-0014 outcome).
 
 ## Implements
 F-019.R1–R6, F-021.R2/R3, F-022.R1–R3; RULE-17, RULE-18; INV-05, INV-08; NFR-09. Decided by ADR-0002, ADR-0014, ADR-0015.
+
+## Portal tool contract (portal commit 4c4ae94, 2026-11-04)
+- **Focus.** After the first `taro:ready`, the portal moves keyboard focus into our frame, but only while focus is still on its tool header. If we want a specific control focused, we do it on the window's first `focus` event, and only when `document.activeElement === document.body`. Never rely on `autofocus`.
+- **Downloads.** Always create downloads from `blob:` URLs (`URL.createObjectURL`), never `data:` URLs. Safari checks a frame's `data:` download against the portal's `frame-src` and refuses it.
+- **Share.** Call `navigator.share` only inside a user gesture, after `navigator.canShare({ files: [file] })` with the real file. Otherwise offer download only (F-015.R9).
+- **Leave-page warning.** It needs the `dialogs` grant, and Safari never shows it from an embedded page (F-018 edge case).
