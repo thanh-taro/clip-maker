@@ -12,6 +12,17 @@ MP4, WebM, M4A or Ogg on a streaming target with no metadata beyond what each fo
 (RULE-15). It is the only module that imports DEP-04 (or, if the ADR-0005 exception is declined,
 the permissive fallback set), so the choice can change without touching others.
 
+### Rules from the spikes (2026-11-04)
+Evidence: SP-license, SP-codec, SP-compositor, SP-audio, SP-hdr (ADR-0005 outcome, D-042).
+- "No tracks" or "a track with 0 packets" becomes a typed error (mediabunny does not throw on a
+  missing moov); random bytes and damaged tables are refused without hanging.
+- Presentation times come from the index (`getPacket(t + 2 µs)`); input edit lists arrive as
+  negative timestamps and are left for MOD-Engine to drop.
+- The reader runs in the engine and analysis workers; the writer is loaded only in the export worker
+  (D-042). Writing takes the encoder-delay shift (edit list) and explicit colour tags from
+  MOD-Export, and normalised AAC descriptions from MOD-Codec.
+- mediabunny may report `hev1.…` for an `hvc1` sample entry; both decode.
+
 ## Not responsible for
 - Decoding or encoding (MOD-Codec), choosing formats (MOD-Codec/MOD-Export), storage (MOD-Scratch).
 

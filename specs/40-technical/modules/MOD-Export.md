@@ -14,6 +14,28 @@ encode), GIF frames through gifenc (DEP-05) with alternating delays, and the WAV
 finished file to the browser with the RULE-15 file name and reports success so MOD-Project can
 mark the export (RULE-19). Locks editing while running.
 
+### Rules from the spikes (2026-11-04)
+Evidence: SP-speed, SP-size-target, SP-storage, SP-ios, SP-compositor, SP-audio, SP-gpu-color,
+SP-mem-phone (ADR-0010 outcome).
+- Two workers per export: the export (video) worker and the export-audio worker, both created idle at
+  start-up and terminated on cancel. The muxer accepts audio packets after all video packets without
+  holding video in memory.
+- Encoder: probe-recorded `latencyMode`; queue cap 4–8; stall watchdog ≥ 20 s with the longest output
+  gap recorded; on a real stall re-create the encoder at the next output keyframe and continue.
+  Errors are reported as `name: message`.
+- Audio packet times are shifted by the measured encoder delay (edit list); explicit colour tags
+  (primaries 1, matrix 1, transfer per ADR-0007 outcome, range as produced).
+- Estimate: 3 × 2 s calibration (10/50/90 %), key/delta model capped at nominal, delivered AAC rate,
+  overhead 4 KB + 0.35 KB/s. Size target: reachable only if bitrate ≥ floor and the target-rate
+  pre-check predicts ≤ X; effective floor = max(table floor, delivered rate); corrective pass
+  `bitrate × budget ÷ actual × 0.97`; a file still over the target is never handed over.
+- Output dimensions even, long side a multiple of 16 (480p = 848 × 480).
+- Interruption: wall-clock rules (a) hidden + 5 s without progress, (b) no progress within 3 s of
+  becoming visible, (c) encoder/WebGL error after a hide → COPY-error.export_interrupted, shown at
+  detection, clean-up behind it; an export alive on return continues.
+- Hand-over by `<a download>` (no fresh activation needed); MOD-Scratch's 10 s rule follows. Share
+  (where RULE-17's grant and the device allow) only after the G3 spec change.
+
 ## Not responsible for
 - Storage housekeeping (MOD-Scratch), codec capability (MOD-Codec), the export panel UI (MOD-App).
 

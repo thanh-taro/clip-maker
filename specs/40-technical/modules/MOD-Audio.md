@@ -13,6 +13,23 @@ in cross-fades), summing and the true-peak limiter (RULE-12). On the main thread
 `AudioContext` created in the Play gesture, the worklet node, the playback clock that the preview
 follows, seeking and flushing, and bundled-music audition in the picker.
 
+### Rules from the spikes (2026-11-04)
+Evidence: SP-audio, SP-timestretch, SP-speed, SP-frame, SP-ios (ADR-0008 outcome).
+- Limiter: −1.5 dBTP internal ceiling, 5 ms look-ahead, 80 ms release, 4× side-chain with 32 taps
+  per phase; BS.1770-4 Annex 2 meter for compliance. The verify-and-trim pass (decode, measure,
+  secant-step gain aimed at −1.5 dBTP, stop at ≤ −1.0, ≤ 3 passes, else −3 dB) runs in the
+  export-audio worker; the final gain is shared by the video and audio-only exports of a project.
+- WSOLA: Hann 40 ms, hop 20 ms, search ± 12 ms (coarse on decimated L+R, ± 4-sample refine), sync
+  frame every 50 frames pinned at offset 0, no cross-fade, 1× bypass. After a seek, decode from the
+  previous sync point's source position − 32 ms (up to 4 s of source at 4×).
+- Playback lead 400 ms; the worklet's `MessagePort` is started explicitly; underruns counted in debug
+  builds.
+- `AudioContext`: set `navigator.audioSession.type = 'playback'` where present before creating it;
+  create/unlock it in the first user gesture; bounded `resume()` (2 s) on `statechange` and page
+  return, with `state` as the truth; if still not running, playback pauses and Play resumes it.
+- Export scheduling: decode the clips' sound before the video loop starts; mix, limit, encode and
+  verify alongside the video; never serially before it.
+
 ## Not responsible for
 - Deciding which voices exist (MOD-Plan), encoding or writing files (MOD-Export), UI.
 

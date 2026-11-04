@@ -2,18 +2,21 @@
 
 How the neutral wording of the specs maps to browser platform features. Targets: the NFR-12 list
 in `architecture.md` (A2), embedded in the portal's frame and standalone. Items marked (spike) are
-confirmed by the spikes in `architecture.md`.
+confirmed by the spikes in `architecture.md`. Updated with the spike outcomes on 2026-11-04 (see the
+"Outcome" sections of ADR-0003 … ADR-0016).
 
 ## Device support and codecs
 | Spec wording | Platform mapping | Notes / fallback |
 |---|---|---|
 | "The device can decode" (rules.md conventions, RULE-01) | `VideoDecoder.isConfigSupported` / `AudioDecoder.isConfigSupported` with the container's real config, then decoding the first frame/window during probing | Refusal → COPY-reason.codec (F-023.R2) |
-| Start-up check (RULE-22, F-023) | Engine worker: decode probes (H.264, HEVC, VP8, VP9, AV1), `VideoEncoder.isConfigSupported` per codec × RULE-15 size × rate, `AudioEncoder.isConfigSupported` (AAC-LC `mp4a.40.2`, Opus), WebGL2 context + required features, timed render | Missing API (e.g. the Gecko Android browser) → SCR-Unsupported (spike SP-codec) |
-| Slow-device threshold (RULE-22) | Timed full-chain render < 24 fps equivalent at 1080p → COPY-notice.slow_device | Tuned by SP-gpu-color |
-| Output and fallback order (RULE-15) | MP4 H.264+AAC → MP4 H.264+Opus → WebM VP9+Opus → WebM VP8+Opus (ADR-0004) | Named by COPY-export.format_note |
+| Start-up check (RULE-22, F-023) | Engine worker, minimal set only (≤ 300 ms; measured 32–54 ms): decode probes at 1080p (H.264, HEVC, VP8, VP9, AV1), one `VideoEncoder.isConfigSupported` per codec at 1080p30, `AudioEncoder.isConfigSupported` (AAC-LC `mp4a.40.2`, Opus), WebGL2 context + required features, effects check; ≤ 4 calls at once | Missing API (e.g. the Gecko Android browser) → SCR-Unsupported. The size × rate grid is probed when the export panel opens (SP-codec) |
+| Slow-device threshold (RULE-22) | Effects check: full RULE-08 chain + a look + Blur at 1080p on a generated bitmap, 5 warm-up + 30 timed frames, one GPU sync at the end; **below 30 fps (> 33 ms per frame)** → COPY-notice.slow_device | SP-gpu-color: check ≥ 33 fps always played ≥ 24 fps; iPhone 14 Pro 128–140 fps. A source decoding slower than real time is classed slow too (notice pending the RULE-22 spec change) |
+| Output and fallback order (RULE-15) | MP4 H.264+AAC → MP4 H.264+Opus → WebM VP9+Opus → WebM VP8+Opus (ADR-0004) | Measured: Chrome, Safari, iPhone → MP4 H.264+AAC; Firefox → MP4 H.264+Opus (D-033). Named by COPY-export.format_note |
 | Audio-only fallback (RULE-16) | AAC-LC in M4A → Opus in Ogg; WAV always (own writer) | |
-| Resolutions offered (RULE-15) | `VideoEncoder.isConfigSupported` at each size and the project rate; ≤ the largest source's shorter side after rotation and RULE-02 scale-down | A failed trial encode drops the format for the session |
+| Resolutions offered (RULE-15) | `VideoEncoder.isConfigSupported` at each size and the project rate (probed when the export panel opens); ≤ the largest source's shorter side after rotation and RULE-02 scale-down; dimensions even with the long side a multiple of 16 (480p = 848 × 480) | A failed trial encode drops the format for the session; Chrome resamples widths not divisible by 16 (SP-size-target) |
 | Photos (RULE-01) | `createImageBitmap(file, { imageOrientation: 'from-image' })`; AVIF only if a probe image decodes; GIF first frame | HEIC refused by magic bytes |
+| Encoder mode | Trial encode with `latencyMode: 'quality'`; no chunk within 2 s → `'realtime'`, recorded per engine | Safari macOS H.264 works only in realtime (SP-codec owner run) |
+| "The device can decode" — false positives | First packets decoded for real on add | WebKit FLAC (incl. iPhone) passes the probe, then fails → COPY-reason.codec |
 
 ## Getting media in
 | Spec wording | Platform mapping | Notes |
@@ -23,19 +26,21 @@ confirmed by the spikes in `architecture.md`.
 | Protected files (RULE-01) | Encrypted tracks (`encv`/`enca`, `ContentEncryption`) detected by the reader → COPY-reason.protected | |
 | Read piece by piece (F-001.R7, NFR-05) | Container reader over `Blob.slice()`; no `arrayBuffer()` of whole files | 4 GB fixture (SP-mem-phone) |
 | Rotation, VFR, edit lists | Read from the container (track matrix, sample times, edit lists) by MOD-Container | Spike SP-license corpus |
-| 5K scaled to 2160 (RULE-02, D-012) | Decoded at full size, sampled down in the compositor | Spike SP-mem-phone |
-| HDR to standard range (RULE-01, D-014) | `VideoFrame.colorSpace` (`pq`/`hlg`/`bt2020`) → `copyTo` 10-bit planes → own shader; else engine conversion on upload | Spike SP-hdr |
+| 5K scaled to 2160 (RULE-02, D-012) | Decoded at full size, sampled down in the compositor; grade intermediates at the placed target size | Known limit: 5120 × 2880 previews below 24 fps on the M3 (14 fps Chrome); export correct (SP-mem-phone) |
+| HDR to standard range (RULE-01, D-014) | The engine's conversion on upload: `texImage2D(VideoFrame)` into the `srgb` working space, the same call in preview and export; the decoded frame's colour space is trusted over the track's | macOS Chrome/WebKit frames are opaque (`format: null`); iOS decodes HLG to SDR NV12 itself. Preview vs export ΔE00 ≤ 0.43 mean / ≤ 1.40 max (SP-hdr). PQ, Firefox, Android untested |
 | Thumbnails and waveforms (CMP-MediaPanel, CMP-Timeline) | Analysis worker: keyframe decodes → small `ImageBitmap`s; audio windows → min/max peaks | Bounded caches (ADR-0009) |
+| Frame for a time (INV-02, NFR-08) | Presentation time from the container index (`getPacket(t + 2 µs)`), interval `[ts, next ts)`; open-GOP leading pictures dropped after a restart; 12 packets fed ahead | Real iPhone HEVC (B-frames, open GOP) — SP-hdr, SP-mem-phone |
+| Phone decoder budget | ≤ 1 concurrent decoder for video above 1920 × 1080 on phones; `Decoder failure` on an extra session → sequential fallback | iOS refused a 2nd 4K HEVC session (SP-mem-phone; `dec.html` re-run pending) |
 
 ## Preview and playback
 | Spec wording | Platform mapping | Notes |
 |---|---|---|
 | Preview picture (F-002.R1) | `<canvas>` → `transferControlToOffscreen()` → engine worker WebGL2 | Fallback: main-thread WebGL2 (ADR-0003) |
-| Picture and sound together (F-002.R2) | `AudioContext({ sampleRate: 48000 })` created/resumed in the Play gesture; `AudioWorkletNode` playing blocks from the audio worker over a `MessagePort`; `getOutputTimestamp()` + `outputLatency` → project time; `requestAnimationFrame` ticks to the worker | No `SharedArrayBuffer` |
-| Scrub / seek (F-002.R3, NFR-03) | Coalesced seeks (latest wins); keyframe seek + decode forward; cached thumbnail first | Spike SP-compositor |
-| Full screen (F-002.R7) | `element.requestFullscreen()`; refused (no `fullscreen` grant, iPhone Safari on non-video elements) → maximise inside the page | Host grant `allow="fullscreen"` |
-| Speed with pitch kept (RULE-06) | Own WSOLA in the audio worker | Spike SP-timestretch |
-| Mix and limiter (RULE-12) | Own mixer + 4× oversampled true-peak limiter | Spike SP-audio |
+| Picture and sound together (F-002.R2) | `navigator.audioSession.type = 'playback'` where present, then `AudioContext({ sampleRate: 48000 })` created/unlocked in the first user gesture; `AudioWorkletNode` playing blocks from the audio worker over a started `MessagePort` with 400 ms lead; `getOutputTimestamp()` + `outputLatency` → project time; `requestAnimationFrame` ticks to the worker | No `SharedArrayBuffer`. `resume()` bounded (2 s), `state`/`statechange` are the truth; iOS mutes Web Audio on the silent switch without the playback session (SP-ios) |
+| Scrub / seek (F-002.R3, NFR-03) | Coalesced seeks (latest wins); coarse-then-exact (nearest decoded keyframe or cached frame first, then keyframe seek + decode forward); ~1 frame/s preview-size cache for keyframe spacing > 2 s | iPhone p95: 58 ms (1 s GOP); 10 s GOP exact 428 ms, coarse 119 ms (SP-compositor) |
+| Full screen (F-002.R7) | `element.requestFullscreen()`; refused or absent (no `fullscreen` grant; iPhone Safari has no page full screen, confirmed) → maximise inside the page | Host grant `allow="fullscreen"` |
+| Speed with pitch kept (RULE-06) | Own WSOLA in the audio worker (40 ms Hann, 20 ms hop, ± 12 ms search, pinned sync frame each 1 s, 1× bypass) | 440 Hz within 0.001 %; iPhone 0.35–0.39 % of a core per voice (SP-timestretch) |
+| Mix and limiter (RULE-12) | Own mixer + 4× oversampled true-peak limiter (−1.5 dBTP, 32 taps per phase); lossy exports verified after decoding and trimmed (≤ 3 passes) | Codec overshoot 2–3 dB measured (SP-audio, SP-speed) |
 | Look thumbnails (RULE-09) | Engine worker renders small tiles with the same shader → `ImageBitmap` → `<canvas>` tiles | |
 | Compare (RULE-08) | Plan flag for preview only; `\` key down/up, pointer/touch hold | Never in export plans |
 
@@ -58,12 +63,15 @@ confirmed by the spikes in `architecture.md`.
 ## Getting results out
 | Spec wording | Platform mapping | Notes |
 |---|---|---|
-| Encode (RULE-15, RULE-16) | `VideoEncoder` / `AudioEncoder`; `new VideoFrame(offscreenCanvas, { timestamp, duration })` | Own BT.709 conversion if colour fails (SP-gpu-color) |
+| Encode (RULE-15, RULE-16) | `VideoEncoder` / `AudioEncoder`; `new VideoFrame(offscreenCanvas, { timestamp, duration })`; queue cap 4–8; stall watchdog ≥ 20 s; audio times shifted by the measured encoder delay (edit list); explicit `colr` tags | Chart ΔE00 passes everywhere, no read-back needed (SP-gpu-color); `readPixels` doubles export time (SP-speed) |
 | Write the file | Container writer to a streaming target | |
-| Scratch space during export (F-015.R7, INV-01) | Origin-private file system (`navigator.storage.getDirectory()`), `createSyncAccessHandle()` in the export worker; `navigator.storage.estimate()` for room | Partitioned and possibly small in a frame (SP-storage) |
-| Save (RULE-15 Success) | `URL.createObjectURL(file or blob)` + `<a download="clip-YYYYMMDD-HHMMSS.ext">` click; revoke after the scratch rule | Needs `allow-downloads` in the frame; a cancelled save dialog is not detectable on this path (D-018) |
-| Cancel within 1 s (NFR-11) | `worker.terminate()` + scratch delete | |
-| Page hidden during export (F-015 edge case) | `visibilitychange` + progress heartbeat; encoder error after hiding → COPY-error.export_interrupted | Spike SP-ios |
+| Scratch space during export (F-015.R7, INV-01) | Origin-private file system (`navigator.storage.getDirectory()`), `createSyncAccessHandle()` in the export worker; `navigator.storage.estimate()` for room (`quota − usage ≥ estimate × 1.3`); writes in ≥ 1 MB batches; names `export-<session>-<random>.part` | Chrome: same-site frame shares storage with standalone; WebKit frame quota = 1/10 of standalone (SP-frame, SP-storage) |
+| Save (RULE-15 Success) | `URL.createObjectURL(file or blob)` + `<a download="clip-YYYYMMDD-HHMMSS.ext">` click, no fresh user activation needed; revoke and delete 10 s after the click | Needs `allow-downloads` in the frame; a cancelled save dialog is not detectable on this path (D-018). WebKit loses a save if the file is deleted within ~80 ms (SP-storage). iPhone: every format lands in Files |
+| Share / Save to Photos (RULE-17 optional grant) | `navigator.canShare({ files })` → `navigator.share({ files: [file] })` after a tap | Embedded needs the frame's `web-share` grant (portal change request); offering it needs the F-015 spec change proposed at G3 (SP-ios) |
+| Cancel within 1 s (NFR-11) | `worker.terminate()` (export and export-audio workers) + close handle + scratch delete | |
+| Scratch sweep at start (F-015.AC14) | Web Lock `clipmaker-scratch:<session>` held for the page's life; another session's file deleted only inside a granted `locks.request(…, { ifAvailable: true })` | Heartbeats rejected; `pagehide` deletion never completes (SP-storage) |
+| Page hidden during export (F-015 edge case) | Wall-clock rules: hidden + 5 s without progress; or no progress within 3 s of becoming visible; or encoder/WebGL error after a hide → COPY-error.export_interrupted at detection, clean-up behind it | iOS suspends hidden pages: lock/app switch interrupt every export; message 3.1 s after return (SP-ios) |
+| GPU process restart (iOS after a long lock) | `webglcontextlost` → re-create the context and re-upload resources, up to 5 tries 400 ms apart; preview always recovers, a loss mid-export fails it | SP-ios |
 | GIF (RULE-16) | gifenc per frame (256 colours), delays in centiseconds alternating to keep timing | |
 | WAV (RULE-16) | Own RIFF writer, 16-bit PCM | |
 | Leave-page warning (F-018.R1) | `beforeunload` with `preventDefault()` only while unexported | The WebKit engine never shows it from a cross-origin frame (suite finding); not detectable (F-018 edge case) |
@@ -71,9 +79,10 @@ confirmed by the spikes in `architecture.md`.
 ## Host, offline, privacy
 | Spec wording | Platform mapping | Notes |
 |---|---|---|
-| Theme and language in the address; messages; ready (RULE-17, RULE-18) | Suite boot script, `message` listener checking `event.origin` and `event.source === window.parent`, one `postMessage({ type: 'taro:ready' }, hostOrigin)` | ADR-0002 |
+| Theme and language in the address; messages; ready (RULE-17, RULE-18) | Suite boot script, `message` listener checking `event.origin` and `event.source === window.parent`, one `postMessage({ type: 'taro:ready' }, hostOrigin)` with `hostOrigin` from `location.ancestorOrigins[0]` or `document.referrer`, checked against `HOST_ORIGINS` | ADR-0002; Firefox has no `ancestorOrigins` (SP-frame) |
 | Who may embed (NFR-09) | `Content-Security-Policy: frame-ancestors <HOST_ORIGINS>` | ADR-0014 |
-| No network, own files only (NFR-01) | CSP `connect-src 'self'` + lint ban + manifest-only `fetch` in MOD-Assets + e2e request log | ADR-0014 |
+| No network, own files only (NFR-01) | CSP `connect-src 'self'` (D-032) + lint ban + manifest-only `fetch` in MOD-Assets + e2e request log | ADR-0014 |
+| Worklet module on iOS standalone | Worklet (and worker) modules served with `Access-Control-Allow-Origin: <tool origin>` | iOS refused the same-origin worklet over CORS standalone (SP-frame) |
 | Offline after one visit (F-021) | `sw.js` precaching `asset-manifest.json` | ADR-0015 |
 | Source link in a new tab (F-020.R3) | `<a target="_blank" rel="noopener noreferrer">` | Needs `popups` grant when embedded |
 | Licence notices in the tool (F-020.R4) | `third-party-notices.txt` bundled into the page at build | No request |

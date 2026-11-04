@@ -63,3 +63,66 @@ intervals.
 - Long-GOP sources scrub coarse-then-exact; the measured worst case is recorded against NFR-03.
 
 <!-- Accepted ADRs are immutable. Write a new ADR to change a decision. -->
+
+## Outcome (spikes, 2026-11-04)
+Evidence: SP-license (4 GB read), SP-compositor (seeks), SP-mem-phone and SP-hdr (Mac automated;
+iPhone 14 Pro Safari 27.0.1 run 1 with sources read over HTTP range requests). **The iPhone
+re-run (`dec.html`, then `mem.html?tasks=t1,t2,t3` with Web Inspector memory) is still pending;
+items marked (pending) may change with it.**
+
+**Measured:**
+- **Files stay files holds.** 4 GB vs 100 MB source, same edit: peak +1.8 % (Chrome), +3.4 %
+  (WebKit); on the iPhone in-page proxies identical (12 frames, 79.6 MB textures). Open time of a
+  40-min file 29–92 ms (Mac). mediabunny reading a 4 GB file: +77 MB renderer, JS heap 95 MB. A
+  10-min 1080p export plateaus (no growth over 600 s) and streams to OPFS (438 MB file, 0 MB in
+  memory); OPFS streaming also works on iOS. 0 kills (Mac, and iPhone run 1).
+- **The GPU side dominates**: JS heap 3–4 MB, ≤ 13 open `VideoFrame`s; a 4K project held 318 MB of
+  compositor textures (fixed by ADR-0006 outcome item 2). Mac page footprint 0.74–0.99 GB at
+  1080p and 1.1–1.46 GB at 4K (no memory pressure there); the phone peak in MB is not yet measured.
+- **Seeks**: 1 s keyframe spacing p95 23–53 ms (Chrome), **58 ms (iPhone)**; 10 s spacing exact
+  p95 137–783 ms (Mac), **428 ms (iPhone)**, coarse first paint p95 **119 ms (iPhone)**.
+- **Real iPhone HEVC broke the generated-H.264 assumptions**: B-frame reordering made the decoder
+  pick frames 1–3 early (ΔE00 up to 8.9); open GOPs (CRA + leading pictures) made WebKit fail with
+  `Decoder failure` and close on seek; WebKit holds frames back unless fed ≥ 12 packets ahead and
+  otherwise forces `flush()` (15 flushes per decoder per minute in SP-speed).
+- **iPhone run 1**: 2-min 4K HLG + SDR project → `EncodingError: Decoder failure` 35–55 s in; the
+  second 4K HEVC decoder never produced a frame (the Mac runs 3 concurrent 4K HEVC decoders).
+  Screen recording 3420 × 2224 decoded at ≈ 100 ms/frame over the network (preview 0.1–0.4 fps,
+  seek p95 18 s; export 0.21×). 5120 × 2880 HEVC previews at 14 fps (Chrome) / 6–9 fps (WebKit) on
+  the M3.
+
+**Rule changes:**
+1. **Frame selection**: the wanted frame's presentation time comes from the container index
+   (`getPacket(t + 2 µs)`), never from accumulated packet durations; a frame is shown for
+   `[ts, next ts)`; edit lists arrive as negative timestamps and frames before 0 are dropped by
+   MOD-Engine (not the container).
+2. **Random access**: after a restart at a keyframe, leading pictures with pts < the keyframe's pts
+   are dropped before decoding (open GOP).
+3. **Decode feed**: keep **12 packets** fed ahead of the target per decoder (was 4–6); hold at most
+   12 decoded frames per decoder (measured 12–13 open). A `flush()` forces a restart at a keyframe,
+   so it is used only at clip ends and seeks.
+4. **Seeks**: coarse-then-exact by default — paint the nearest decoded keyframe (or cached frame) at
+   once, then the exact frame. For sources whose keyframe spacing exceeds 2 s, while decoding
+   forward keep a preview-size copy of about one frame per second (≤ 32 per source, counted in the
+   thumbnail budget) to serve backward scrubs coarsely. NFR-03's 150 ms is met by the first visible
+   response; the exact-frame worst case is recorded (iPhone 10 s GOP: p95 428 ms).
+5. **Decoder budget per device class (pending `dec.html`)**: on phones, **at most one concurrent
+   decoder for video above 1920 × 1080** (any codec; HEVC observed), up to 3 otherwise; laptops 4.
+   A cross-fade between two such clips decodes the outgoing clip's overlap first into a bounded
+   cache of frames at the target size (phone ≤ 120 MB), processing the overlap in chunks that fit
+   the cache (each chunk restarts the outgoing decoder at the keyframe before it), then the incoming
+   clip. Independently of the budget, a `Decoder failure` when opening an additional decoder session
+   closes it and falls back to this sequential mode for the rest of the session.
+6. **Slow sources**: when a source decodes slower than real time, playback never restarts at a
+   keyframe while the target is still ahead of the decoder; it decodes forward and shows the newest
+   frame (sound stays on the clock, F-002 edge case). Such a source is classed slow; showing
+   COPY-notice.slow_device for it needs the RULE-22 change proposed at G3. 5120 × 2880 sources are a
+   **known limit** (below 24 fps preview on the M3; export correct at 0.6–0.8× real time).
+7. **Cache table (§4) updated**: "Decoded frames queued per active decoder" → 12 on every class;
+   "Active video decoders" → item 5. Text, thumbnail and audio rows unchanged. Memory targets (§5)
+   unchanged (≤ 600 MB phone, ≤ 1.5 GB laptop); whether the phone meets 600 MB at 4K is the main
+   open item of the re-run.
+8. **Export resolution**: RULE-15's default of 1080 already keeps above-1080 sources at ≤ 1080 by
+   default; on the iPhone `VideoFrame(canvas)` costs 51 ms per frame at 3322 × 2160 vs ≈ 12 ms at
+   1080 × 1920, so the export estimate (F-015.AC12) uses the measured per-pixel cost when the user
+   picks 1440 or 2160.

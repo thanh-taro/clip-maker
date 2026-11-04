@@ -14,6 +14,15 @@ Makes media-panel and timeline thumbnails and waveform peaks within the cache bo
 Releases a source's caches on removal and New project; keeps the `File` reference while history
 can restore it.
 
+### Rules from the spikes (2026-11-04)
+Evidence: SP-license, SP-codec, SP-mem-phone.
+- Acceptance decodes the first packets for real (WebKit FLAC passes `isConfigSupported` and then
+  fails → COPY-reason.codec).
+- The probe records keyframe spacing (drives MOD-Engine's backward-scrub cache) and frame size class
+  (drives the phone decoder budget).
+- Opening a 40-min, 4 GB file reads its index in 29–92 ms on the Mac; nothing proportional to file
+  size is kept beyond the sample index.
+
 ## Not responsible for
 - Deciding placement on the tracks (MOD-Core/MOD-Project), playback decoding (MOD-Engine).
 

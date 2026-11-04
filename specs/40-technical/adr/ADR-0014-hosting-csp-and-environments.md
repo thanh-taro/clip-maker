@@ -78,3 +78,32 @@ Staging deploys are by hand like production; both keep the previous version for 
   public tunnel (CLAUDE.md: local only).
 
 <!-- Accepted ADRs are immutable. Write a new ADR to change a decision. -->
+
+## Outcome (spikes, 2026-11-04)
+Evidence: SP-frame (automated + Safari 27, Firefox 158, iPhone Safari 27), SP-ios, SP-storage;
+owner decisions D-032, D-035, D-036.
+- **Headers confirmed.** Under this CSP (`connect-src 'self'`, no `'wasm-unsafe-eval'`), workers,
+  the worklet, WebGL2, WebCodecs, OPFS and downloads work standalone and embedded (same-site and
+  cross-site) with no COEP; the only violations logged were the deliberate probes (a cross-origin
+  `fetch`, and `WebAssembly.compile`). **D-032**: `connect-src 'self'` approved by the owner;
+  WebAssembly stays disallowed (a new decision is needed to add it).
+- **Rule change — worklet CORS.** iPhone Safari standalone refused the same-origin worklet module
+  over CORS (embedded passed). `_headers` serves the worklet module (and, for symmetry, the worker
+  modules) with `Access-Control-Allow-Origin: <tool origin>`; re-checked on iOS in QA.
+- **Rule change — web share.** `Permissions-Policy` gains `web-share=(self)` so a host's
+  `allow="web-share"` can delegate it. The portal change request
+  (`.build-my-app/reports/portal-change-request.md`) adds a `share` permission and Clip Maker's
+  catalog entry (`downloads`, `file-pick`, `dialogs`, `fullscreen`, `share`); until the portal
+  ships it, embedded users get download only (RULE-17). Assumption A5 changes accordingly.
+- **Ready signal**: posted once, to the parent's origin taken from `location.ancestorOrigins[0]`
+  (Chromium, WebKit) or `document.referrer` (Firefox; the portal sends
+  `referrerpolicy="strict-origin"`), only if that origin is in `HOST_ORIGINS`.
+- **Storage in the frame**: in Chrome the production shape (`tarokit.app` → `clip-maker.tarokit.app`,
+  same site) **shares** OPFS, quota and Web Locks between embedded and standalone; WebKit keeps them
+  separate and gives the frame 1/10 of the standalone quota. ADR-0010's outcome handles both.
+- **Environments**: **D-036** — staging `clip-maker-staging.tarokit.app` on the free tier is
+  planned, created only in the deploy phase. Phone testing uses mkcert certificates over the LAN
+  (DEP-33), never tunnels; this worked for every owner run.
+- Known noise: WebKit logged many "Refused to apply a stylesheet … style-src" console messages on a
+  spike page without inline styles (likely UA styles for `<details>`/`<select>`); re-check in the
+  build, no functional effect seen.

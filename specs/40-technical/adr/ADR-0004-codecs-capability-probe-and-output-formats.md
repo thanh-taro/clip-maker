@@ -69,3 +69,63 @@ configuration and then fail. D-003: no FFmpeg compiled to WebAssembly; only the 
 - The Gecko Android browser is "unsupported" by RULE-22 until its codec API ships.
 
 <!-- Accepted ADRs are immutable. Write a new ADR to change a decision. -->
+
+## Outcome (spikes, 2026-11-04)
+Evidence: SP-codec (automated + owner runs on iPhone 14 Pro Safari 27.0.1, Safari 27.0.1 macOS,
+Firefox 158), SP-compositor, SP-audio, SP-speed, SP-size-target, SP-hdr.
+
+**Measured output per engine (RULE-15 order holds; D-033 confirms Gecko):**
+| Engine | Video with sound | Audio only | Notes |
+|---|---|---|---|
+| Chrome 156 (macOS) | MP4 · H.264 + AAC | M4A AAC | H.264 hardware; 75/75 trial encodes pass |
+| Playwright Chromium 156 (macOS) | MP4 · H.264 + AAC | M4A AAC | software H.264 (openh264); no HEVC decode |
+| Safari 27 (macOS) | MP4 · H.264 + AAC, **realtime mode only** | M4A AAC | `latencyMode:'quality'` H.264 never emits a chunk; `'realtime'` runs at 3.9× real time at 1080p30 |
+| iPhone 14 Pro, Safari 27 | MP4 · H.264 + AAC at every size and rate | M4A AAC | 2160p60 encodes at 0.49× real time |
+| Firefox 158 (macOS) | MP4 · H.264 + Opus (D-033) | Ogg Opus | no AAC encoder; VP8/VP9 software only |
+
+**Rule changes:**
+1. **Start-up probe = minimal set** (replaces the full grid of §2): decode configs at 1080p,
+   one encode probe per candidate codec at 1080p30, AAC-LC and Opus encode, WebGL2 + effects check.
+   Measured 32–54 ms on every real engine (212 ms cold in headless Chrome); budget ≤ 300 ms.
+   The full grid (20 decode + 60 encode) took 1.1–1.8 s and is **not** run at start.
+2. **Size × rate grid probed lazily** when the export panel opens, only for the codec the fallback
+   order chose (≈ 20 calls, 100–400 ms). RULE-15's "offered only when the device can encode it" is
+   decided there.
+3. **Concurrency cap 4** for `isConfigSupported` calls. Unbounded parallel encoder probes crashed
+   the renderer in Chromium and Chrome (twice the 60-config grid).
+4. **AAC description normalisation**: an AAC `decoderConfig.description` that starts with tag
+   `0x03` (WebKit returns a 39-byte ES_Descriptor) is reduced to its 2-byte AudioSpecificConfig
+   (tag `0x05` payload) before muxing and before any self-check. Without it WebKit falls back to Opus
+   needlessly.
+5. **`isConfigSupported` is not proof.** A source is accepted only after its first packets really
+   decode (§2 already says so). Known false positives: WebKit FLAC decode (every packet fails,
+   incl. iPhone) → such FLAC files get COPY-reason.codec there; a Chromium FLAC `dfLa` description
+   that `configure` rejects.
+6. **Trial encode (§6) extended**:
+   - encode with `latencyMode:'quality'`; if no chunk arrives within **2 s**, retry with
+     `'realtime'` and record the working mode per engine in the capability record (Safari macOS
+     needs realtime). Every export of the session uses the recorded mode;
+   - measure the **encoder delay** with an impulse round trip instead of assuming it (AAC measured
+     2112 samples in every engine, Opus pre-skip 312) and hand it to MOD-Export (edit list,
+     ADR-0010);
+   - record whether the H.264 encoder is hardware or software, the supported `bitrateMode`s
+     (constant and variable everywhere tested; quantizer Chrome only) and the **delivered AAC
+     rate** (WebKit ignores `bitrate`: ≈ 98 kbps on dense audio, 68–89 kbps measured on fixtures).
+7. **Encode settings (§5)** kept: `hardwareAcceleration:'no-preference'` (retry
+   `'prefer-software'` on failure), `latencyMode:'quality'` (realtime only per item 6), encoder
+   queue cap 4–8 (2/8/16 measured, no gain beyond 8). Software-only H.264 runs at ≈ 0.8× real time
+   at 1080p on the M3, so NFR-04 cannot hold there; the export estimate states the slower time.
+8. **Opus rules**: never use WebKit's Opus encoder for export (decodes to +3 to +4 dBTP, SNR 3.5 dB);
+   WebKit always has AAC. No Opus below 128 kbps in exports.
+9. **Slow-device threshold (§7, RULE-22)** replaced: the start-up effects check renders the full
+   RULE-08 chain + a look + Blur at 1080p on a generated bitmap, 5 warm-up + 30 timed frames with one
+   GPU sync at the end (0.1–1 s). **Below 30 fps (> 33 ms per frame) → COPY-notice.slow_device.**
+   Measured pairs: check ≥ 33 fps always played ≥ 24 fps; 13–17 fps played 21 fps; SwiftShader
+   2.4 fps played 4.2 fps. iPhone 14 Pro: check 128–140 fps, playback 29.9 fps. Additionally, a
+   source that decodes slower than real time on this device is classed "slow" (MOD-Engine); showing
+   the notice for it needs the RULE-22 spec change proposed at G3.
+10. **HDR frames**: the probe records whether decoded HDR frames are opaque (`format: null`, macOS
+    Chrome and WebKit) or already tone-mapped to SDR by the decoder (iOS); see ADR-0007.
+
+**Remaining:** Android Chrome untested (D-037); size-target accuracy of Safari's realtime mode to be
+re-checked in QA; HEVC 4K decoder concurrency on iOS (ADR-0009).

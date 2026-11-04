@@ -53,3 +53,15 @@ audio path as user files (ADR-0008).
   (NFR-02) because it is fetched after the editor is usable.
 
 <!-- Accepted ADRs are immutable. Write a new ADR to change a decision. -->
+
+## Outcome (spikes, 2026-11-04)
+Evidence: SP-gpu-color, SP-codec.
+- **Looks (§1)**: authored 33³ tables stored as 8-bit PNG strips measured 3.7 KB (B&W), 10.1 KB
+  (Warm) and 15.1 KB (Teal & Orange); storage error ΔE00 mean 0.08, max 0.78. Rule: budget
+  **30 KB per look** (16 ≈ 0.5 MB); the build rejects a look over 108 KB or with storage error above
+  ΔE00 1 (ADR-0007 outcome item 3). Fonts + looks stay well inside NFR-10's 1.5 MB.
+- **Music (§2)**: AAC-LC in M4A stays. AAC decodes from real packets in Chromium, Chrome, WebKit and
+  on the iPhone; Opus decodes everywhere tested too, but AAC needs no further checks and is what the
+  owner's local encoder produces. No change.
+- Curation follows D-034 (Claude shortlists ~15 CC0 candidates with licence records; the owner keeps
+  8–10); not part of the spikes.

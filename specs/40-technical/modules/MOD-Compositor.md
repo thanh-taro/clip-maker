@@ -13,12 +13,28 @@ sharpen, vignette, deterministic grain, the RULE-07 transform, the clip layer ov
 are separate draws. Includes the CPU reference implementation used as the test oracle, and the
 timed effects check for RULE-22.
 
+### Rules from the spikes (2026-11-04)
+Evidence: SP-gpu-color, SP-hdr, SP-mem-phone, SP-ios, SP-speed (ADR-0006 / ADR-0007 outcomes).
+- Grade intermediate: `RGBA16F` where renderable (all tested engines), 8-bit fallback; no
+  recompute-taps. Intermediates are sized to the clip's placed size on the current target, never the
+  source size; on phones the 8-bit intermediate is used above 1080 (shorter side).
+- HDR and SDR frames are both uploaded with `texImage2D(VideoFrame)` (the engine's conversion); the
+  decoded frame's colour space is trusted over the track's. No own 10-bit HDR shader.
+- Looks: 33³ 8-bit PNG strips, uploaded as 3D textures.
+- Context loss: on `webglcontextlost` prevent the default, re-create the context and re-upload
+  programs, look tables, text bitmaps and intermediates; retry up to 5 times 400 ms apart. In an
+  export, a loss after the first frame fails the export (COPY-error.export_failed).
+- `effectsCheck()`: full RULE-08 chain + a look + Blur at 1080p on a generated bitmap, 5 warm-up + 30
+  timed frames, one GPU sync at the end; `slow` when below 30 fps.
+- The export target is wrapped with `new VideoFrame(offscreenCanvas, …)`; never `readPixels` for
+  normal exports, never `transferToImageBitmap`.
+
 ## Not responsible for
 - Choosing what to draw (MOD-Plan), decoding (MOD-Engine), rasterising text (MOD-Preview), encoding.
 
 ## Public surface
 - `createCompositor(offscreenCanvas, looks)`; `paint(framePlan, frames, textBitmaps)`; `resize(w, h)`.
-- `paintOverlay(overlay)` (preview only); `effectsCheck()` → `{ ok, fps }`.
+- `paintOverlay(overlay)` (preview only); `effectsCheck()` → `{ ok, fps, slow }`; `onContextLost(handler)` / `recover()`.
 - `reference.grade(rgb, params)` (CPU oracle, tests only).
 
 ## Implements

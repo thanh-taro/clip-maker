@@ -11,6 +11,13 @@ origin- and parent-checked `taro:theme` / `taro:language` messages; one content-
 (INV-08); never takes focus from the host. Registers the service worker after first render and
 reports nothing else (ADR-0015).
 
+### Rules from the spikes (2026-11-04)
+Evidence: SP-frame, SP-ios (ADR-0014 outcome).
+- The ready signal goes once to the parent origin from `location.ancestorOrigins[0]` or
+  `document.referrer`, only if it is in `HOST_ORIGINS`.
+- Whether the frame grants web share is detected with `navigator.canShare({ files })` (false in the
+  portal frame until the `share` permission ships).
+
 ## Not responsible for
 - Strings (MOD-Copy), assets (MOD-Assets).
 

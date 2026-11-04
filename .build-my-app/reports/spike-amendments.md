@@ -1,4 +1,7 @@
 # ADR amendments queued from spikes (apply at G3)
+
+**Applied 2026-11-04** to `specs/40-technical/` (ADR outcome sections, modules, architecture, platform mapping, dependencies). Items that need spec changes outside `40-technical` are in `g3-spec-changes.md`. (Two blocks below appear twice; they were applied once.)
+
 - **MOD-Engine:** a frame lasts until the next frame's start. Never use rounded durations. (SP-compositor)
 - **ADR-0010:** remove the encoder's priming delay through an MP4 edit list (AAC, 2112 samples measured). (SP-compositor)
 - **ADR-0004:** the trial encode measures encoder delay rather than assuming it. (SP-compositor)

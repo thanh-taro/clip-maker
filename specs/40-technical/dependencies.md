@@ -9,7 +9,8 @@ audit re-verifies every row against the real lockfile before approval.
 Kinds: **runtime** = shipped to the browser (main bundle, a worker or the worklet; no lazy chunks,
 ADR-0002); **asset** = shipped non-code file; **build** / **dev** = never shipped.
 Status: `proposed` → `approved` → `removed`. **Every row is `proposed`** until the licence audit
-(and, for DEP-04 and DEP-34, the owner) approves it.
+(and, for DEP-04 and DEP-34, the owner) approves it. Owner approvals so far: DEP-04 (D-042) and
+DEP-34 (D-035). Spike outcomes (2026-11-04) removed the fallbacks DEP-37 … DEP-40.
 
 ## Runtime (shipped)
 | ID | Name | Version range | License | Kind | Purpose | Status | Decided by |
@@ -17,8 +18,8 @@ Status: `proposed` → `approved` → `removed`. **Every row is `proposed`** unt
 | **DEP-01** | preact | ~10.29 (suite pin; 11.x exists, adopt only with the suite) | MIT | runtime | UI chrome rendering | proposed | ADR-0002 |
 | **DEP-02** | @preact/signals | ^2.11 | MIT | runtime | App state: project, history, selection, playhead, notices | proposed | ADR-0002, ADR-0011 |
 | **DEP-03** | @preact/signals-core | transitive of DEP-02 (^1.x) | MIT | runtime | Signals runtime | proposed | ADR-0002 |
-| **DEP-04** | mediabunny | exact 1.65.x (pinned; updated deliberately) | MPL-2.0 (scoped exception, ADR-0005, owner-approved D-042) | runtime | Reading MP4/MOV/WebM/MKV/MP3/ADTS/Ogg/FLAC/WAV in pieces; writing MP4/WebM/M4A/Ogg to a streaming target; low-level parts only, unmodified, no `@mediabunny/*` extensions | approved | ADR-0005 |
-| **DEP-05** | gifenc | 1.0.3 | MIT | runtime | GIF palette quantisation and encoding (RULE-16); small, stable, unmaintained since 2021 — acceptable for a frozen format | proposed | ADR-0010 |
+| **DEP-04** | mediabunny | exact 1.65.x (pinned; 1.65.0 tested in the spikes, 1.65.1 on the registry 2026-11-04; updated deliberately) | MPL-2.0 (scoped exception, ADR-0005, owner-approved D-042) | runtime | Reading MP4/MOV/WebM/MKV/MP3/ADTS/Ogg/FLAC/WAV in pieces; writing MP4/WebM/M4A/Ogg to a streaming target; low-level parts only, unmodified, no `@mediabunny/*` extensions | approved | ADR-0005 |
+| **DEP-05** | gifenc | 1.0.3 (exact; latest on the registry, checked 2026-11-04, last modified 2022-05-03) | MIT | runtime | GIF palette quantisation and encoding (RULE-16); small, stable, unmaintained since 2021 — acceptable for a frozen format. Not exercised by a spike (SP-ios used a minimal stand-in writer); verified in the build with the GIF timing test (NFR-08) | proposed | ADR-0010 |
 | **DEP-35** | @types/dom-webcodecs | transitive of DEP-04 (0.1.x) | MIT | build (types only; nothing ships) | Type declarations pulled by DEP-04 | proposed | ADR-0005 |
 | **DEP-36** | @types/dom-mediacapture-transform | transitive of DEP-04 (0.1.x) | MIT | build (types only; nothing ships) | Type declarations pulled by DEP-04 | proposed | ADR-0005 |
 
@@ -62,15 +63,15 @@ candidate sources and exclusions are in ADR-0013. At least 8 tracks are needed (
 | **DEP-31** | wrangler | ^4 (pinned) | MIT OR Apache-2.0 (its sharp pulls LGPL libvips binaries, deploy-only) | dev (deploy) | Deploy static assets by hand (phase 7), staging and production | proposed | ADR-0014 |
 | **DEP-32** | pnpm | 11.x | MIT | dev | Package manager, licence report | proposed | ADR-0002 |
 | **DEP-33** | mkcert | latest release (installed as a system tool, not an npm package) | BSD-3-Clause | dev | Locally trusted HTTPS certificate so phones on the LAN can open the local dev server (codec APIs need a secure context) | proposed | ADR-0014 |
-| **DEP-34** | Google Chrome (stable, installed browser used through Playwright's `chrome` channel) | latest stable | Proprietary freeware (Google terms) — dev-only, never shipped; **owner decision** | dev | Automated tests of the H.264/AAC paths, which the open-source Chromium lacks | proposed (owner) | ADR-0016 |
+| **DEP-34** | Google Chrome (stable, installed browser used through Playwright's `chrome` channel) | latest stable | Proprietary freeware (Google terms) — dev-only, never shipped; **owner decision D-035 (approved)** | dev | Automated tests of HEVC decode, GPU fidelity and timing (the bundled Chromium has H.264/AAC on macOS but no HEVC and only software WebGL, SP-codec) | approved (owner, D-035) | ADR-0016 |
 
 ## Evaluated, not adopted (recorded fallbacks)
 | ID | Name | Version range | License | Kind | Purpose | Status | Decided by |
 |---|---|---|---|---|---|---|---|
-| **DEP-37** | mp4box (mp4box.js) | ^2.5 | BSD-3-Clause | runtime (fallback) | Permissive MP4/MOV reader if DEP-04 is declined | proposed (fallback, not adopted) | ADR-0005 |
-| **DEP-38** | mp4-muxer | 5.2.2 (frozen; deprecated in favour of DEP-04) | MIT | runtime (fallback) | Permissive MP4 writer if DEP-04 is declined | proposed (fallback, not adopted) | ADR-0005 |
-| **DEP-39** | webm-muxer | 5.1.4 (frozen; deprecated in favour of DEP-04) | MIT | runtime (fallback) | Permissive WebM writer if DEP-04 is declined | proposed (fallback, not adopted) | ADR-0005 |
-| **DEP-40** | signalsmith-stretch | ^1.3 | MIT (WebAssembly; would need `'wasm-unsafe-eval'`) | runtime (fallback) | Time-stretch if our own WSOLA fails SP-timestretch | proposed (fallback, not adopted) | ADR-0008 |
+| **DEP-37** | mp4box (mp4box.js) | ^2.5 | BSD-3-Clause | runtime (fallback) | Permissive MP4/MOV reader if DEP-04 is declined; measured in SP-license (19/26 corpus, +306 MB reading 4 GB) | removed (DEP-04 approved, D-042) | ADR-0005 |
+| **DEP-38** | mp4-muxer | 5.2.2 (frozen; deprecated in favour of DEP-04) | MIT | runtime (fallback) | Permissive MP4 writer if DEP-04 is declined | removed (DEP-04 approved, D-042) | ADR-0005 |
+| **DEP-39** | webm-muxer | 5.1.4 (frozen; deprecated in favour of DEP-04) | MIT | runtime (fallback) | Permissive WebM writer if DEP-04 is declined | removed (DEP-04 approved, D-042) | ADR-0005 |
+| **DEP-40** | signalsmith-stretch | ^1.3 | MIT (WebAssembly; would need `'wasm-unsafe-eval'`, disallowed by D-032) | runtime (fallback) | Time-stretch if our own WSOLA fails SP-timestretch | removed (own WSOLA passed SP-timestretch incl. owner listening; a new decision would be needed) | ADR-0008 |
 
 ## Rejected (not allowed by ADR-0001 or D-003)
 - soundtouchjs (LGPL-2.1) and wrappers around SoundTouch — time-stretch; LGPL is not allowed at runtime.
@@ -87,8 +88,9 @@ system (export scratch only), `navigator.storage.estimate`, `Intl` (`NumberForma
 Fullscreen API. Mapping in `platform-mapping.md`.
 
 ## Notes
-- Shipped third-party code: Preact + signals (MIT), gifenc (MIT) and, if approved, mediabunny
-  (MPL-2.0, unmodified, with notice and source link). Shipped assets: five font packages (OFL),
+- Shipped third-party code: Preact + signals (MIT), gifenc (MIT) and mediabunny (MPL-2.0,
+  unmodified, with notice and source link; approved D-042, ≈ 108 KB gzip: reader 73 KB in the engine
+  and analysis workers, writer 48 KB only in the export worker). Shipped assets: five font packages (OFL),
   icons (ISC), the owner's looks and tokens, CC0 music.
 - `/third-party-notices.txt` and the in-tool notices (F-020.R4) are generated from this file; the
   dist scan fails if anything ships that is not an approved runtime or asset row.

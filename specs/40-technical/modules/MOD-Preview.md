@@ -13,6 +13,13 @@ or text, snapping to centre lines and safe margins, the compare hold, full scree
 in the page where the frame does not allow it). Rasterises text layers on the main thread into
 bitmaps for the workers (ADR-0012) and hosts the transparent text field for typing.
 
+### Rules from the spikes (2026-11-04)
+Evidence: SP-frame, SP-ios.
+- iPhone Safari has no page full screen: `enterFullscreen()` falls back to maximise-in-page
+  (F-002.R7).
+- The first user gesture on the page also unlocks audio (MOD-Audio), because iOS starts an
+  `AudioContext` only inside a gesture.
+
 ## Not responsible for
 - Drawing the picture (MOD-Compositor in the worker), timeline input (MOD-Timeline).
 

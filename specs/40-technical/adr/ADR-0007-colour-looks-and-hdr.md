@@ -1,6 +1,6 @@
 ---
 id: ADR-0007
-title: Colour — sRGB working space, 3D look tables, HDR converted to standard range by our own shader
+title: Colour — sRGB working space, 3D look tables, HDR converted to standard range by the engine (own shader dropped after SP-hdr)
 status: proposed
 date: 2026-11-03
 supersedes: []
@@ -58,3 +58,49 @@ canvas (clip, tone-map, or show washed-out colour).
 - Colour fidelity tests use a 24-patch chart rendered through both paths (NFR-08).
 
 <!-- Accepted ADRs are immutable. Write a new ADR to change a decision. -->
+
+## Outcome (spikes, 2026-11-04)
+Evidence: SP-gpu-color, SP-hdr (automated + iPhone 14 Pro Safari 27.0.1), SP-mem-phone.
+
+**Measured:**
+- Working space and SDR fast path (§1, §5) pass NFR-08 everywhere (chart mean ≤ 0.73, max ≤ 1.94;
+  iPhone max ≤ 1.65). The engine's RGB→YUV matrix is BT.709 (own BT.709 conversion within ΔE00
+  0.12–0.24; BT.601 would be 2.2–2.7 off).
+- **Output tags differ by encoder**: primaries bt709 and matrix bt709 everywhere; transfer is tagged
+  **13 (sRGB)** by every engine; Chrome's hardware H.264 writes **limited** range, WebKit and
+  openh264 write **full** range.
+- **Looks** (§3): authored 33³ tables as 8-bit PNG strips are **3.7–15.1 KB** (not 50–70 KB);
+  16 looks ≈ 60–240 KB. 8-bit storage error vs the float table: ΔE00 mean 0.08, max 0.78; no
+  banding.
+- **RULE-08 ramp bars** hold at every adjustment's min and max in the float CPU reference and on the
+  GPU's half-float layer, in all three engines. On any 8-bit output two bars (distinct steps; max
+  step ≤ 2× default) fail by arithmetic, not precision: any slope below 1 merges codes, and
+  limited-range export alone merges 36 of 256 levels at default.
+- **HDR (§4)**: decoded HLG HEVC frames are **opaque** (`format: null`) in Chrome and WebKit on
+  macOS, so the 10-bit planes cannot be read; on **iOS the decoder itself tone-maps** to 8-bit NV12
+  tagged bt709 / sRGB / full range. Engine path, preview vs export: ΔE00 mean 0.26 / max 0.86
+  (Chrome), 0.43 / 1.16 (WebKit), **0.42 / 1.40 (iPhone)**; Chrome vs WebKit 0.13 mean. HDR upload
+  cost: WebKit macOS 24–26 ms per 4K frame (vs 5.6 ms SDR); iPhone 1.1 ms (same as SDR).
+
+**Rule changes:**
+1. **§4 rewritten — HDR via the engine's conversion everywhere.** A source is HDR when the
+   *decoded frame's* colour space says transfer `pq`/`hlg` or primaries `bt2020`; the frame's tag is
+   trusted over the track's (iOS frames arrive already SDR). HDR frames are uploaded with
+   `texImage2D(VideoFrame)` into the `srgb` working space, the same call in preview, thumbnails and
+   every export, so D-014 holds by construction within an engine. The own 10-bit shader is **not
+   built**; adopting it later (an engine that exposes 10-bit planes and converts badly) needs a
+   superseding ADR. PQ sources are untested (no fixture); Firefox and Android HDR untested (D-037).
+2. **§1 output tags**: MOD-Export writes the `colr`/VUI tags explicitly: primaries 1 (BT.709),
+   matrix 1 (BT.709), range = what the encoder produced (probed per engine), transfer **1 (BT.709)**
+   as the interim value. The owner's player check (QuickTime, Photos, VLC/IINA on the chart MP4)
+   decides at G3/QA between transfer 1 and 13 and whether full-range output needs our own
+   limited-range conversion on WebKit (ADR-0006 outcome item 3). Until then exports are tagged as
+   produced plus transfer 1.
+3. **§3 looks budget**: keep 33³ 8-bit PNG strips; **budget 30 KB per look** (16 ≈ 0.5 MB, inside
+   NFR-10 with fonts). The build rejects a look over 108 KB (the incompressible bound) or whose
+   8-bit storage error exceeds ΔE00 1 against its float table. The 16-bit/25³ alternative is not
+   needed.
+4. **RULE-08 measurement**: the ramp bars are judged on the high-precision render (CPU reference and
+   the half-float layer) with Grain 0 and Vignette per position; 8-bit outputs are judged by
+   reversal ≤ ΔL* 0.5 and ΔE00 ≤ 1 against the reference. This needs the RULE-08 / F-007.AC2 spec
+   change proposed at G3 (`.build-my-app/reports/g3-spec-changes.md`).

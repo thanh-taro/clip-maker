@@ -78,3 +78,49 @@ the same idea on the GPU.
 - About 1–2k lines of shader and plan code that is ours to test; no runtime dependency.
 
 <!-- Accepted ADRs are immutable. Write a new ADR to change a decision. -->
+
+## Outcome (spikes, 2026-11-04)
+Evidence: SP-compositor, SP-gpu-color, SP-speed, SP-mem-phone, SP-ios (automated on the MacBook;
+owner runs on iPhone 14 Pro Safari 27.0.1).
+
+**Measured:**
+- **Fidelity**: 720/720 export frames at offset 0 from the preview path in Chromium, Chrome, WebKit
+  and on the iPhone; 0 px shift except on near-black fade frames (shift search meaningless).
+  Chart ΔE00 preview vs decoded export: mean ≤ 0.73 / max ≤ 1.94 (Mac engines), mean 0.03–0.52 /
+  max ≤ 1.65 (iPhone). GPU vs CPU reference ≤ 0.74 max. Grain pixel-identical across plays and
+  the export path.
+- **Speed**: full chain at 1080p (12 adjustments, look, sharpen, vignette, grain, Blur, cross-fade,
+  3 texts, music): Chrome 30.0 fps, WebKit 29.7 fps, **iPhone 29.9 fps (1080p and 4K)**, paint p50
+  8 ms on the phone. The grade itself costs < 1 ms on the M3; upload and sync dominate.
+- **Export frame source**: `new VideoFrame(offscreenCanvas)` costs 0.25 ms (Chrome), ≈ 8 ms
+  (WebKit), ≈ 12 ms at 1080 × 1920 and **51 ms at 3322 × 2160 on the iPhone**. `readPixels`
+  read-back doubles export time; `transferToImageBitmap` → `VideoFrame` fails in Chrome.
+- **Memory**: half-float intermediates allocated at *source* size made a 4K project hold 318 MB of
+  textures (Chrome GPU process ≈ 0.95 GB in the 4K export).
+
+**Rule changes:**
+1. **§3.2 intermediate**: half-float (`RGBA16F`) intermediate where renderable — it is in all three
+   engines and on the iPhone — with an 8-bit intermediate as the fallback (same result on 8-bit
+   outputs; chart u8 vs f16 max ΔE00 0.76). The "recompute the grade at each sharpen tap" variant
+   is dropped.
+2. **Intermediate size**: grade and Blur intermediates are sized to the clip's **placed size on the
+   current target** (never above the output or preview size), not to the source size. On phones
+   the 8-bit intermediate is used when the target is above 1080 on its shorter side. Expected 4K
+   texture use ≈ 80 MB instead of 318 MB (to be measured in the iPhone re-run).
+3. **§7 export path**: `new VideoFrame(offscreenCanvas, { timestamp, duration })` is the only
+   export path; no own BT.709 read-back (chart passes everywhere). The read-back path is kept only
+   as the limited-range fallback of ADR-0007 if a player check requires it. Never wrap
+   `transferToImageBitmap` results.
+4. **Frame timing**: a source frame's display interval is the half-open `[ts, next frame's ts)`;
+   rounded chunk durations are never used (389/720 frames were one off before this fix). Ties in
+   the fidelity oracle prefer offset 0 (ADR-0016).
+5. **HDR**: sources go through `texImage2D(VideoFrame)` like SDR; the own 10-bit shader is dropped
+   (ADR-0007 outcome).
+6. **§9 (new) WebGL context loss**: every compositor instance listens for `webglcontextlost`,
+   prevents the default, and on loss re-creates the context and re-uploads every resource it owns
+   (programs, look tables, text bitmaps, intermediates), retrying up to **5 times 400 ms apart**.
+   The preview always recovers (it repaints the current plan). A loss during an export fails that
+   export with COPY-error.export_failed (F-015.R6); a loss before the export's first frame is
+   retried like the preview. Measured cause: iOS restarts its GPU process after a 60 s lock.
+7. **Effects check (RULE-22)**: `effectsCheck()` implements ADR-0004 outcome item 9 (threshold
+   30 fps at 1080p).

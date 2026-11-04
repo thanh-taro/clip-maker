@@ -62,3 +62,28 @@ change the host contract (RULE-17) and the portal's own headers (its COEP is del
 - The portal and RULE-17 are unaffected; SP-frame confirms every piece works inside the frame.
 
 <!-- Accepted ADRs are immutable. Write a new ADR to change a decision. -->
+
+## Outcome (spikes, 2026-11-04)
+Evidence: SP-frame, SP-compositor, SP-speed, SP-ios (`.build-my-app/reports/spike-*.md`).
+- **Confirmed, no isolation needed.** Module workers, WebGL2 on a transferred and on an unattached
+  `OffscreenCanvas` (incl. half-float targets and 33³ 3D textures), WebCodecs, `AudioWorklet` fed
+  over a transferred `MessagePort`, OPFS sync handles and `<a download>` all work standalone,
+  embedded same-site and embedded cross-site, with `crossOriginIsolated === false`, in Chromium,
+  Chrome, WebKit (automated), Safari 27, Firefox 158 and iPhone Safari 27 (owner). 0 unexpected CSP
+  violations. The §7 main-thread fallback is not needed on any tested engine; it stays documented.
+- **One worker one paint holds**: 720/720 export frames at offset 0 against the preview path, A/V
+  +0.04 ms with zero drift over 10 min (all engines) and over 3 min on the iPhone.
+- **Rule change — export uses two workers.** SP-speed showed that decoding the clips' sound in the
+  same pass as the video decoders makes the audio the critical path (Chrome 23.4 s vs 17.8 s for the
+  NFR-04 fixture under load) and that a serial audio pass first is far slower in WebKit (111 s vs
+  44 s). An export therefore runs an **export (video) worker** and an **export-audio worker**, both
+  created idle at start-up (no request on first export) and both terminated on cancel. The
+  export-audio worker decodes the clips' sound first (before the video loop starts), then mixes,
+  limits, encodes and verifies (ADR-0008) while the video encodes. Packets meet in the muxer in the
+  export worker.
+- **Rule change — WebGL context loss** (SP-ios: after a 60 s lock iOS restarted the GPU process and
+  the next export's new context was lost at frame 1). Every worker that owns a WebGL2 context
+  handles `webglcontextlost`/`webglcontextrestored` (ADR-0006 §9).
+- iPhone has no page full screen (`requestFullscreen` absent); the maximise-in-page fallback of
+  F-002.R7 applies. Downloads without transient activation (end of a long export) work in every
+  engine with the `downloads` grant.
