@@ -20,3 +20,8 @@
 - **ADR-0007 §3 / ADR-0013:** a look is a 33³ 8-bit PNG of 4–15 KB measured, against a budget of 30 KB per look. The build rejects a look over 108 KB or with storage error above ΔE00 1. (SP-gpu-color)
 - **platform-mapping.md (RULE-22):** slow device = the start-up effects check (full chain + look + Blur, 1080p, 30 frames) renders below 30 fps. (SP-gpu-color)
 - **ADR-0016:** grade fidelity fixtures are RGB stills; the oracle is the CPU reference in float. (SP-gpu-color)
+- **ADR-0008 (from SP-timestretch):** adopt our own WSOLA and reject the phase vocoder.
+  - §4: a pinned frame every 1 s replaces the cross-fade.
+  - §6: after a seek, decode from the previous sync point (up to 4 s of source at 4×).
+  - Known limits: doubled attacks at 0.25×; some very short clicks lost at 2–4×; 3–7 ms timing jitter.
+- **ADR-0016:** WSOLA golden hashes hold across engines, so use them as test oracles.

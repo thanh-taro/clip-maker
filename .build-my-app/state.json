@@ -44,7 +44,7 @@
     "architecture": {
       "title": "3 Architecture & spikes",
       "status": "in_progress",
-      "step": "3.2 spikes: done(auto) license, codec, frame, compositor, audio; running gpu-color, timestretch; owner manual runs pending (codec/frame/compositor/audio); next mem-phone, speed, storage, ios, size-target, hdr",
+      "step": "3.2 spikes: done(auto) license, codec, frame, compositor, audio, gpu-color; running timestretch, storage, speed; owner device runs pending; next mem-phone, ios, size-target, hdr (need iPhone + fixtures); RULE-08 spec change queued for G3",
       "gate": {
         "status": "pending",
         "at": null,
@@ -1226,9 +1226,13 @@
     {
       "at": "2026-11-03T16:07:17+00:00",
       "event": "architecture step: 3.2 spikes: done(auto) license, codec, frame, compositor, audio; running gpu-color, timestretch; owner manual runs pending (codec/frame/compositor/audio); next mem-phone, speed, storage, ios, size-target, hdr"
+    },
+    {
+      "at": "2026-11-03T16:28:04+00:00",
+      "event": "architecture step: 3.2 spikes: done(auto) license, codec, frame, compositor, audio, gpu-color; running timestretch, storage, speed; owner device runs pending; next mem-phone, ios, size-target, hdr (need iPhone + fixtures); RULE-08 spec change queued for G3"
     }
   ],
-  "updated": "2026-11-03T16:07:17+00:00",
+  "updated": "2026-11-03T16:28:04+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
