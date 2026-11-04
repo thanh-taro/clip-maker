@@ -38,3 +38,9 @@
 - **Spec change (owner approval at G3):**
   - F-015.R7 and INV-01: replace "at the latest when the page closes" with "or, if the page closes first, the next time the tool opens".
   - F-015.AC7: inspect storage at least 10 s after the save.
+- **ADR-0010, rate control (from SP-size-target):**
+  - **Estimate:** use a calibration of 3 × 2 s, capped at the nominal bitrate. It measured within 6 % in Chrome and 14 % in WebKit, inside the ±25 % target. 3 × 1 s fails.
+  - **Feasibility pre-check:** calibrate at the target bitrate before exporting. If the encoder can't reach that rate (encoders have content-dependent minimums of about 0.6/1.4/2.6 Mb/s at 480/720/1080 for high motion), treat the target as unmet at that resolution and follow RULE-15's offer path. When the rate is reachable, overshoot is at most 0.8 %, and one corrective pass fixes it.
+  - **Floors:** 300/600/1000 kbps, pending the owner's visual check.
+  - **480p width:** 848, not 854, because Chrome resamples 854.
+  - No spec change needed: RULE-15's "met only if the bitrate ≥ floor" already covers this; the floor becomes max(table floor, measured encoder minimum).
