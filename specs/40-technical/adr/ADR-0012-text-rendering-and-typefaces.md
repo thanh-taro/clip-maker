@@ -1,7 +1,7 @@
 ---
 id: ADR-0012
 title: Text — four self-hosted OFL typefaces with Vietnamese, rasterised on the main thread, drawn by the compositor
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

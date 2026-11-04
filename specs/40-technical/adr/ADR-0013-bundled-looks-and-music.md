@@ -1,7 +1,7 @@
 ---
 id: ADR-0013
 title: Bundled looks and music — own look tables, a CC0 music pack in AAC, loaded at the first visit
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

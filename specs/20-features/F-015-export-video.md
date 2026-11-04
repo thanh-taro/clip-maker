@@ -19,7 +19,7 @@ The export is the product. It must be watermark-free, match the preview, hit a s
 
 ## Scope
 - In: video export with resolution, quality or size target (RULE-15); progress, cancel, saving the file; using scratch space during export.
-- Out: animated image and audio exports (F-016); sharing to apps or links (non-goal).
+- Out: animated image and audio exports (F-016); share links, uploads or sending to online services (non-goal); handing the finished file to the device's own share sheet is in (R9, D-045).
 
 ## Requirements
 - **R1** The user can export the project as a video, choosing resolution and either a quality level or an "under X MB" size target (RULE-15).

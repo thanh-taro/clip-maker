@@ -1,7 +1,7 @@
 ---
 id: ADR-0006
 title: Compositor — one WebGL2 paint(t) for preview, thumbnails and every export
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

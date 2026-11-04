@@ -1,7 +1,7 @@
 ---
 id: ADR-0008
 title: Audio — our own deterministic mixer for preview and export, audio clock as master, own pitch-preserving time-stretch
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

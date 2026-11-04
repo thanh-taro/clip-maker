@@ -1,7 +1,7 @@
 ---
 id: ADR-0016
 title: Testing — the suite's stack plus media fixtures, golden-frame and signal checks, and a manual device matrix
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

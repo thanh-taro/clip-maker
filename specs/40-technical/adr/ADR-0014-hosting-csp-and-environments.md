@@ -1,7 +1,7 @@
 ---
 id: ADR-0014
 title: Hosting, security headers (connect-src limited to our own origin) and the local / staging / production environments
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

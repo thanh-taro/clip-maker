@@ -1,7 +1,7 @@
 ---
 id: ADR-0009
 title: Media input — read files in pieces, probe before accepting, bounded caches with a per-device memory budget
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

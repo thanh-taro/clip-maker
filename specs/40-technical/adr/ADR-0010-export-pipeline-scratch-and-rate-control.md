@@ -1,7 +1,7 @@
 ---
 id: ADR-0010
 title: Export — streaming pipeline in a worker, scratch file in the origin-private file system only during export, bitrate tables and size-target control, GIF and WAV
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

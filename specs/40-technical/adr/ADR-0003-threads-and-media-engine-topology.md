@@ -1,7 +1,7 @@
 ---
 id: ADR-0003
 title: Threads — UI on the main thread, media in dedicated workers, sound through an audio worklet; no cross-origin isolation
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

@@ -1,7 +1,7 @@
 ---
 id: ADR-0015
 title: Offline — the suite's hand-written service worker, precaching a build manifest of every file
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

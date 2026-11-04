@@ -1,7 +1,7 @@
 ---
 id: ADR-0004
 title: Browser codecs, a start-up capability probe, and the output format fallback order
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

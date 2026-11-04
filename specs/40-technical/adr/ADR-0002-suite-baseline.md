@@ -1,7 +1,7 @@
 ---
 id: ADR-0002
 title: Suite baseline — Preact + signals, TypeScript + Vite + pnpm, tokens, copy, language, host messages
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

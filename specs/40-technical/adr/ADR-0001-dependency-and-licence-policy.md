@@ -1,7 +1,7 @@
 ---
 id: ADR-0001
 title: Dependency and licence policy (the suite's policy, unchanged)
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

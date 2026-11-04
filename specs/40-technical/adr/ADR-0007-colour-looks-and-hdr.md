@@ -1,7 +1,7 @@
 ---
 id: ADR-0007
 title: Colour — sRGB working space, 3D look tables, HDR converted to standard range by the engine (own shader dropped after SP-hdr)
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---

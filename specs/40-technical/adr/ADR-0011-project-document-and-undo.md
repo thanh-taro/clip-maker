@@ -1,7 +1,7 @@
 ---
 id: ADR-0011
 title: Project document and undo — immutable snapshots with structural sharing (the suite's model), integer microseconds, a change epoch
-status: proposed
+status: accepted
 date: 2026-11-03
 supersedes: []
 ---
