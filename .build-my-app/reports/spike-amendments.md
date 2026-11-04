@@ -49,3 +49,5 @@
   - The trial encode, and every export, falls back from quality to realtime when no output arrives within 2 s. The probe records the mode per engine.
   - SP-size-target accuracy must be re-checked in realtime mode on Safari (QA).
 - **ADR-0011 / MOD-Audio (from SP-frame on iPhone):** serve AudioWorklet modules with `Access-Control-Allow-Origin` for the tool's own origin. iOS standalone refused the same-origin worklet over CORS. Check again in QA.
+- **ADR-0010 §8 (from SP-ios):** iOS suspends hidden pages, so the "hidden + 5 s" rule can't fire. Add a rule: no new export progress within 3 s of the page becoming visible again means interrupted. Show COPY-error.export_interrupted at once and clean up behind it (measured 3.1 s to the message, 5 s to clean-up). An export that is still alive on return resumes.
+- **Portal change request (from SP-ios):** add `web-share` to the embed frame's `allow`, so the tool can offer Share and Save to Photos when embedded. RULE-17 gains web-share as an optional grant.

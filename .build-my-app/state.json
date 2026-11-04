@@ -44,7 +44,7 @@
     "architecture": {
       "title": "3 Architecture & spikes",
       "status": "in_progress",
-      "step": "3.2 spikes: all laptop-automatable spikes done (10); owner device runs per owner-device-checklist.md pending; remaining iPhone-dependent: mem-phone, ios, hdr (need fixtures); then apply spike-amendments.md to ADRs + 2 spec changes at G3",
+      "step": "3.2 spikes: owner device runs done for codec, frame, gpu-color, speed, compositor (all pass); pending owner: step 6 timestretch listening+bench (later, needs headphones), audio/storage/size-target device runs (optional); running: SP-mem-phone+SP-hdr, SP-ios",
       "gate": {
         "status": "pending",
         "at": null,
@@ -1238,9 +1238,13 @@
     {
       "at": "2026-11-04T04:18:15+00:00",
       "event": "architecture step: 3.2 spikes: all laptop-automatable spikes done (10); owner device runs per owner-device-checklist.md pending; remaining iPhone-dependent: mem-phone, ios, hdr (need fixtures); then apply spike-amendments.md to ADRs + 2 spec changes at G3"
+    },
+    {
+      "at": "2026-11-04T07:50:50+00:00",
+      "event": "architecture step: 3.2 spikes: owner device runs done for codec, frame, gpu-color, speed, compositor (all pass); pending owner: step 6 timestretch listening+bench (later, needs headphones), audio/storage/size-target device runs (optional); running: SP-mem-phone+SP-hdr, SP-ios"
     }
   ],
-  "updated": "2026-11-04T04:18:15+00:00",
+  "updated": "2026-11-04T07:50:50+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
