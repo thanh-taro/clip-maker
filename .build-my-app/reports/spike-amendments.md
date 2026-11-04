@@ -51,3 +51,14 @@
 - **ADR-0011 / MOD-Audio (from SP-frame on iPhone):** serve AudioWorklet modules with `Access-Control-Allow-Origin` for the tool's own origin. iOS standalone refused the same-origin worklet over CORS. Check again in QA.
 - **ADR-0010 §8 (from SP-ios):** iOS suspends hidden pages, so the "hidden + 5 s" rule can't fire. Add a rule: no new export progress within 3 s of the page becoming visible again means interrupted. Show COPY-error.export_interrupted at once and clean up behind it (measured 3.1 s to the message, 5 s to clean-up). An export that is still alive on return resumes.
 - **Portal change request (from SP-ios):** add `web-share` to the embed frame's `allow`, so the tool can offer Share and Save to Photos when embedded. RULE-17 gains web-share as an optional grant.
+- **MOD-Engine / ADR-0009 (from SP-hdr and SP-mem-phone, real iPhone HEVC):**
+  - Take the wanted frame's presentation time from the container index (`getPacket(t + 2 µs)`), never from packet durations. HEVC B-frame reordering otherwise picks frames 1–3 early (NFR-08).
+  - After a random-access restart, drop open-GOP leading pictures (pts < keyframe pts). WebKit errors and closes the decoder otherwise.
+  - The decode look-ahead is 12 frames.
+- **ADR-0007 §4 (SP-hdr):** HDR frames are opaque (`format: null`) in Chrome and WebKit, so the own 10-bit shader cannot be fed.
+  - Use the engine's conversion (`texImage2D(VideoFrame)`) in both preview and export. Preview vs export measured ΔE00 ≤ 0.43 mean and ≤ 1.16 max; Chrome vs WebKit 0.13 mean.
+  - The probe records opaque HDR frames.
+  - WebKit's HDR upload costs about 25 ms per 4K frame. iPhone fps is pending.
+- **ADR-0006 / ADR-0009 (SP-mem-phone):** size grade intermediates to the placed output size, not the source size. Allow the 8-bit intermediate on phones at 4K. The 4K project otherwise holds 318 MB of textures.
+- **RULE-02 / D-012 (SP-mem-phone):** 5120 × 2880 sources preview below 24 fps on the M3 (14 fps in Chrome). Record this as a known limit; export stays correct.
+- **ADR-0010 (SP-mem-phone):** Playwright WebKit cannot open an OPFS sync access handle, so automated WebKit tests need a null sink. Confirm OPFS on iOS (owner).
