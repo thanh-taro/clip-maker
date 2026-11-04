@@ -1,4 +1,5 @@
 // `pnpm check` — every local gate in one command (ADR-0002 §5: no code-host workflows; MOD-Build).
+// The licence step is strict (package.json passes --strict) since the 2026-11-04 audit.
 // Stops at the first failing step and prints a summary. Includes the Playwright smoke on Chromium and
 // WebKit; `pnpm check:fast` (`--no-e2e`) skips it.
 import { spawnSync } from 'node:child_process';
