@@ -1,0 +1,47 @@
+/* MOD-App — page base and shared controls, tokens only (style.md, adapters/design.md). */
+@layer base {
+  body {
+    background: var(--tk-color-bg);
+    color: var(--tk-color-fg);
+    font-family: var(--tk-font-family-body);
+    font-size: var(--tk-font-size-md);
+    font-weight: var(--tk-font-weight-medium);
+    line-height: var(--tk-font-line-height-normal);
+  }
+
+  .tk-icon {
+    flex: none;
+  }
+
+  :focus-visible {
+    outline: var(--tk-border-width-focus) solid var(--tk-color-focus);
+    outline-offset: 2px;
+  }
+
+  .tk-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tk-space-2);
+    min-block-size: var(--tk-size-tool-button);
+    padding-inline: var(--tk-space-3);
+    border-radius: var(--tk-radius-sm);
+    border: var(--tk-border-width-hairline) solid transparent;
+    background: transparent;
+    font-weight: var(--tk-font-weight-semibold);
+    cursor: pointer;
+  }
+
+  .tk-button--outlined {
+    border-color: var(--tk-color-line-strong);
+  }
+
+  .tk-button:hover {
+    background: var(--tk-color-surface2);
+  }
+
+  @media (pointer: coarse) {
+    .tk-button {
+      min-block-size: var(--tk-size-touch-target);
+    }
+  }
+}
