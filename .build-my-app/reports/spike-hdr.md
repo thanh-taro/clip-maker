@@ -105,7 +105,30 @@ captured a moment later, so this is for information only). Highlights roll off a
 - The capability probe records whether HDR frames are opaque.
 - NFR-08 for HDR is tested per engine, as here.
 
-**Still open (owner, iPhone):**
-- the frame format;
-- 4K HLG fps (engine path) against the SDR reference;
-- preview vs export ΔE00.
+## Owner device results: iPhone 14 Pro, iOS Safari 27.0.1 (2026-11-04)
+Raw data: `results/hdr-ios-1793780006878.json` (clips downloaded into memory first, not read over the network).
+
+- **The iOS decoder tone-maps HDR to 8-bit SDR itself.** The decoded frame of the HLG clip is `NV12`, 3840 × 2160,
+  tagged **bt709 / sRGB (iec61966-2-1) / full range**. The planes are readable (`copyTo` 3 ms;
+  `copyTo({format:'RGBA'})` 1 ms), but there is no 10-bit or HLG data left to convert. Its upload costs 1.1 ms,
+  the same as the SDR clip.
+- **Engine path, preview vs export: ΔE00 mean 0.42, max 1.40** over 6 frames × 48 cells. Every frame is the right
+  source frame. **Passes NFR-08.**
+- **The "own" result (mean 1.20, max 3.74) is a spike-code bug, now fixed.** The page applied the HLG maths to frames
+  that were already SDR, because it trusted the track's tag over the frame's. `lib/frames.js` now trusts the frame's
+  colour space when it has one and counts these frames as `decoderToneMapped`. On iOS that makes the own path
+  identical to the engine path.
+- **4K HLG preview: 23.1–23.6 fps.** The owner's **SDR** 4K clip plays at **22.8 fps**, so HDR adds nothing on iOS.
+  The shortfall is 4K HEVC playback in general:
+  - median decode wait is 0 ms, but p95 is 112–125 ms (periodic decoder stalls; about 70 of 300 frames skipped);
+  - paint is 10 ms;
+  - SP-gpu-color's 29.9 fps at 4K used generated H.264, not real 50 Mb/s HEVC.
+- A synthetic `I420P10` frame cannot be constructed on iOS (same as macOS WebKit).
+
+### Verdict (updated): **adapt — engine path everywhere**
+D-014 holds on iOS by construction: the decoder converts once, and preview and export use the same frames.
+The own 10-bit shader is not needed on any engine tested: macOS frames are opaque, iOS frames are already SDR.
+4K HEVC preview at 23 fps is a decode-pacing issue for MOD-Engine, not an HDR issue: it is followed up in
+SP-mem-phone with the `dec.html` measurement.
+
+**Still open:** Android and Firefox (D-037).

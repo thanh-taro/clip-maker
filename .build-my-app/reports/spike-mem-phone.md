@@ -125,7 +125,80 @@ task ends: write-back cache, not page memory).
   frames as they come; the export is still correct (0.6–0.8× real time).
 - The final call on the phone budget waits for the iPhone run.
 
-**Owner steps:** see `spikes/mem-hdr/README.md`. Short form:
+## Owner device results: iPhone 14 Pro, iOS Safari 27.0.1 (2026-11-04, run 1)
+Raw data: `results/mem-ios-1793780988827.json`. Run with `?src=url`: the sources were read by HTTP range requests
+from the Mac over Wi-Fi, not from Files. Decode times therefore include network latency.
+
+| Task | Result | Preview fps (min) | Seek p50 / p95 ms | Export | In-page peaks |
+|---|---|---|---|---|---|
+| t1 10-min 1080p | **export failed** after about 270 s of 600 (200 MB written to OPFS) | ok | — | ~0.9× until it stopped | 13 frames, 80 MB textures |
+| t2 2-min 4K HLG + SDR | **`EncodingError: Decoder failure`** about 35–55 s in, during preview; the 2nd decoder slot never held a frame | — | — | not reached | 6 frames, 107 MB |
+| t3 screen recording 3420 × 2224 | ok, but **0.21× real time** | **0.1–0.4** | 699 / 17 937 | 120 s for 25.6 s (decode 79 s, frame wrap 39 s) | 6 frames, 195 MB |
+| t4a 48 s edit from the 94 MB file | ok | 18.3 | 48 / 1965 | 1.02×, OPFS | 12 frames, **79.6 MB** |
+| t4b same edit from the 4.2 GB file | ok | 19.4 | 62 / 1889 | 0.89×, OPFS | 12 frames, **79.6 MB** (identical) |
+
+- **No kills** (0 reloads).
+- **OPFS streaming works on iOS** (`target: opfs` in every export).
+- The 4 GB file behaves exactly like the 100 MB one (in-page proxies identical; open time 605 vs 627 ms over the
+  network).
+- Web Inspector memory peaks were not supplied.
+
+### Analysis
+1. **t1 export failure = the spike's encoder watchdog (spike-code issue, now fixed).**
+   - `xwriter.js:72` is the "encoder stalled for 4 s" throw. The H.264 encoder queue (5) stopped draining for more
+     than 4 s, with no encoder error.
+   - WebKit drops `Error.message` from `stack`, so the page logged only the stack. Fixed: errors now carry
+     name + message.
+   - The watchdog is now 20 s and the export records the longest gap between encoder outputs (`maxOutGapMs`).
+   - Whether iOS pauses the encoder for a few seconds (thermal or media-server contention, about 4.5 min into a
+     continuous encode) or stops for good needs a re-run.
+   - Implication for MOD-Export either way: a pause of a few seconds is not a failure. Use a long watchdog; on a
+     real stall, re-create the encoder from the next keyframe and continue.
+2. **t2 `Decoder failure`.**
+   - On the Mac both engines run H+S, H+H, S+S and S+S+S 4K HEVC decoders at once, also next to a 4K encoder
+     (`results/dec-pw-*-r1.json`: all ok).
+   - On iOS the second 4K slot never produced a frame, so the likely cause is iOS refusing a 2nd concurrent 4K
+     HEVC decode session. Its HDR session is also doing the tone-mapping. Network reads are less likely: t4 used
+     the same path without errors.
+   - The new `dec.html` page measures exactly this on the phone: 1–3 decoders, HLG and SDR, with and without the
+     encoder, with error messages.
+   - Mitigations, ranked:
+     - **(a)** a per-device **decoder budget**: on the phone, 1 concurrent 4K decoder. A cross-fade between two 4K
+       clips then decodes the outgoing clip's overlap first into a small cache of output-size frames (15 frames ×
+       8 MB at 1080 × 1920 = 120 MB), then the incoming clip.
+     - **(b)** if a 2nd session fails, fall back to (a) at run time (catch `Decoder failure`, close it, retry
+       sequentially).
+     - **(c)** WebCodecs cannot decode at a reduced size, so "downscale" only helps after decode.
+3. **t3 at 0.21×.** Three costs add up:
+   - **Decode at about 100 ms per frame.** On the Mac the same file decodes at 350–570 fps. Over the network, the
+     2–3.6 s keyframe spacing means every restart re-reads and re-decodes up to 3.6 s.
+   - **Wrapping the canvas as a `VideoFrame` at 3322 × 2160 costs 51 ms per frame.** It scales with output pixels:
+     about 12 ms at 1080 × 1920 on this phone (SP-speed).
+   - **Preview collapses** (0.1 fps, seek p95 18 s). Once decode is slower than real time, each paced request jumps
+     past the decoder, and a restart from the previous keyframe re-decodes the whole GOP.
+
+   Proposals to stay within NFR-04 (which is defined at 1080p):
+   - export screen recordings at ≤ 1080p by default (wrap → about 12 ms);
+   - in playback, never restart while the target is still ahead of the decoder: decode forward and show the newest
+     frame, coarse playback;
+   - classify sources that decode below real time as slow (RULE-22) and show the notice.
+
+   `dec.html` records whether the 3420 × 2224 H.264 Main@5.2 stream decodes slowly on iOS from memory (a
+   hardware-decoder limit) or only over the network.
+
+### Verdict (updated): **adapt**
+- Memory independence holds on the phone: 4 GB = 100 MB, OPFS streaming, no kills.
+- Three phone findings need design changes: a decoder budget of 1 concurrent 4K session on iOS until `dec.html`
+  says otherwise; long-gap-tolerant encoder handling; slow-source playback without restarts, with exports of such
+  sources at ≤ 1080p.
+- Peak MB on the phone is still not measured (Web Inspector).
+
+**Owner re-run (iPhone):**
+- `https://10.254.5.94:8461/dec.html` (≈ 3 min; Run → Done → Download).
+- `https://10.254.5.94:8461/mem.html?tasks=t1,t2,t3`: files from Files if they are on the phone; add `&src=url`
+  otherwise, as before. Record Web Inspector → Timelines → Memory during it if possible.
+
+**Owner steps (first run):** see `spikes/mem-hdr/README.md`. Short form:
 - Server: `npm run serve` (`https://10.254.5.94:8461/`).
 - Fixtures: `npm run make-long` first, to regenerate the 4 GB pair, which was deleted after the Mac runs.
 - Page: `mem.html` with Web Inspector Timelines → Memory recording, then `mem.html?reps=5` for the kill count.

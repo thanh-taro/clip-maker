@@ -44,7 +44,7 @@
     "architecture": {
       "title": "3 Architecture & spikes",
       "status": "in_progress",
-      "step": "3.2 spikes: owner device runs done for codec, frame, gpu-color, speed, compositor (all pass); pending owner: step 6 timestretch listening+bench (later, needs headphones), audio/storage/size-target device runs (optional); running: SP-mem-phone+SP-hdr, SP-ios",
+      "step": "3.2 spikes: owner device runs done except SP-ios (C) and SP-timestretch listening+bench (step 6) — owner will do tonight; I start servers on request (ios: agent-af286b4de14e2dce3/spikes/ios ports 8470/8471; timestretch: agent-aa6fe40814866e5ed/spikes/timestretch 8452). mem/hdr agent analysing iPhone failures (10-min export writer, 4K HDR+SDR decoder failure, slow screen-recording export)",
       "gate": {
         "status": "pending",
         "at": null,
@@ -1242,9 +1242,13 @@
     {
       "at": "2026-11-04T07:50:50+00:00",
       "event": "architecture step: 3.2 spikes: owner device runs done for codec, frame, gpu-color, speed, compositor (all pass); pending owner: step 6 timestretch listening+bench (later, needs headphones), audio/storage/size-target device runs (optional); running: SP-mem-phone+SP-hdr, SP-ios"
+    },
+    {
+      "at": "2026-11-04T08:49:55+00:00",
+      "event": "architecture step: 3.2 spikes: owner device runs done except SP-ios (C) and SP-timestretch listening+bench (step 6) — owner will do tonight; I start servers on request (ios: agent-af286b4de14e2dce3/spikes/ios ports 8470/8471; timestretch: agent-aa6fe40814866e5ed/spikes/timestretch 8452). mem/hdr agent analysing iPhone failures (10-min export writer, 4K HDR+SDR decoder failure, slow screen-recording export)"
     }
   ],
-  "updated": "2026-11-04T07:50:50+00:00",
+  "updated": "2026-11-04T08:49:55+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",

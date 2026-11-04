@@ -62,3 +62,27 @@
 - **ADR-0006 / ADR-0009 (SP-mem-phone):** size grade intermediates to the placed output size, not the source size. Allow the 8-bit intermediate on phones at 4K. The 4K project otherwise holds 318 MB of textures.
 - **RULE-02 / D-012 (SP-mem-phone):** 5120 × 2880 sources preview below 24 fps on the M3 (14 fps in Chrome). Record this as a known limit; export stays correct.
 - **ADR-0010 (SP-mem-phone):** Playwright WebKit cannot open an OPFS sync access handle, so automated WebKit tests need a null sink. Confirm OPFS on iOS (owner).
+- **MOD-Engine / ADR-0009 (from SP-hdr and SP-mem-phone, real iPhone HEVC):**
+  - Take the wanted frame's presentation time from the container index (`getPacket(t + 2 µs)`), never from packet durations. HEVC B-frame reordering otherwise picks frames 1–3 early (NFR-08).
+  - After a random-access restart, drop open-GOP leading pictures (pts < keyframe pts). WebKit errors and closes the decoder otherwise.
+  - The decode look-ahead is 12 frames.
+- **ADR-0007 §4 (SP-hdr):** HDR frames are opaque (`format: null`) in Chrome and WebKit, so the own 10-bit shader cannot be fed.
+  - Use the engine's conversion (`texImage2D(VideoFrame)`) in both preview and export. Preview vs export measured ΔE00 ≤ 0.43 mean and ≤ 1.16 max; Chrome vs WebKit 0.13 mean.
+  - The probe records opaque HDR frames.
+  - WebKit's HDR upload costs about 25 ms per 4K frame. iPhone fps is pending.
+- **ADR-0006 / ADR-0009 (SP-mem-phone):** size grade intermediates to the placed output size, not the source size. Allow the 8-bit intermediate on phones at 4K. The 4K project otherwise holds 318 MB of textures.
+- **RULE-02 / D-012 (SP-mem-phone):** 5120 × 2880 sources preview below 24 fps on the M3 (14 fps in Chrome). Record this as a known limit; export stays correct.
+- **ADR-0010 (SP-mem-phone):** Playwright WebKit cannot open an OPFS sync access handle, so automated WebKit tests need a null sink. On iOS, OPFS streaming works (owner run).
+- **ADR-0007 §4 (SP-hdr, iPhone):**
+  - iOS decodes HLG HEVC to 8-bit NV12 tagged sRGB full range, so the decoder tone-maps.
+  - Use the engine path everywhere: iPhone preview vs export ΔE00 mean 0.42, max 1.40.
+  - Trust the frame's colour tag over the track's.
+- **ADR-0009 decoder budget (SP-mem-phone, iPhone):**
+  - On iOS the 2nd concurrent 4K HEVC decoder failed (`Decoder failure`). Until `dec.html` says otherwise, the budget is 1 concurrent 4K decoder on phones.
+  - Cross-fades between 4K clips decode the outgoing overlap first into an output-size frame cache.
+  - Catch `Decoder failure` on a 2nd session and fall back to sequential decoding.
+- **MOD-Engine playback (SP-mem-phone, iPhone):** when decode is slower than real time, never restart from a keyframe while the target is ahead of the decoder. Decode forward and show the newest frame. Sources that decode below real time are "slow" (RULE-22 notice).
+- **MOD-Export (SP-mem-phone, iPhone):**
+  - The iOS H.264 encoder can stop draining for more than 4 s mid-export. Use a long stall watchdog (≥ 20 s), measure output gaps, and on a real stall re-create the encoder at the next keyframe.
+  - `VideoFrame(canvas)` costs 51 ms per frame at 3322 × 2160 on the iPhone, so default exports of above-1080p sources to ≤ 1080p to meet NFR-04.
+  - Errors are reported with `name: message`, because WebKit's `stack` omits the message.
