@@ -141,3 +141,11 @@ Run Safari 26 and Chrome (Mac), then the iPhone at `?avmin=3`, using `npm run se
 - Send back the downloaded JSONs.
 
 Ideally do this with no other heavy jobs running, so the seek and playback numbers are clean.
+
+## Owner device results: iPhone 14 Pro, iOS Safari 27.0.1 (2026-11-04)
+- **Frame diff:** 720 of 720 frames match, at offset 0. Max shift is 3 px only on near-black frames (0 px otherwise); PSNR is ≥ 40.3 dB.
+- **A/V sync over a 3-minute export:** 81 of 81 claps match at +0.04 ms, with no drift. The export ran at 1.99× real time.
+- **Seek:** with 1 s keyframe spacing, p95 is 58 ms (target ≤ 150). With 10 s keyframe spacing, p95 is 428 ms; painting the nearest keyframe first ("coarse") gives p95 119 ms. The long-keyframe-gap backward-scrub cache amendment still stands.
+- No reload or crash. The phone warmed slightly.
+
+**Verdict: adopt with the queued amendments.**

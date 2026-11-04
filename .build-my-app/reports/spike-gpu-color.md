@@ -188,3 +188,12 @@ Run Safari 26, Firefox and Chrome on the Mac, then the iPhone, with `npm run ser
 2. Do the 5-minute player check (README step 6): open the downloaded chart MP4 in QuickTime, Photos and VLC/IINA next to the preview.
 
 Ideally run with no other heavy jobs on the Mac.
+
+## Owner device results: iPhone 14 Pro, iOS Safari 27.0.1 (2026-11-04)
+- **1080p playback with the full chain** (cross-fade, Blur, 3 texts, music): **29.9 fps** (897 of 900 frames). Paint p50 8 ms, p95 10 ms. **4K: 29.9 fps.** This meets NFR-03's 24 fps on phones by a wide margin.
+- **Effects throughput at 1080p:** 128 fps with half-float, 140 fps with 8-bit.
+- **Chart ΔE00, preview vs export:** mean 0.03–0.52 and max ≤ 1.65 across identity, all adjustments and three looks. Passes NFR-08.
+- The phone warmed slightly, which the owner found acceptable.
+- The run needed a spike fix first: iOS starts an AudioContext only inside the user's tap. The build must unlock audio on the first user gesture.
+
+**Verdict: adopt.**

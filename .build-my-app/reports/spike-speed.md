@@ -181,3 +181,14 @@ Implied changes (queued for `spike-amendments.md`):
 Run `https://localhost:8446/?runs=base,base,base,serial,hybrid` in Safari 26, Firefox and Chrome on the
 Mac (quiet host), and `https://<LAN-IP>:8446/?runs=base,base,base,hybrid` on the iPhone; details in
 `spikes/speed/README.md`. Pass: median ≤ 75 s (Mac), ≤ 150 s (iPhone). Firefox is unmeasured so far.
+
+## Owner device results: iPhone 14 Pro, iOS Safari 27.0.1 (2026-11-04)
+- **NFR-04 fixture** (60 s, 9:16, 1080×1920): **median 34.4 s (1.74× real time)**, against a target of ≤ 150 s and ≥ 0.5×. Passes with a large margin.
+- All 4 runs (3 base, 1 hybrid) produced 1800 frames with no errors.
+- **Where the time goes:**
+  - Wrapping the canvas as a `VideoFrame` takes 21.7 s of the 34 s, the biggest cost.
+  - Waiting on the decoder takes 11 s.
+  - The audio worker takes 5.1 s.
+- **Verify-and-trim** needed 3 passes and ended at −1.18 dBTP decoded. It meets the −1 dBTP NFR, but the secant-step amendment still applies.
+
+**Verdict: adopt.**
