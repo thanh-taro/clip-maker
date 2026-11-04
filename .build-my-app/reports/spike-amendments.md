@@ -25,3 +25,8 @@
   - §6: after a seek, decode from the previous sync point (up to 4 s of source at 4×).
   - Known limits: doubled attacks at 0.25×; some very short clicks lost at 2–4×; 3–7 ms timing jitter.
 - **ADR-0016:** WSOLA golden hashes hold across engines, so use them as test oracles.
+- **ADR-0010 / MOD-Export / MOD-Audio:** decode the clips' sound before the video loop starts, then run mix + limiter + AAC + verify in the audio worker alongside the video. Never run the audio pass serially before the video. The streaming writer must accept audio that arrives after the video. (SP-speed)
+- **ADR-0008 (verify-and-trim):** aim the trim at −1.5 dBTP decoded using the measured gain→peak slope (secant step), and stop at ≤ −1.0 dBTP (NFR). The fixed step needed 3 passes in both engines and ended at −2.58 (Chrome) and −1.18 (WebKit). (SP-speed)
+- **ADR-0004 §5:** keep `no-preference` and `latencyMode: 'quality'`, with an encoder queue cap of 4–8. Software H.264 is ≈ 0.8× at 1080p on the laptop, so the probe records hardware vs software and the export estimate uses it. Consider 720p as the default on slow devices. (SP-speed)
+- **ADR-0006 §7:** `VideoFrame(canvas)` is the export path. `readPixels` read-back doubles export time, and `transferToImageBitmap` → `VideoFrame` fails in Chrome. WebKit's `VideoFrame(canvas)` costs ≈ 8 ms per frame. (SP-speed)
+- **ADR-0016:** take NFR-04 timings on a quiet host and record the load average. (SP-speed)
