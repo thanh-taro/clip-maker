@@ -27,7 +27,7 @@ swept with Web Locks. CSP `connect-src 'self'`, no WebAssembly (D-032).
 | SP-gpu-color | adopt + amendments | iPhone 29.9 fps full chain (1080p and 4K); ΔE00 ≤ 0.52 / 1.65 (iPhone); looks 4–15 KB; slow threshold 30 fps; 8-bit ramp bars impossible (SC-1) |
 | SP-audio | adapt | 0 underruns 10 min; bit-exact vs reference; codec overshoot 2–3 dB → verify-and-trim; 400 ms lead |
 | SP-timestretch | adopt WSOLA | 440 Hz ± 0.001 %; bit-exact across seeks and engines; iPhone 0.35–0.39 % core; listening 3.67/5 |
-| SP-mem-phone | adapt, **re-run pending** | 4 GB = 100 MB (+1.8 %/+3.4 %); 0 kills; iOS 2nd 4K HEVC decoder fails; 5K 14 fps (M3); 318 MB textures → target-size intermediates |
+| SP-mem-phone | adopt + amendments | 4 GB = 100 MB (+1.8 %/+3.4 %); 0 kills (2 iPhone runs); iPhone runs 2–3 × 4K HEVC + 4K encoder together; 10-min 1080p export 1.9×; 5K 14 fps (M3); `VideoFrame` wrap ≈ 70 % of phone export time |
 | SP-speed | adopt + amendments | NFR-04 fixture: Chrome 20 s, WebKit 44 s, **iPhone 34.4 s** (≤ 75/150 s); software H.264 0.8× |
 | SP-storage | adopt | delete 10 s after save: 0 failures (WebKit loses saves deleted < 80 ms); Web Locks sweep 48/48; `pagehide` delete never completes |
 | SP-ios | adopt + amendments | lock/app switch interrupt exports, message 3.1 s after return, project intact, scratch 0; WebGL context lost after 60 s lock; silent switch mutes audio |
@@ -35,9 +35,8 @@ swept with Web Locks. CSP `connect-src 'self'`, no WebAssembly (D-032).
 | SP-hdr | adapt (engine path) | HDR frames opaque on macOS, tone-mapped by iOS decoder; preview vs export ΔE00 ≤ 0.43 / 1.40; own 10-bit shader dropped |
 
 ## Remaining risks (ranked)
-1. **iOS 4K HEVC**: one decoder session at a time (cross-fades between 4K clips decoded sequentially
-   in chunks); phone peak MB unmeasured; real 4K HEVC previews at ≈ 23 fps on the iPhone.
-2. **iOS encoder stalls** mid-export (> 4 s, no error) — long watchdog + encoder re-creation, unproven.
+1. **Phone export speed at 4K** (0.43× real time): `VideoFrame` wrap dominates. Optimise early in the build, with 1080p as the default output. Phone peak MB is still unmeasured (QA).
+2. (Retired by the iPhone re-run: decoder concurrency and encoder stalls.)
 3. **Late-audio muxing** without buffering video (hybrid schedule) — to verify in the first export
    integration test.
 4. **Colour tags / full range** in third-party players — owner player check pending.
@@ -45,10 +44,7 @@ swept with Web Locks. CSP `connect-src 'self'`, no WebAssembly (D-032).
 6. Size-target floors pending visual check; Safari realtime-mode rate accuracy.
 
 ## Open items before or at G3
-- **SP-mem-phone iPhone re-run**: `dec.html` (1–3 concurrent decoders, HLG/SDR, with/without the
-  encoder) and `mem.html?tasks=t1,t2,t3` with Web Inspector memory. Decides the decoder budget, the
-  600 MB phone budget at 4K, the encoder-pause behaviour and whether screen-recording decode is slow
-  from local files.
+- **SP-mem-phone iPhone re-run:** DONE 2026-11-04. No kills, decoder concurrency OK, the 10-minute export works.
 - **Embedded share** pending the portal change (`portal-change-request.md`: `share` permission and
   catalog entry); download-only embedded until then. Spec SC-9 decides whether Share exists at all.
 - **Android** untested (Chrome Android; Firefox Android → SCR-Unsupported) until a device is
