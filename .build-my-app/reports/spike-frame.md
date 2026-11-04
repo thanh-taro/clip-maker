@@ -182,3 +182,13 @@ WebGL2 and WebCodecs all work in the frame. Spec and architecture follow-ups:
 - **ADR-0016 (tests):** run WebKit e2e that touches OPFS in a persistent context. Add
   `--partitioned` behaviour (re-enabling `ThirdPartyStoragePartitioning`) to the frame e2e for
   Chromium.
+
+## Owner device results (2026-11-04)
+Runs: Safari 27 macOS and Firefox 158, each standalone, embedded same-site and embedded cross-site; iPhone Safari 27, standalone and embedded same-site. The JSON files are in the worktree's `spikes/frame/results/manual/`.
+- **All pass:** module and WebGL2 workers, WebCodecs, OPFS, downloads, the ready signal and focus.
+- **CSP violations:** the only ones logged are the deliberate connect-src probe, plus wasm-eval in Firefox. Both are expected.
+- **iPhone has no `requestFullscreen` for pages.** The preview uses the maximise-in-page fallback (F-002.R7).
+- **iPhone, standalone only:** the worklet `addModule` failed on CORS for a same-origin module; embedded it passed. The build must serve worklets with `Access-Control-Allow-Origin` and re-check on iOS in QA.
+- **Firefox, standalone:** `downloadOpfsFile` returned NotFoundError, a timing issue that SP-storage's 10 s rule covers.
+
+**Verdict: adopt.**
