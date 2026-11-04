@@ -171,3 +171,21 @@ Keep ADR-0010 §8, amended:
 5. Portal amendment: Clip Maker's frame needs `allow="web-share"` (+ Permissions-Policy
    `web-share`) so the Photos path works embedded; otherwise F-015/F-016 must say embedded saves
    go to Files only. Final adopt/adapt after the iPhone run.
+
+## Owner results: iPhone 14 Pro, iOS Safari 27.0.1, standalone (2026-11-04)
+| Case | Result |
+|---|---|
+| E1 baseline | Finished 1800/1800 frames; the file saved and plays |
+| E2 lock 10 s · E3 app switch 10 s · E4 lock 60 s · E6 tab switch | **Interrupted** at frames 621–731. The owner saw the interrupted message. Project intact, scratch empty every time. |
+| E5 Control Centre | First try **failed with `webgl-context-lost` at frame 1** (iOS restarted the GPU process after E4's 60 s lock). With context re-creation added, it finished 1800/1800, because Control Centre doesn't hide the page. |
+| A1–A4 audio | Running again by itself after lock, app switch, Siri and a notification. A4 went through `interrupted` and back to `running`. **Sound was silent until `navigator.audioSession.type = 'playback'` was set** (silent switch). It was audible afterwards. |
+| S1–S4 downloads (MP4, GIF, M4A, WAV) | Download prompt, then Files. All four play. |
+| H1–H4 share (standalone) | `canShare` was true and the share sheet resolved for all four formats. |
+
+**Verdict: adopt with amendments.** The amendments cover:
+- the 3 s "no progress after return" detection;
+- WebGL context re-creation;
+- the iOS audio session set to playback;
+- `web-share` in the portal frame (change request).
+
+The embedded share variant was not run; it is covered by the portal change request and QA.
