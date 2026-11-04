@@ -30,7 +30,7 @@ confirmed by the spikes in `architecture.md`. Updated with the spike outcomes on
 | HDR to standard range (RULE-01, D-014) | The engine's conversion on upload: `texImage2D(VideoFrame)` into the `srgb` working space, the same call in preview and export; the decoded frame's colour space is trusted over the track's | macOS Chrome/WebKit frames are opaque (`format: null`); iOS decodes HLG to SDR NV12 itself. Preview vs export ΔE00 ≤ 0.43 mean / ≤ 1.40 max (SP-hdr). PQ, Firefox, Android untested |
 | Thumbnails and waveforms (CMP-MediaPanel, CMP-Timeline) | Analysis worker: keyframe decodes → small `ImageBitmap`s; audio windows → min/max peaks | Bounded caches (ADR-0009) |
 | Frame for a time (INV-02, NFR-08) | Presentation time from the container index (`getPacket(t + 2 µs)`), interval `[ts, next ts)`; open-GOP leading pictures dropped after a restart; 12 packets fed ahead | Real iPhone HEVC (B-frames, open GOP) — SP-hdr, SP-mem-phone |
-| Phone decoder budget | ≤ 1 concurrent decoder for video above 1920 × 1080 on phones; `Decoder failure` on an extra session → sequential fallback | iOS refused a 2nd 4K HEVC session (SP-mem-phone; `dec.html` re-run pending) |
+| Phone decoder budget | Up to 3 concurrent decoders (4K included) plus an encoder; `Decoder failure` on an extra session → sequential overlap fallback | iPhone 14 Pro `dec.html`: 2–3 × 4K HEVC + 4K encoder OK (SP-mem-phone re-run) |
 
 ## Preview and playback
 | Spec wording | Platform mapping | Notes |

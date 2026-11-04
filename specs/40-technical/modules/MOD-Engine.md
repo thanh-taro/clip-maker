@@ -29,10 +29,7 @@ Evidence: SP-compositor, SP-hdr, SP-mem-phone, SP-speed (ADR-0009 outcome).
 - Seeks are coarse-then-exact (nearest decoded keyframe or cached frame first); for sources with
   keyframe spacing > 2 s keep about one preview-size frame per second (≤ 32 per source) for backward
   scrubs.
-- Decoder budget per device class (ADR-0009 outcome item 5): phones ≤ 1 concurrent decoder for video
-  above 1920 × 1080 (≤ 3 otherwise), laptops ≤ 4; cross-fades between two such clips decode the
-  outgoing overlap first into a bounded target-size cache, in chunks. A `Decoder failure` when
-  opening an extra session falls back to that sequential mode for the session (pending `dec.html`).
+- Decoder budget (ADR-0009 outcome item 5): up to 3 concurrent decoders on phones, including 4K, and 4 on laptops. If opening an extra session fails with `Decoder failure`, it falls back to sequential overlap decoding into a bounded cache at the target size.
 - Playback when decode is slower than real time: never restart at a keyframe while the target is
   still ahead of the decoder; decode forward and show the newest frame. Report such a source as slow
   (`slowSource(id)`).

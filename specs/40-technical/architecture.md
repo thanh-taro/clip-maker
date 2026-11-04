@@ -257,12 +257,9 @@ iPhone 14 Pro, Safari 27.0.1. Android not measured (D-037).
 ## Risks (ranked, after the spikes) and how they are retired
 1. **M-1 size** (D-001 multi-track, D-002 full phone editor) — unchanged; engine first, then P0
    features in dependency order.
-2. **Phone memory and decoder sessions with 4K HEVC** — open. iOS refused a second concurrent 4K
-   HEVC decoder (cross-fades between 4K clips), and the phone's peak MB is unmeasured. Mitigation:
-   one-4K-decoder budget with sequential overlap decoding (ADR-0009 outcome item 5), intermediates
-   at target size. Retired by the `dec.html` + t1–t3 iPhone re-run.
-3. **iOS encoder pauses in long exports** — open; long watchdog plus encoder re-creation (ADR-0010
-   outcome item 2); re-run t1.
+2. **Phone memory and decoder sessions with 4K HEVC.** Retired by the iPhone re-run on 2026-11-04. 2–3 × 4K HEVC decoders plus a 4K encoder run together without error, so there is no one-4K-decoder budget. The afternoon's failure was memory pressure from intermediates sized to the source. Mitigation kept: intermediates at target size. Phone peak MB is still unmeasured (Web Inspector), so measure it in QA.
+3. **iOS encoder pauses in long exports.** Retired: the t1 10-minute export finished at 1.9× real time. The longest gap between encoder outputs was 5.8 s, inside the 20 s watchdog.
+3a. **Wrapping each frame as a `VideoFrame` on iOS** takes about 70 % of export time. It is the main lever for phone export speed: profile it per engine early in the build.
 4. **Slow sources on phones** (Retina screen recordings at ≈ 100 ms/frame decode over the network,
    5K) — mitigated by no-restart playback and the slow-source notice (spec change pending);
    `dec.html` tells whether decode from local files is also slow.

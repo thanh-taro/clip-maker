@@ -85,6 +85,7 @@ items marked (pending) may change with it.**
   pick frames 1–3 early (ΔE00 up to 8.9); open GOPs (CRA + leading pictures) made WebKit fail with
   `Decoder failure` and close on seek; WebKit holds frames back unless fed ≥ 12 packets ahead and
   otherwise forces `flush()` (15 flushes per decoder per minute in SP-speed).
+- **iPhone run 2 (evening re-run)**: no kills. `dec.html` passed every 2–3 × 4K and 1080p combination, with and without an encoder. t1 (10-min 1080p) exported at 1.9× real time with the longest encoder gap 5.8 s. t2 (4K HLG + SDR) exported at 0.43×. t3 (screen recording) at 0.52×. Wrapping the canvas as a `VideoFrame` took about 70 % of export time.
 - **iPhone run 1**: 2-min 4K HLG + SDR project → `EncodingError: Decoder failure` 35–55 s in; the
   second 4K HEVC decoder never produced a frame (the Mac runs 3 concurrent 4K HEVC decoders).
   Screen recording 3420 × 2224 decoded at ≈ 100 ms/frame over the network (preview 0.1–0.4 fps,
@@ -106,13 +107,9 @@ items marked (pending) may change with it.**
    forward keep a preview-size copy of about one frame per second (≤ 32 per source, counted in the
    thumbnail budget) to serve backward scrubs coarsely. NFR-03's 150 ms is met by the first visible
    response; the exact-frame worst case is recorded (iPhone 10 s GOP: p95 428 ms).
-5. **Decoder budget per device class (pending `dec.html`)**: on phones, **at most one concurrent
-   decoder for video above 1920 × 1080** (any codec; HEVC observed), up to 3 otherwise; laptops 4.
-   A cross-fade between two such clips decodes the outgoing clip's overlap first into a bounded
-   cache of frames at the target size (phone ≤ 120 MB), processing the overlap in chunks that fit
-   the cache (each chunk restarts the outgoing decoder at the keyframe before it), then the incoming
-   clip. Independently of the budget, a `Decoder failure` when opening an additional decoder session
-   closes it and falls back to this sequential mode for the rest of the session.
+5. **Decoder budget per device class** (settled by the `dec.html` iPhone re-run, 2026-11-04): up to 3 concurrent decoders on phones, including 4K HEVC (HLG and SDR) plus a 4K encoder; up to 4 on laptops.
+   - There is no special one-4K budget. The run-1 `Decoder failure` was memory pressure from intermediates sized to the source, and it did not reproduce once intermediates were sized to the target.
+   - Safety net: a `Decoder failure` when opening an extra session closes that session. Its cross-fade overlap is then decoded sequentially into a bounded cache at the target size (phone ≤ 120 MB) for the rest of the session.
 6. **Slow sources**: when a source decodes slower than real time, playback never restarts at a
    keyframe while the target is still ahead of the decoder; it decodes forward and shows the newest
    frame (sound stays on the clock, F-002 edge case). Such a source is classed slow; showing
