@@ -3,9 +3,9 @@
 // the protocol handshake. Phase 3.3: nothing else is sent to them yet.
 import { signal } from '@preact/signals';
 import { isHello, type ToWorker, type WorkerName } from '../core';
-import { startAudioWorker, startExportAudioWorker, WORKLET_URL } from '../audio';
+import { startAudioWorker, WORKLET_URL } from '../audio';
 import { startEngineWorker } from '../engine';
-import { startExportWorker } from '../export';
+import { startExportAudioWorker, startExportWorker } from '../export';
 import { startAnalysisWorker } from '../media';
 
 /** Workers that answered the handshake with the current protocol. */

@@ -106,3 +106,71 @@ export function truePeak(
   }
   return { peak, dB: dbOf(peak), at };
 }
+
+/**
+ * The same true-peak measure over a stream of blocks (the verify-and-trim pass decodes a whole export
+ * without holding it): `push` planar blocks in order, then `finish`. Equal to `truePeak` over the
+ * concatenation. Implements: ADR-0008 outcome item 2 (measure the decoded file), RULE-12.
+ */
+export class TruePeakMeter {
+  private hist: Float32Array[] = [];
+  /** Global index of hist[c][0]. */
+  private base = 0;
+  private total = 0;
+  private nextK = 0;
+  private peakValue = 0;
+  private readonly first: number;
+  private readonly taps: number;
+
+  constructor(private readonly meter: Interpolator = BS1770_METER) {
+    this.first = meter.bs1770 ? -5 : -meter.M + 1;
+    this.taps = meter.bs1770 ? 12 : 2 * meter.M;
+  }
+
+  push(channels: readonly Float32Array[]): void {
+    const n = channels[0]?.length ?? 0;
+    channels.forEach((x, c) => {
+      for (let i = 0; i < x.length; i++) {
+        const a = Math.abs(x[i]!);
+        if (a > this.peakValue) this.peakValue = a;
+      }
+      const old = this.hist[c] ?? new Float32Array(0);
+      const next = new Float32Array(old.length + x.length);
+      next.set(old);
+      next.set(x, old.length);
+      this.hist[c] = next;
+    });
+    this.total += n;
+    this.run(this.total - (this.first + this.taps - 1));
+    const keep = this.nextK + this.first - this.base;
+    if (keep > 0) {
+      this.hist = this.hist.map((h) => h.slice(Math.min(keep, h.length)));
+      this.base += keep;
+    }
+  }
+
+  /** Interpolated values for k < limit (and k < total − 1), reading only stored samples. */
+  private run(limit: number): void {
+    const end = Math.min(limit, this.total - 1);
+    for (; this.nextK < end; this.nextK++) {
+      const k = this.nextK;
+      for (const h of this.hist) {
+        for (const w of this.meter.phases) {
+          let s = 0;
+          for (let j = 0; j < this.taps; j++) {
+            const idx = k + this.first + j;
+            if (idx >= 0 && idx < this.total) s += w[j]! * h[idx - this.base]!;
+          }
+          const a = Math.abs(s);
+          if (a > this.peakValue) this.peakValue = a;
+        }
+      }
+    }
+  }
+
+  /** Completes the measure (the last samples, zero beyond the end) and returns it. */
+  finish(): { peak: number; dB: number } {
+    this.run(Infinity);
+    return { peak: this.peakValue, dB: dbOf(this.peakValue) };
+  }
+}

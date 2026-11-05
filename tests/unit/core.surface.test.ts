@@ -1,15 +1,6 @@
 // MOD-Core public surface (phase 3.3 scaffold; adapters/tests.md).
 import { describe, expect, it } from 'vitest';
-import {
-  helloFrom,
-  isHello,
-  LOOK_IDS,
-  NotImplementedError,
-  PALETTE,
-  PALETTE_HEX,
-  PROTOCOL_VERSION,
-  exportFileName,
-} from '../../src/core';
+import { helloFrom, isHello, LOOK_IDS, PALETTE, PALETTE_HEX, PROTOCOL_VERSION } from '../../src/core';
 
 describe('MOD-Core', () => {
   it('RULE-09 the generated look IDs are the 16 looks of looks.md', () => {
@@ -26,9 +17,5 @@ describe('MOD-Core', () => {
     expect(helloFrom('engine')).toEqual({ type: 'hello', worker: 'engine', protocol: PROTOCOL_VERSION });
     expect(isHello(helloFrom('audio'), 'audio')).toBe(true);
     expect(isHello(helloFrom('audio'), 'engine')).toBe(false);
-  });
-
-  it('MOD-Core functions not built yet fail loudly', () => {
-    expect(() => exportFileName(new Date(0), 'mp4')).toThrow(NotImplementedError);
   });
 });

@@ -2,6 +2,7 @@
 // INV-02). Imports only MOD-Core and no DOM. Preview and export both read these recipes.
 import {
   audioEnd,
+  frameIndexAt,
   frameStart,
   framesOf,
   layoutOf,
@@ -221,8 +222,22 @@ export function voiceSourceTime(v: Voice, sample: number): Micros {
   return v.sourceIn + Math.round(((sample - v.startSample) * v.speed * 1_000_000) / SAMPLE_RATE);
 }
 
-// Built with F-016 (GIF) and F-008 (look thumbnails, RULE-09).
-export const gifFramePlan = (_project: Project, _settings: unknown, _i: number): FramePlan =>
-  notImplemented('MOD-Plan gifFramePlan');
+/** The GIF's own timing (RULE-16): its first project time and its frame rate. */
+export interface GifTiming {
+  readonly from: Micros;
+  readonly rate: number;
+}
+
+/**
+ * Implements: RULE-16 GIF frames, NFR-08 (GIF) — GIF frame i shows the project at time
+ * from + round(i × 1,000,000 ÷ rate): the frame plan of the project frame whose interval holds that time,
+ * the same picture the preview shows there.
+ */
+export function gifFramePlan(project: Project, settings: GifTiming, i: number): FramePlan {
+  const t = settings.from + Math.round((i * 1_000_000) / settings.rate);
+  return framePlan(project, frameIndexAt(t, project.frame.frameRate));
+}
+
+// Built with F-008 (look thumbnails, RULE-09).
 export const thumbnailPlan = (_project: Project, _clipId: string, _lookId?: string): FramePlan =>
   notImplemented('MOD-Plan thumbnailPlan');
