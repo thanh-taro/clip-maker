@@ -8,7 +8,7 @@ import {
   PALETTE,
   PALETTE_HEX,
   PROTOCOL_VERSION,
-  frameStart,
+  sniff,
 } from '../../src/core';
 
 describe('MOD-Core', () => {
@@ -29,6 +29,6 @@ describe('MOD-Core', () => {
   });
 
   it('MOD-Core functions not built yet fail loudly', () => {
-    expect(() => frameStart(0, 30)).toThrow(NotImplementedError);
+    expect(() => sniff(new Uint8Array(4))).toThrow(NotImplementedError);
   });
 });
