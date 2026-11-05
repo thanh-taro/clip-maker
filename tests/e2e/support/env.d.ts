@@ -5,6 +5,11 @@ declare module 'node:url' {
 }
 declare module 'node:fs' {
   export function readFileSync(path: string): Uint8Array;
+  export function mkdtempSync(prefix: string): string;
+  export function rmSync(path: string, options?: { recursive?: boolean; force?: boolean }): void;
+}
+declare module 'node:os' {
+  export function tmpdir(): string;
 }
 declare const process: { env: Record<string, string | undefined> };
 declare const Buffer: { from(data: number[] | string, encoding?: 'base64'): Uint8Array };

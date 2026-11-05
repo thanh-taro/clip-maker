@@ -1,8 +1,8 @@
 // MOD-Container — read and write media files in pieces; the only module that imports the container
 // library (DEP-04 mediabunny 1.65.0, pinned and unmodified, ADR-0005 / D-042; lint-enforced). Runs in
 // workers only (specs/40-technical/modules/MOD-Container.md). This file is the read side (promoted
-// from SP-license adapter A and SP-mem-hdr's decoder source); the writer comes with F-015 / F-016 and
-// is loaded only in the export worker (D-042).
+// from SP-license adapter A and SP-mem-hdr's decoder source); the writer is in ./write.ts and only the
+// export worker imports it (tree-shaken out of the engine and analysis bundles, D-042).
 // Implements: F-001.R2/R7 (reading), RULE-01 (container part), NFR-05.
 import {
   ADTS,
@@ -21,15 +21,6 @@ import {
   type InputAudioTrack,
   type InputVideoTrack,
 } from 'mediabunny';
-import { notImplemented } from '../core';
-
-/** A streaming target the writer fills: implemented by MOD-Scratch (file) and MOD-Export (memory). */
-export interface Sink {
-  write(chunk: Uint8Array, position: number): void | Promise<void>;
-  close(): void | Promise<void>;
-}
-
-export type OutputFormat = 'mp4' | 'webm' | 'm4a' | 'ogg';
 
 /**
  * Why a file can't be read (ADR-0005 outcome: mediabunny does not throw on a missing `moov`, so "no
@@ -269,5 +260,4 @@ export async function openInput(file: Blob): Promise<OpenedInput> {
   }
 }
 
-export const createOutput = (_format: OutputFormat, _sink: Sink, _tracks: unknown): never =>
-  notImplemented('MOD-Container createOutput');
+export * from './write';

@@ -1,8 +1,8 @@
 // MOD-Codec — capability probe, decoder and encoder setup, output format choice
 // (specs/40-technical/modules/MOD-Codec.md, ADR-0004 and its outcome). The probe, the export grid,
 // the trial encodes, the first-packet decode check and the format choice are built (E2); creating
-// the playback and export coders comes with MOD-Engine (E3) and MOD-Export (E5).
-import { notImplemented } from '../core';
+// the playback and export coders came with MOD-Engine (E3) and MOD-Export (E5).
+import { withNormalisedDescription } from './util';
 import { browserCodecApi, supports, type CodecApi, type Missing } from './probe';
 
 export * from './configs';
@@ -76,10 +76,39 @@ export function createVideoDecoder(
   return d;
 }
 
-// Encoder creation with the hardware/software retry — built with MOD-Export (E5).
-export const createVideoEncoder = (_config: VideoEncoderConfig): never =>
-  notImplemented('MOD-Codec createVideoEncoder');
-export const createAudioDecoder = (_config: AudioDecoderConfig): never =>
-  notImplemented('MOD-Codec createAudioDecoder');
-export const createAudioEncoder = (_config: AudioEncoderConfig): never =>
-  notImplemented('MOD-Codec createAudioEncoder');
+/**
+ * A configured `VideoEncoder` for an export (MOD-Export). The configuration already carries the
+ * session's working `latencyMode` and acceleration from the trial encode (ADR-0004 outcome item 6), so
+ * the hardware/software retry happened there.
+ */
+export function createVideoEncoder(
+  config: VideoEncoderConfig,
+  output: EncodedVideoChunkOutputCallback,
+  error: (e: Error) => void,
+): VideoEncoder {
+  const e = new VideoEncoder({ output, error: (x) => error(x) });
+  e.configure(config);
+  return e;
+}
+
+/** A configured `AudioEncoder` (export-audio worker). */
+export function createAudioEncoder(
+  config: AudioEncoderConfig,
+  output: EncodedAudioChunkOutputCallback,
+  error: (e: Error) => void,
+): AudioEncoder {
+  const e = new AudioEncoder({ output, error: (x) => error(x) });
+  e.configure(config);
+  return e;
+}
+
+/** A configured `AudioDecoder`; AAC descriptions are normalised first (ADR-0004 outcome item 4). */
+export function createAudioDecoder(
+  config: AudioDecoderConfig,
+  output: (data: AudioData) => void,
+  error: (e: Error) => void,
+): AudioDecoder {
+  const d = new AudioDecoder({ output, error: (x) => error(x) });
+  d.configure(withNormalisedDescription(config));
+  return d;
+}

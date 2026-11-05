@@ -41,4 +41,17 @@ describe('MOD-Audio verify-and-trim', () => {
     expect(r.gainDb).toBeCloseTo(gains[2]! - 3, 9);
     expect(gains[3]).toBe(r.gainDb);
   });
+
+  it('ADR-0008 outcome item 2 the fallback encode is not measured (measure = false)', async () => {
+    const measured: boolean[] = [];
+    await verifyAndTrim((_g, measure = true) => (measured.push(measure), 2));
+    expect(measured).toEqual([true, true, true, false]);
+  });
+
+  it('ADR-0008 outcome item 2 a trim can start from a project’s earlier shared gain', async () => {
+    const c = codec(+2);
+    const r = await verifyAndTrim(c.pass, -1);
+    expect(c.gains[0]).toBe(-1);
+    expect(r.peakDb!).toBeLessThanOrEqual(-1.0);
+  });
 });

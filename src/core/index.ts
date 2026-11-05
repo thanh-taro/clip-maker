@@ -1,8 +1,6 @@
 // MOD-Core — domain types and every rule's maths, pure (specs/40-technical/modules/MOD-Core.md).
 // Imports no DOM, worker, codec or GPU API (lint-enforced). Holds the generated types, palette and
 // look IDs, the thread protocol, frame-time maths and the rule maths that MOD-Project composes.
-import { notImplemented } from './stub';
-import type { FrameRate } from './time';
 
 export type * from './project.gen';
 export { PALETTE, PALETTE_HEX, type PaletteName } from './palette.gen';
@@ -22,10 +20,6 @@ export * from './edits';
 export * from './check';
 export * from './media';
 
-// Export tables (RULE-15, architecture.md "Export tables") — built with F-015.
-export const bitrateFor = (_resolution: number, _quality: string, _rate: FrameRate): number =>
-  notImplemented('MOD-Core bitrateFor');
-export const floorFor = (_resolution: number, _rate: FrameRate): number => notImplemented('MOD-Core floorFor');
-
-// Files (RULE-15) — built with F-015. Sniffing (RULE-01) is in ./media.
-export const exportFileName = (_date: Date, _ext: string): string => notImplemented('MOD-Core exportFileName');
+// Export tables, rate control, file names and GIF timing (RULE-15, RULE-16, ADR-0010).
+export * from './export';
+export type * from './export-protocol';
