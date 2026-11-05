@@ -10,7 +10,9 @@ import {
   ExternalLink,
   FilePlus2,
   Image,
+  Info,
   Keyboard,
+  MonitorX,
   Music,
   Plus,
   Redo2,
@@ -41,6 +43,9 @@ const SOURCES = {
   code: Code,
   close: X,
   back: ArrowLeft,
+  // SCR-Unsupported and CMP-Notice (F-023)
+  monitorX: MonitorX,
+  info: Info,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

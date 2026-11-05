@@ -45,6 +45,24 @@ acceptance criterion needs a test whose **title starts with its ID**;
   and A/V fixtures, scratch inspection, the fixtures page/worker that makes the chart and clap
   fixtures with our own encoder.
 
+## Device support (RULE-22, F-023)
+An unsupported device is simulated without any hook in the production build:
+- **Unit:** MOD-App's start-up check takes a `DeviceDeps` (`features`, `codecs`, `effects`; `src/app/device.ts`),
+  so `tests/unit/app.device.test.ts` passes fake interface presence, capability records and effects answers.
+- **Production build (e2e):** the presence check and the MOD-Codec probe run on the main thread, so
+  `page.addInitScript` removes or refuses interfaces before the app loads: delete `VideoDecoder` (no decode),
+  make `VideoEncoder.isConfigSupported` / `AudioEncoder.isConfigSupported` answer `supported: false` (no video /
+  sound encoder), return `null` for `getContext('webgl2')` (no WebGL2), delete every codec interface with a
+  Firefox Android user agent (the Gecko Android browser). See `tests/e2e/device-support.spec.ts`.
+- **App harness (e2e):** the effects check runs in the engine worker, whose globals a test can't change.
+  `tests/harness/app.html` (dev server only, never in `dist/`) boots the real `main()` with the browser's device
+  except the effects answers, set by the address: `?effects=slow`, `?effects=fail`, or `?effects=pending` (no
+  answer and no timeout until the test calls `window.appHarness.draw()`); `window.appHarness.workers()` counts
+  the running workers.
+- Software WebGL (SwiftShader, llvmpipe — Playwright's Chromium) is slow by the rule. Tests that need a fast,
+  reference-class renderer skip by renderer (`WEBGL_debug_renderer_info`), not by browser name; the NFR-02
+  timing test is `@realtime` (`pnpm check:realtime`).
+
 ## Performance
 - `pnpm check:realtime` — the tests tagged `@realtime` (wall-clock: A/V sync, export speed, worklet
   underruns), serially on one engine at a time. `pnpm check` leaves them out because parallel builds load

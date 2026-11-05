@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { FromEngine, Micros, Project, ToEngine } from '../../src/core';
 import { mountPreview, previewSize, stepTime, playFrom, pausedAt, type PreviewEnv } from '../../src/preview';
 import { proj, S, video } from '../support/project';
+import { dismissSlow, resetDeviceSession, slowNotice, watchSlow } from '../../src/app/device';
 
 class FakeClock {
   t: Micros = 0;
@@ -275,5 +276,32 @@ describe('MOD-Preview lifecycle and clock failures (E3 review)', () => {
     expect(r.ctl.time.value).toBe(1_500_000);
     r.ctl.play();
     expect(r.ctl.state.value).toBe('playing');
+  });
+});
+
+describe('F-023 slow sources (RULE-22)', () => {
+  it('F-023.AC7 a source decoding slower than real time stays; COPY-notice.slow_device shows once per session; the picture follows the sound', () => {
+    resetDeviceSession();
+    const r = setup();
+    const stop = watchSlow(r.ctl.slowDevice);
+    r.ctl.play();
+    r.emit({ type: 'engine:slowSource', id: 'src-a' });
+    expect(slowNotice.value).toBe(true);
+    // Playback goes on: ticks keep following the sound clock while the engine paints its newest frame.
+    r.clock.t = 2 * S;
+    r.frame();
+    expect(r.ctl.state.value).toBe('playing');
+    expect(r.of('engine:tick').at(-1)).toEqual({ type: 'engine:tick', t: 2 * S, playing: true });
+    r.emit({ type: 'engine:frameShown', t: 2 * S - 200_000, frameIndex: 54, exact: false });
+    expect(r.ctl.time.value).toBe(2 * S);
+    // Once per session: a second slow source, or a new preview, does not show it again.
+    dismissSlow();
+    r.emit({ type: 'engine:slowSource', id: 'src-b' });
+    const again = setup();
+    const stop2 = watchSlow(again.ctl.slowDevice);
+    again.emit({ type: 'engine:slowSource', id: 'src-c' });
+    expect(slowNotice.value).toBe(false);
+    stop();
+    stop2();
   });
 });

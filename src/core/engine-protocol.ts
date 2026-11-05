@@ -89,6 +89,8 @@ export type FromEngine =
   | { readonly type: 'engine:sourceError'; readonly id: string }
   /** The source decodes slower than real time (RULE-22: COPY-notice.slow_device once per session). */
   | { readonly type: 'engine:slowSource'; readonly id: string }
+  /** RULE-22, first answer: the effect chain compiled and drew its first frame (false: it can't). */
+  | { readonly type: 'engine:effectsDrawn'; readonly ok: boolean }
   | { readonly type: 'engine:effects'; readonly ok: boolean; readonly fps: number; readonly slow: boolean }
   | { readonly type: 'engine:contextLost' }
   | { readonly type: 'engine:contextRestored' }

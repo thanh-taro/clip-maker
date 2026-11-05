@@ -45,6 +45,21 @@ export function startWorkers(): void {
 }
 
 /**
+ * Implements: RULE-22 (F-023) — the device turned out unsupported after the workers started: stop every
+ * worker, the idle export pair included, and give back this session's scratch lock.
+ */
+export function stopWorkers(): void {
+  for (const w of workers.values()) w.terminate();
+  workers.clear();
+  exportWorkers?.dispose();
+  exportWorkers = null;
+  const scratch = scratchReady;
+  scratchReady = null;
+  void scratch?.then((s) => s.releaseSessionLock()).catch(() => undefined);
+  workersReady.value = [];
+}
+
+/**
  * Fetches the audio worklet module at start-up without running it (ADR-0002: every code file loads at
  * start-up; ADR-0015: the offline precache lists it). MOD-Audio adds it to the AudioContext in the
  * first Play gesture (F-002).

@@ -9,6 +9,7 @@ import { t, type MessageId, type MessageParams } from '../copy';
 type ActionLabel = {
   [K in MessageId]: K extends `action.${string}` ? (MessageParams[K] extends undefined ? K : never) : never;
 }[MessageId];
+import { acceptsMedia } from './device';
 import { Icon, type IconName } from './icons';
 
 interface Item {
@@ -49,6 +50,7 @@ function ToolButton({ item }: { item: Item }) {
       aria-label={item.labelled ? undefined : name}
       title={item.labelled ? undefined : name}
       disabled={item.disabled}
+      aria-disabled={item.id === 'add-media' && !acceptsMedia.value ? 'true' : undefined}
     >
       <Icon name={item.icon} size={20} />
       {item.labelled ? <span class="tk-tool__label">{name}</span> : null}

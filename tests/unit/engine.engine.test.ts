@@ -57,7 +57,10 @@ function rig(
     post: (m) => events.push(m),
     createCompositor: () => comp,
     openVideo: opts.open ?? (async () => source({ rate: 30, frames: 300, gop: 30 })),
-    effectsCheck: async () => ({ ok: true, fps: 45, slow: false }),
+    effectsCheck: async (onDrawn) => {
+      onDrawn?.(true);
+      return { ok: true, fps: 45, slow: false };
+    },
     coarseCopy:
       opts.coarseCopy ??
       (async (f) => ({ width: 64, height: 36, close: () => undefined, timestamp: f.timestamp }) as never),
@@ -236,6 +239,15 @@ describe('MOD-Engine messages', () => {
       fps: 45,
       slow: false,
     });
+  });
+
+  it('RULE-22 the engine answers "the chain drew" before the timed result', async () => {
+    const r = rig(twoClips());
+    r.engine.handle({ type: 'engine:effectsCheck' });
+    await new Promise((res) => setTimeout(res, 1));
+    const kinds = r.events.filter((e) => e.type.startsWith('engine:effects')).map((e) => e.type);
+    expect(kinds).toEqual(['engine:effectsDrawn', 'engine:effects']);
+    expect(r.events.find((e) => e.type === 'engine:effectsDrawn')).toEqual({ type: 'engine:effectsDrawn', ok: true });
   });
 
   it('ADR-0003 release closes every decoder and frame before an export', async () => {

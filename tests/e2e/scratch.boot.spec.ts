@@ -37,8 +37,10 @@ test('F-015.AC14 the next time the tool opens, a closed page’s export scratch 
       rmSync(dir, { recursive: true, force: true });
     };
   }
-  await page.goto(APP);
-  // A page that closed during an export left its files (its session lock is gone with it).
+  // A page that closed during an export left its files (its session lock is gone with it). They are
+  // made from a same-origin page without the app, so the app's own start-up sweep (which runs after
+  // the F-023 device check) cannot race with making them.
+  await page.goto(`${APP}third-party-notices.txt`);
   await page.evaluate(async () => {
     const dir = await (
       await navigator.storage.getDirectory()
@@ -51,7 +53,7 @@ test('F-015.AC14 the next time the tool opens, a closed page’s export scratch 
   expect(await listScratch(page)).toEqual(
     expect.arrayContaining(['export-closedtab1-aaaa.part', 'export-closedtab1-bbbb.part']),
   );
-  await page.reload();
+  await page.goto(APP);
   await expect.poll(() => listScratch(page), { timeout: 10_000 }).toEqual([]);
   await close();
 });

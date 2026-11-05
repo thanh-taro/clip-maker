@@ -24,7 +24,7 @@
 | F-020 | Show the privacy guarantee | M-1 | P1 | building |
 | F-021 | Work offline | M-1 | P2 | ready |
 | F-022 | Use the portal's language | M-1 | P1 | ready |
-| F-023 | Check device support | M-1 | P0 | ready |
+| F-023 | Check device support | M-1 | P0 | building |
 
 ```mermaid
 graph LR

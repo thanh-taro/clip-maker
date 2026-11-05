@@ -27,13 +27,27 @@ export interface CodecApi {
 
 export const browserCodecApi = (): CodecApi => globalThis as unknown as CodecApi;
 
-/** `isConfigSupported` as a boolean: a missing interface or a thrown error counts as "no". */
+/** One `isConfigSupported` answer may take this long; later counts as "no" (F-023.R4: never hang). */
+export const SUPPORTS_TIMEOUT_MS = 1000;
+
+/**
+ * `isConfigSupported` as a boolean: a missing interface, a thrown error or no answer within
+ * `SUPPORTS_TIMEOUT_MS` counts as "no".
+ */
 export async function supports<C>(checker: ConfigChecker<C> | undefined, config: C): Promise<boolean> {
   if (!checker || typeof checker.isConfigSupported !== 'function') return false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return (await checker.isConfigSupported(config)).supported === true;
+    const late = new Promise<boolean>((resolve) => (timer = setTimeout(() => resolve(false), SUPPORTS_TIMEOUT_MS)));
+    const answer = Promise.resolve(checker.isConfigSupported(config)).then(
+      (r) => r.supported === true,
+      () => false,
+    );
+    return await Promise.race([answer, late]);
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -192,6 +206,15 @@ export function chooseAudioFormat(caps: Pick<Capabilities, 'audioEncode'>): Audi
   if (caps.audioEncode.aac) return { id: 'm4a-aac', fallback: false };
   if (caps.audioEncode.opus) return { id: 'ogg-opus', fallback: true };
   return { id: 'wav', fallback: true };
+}
+
+/**
+ * Implements: RULE-16, F-023.R5 — the audio-only choices offered: the compressed format when any sound
+ * encoder passed, and WAV always. Without a sound encoder only WAV is offered.
+ */
+export function audioFormatOffers(caps: Pick<Capabilities, 'audioEncode'>): AudioFormat[] {
+  const wav: AudioFormat = { id: 'wav', fallback: false };
+  return soundExportAvailable(caps) ? [chooseAudioFormat(caps), wav] : [wav];
 }
 
 /** One cell of the export grid. */
