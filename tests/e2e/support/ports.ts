@@ -25,3 +25,6 @@ export const PREVIEW_PORT = fromEnv('E2E_PORT') ?? 30000 + checkoutHash();
 
 /** First of the four host-harness ports: 20000–27996 (step 4) unless E2E_HOST_PORT_BASE is set. */
 export const HOST_PORT_BASE = fromEnv('E2E_HOST_PORT_BASE') ?? 20000 + checkoutHash() * 4;
+
+/** Vite dev server of the media harness (tests/harness): 32000–33999 unless E2E_MEDIA_PORT is set. */
+export const MEDIA_HARNESS_PORT = fromEnv('E2E_MEDIA_PORT') ?? 32000 + checkoutHash();

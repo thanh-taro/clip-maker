@@ -1,13 +1,17 @@
 // MOD-Codec — capability probe, decoder and encoder setup, output format choice
-// (specs/40-technical/modules/MOD-Codec.md, ADR-0004). Phase 3.3 scaffold: the device-support check
-// is a presence check of the APIs RULE-22 needs; the real probe (decode/encode configs at 1080p, the
-// timed effects check in the engine worker, ≤ 300 ms) is built with F-023.
+// (specs/40-technical/modules/MOD-Codec.md, ADR-0004 and its outcome). The probe, the export grid,
+// the trial encodes, the first-packet decode check and the format choice are built (E2); creating
+// the playback and export coders comes with MOD-Engine (E3) and MOD-Export (E5).
 import { notImplemented } from '../core';
+import type { Missing } from './probe';
 
-/** A RULE-22 check that failed; each maps to its COPY-unsupported.missing_* text. */
-export type Missing = 'decode' | 'encode' | 'effects';
+export * from './configs';
+export * from './probe';
+export * from './trial';
+export * from './util';
+export * from './verify';
 
-/** Which platform features this device exposes (the input of the RULE-22 decision). */
+/** Which platform interfaces this device exposes: the synchronous gate before the probe runs. */
 export interface DeviceFeatures {
   readonly videoDecoder: boolean;
   readonly videoEncoder: boolean;
@@ -15,8 +19,9 @@ export interface DeviceFeatures {
 }
 
 /**
- * RULE-22 (scaffold): every capability the device lacks, in the order of the rule. An empty list
- * means the editor opens. Implements: F-023.R1 (presence part only; the probe replaces it in phase 4).
+ * RULE-22 presence gate: an interface the probe needs is missing entirely (e.g. the Gecko Android
+ * browser), in the order of the rule. The full check is `deviceCheck(await probeCapabilities())`.
+ * Implements: F-023.R1 (presence part).
  */
 export function missingCapabilities(f: DeviceFeatures): Missing[] {
   const missing: Missing[] = [];
@@ -44,9 +49,12 @@ export function detectFeatures(): DeviceFeatures {
   };
 }
 
-/** The full start-up probe (RULE-22, ADR-0004 outcome) — built with F-023. */
-export const probeCapabilities = (): Promise<never> => notImplemented('MOD-Codec probeCapabilities');
-export const probeExportGrid = (_codec: string): Promise<never> => notImplemented('MOD-Codec probeExportGrid');
-export const chooseVideoFormat = (_caps: unknown, _hasSound: boolean): never =>
-  notImplemented('MOD-Codec chooseVideoFormat');
-export const chooseAudioFormat = (_caps: unknown): never => notImplemented('MOD-Codec chooseAudioFormat');
+// Coder creation with the hardware/software retry — built with MOD-Engine (E3) and MOD-Export (E5).
+export const createVideoDecoder = (_config: VideoDecoderConfig): never =>
+  notImplemented('MOD-Codec createVideoDecoder');
+export const createVideoEncoder = (_config: VideoEncoderConfig): never =>
+  notImplemented('MOD-Codec createVideoEncoder');
+export const createAudioDecoder = (_config: AudioDecoderConfig): never =>
+  notImplemented('MOD-Codec createAudioDecoder');
+export const createAudioEncoder = (_config: AudioEncoderConfig): never =>
+  notImplemented('MOD-Codec createAudioEncoder');

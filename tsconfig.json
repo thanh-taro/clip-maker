@@ -19,5 +19,5 @@
     "noEmit": true,
     "types": []
   },
-  "include": ["src", "tests/unit", "tests/property", "tests/support"]
+  "include": ["src", "tests/unit", "tests/property", "tests/support", "tests/harness"]
 }
