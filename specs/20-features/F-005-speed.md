@@ -26,13 +26,13 @@ Speed ramps make clips feel lively, and speeding up a slow screen recording save
 - **R2** The clip's timeline length changes to its source range divided by the speed, and later clips move to keep the track gap-free.
 - **R3** The clip's sound plays at the new speed with its original pitch.
 - **R4** A speed change can never make the project longer than RULE-03 allows. It stops at the slowest speed that fits, with a message.
-- **R5** A speed increase never takes the clip below its minimum length. It stops at the fastest speed that keeps it, with COPY-notice.length_limited (RULE-06).
+- **R5** A speed increase never takes the clip below its minimum length. It stops at the fastest speed that keeps it, with COPY-notice.speed_limited (RULE-06).
 
 ## Acceptance criteria
 - **AC1** Given a 10 s video clip, when the user picks 2×, then the clip lasts 5 s and later clips move 5 s earlier. (R1, R2)
 - **AC2** Given a clip with a recorded 440 Hz tone, when it plays at 2×, then the tone is still 440 Hz ± 1 %, both in the preview and in the export. (R3)
 - **AC3** Given a 9 min 30 s project with a 60 s clip, when the user sets it to 0.25×, then the speed stops at 0.70×, the clip lasts 85.7 s, the project is 9 min 55.7 s, and COPY-notice.length_limited is shown. (R4)
-- **AC4** Given a 0.2 s video clip at 1× in a 30 fps project, when the user picks 4×, then the speed stops at 2.40×, the clip lasts 3 frames, and COPY-notice.length_limited is shown. (R5)
+- **AC4** Given a 0.2 s video clip at 1× in a 30 fps project, when the user picks 4×, then the speed stops at 2.40×, the clip lasts 3 frames, and COPY-notice.speed_limited is shown. (R5)
 
 ## UX notes
 In CMP-Inspector, the speed section uses COPY-inspector.speed.

@@ -324,20 +324,20 @@ describe('F-005 speed (domain)', () => {
     expect(r.notices).toEqual(['notice.length_limited']);
   });
 
-  it('F-005.AC4 RULE-06 4× on a 0.2 s clip stops at 2.40× (3 frames) with COPY-notice.length_limited', () => {
+  it('F-005.AC4 RULE-06 4× on a 0.2 s clip stops at 2.40× (3 frames) with COPY-notice.speed_limited', () => {
     // 6 frames of source: round(6 ÷ speed) must stay ≥ 3 frames, so 2.4× is the fastest step.
     const p = proj({ clips: [video('A', 0.2)] });
     const r = setSpeed(p, 'A', 400);
     expect(r.project.clips[0]!.speedPct).toBe(240);
     expect(layoutOf(r.project).spans[0]!.frames).toBe(3);
-    expect(r.notices).toEqual(['notice.length_limited']);
+    expect(r.notices).toEqual(['notice.speed_limited']);
   });
 
   it('RULE-06 a speed increase already at the fastest allowed step changes nothing but still says why', () => {
     const p = proj({ clips: [video('A', 0.2, { speedPct: 240 })] });
     const r = setSpeed(p, 'A', 300);
     expect(r.project).toBe(p);
-    expect(r.notices).toEqual(['notice.length_limited']);
+    expect(r.notices).toEqual(['notice.speed_limited']);
   });
 
   it('RULE-06 a speed increase within the minimum shows no notice', () => {

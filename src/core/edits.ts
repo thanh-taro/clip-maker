@@ -38,27 +38,27 @@ export const speedStep = (speedPct: number): number =>
 /**
  * Implements: RULE-06 stops — an increase stops at the fastest step keeping the clip at its minimum
  * length (RULE-05); then, while `fits(speed)` is false, the speed rises toward the current one (the
- * slowest step that fits). Returns the speed to apply and whether either stop limited it; both show
- * COPY-notice.length_limited (RULE-06, F-005.R4/R5).
+ * slowest step that fits). Returns the speed to apply and which stop limited it, if any: `min`
+ * shows COPY-notice.speed_limited (F-005.R5), `length` COPY-notice.length_limited (F-005.R4).
  */
 export function speedFor(
   clip: Clip,
   requestedPct: number,
   rate: FrameRate,
   fits: (speedPct: number) => boolean,
-): { speedPct: number; limited: boolean } {
+): { speedPct: number; limit: 'min' | 'length' | null } {
   const step = RULE_06.stepPct;
   const current = speedOf(clip);
   const requested = speedStep(requestedPct);
   let want = requested;
   while (want > current && clipFrames({ ...clip, speedPct: want }, rate) < minFrames(rate)) want -= step;
   // Implements: F-005.R5 — an increase cut short by the minimum length says so.
-  let limited = want < requested;
+  let limit: 'min' | 'length' | null = want < requested ? 'min' : null;
   while (want < current && !fits(want)) {
     want += step;
-    limited = true;
+    limit = 'length';
   }
-  return { speedPct: want, limited };
+  return { speedPct: want, limit };
 }
 
 /**
@@ -143,25 +143,28 @@ export function fitAudioFades(a: AudioClip, rate: FrameRate): AudioClip {
  * Implements: RULE-04 re-timing of the audio track: starts and fades move to frame starts at the new
  * rate, no clip goes below its minimum (within its source), and where two clips that touched would
  * now overlap the later one moves to the first frame start after the earlier one ends (INV-06,
- * RULE-04). Keeps the array order.
+ * RULE-04). Keeps the array order. Null when a clip can't reach its minimum (RULE-05): its source
+ * end is unknown, so it may not grow, and it already starts at 0; the change is then refused.
  */
 export function retimeAudio(
   clips: readonly AudioClip[],
   rate: FrameRate,
   endOf: (sourceId: string) => Micros | undefined,
-): AudioClip[] {
+): AudioClip[] | null {
   const snap = (t: Micros) => frameStart(nearestFrame(t, rate), rate);
   const min = minDuration(rate);
-  const snapped = clips
-    .map((a) => {
-      let next: AudioClip = { ...a, start: snap(a.start), fadeIn: snap(a.fadeIn), fadeOut: snap(a.fadeOut) };
-      if (next.out - next.in < min) {
-        const out = Math.min(endOf(a.sourceId) ?? a.out, next.in + min);
-        next = { ...next, out, in: Math.min(next.in, Math.max(0, out - min)) };
-      }
-      return fitAudioFades(next, rate);
-    })
-    .sort((x, y) => x.start - y.start);
+  const grown: AudioClip[] = [];
+  for (const a of clips) {
+    let next: AudioClip = { ...a, start: snap(a.start), fadeIn: snap(a.fadeIn), fadeOut: snap(a.fadeOut) };
+    if (next.out - next.in < min) {
+      const out = Math.min(endOf(a.sourceId) ?? a.out, next.in + min);
+      next = { ...next, out, in: Math.min(next.in, Math.max(0, out - min)) };
+      // Implements: RULE-05 — never below the minimum; refuse rather than keep a too-short clip.
+      if (next.out - next.in < min) return null;
+    }
+    grown.push(fitAudioFades(next, rate));
+  }
+  const snapped = grown.sort((x, y) => x.start - y.start);
   const moved = new Map<string, AudioClip>();
   let lastEnd = 0;
   for (const a of snapped) {

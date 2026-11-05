@@ -40,7 +40,7 @@ Owner decisions on `.build-my-app/reports/build-spec-questions.md` items 1–7, 
 - RULE-04: after a frame-rate change, an audio clip that now overlaps moves to the next free frame start (item 3).
 - RULE-11: a new layer's text fade is off (item 4).
 - RULE-10, F-009.R7 and AC9: a cross-fade between clips too short to hold 0.1 s is unavailable, with new COPY-notice.crossfade_too_short; F-009 UX notes (item 5).
-- RULE-06, F-005.R5 and AC4: a speed increase stopped by the minimum length shows COPY-notice.length_limited; F-005 frontmatter gains RULE-05 (item 6).
+- RULE-06, F-005.R5 and AC4: a speed increase stopped by the minimum length shows new COPY-notice.speed_limited (COPY-notice.length_limited speaks of the 10-minute limit); F-005 frontmatter gains RULE-05 (item 6).
 - RULE-02: video and audio sources shorter than 0.125 s are refused with COPY-reason.too_short (item 7).
 - RULE-07: a flip mirrors the picture as displayed, after the rotation (item 22).
 - F-002: edge case — at or past the project end the preview keeps the last frame (INV-07) (item 23).

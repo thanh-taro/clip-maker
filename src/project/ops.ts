@@ -485,7 +485,8 @@ export function splitAt(p: Project, id: string, t: Micros, nextId: NextId): Edit
 /**
  * Implements: RULE-06, F-005.R4/R5 — 0.25× to 4× in 0.05× steps. An increase stops at the fastest
  * step that keeps the clip at its minimum length, and a change that would break RULE-03 stops at the
- * slowest step that fits; either stop shows COPY-notice.length_limited.
+ * slowest step that fits. The first stop shows COPY-notice.speed_limited, the second
+ * COPY-notice.length_limited.
  */
 export function setSpeed(p: Project, id: string, speedPct: number): EditResult {
   const i = clipIndex(p, id);
@@ -494,8 +495,9 @@ export function setSpeed(p: Project, id: string, speedPct: number): EditResult {
   const rate = rateOf(p);
   const tryAt = (sp: number) => normaliseClips(replaceAt(p.clips, i, { ...clip, speedPct: sp }), rate);
   const fits = (sp: number) => layoutClips(tryAt(sp), rate).frames <= maxProjectFrames(rate);
-  const { speedPct: speed, limited } = speedFor(clip, speedPct, rate, fits);
-  const notices: Notice[] = limited ? ['notice.length_limited'] : [];
+  const { speedPct: speed, limit } = speedFor(clip, speedPct, rate, fits);
+  const notices: Notice[] =
+    limit === 'min' ? ['notice.speed_limited'] : limit === 'length' ? ['notice.length_limited'] : [];
   if (speed === speedOf(clip)) return same(p, notices);
   if (!fits(speed)) return same(p, ['notice.length_full']);
   return result(p, { ...p, clips: tryAt(speed) }, [id], notices);
@@ -883,5 +885,7 @@ function retime(p: Project, rate: FrameRate, chosen: boolean, tracks: readonly M
     return { ...t, start: frameStart(s, rate), end: frameStart(e, rate) };
   });
   const audioClips = retimeAudio(p.audioClips, rate, (id) => sourceEnd(p, id, tracks));
+  // RULE-05: an audio clip that can't reach its minimum at the new rate refuses the change.
+  if (!audioClips) return same(p);
   return result(p, { ...p, frame, clips, textLayers, audioClips }, [], notices);
 }
