@@ -131,28 +131,30 @@ test.describe('MOD-Engine decode and seek', () => {
 });
 
 test.describe('MOD-Preview playback with the audio clock', () => {
-  test('F-002.R2 picture follows the sound clock: frames shown match the time heard, without a dropped-frame storm', async ({
-    page,
-  }) => {
-    test.setTimeout(60_000);
-    await page.evaluate(() => window.harness.video.prepareSync({ rate: 30, frames: 180, gop: 30 }));
-    await page.click('#play');
-    await page.waitForFunction(() => window.harness.video.clockRunning(), undefined, { timeout: 5_000 });
-    await page.waitForTimeout(3_000);
-    const r = await page.evaluate(() => window.harness.video.syncResult());
-    const stats = r.stats as { painted: number; skipped: number; inexact: number };
-    const shown = r.shown.filter((s) => s.heard > 300_000); // after the first 0.3 s of start-up
-    const offsets = shown.map((s) => (s.heard - s.t) / 1000).sort((a, b) => a - b); // ms
-    const p95 = offsets[Math.floor(offsets.length * 0.95)] ?? Infinity;
-    test.info().annotations.push({
-      type: 'sync',
-      description: `frames ${shown.length}, offset ms min ${offsets[0]?.toFixed(1)} p50 ${offsets[offsets.length >> 1]?.toFixed(1)} p95 ${p95.toFixed(1)}; ${JSON.stringify(stats)}`,
-    });
-    expect(shown.length).toBeGreaterThan(30);
-    // The frame shown is never ahead of the sound, and at most ~3 frames behind it at arrival.
-    expect(offsets[0]!).toBeGreaterThanOrEqual(-1);
-    expect(p95).toBeLessThan(100);
-    // No dropped-frame storm: most project frames were painted.
-    expect(stats.skipped / Math.max(1, stats.painted + stats.skipped)).toBeLessThan(0.25);
-  });
+  test(
+    'F-002.R2 picture follows the sound clock: frames shown match the time heard, without a dropped-frame storm',
+    { tag: '@realtime' },
+    async ({ page }) => {
+      test.setTimeout(60_000);
+      await page.evaluate(() => window.harness.video.prepareSync({ rate: 30, frames: 180, gop: 30 }));
+      await page.click('#play');
+      await page.waitForFunction(() => window.harness.video.clockRunning(), undefined, { timeout: 5_000 });
+      await page.waitForTimeout(3_000);
+      const r = await page.evaluate(() => window.harness.video.syncResult());
+      const stats = r.stats as { painted: number; skipped: number; inexact: number };
+      const shown = r.shown.filter((s) => s.heard > 300_000); // after the first 0.3 s of start-up
+      const offsets = shown.map((s) => (s.heard - s.t) / 1000).sort((a, b) => a - b); // ms
+      const p95 = offsets[Math.floor(offsets.length * 0.95)] ?? Infinity;
+      test.info().annotations.push({
+        type: 'sync',
+        description: `frames ${shown.length}, offset ms min ${offsets[0]?.toFixed(1)} p50 ${offsets[offsets.length >> 1]?.toFixed(1)} p95 ${p95.toFixed(1)}; ${JSON.stringify(stats)}`,
+      });
+      expect(shown.length).toBeGreaterThan(30);
+      // The frame shown is never ahead of the sound, and at most ~3 frames behind it at arrival.
+      expect(offsets[0]!).toBeGreaterThanOrEqual(-1);
+      expect(p95).toBeLessThan(100);
+      // No dropped-frame storm: most project frames were painted.
+      expect(stats.skipped / Math.max(1, stats.painted + stats.skipped)).toBeLessThan(0.25);
+    },
+  );
 });

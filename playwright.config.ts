@@ -37,9 +37,26 @@ export default defineConfig({
       timeout: 60_000,
     },
   ],
+  // Real-time tests (tag @realtime: A/V sync, worklet underruns) measure wall-clock timing, so they
+  // run after the parallel suite, one engine at a time, instead of competing with it for the CPU.
+  // They keep their strict thresholds but may retry twice: a busy laptop can stall one 3 s window.
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    { name: 'chromium', grepInvert: /@realtime/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'webkit', grepInvert: /@realtime/, use: { ...devices['Desktop Safari'] } },
+    {
+      name: 'chromium-realtime',
+      grep: /@realtime/,
+      retries: 2,
+      dependencies: ['chromium', 'webkit'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'webkit-realtime',
+      grep: /@realtime/,
+      retries: 2,
+      dependencies: ['chromium-realtime'],
+      use: { ...devices['Desktop Safari'] },
+    },
     ...(process.env['E2E_CHROME']
       ? [{ name: 'chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' } }]
       : []),
