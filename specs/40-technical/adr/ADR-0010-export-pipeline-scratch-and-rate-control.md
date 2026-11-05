@@ -182,7 +182,9 @@ Safari 27 macOS, Firefox 158).
    delivered AAC rate; overhead 4 KB + 0.35 KB/s. Cost ≈ 0.4–1 s at 1080 on the laptop (4 s worst
    under load). Quality levels stay VBR.
 9. **§4 / architecture.md export tables**: output dimensions are even and the long side is a
-   multiple of 16 — 480p is **848 × 480 / 480 × 848** (not 854). Floors 300/600/1,000 kbps
+   multiple of 16 — 480p is **848 × 480 / 480 × 848** (not 854). Exception (owner, 2026-11-05):
+   square frames stay square at the chosen size (1080 × 1080, although 1080 is not a multiple of
+   16); other aspects round the long side, e.g. 4:5 = 1080 × 1344. Floors 300/600/1,000 kbps
    (480/720/1080) stay **pending the owner's visual check** of the committed stills; 1440/2160 are
    untested.
 10. **§8 interruption** (replaces "hidden and no progress for 5 s"): with wall-clock time

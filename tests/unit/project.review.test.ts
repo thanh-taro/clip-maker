@@ -96,6 +96,25 @@ describe('review E1 fixes', () => {
     expect(a.fadeIn).toBe(frameStart(4, 30));
   });
 
+  it('RULE-05 RULE-04 a 0.1 s music clip at 60 fps grows to the 0.125 s minimum at 24 fps, or the change is refused when its end is unknown', () => {
+    // Property seed 1096329829: add music, 60 fps, trim the music clip's end to 6 frames (0.1 s, the
+    // minimum at 60 fps), then 24 fps, whose minimum is 3 frames (0.125 s).
+    let p = proj({ rate: 24, clips: [video('V', 3.4)] });
+    p = addMusic(p, 'music-1', 7 * S, nextId, TRACKS).project;
+    p = setFrameRate(p, 60, TRACKS).project;
+    const id = p.audioClips[0]!.id;
+    p = trimTo(p, id, 'end', 0, TRACKS).project;
+    expect(p.audioClips[0]!.out - p.audioClips[0]!.in).toBe(100_000);
+    expect(invariantViolations(p, TRACKS)).toEqual([]);
+    // With the catalog the clip grows within its track to the minimum.
+    const known = setFrameRate(p, 24, TRACKS).project;
+    expect(known.audioClips[0]!.out - known.audioClips[0]!.in).toBe(125_000);
+    expect(invariantViolations(known, TRACKS)).toEqual([]);
+    // Without it the track's end is unknown, so the clip may not grow: the change is refused.
+    const unknown = setFrameRate(p, 24);
+    expect(unknown.project).toBe(p);
+  });
+
   it('RULE-04 a clip that cannot reach its minimum within its source at the new rate slows to the fastest step that does', () => {
     // 0.125 s of source at 2.4× is 1.25 frames at 24 fps; 1.2× gives round(2.5) = 3 frames.
     const c = video('A', 0.125, { speedPct: 240 });

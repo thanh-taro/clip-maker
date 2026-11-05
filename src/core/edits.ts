@@ -21,8 +21,8 @@ import { clipFrames, minCrossFadeFrames, rangeForFrames, speedOf, type ClipSpan 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
 /**
- * Implements: RULE-02 "too short" with RULE-05's minimum (spec question 7): the shortest video or
- * audio source accepted — the 0.1 s minimum rounded up to whole frames at the slowest RULE-04 rate
+ * Implements: RULE-02 "too short" with RULE-05's minimum: the shortest video or audio source
+ * accepted — the 0.1 s minimum rounded up to whole frames at the slowest RULE-04 rate
  * (0.125 s at 24 fps), so no later frame-rate change can take a clip of it below its minimum.
  */
 export const MIN_SOURCE_DURATION: Micros = Math.max(...RULE_04.frameRates.map((r) => minDuration(r)));
@@ -37,25 +37,28 @@ export const speedStep = (speedPct: number): number =>
 
 /**
  * Implements: RULE-06 stops — an increase stops at the fastest step keeping the clip at its minimum
- * length; then, while `fits(speed)` is false, the speed rises toward the current one (the slowest
- * step that fits). Returns the speed to apply and whether RULE-03 limited it.
+ * length (RULE-05); then, while `fits(speed)` is false, the speed rises toward the current one (the
+ * slowest step that fits). Returns the speed to apply and which stop limited it, if any: `min`
+ * shows COPY-notice.speed_limited (F-005.R5), `length` COPY-notice.length_limited (F-005.R4).
  */
 export function speedFor(
   clip: Clip,
   requestedPct: number,
   rate: FrameRate,
   fits: (speedPct: number) => boolean,
-): { speedPct: number; limited: boolean } {
+): { speedPct: number; limit: 'min' | 'length' | null } {
   const step = RULE_06.stepPct;
   const current = speedOf(clip);
-  let want = speedStep(requestedPct);
+  const requested = speedStep(requestedPct);
+  let want = requested;
   while (want > current && clipFrames({ ...clip, speedPct: want }, rate) < minFrames(rate)) want -= step;
-  let limited = false;
+  // Implements: F-005.R5 — an increase cut short by the minimum length says so.
+  let limit: 'min' | 'length' | null = want < requested ? 'min' : null;
   while (want < current && !fits(want)) {
     want += step;
-    limited = true;
+    limit = 'length';
   }
-  return { speedPct: want, limited };
+  return { speedPct: want, limit };
 }
 
 /**
@@ -139,26 +142,29 @@ export function fitAudioFades(a: AudioClip, rate: FrameRate): AudioClip {
 /**
  * Implements: RULE-04 re-timing of the audio track: starts and fades move to frame starts at the new
  * rate, no clip goes below its minimum (within its source), and where two clips that touched would
- * now overlap the later one moves to the first frame start after the earlier one ends (INV-06;
- * spec question 3). Keeps the array order.
+ * now overlap the later one moves to the first frame start after the earlier one ends (INV-06,
+ * RULE-04). Keeps the array order. Null when a clip can't reach its minimum (RULE-05): its source
+ * end is unknown, so it may not grow, and it already starts at 0; the change is then refused.
  */
 export function retimeAudio(
   clips: readonly AudioClip[],
   rate: FrameRate,
   endOf: (sourceId: string) => Micros | undefined,
-): AudioClip[] {
+): AudioClip[] | null {
   const snap = (t: Micros) => frameStart(nearestFrame(t, rate), rate);
   const min = minDuration(rate);
-  const snapped = clips
-    .map((a) => {
-      let next: AudioClip = { ...a, start: snap(a.start), fadeIn: snap(a.fadeIn), fadeOut: snap(a.fadeOut) };
-      if (next.out - next.in < min) {
-        const out = Math.min(endOf(a.sourceId) ?? a.out, next.in + min);
-        next = { ...next, out, in: Math.min(next.in, Math.max(0, out - min)) };
-      }
-      return fitAudioFades(next, rate);
-    })
-    .sort((x, y) => x.start - y.start);
+  const grown: AudioClip[] = [];
+  for (const a of clips) {
+    let next: AudioClip = { ...a, start: snap(a.start), fadeIn: snap(a.fadeIn), fadeOut: snap(a.fadeOut) };
+    if (next.out - next.in < min) {
+      const out = Math.min(endOf(a.sourceId) ?? a.out, next.in + min);
+      next = { ...next, out, in: Math.min(next.in, Math.max(0, out - min)) };
+      // Implements: RULE-05 — never below the minimum; refuse rather than keep a too-short clip.
+      if (next.out - next.in < min) return null;
+    }
+    grown.push(fitAudioFades(next, rate));
+  }
+  const snapped = grown.sort((x, y) => x.start - y.start);
   const moved = new Map<string, AudioClip>();
   let lastEnd = 0;
   for (const a of snapped) {

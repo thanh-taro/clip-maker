@@ -46,7 +46,7 @@ The export is the product. It must be watermark-free, match the preview, hit a s
 - **AC11** Given each fixture project at each quality level, when the panel shows COPY-export.estimate, then the final file size is within ±25 % of it. (R2)
 - **AC12** Given a running export, when progress is observed, then the percentage updates at least once a second and never goes down, and from 10 % on the time remaining is within ±30 % of the actual time. (R3)
 - **AC13** Where the browser reports a cancelled save (not detectable on every save path), given an export whose save the browser reports as cancelled, when the user then closes the tab, then the leave-page warning still applies. (R5)
-- **AC14** Given a page closed during an export, when the tool next opens, then no scratch data from that export remains. (R7)
+- **AC14** Given a page closed during an export, when the tool next opens in the same context (embedded in the host, or on its own), then no scratch data from that export remains. Where the browser keeps separate storage for the two contexts, scratch left by a page closed in one is swept only when the tool next opens in that one (INV-01). (R7)
 - **AC15** Given a finished export on a device that can share files, standalone, when the user chooses COPY-action.share, then the system share sheet opens with that file; embedded without the web-share grant, COPY-action.share is not shown. (R9)
 
 ## UX notes

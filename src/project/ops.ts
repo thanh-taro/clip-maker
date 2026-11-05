@@ -212,7 +212,7 @@ function placeOne(p: Project, source: Source, playhead: Micros, nextId: NextId):
 
 /**
  * Implements: F-001.R3/R6 — a batch of probed sources as one step. RULE-02: a video or audio source
- * shorter than the minimum is refused (COPY-reason.too_short, spec question 7). Each is kept as a source
+ * shorter than the minimum is refused (COPY-reason.too_short). Each is kept as a source
  * (RULE-01) and placed: video and photo at the end of the main track, audio per RULE-12. Until the
  * user chooses a rate, the first video at 50 fps or more sets 60 fps (RULE-04).
  */
@@ -483,9 +483,10 @@ export function splitAt(p: Project, id: string, t: Micros, nextId: NextId): Edit
 // ── speed (F-005, RULE-06) ─────────────────────────────────────────────────────────────────────
 
 /**
- * Implements: RULE-06 — 0.25× to 4× in 0.05× steps. An increase stops at the fastest step that keeps
- * the clip at its minimum length; a change that would break RULE-03 stops at the slowest step that
- * fits, with COPY-notice.length_limited.
+ * Implements: RULE-06, F-005.R4/R5 — 0.25× to 4× in 0.05× steps. An increase stops at the fastest
+ * step that keeps the clip at its minimum length, and a change that would break RULE-03 stops at the
+ * slowest step that fits. The first stop shows COPY-notice.speed_limited, the second
+ * COPY-notice.length_limited.
  */
 export function setSpeed(p: Project, id: string, speedPct: number): EditResult {
   const i = clipIndex(p, id);
@@ -494,8 +495,9 @@ export function setSpeed(p: Project, id: string, speedPct: number): EditResult {
   const rate = rateOf(p);
   const tryAt = (sp: number) => normaliseClips(replaceAt(p.clips, i, { ...clip, speedPct: sp }), rate);
   const fits = (sp: number) => layoutClips(tryAt(sp), rate).frames <= maxProjectFrames(rate);
-  const { speedPct: speed, limited } = speedFor(clip, speedPct, rate, fits);
-  const notices: Notice[] = limited ? ['notice.length_limited'] : [];
+  const { speedPct: speed, limit } = speedFor(clip, speedPct, rate, fits);
+  const notices: Notice[] =
+    limit === 'min' ? ['notice.speed_limited'] : limit === 'length' ? ['notice.length_limited'] : [];
   if (speed === speedOf(clip)) return same(p, notices);
   if (!fits(speed)) return same(p, ['notice.length_full']);
   return result(p, { ...p, clips: tryAt(speed) }, [id], notices);
@@ -530,10 +532,35 @@ export function setFade(p: Project, id: string, edge: 'in' | 'out', tenths: numb
   return same(p);
 }
 
+/** Whether a cross-fade can join a clip and the next one, and if not, the reason to show. */
+export interface CrossFadeAvailability {
+  readonly available: boolean;
+  /** Shown beside the unavailable control; null when there is no next clip to join. */
+  readonly reason: Notice | null;
+}
+
+/**
+ * Implements: RULE-10, F-009.R7 — a cross-fade between a clip and the next is unavailable when
+ * either is too short to hold the 0.1 s minimum within half its length, with
+ * COPY-notice.crossfade_too_short. The last clip has no next clip to join (no reason).
+ */
+export function crossFadeAvailability(p: Project, id: string): CrossFadeAvailability {
+  const i = clipIndex(p, id);
+  const clip = p.clips[i];
+  const next = p.clips[i + 1];
+  if (!clip || !next) return { available: false, reason: null };
+  const rate = rateOf(p);
+  const room = crossFadeLimit(clipFrames(clip, rate), clipFrames(next, rate), rate);
+  return room < minCrossFadeFrames(rate)
+    ? { available: false, reason: 'notice.crossfade_too_short' }
+    : { available: true, reason: null };
+}
+
 /**
  * Implements: RULE-10 cross-fade between a clip and the next — 0.1–2 s and at most half of either
- * clip, picked in 0.1 s steps (0 removes it). Removing or shortening it is refused with
- * COPY-notice.length_full when the project would pass the limit (RULE-03).
+ * clip, picked in 0.1 s steps (0 removes it); unavailable between clips too short to hold it
+ * (F-009.R7). Removing or shortening it is refused with COPY-notice.length_full when the project
+ * would pass the limit (RULE-03).
  */
 export function setCrossFade(p: Project, id: string, tenths: number): EditResult {
   const i = clipIndex(p, id);
@@ -543,12 +570,12 @@ export function setCrossFade(p: Project, id: string, tenths: number): EditResult
   const rate = rateOf(p);
   let value = 0;
   if (tenths > 0) {
-    const min = minCrossFadeFrames(rate);
+    const { available, reason } = crossFadeAvailability(p, id);
+    if (!available) return same(p, reason ? [reason] : []);
     const n = Math.min(
-      pickedFrames(tenths, rate, min),
+      pickedFrames(tenths, rate, minCrossFadeFrames(rate)),
       crossFadeLimit(clipFrames(clip, rate), clipFrames(next, rate), rate),
     );
-    if (n < min) return same(p);
     value = frameStart(n, rate);
   }
   if (value === clip.crossFadeNext) return same(p);
@@ -858,5 +885,7 @@ function retime(p: Project, rate: FrameRate, chosen: boolean, tracks: readonly M
     return { ...t, start: frameStart(s, rate), end: frameStart(e, rate) };
   });
   const audioClips = retimeAudio(p.audioClips, rate, (id) => sourceEnd(p, id, tracks));
+  // RULE-05: an audio clip that can't reach its minimum at the new rate refuses the change.
+  if (!audioClips) return same(p);
   return result(p, { ...p, frame, clips, textLayers, audioClips }, [], notices);
 }

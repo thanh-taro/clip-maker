@@ -32,6 +32,7 @@ Evidence: SP-codec (incl. owner runs), SP-compositor, SP-audio, SP-speed, SP-siz
 ## Public surface
 - `probeCapabilities()` → `Capabilities` (decode set, encodable codecs at 1080p30, effects ok, slow device, encoder mode/hardware/bitrate modes/delivered AAC rate after the trial, HDR frame kind).
 - `probeExportGrid(codec)` → encodable sizes × rates, run when the export panel opens.
+- `deviceCheck(caps)` → the failed RULE-22 checks; encoding needs a video encoder only. `soundExportAvailable(caps)` → whether any sound encoder passed; without one the device stays supported and only exports that need a sound encoder are left out (F-023.R5).
 - `chooseVideoFormat(caps, hasSound)`, `chooseAudioFormat(caps)`.
 - `createVideoDecoder(config)`, `createVideoEncoder(settings)`, `createAudioDecoder`, `createAudioEncoder`.
 

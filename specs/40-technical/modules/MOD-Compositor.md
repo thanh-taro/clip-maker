@@ -6,10 +6,11 @@ depends_on: [MOD-Core, MOD-Plan]
 ---
 
 ## Responsibility
-Draws a frame plan into a WebGL2 `OffscreenCanvas` (ADR-0006): source upload (SDR fast path, own
-HDR→SDR shader, 5K→2160 sampling), the grade in RULE-08 order with the look table and intensity,
-sharpen, vignette, deterministic grain, the RULE-07 transform, the clip layer over its background
-(colour or Blur), fades and cross-fades, then text bitmaps in stacking order. Screen-only overlays
+Draws a frame plan into a WebGL2 `OffscreenCanvas` (ADR-0006): source upload (SDR and HDR frames
+alike through the browser's own conversion, `texImage2D(VideoFrame)`; 5K→2160 sampling), the grade
+in RULE-08 order with the look table and intensity, sharpen, vignette, deterministic grain, the
+RULE-07 transform, the clip layer over its background (colour or Blur), fades and cross-fades, then
+text bitmaps in stacking order. Screen-only overlays
 are separate draws. Includes the CPU reference implementation used as the test oracle, and the
 timed effects check for RULE-22.
 
