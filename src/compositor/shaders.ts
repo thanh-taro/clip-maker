@@ -45,13 +45,16 @@ void main(){ o = vec4(0.25 * (texture(uSrc, vTex + uStep * vec2(-1.0, -1.0)).rgb
 export const FS_BLUR = `${HEAD}uniform sampler2D uTex; uniform vec2 uDir; uniform float uW[9];
 void main(){ vec3 s = vec3(0.0); for (int i = 0; i < 9; i++) s += uW[i] * texture(uTex, vTex + uDir * float(i - 4)).rgb; o = vec4(s, 1.0); }`;
 
-/** Fades and cross-fades (RULE-10): each layer toward the fade target by its opacity, blended by weight. */
+/**
+ * Fades and cross-fades (RULE-10): each layer toward the fade target by its opacity, blended by weight.
+ * A blank layer (its frame missing) is the background colour.
+ */
 export const FS_MIX = `${HEAD}uniform sampler2D uL0; uniform sampler2D uL1; uniform vec3 uBg; uniform vec3 uFadeTo;
-uniform int uN; uniform float uW0, uA0, uW1, uA1;
+uniform int uN; uniform float uW0, uA0, uW1, uA1; uniform bool uB0, uB1;
 void main(){
   if (uN == 0) { o = vec4(uBg, 1.0); return; }
-  vec3 c = uW0 * mix(uFadeTo, texture(uL0, vTex).rgb, uA0);
-  if (uN > 1) c += uW1 * mix(uFadeTo, texture(uL1, vTex).rgb, uA1);
+  vec3 c = uW0 * mix(uFadeTo, uB0 ? uBg : texture(uL0, vTex).rgb, uA0);
+  if (uN > 1) c += uW1 * mix(uFadeTo, uB1 ? uBg : texture(uL1, vTex).rgb, uA1);
   o = vec4(c, 1.0);
 }`;
 

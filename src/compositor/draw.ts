@@ -43,6 +43,11 @@ export interface LayerDraw {
   /** Grain inputs (ADR-0006 §4). */
   readonly frame: number;
   readonly clip: number;
+  /**
+   * The clip's frame is not available: the layer is its background only (colour, or black under
+   * Blur), still weighted, so a cross-fade never darkens or brightens the picture.
+   */
+  readonly blank: boolean;
 }
 
 export interface TextDraw {
@@ -157,8 +162,23 @@ export function drawList(
   const layers: LayerDraw[] = [];
   plan.layers.forEach((layer, i) => {
     const size = sizes[i];
-    if (!size) return;
     const clip = layer.clip;
+    if (!size) {
+      layers.push({
+        clipId: clip.id,
+        grade: NEUTRAL,
+        quad: { pos: [], tex: [] },
+        intermediate: { width: 1, height: 1, taps: 1 },
+        sharpenStep: [0, 0],
+        blur: null,
+        weight: layer.weight,
+        opacity: layer.opacity,
+        frame: plan.frameIndex,
+        clip: clipHash(clip.id),
+        blank: true,
+      });
+      return;
+    }
     const placed = placeQuad(W, H, size, clip.placement);
     const grade = options.compare === clip.id ? NEUTRAL : gradeUniforms(clip.adjustments, clip.look);
     const r = SHARPEN_RADIUS * s;
@@ -180,6 +200,7 @@ export function drawList(
       opacity: layer.opacity,
       frame: plan.frameIndex,
       clip: clipHash(clip.id),
+      blank: false,
     });
   });
   const texts: TextDraw[] = [];

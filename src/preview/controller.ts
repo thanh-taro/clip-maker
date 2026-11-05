@@ -26,6 +26,8 @@ export interface PreviewClock {
   pause(): void;
   seek(t: Micros): void;
   now(): Micros;
+  /** Set by MOD-Audio when the system stopped the sound (a call, a lock) and it paused itself. */
+  onInterrupted?: (() => void) | null;
 }
 
 /** The engine worker as the preview uses it. */
@@ -196,6 +198,22 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
     if (time.peek() > end) seekTo(end);
   });
 
+  /** The clock stopped by itself (interruption) or could not start: show the paused state. */
+  function stoppedByClock(): void {
+    if (state.peek() !== 'playing') return;
+    stopLoop();
+    state.value = 'paused';
+    const at = pausedAt(clock.now(), signals.project.peek().frame.frameRate, duration.peek());
+    time.value = at;
+    engine.postMessage({ type: 'engine:seek', t: at });
+  }
+  // F-002 edge case: an interruption pauses playback; Play resumes it.
+  const previousInterrupted = clock.onInterrupted ?? null;
+  clock.onInterrupted = () => {
+    previousInterrupted?.();
+    stoppedByClock();
+  };
+
   function stopLoop(): void {
     if (frameId !== null) env.cancelFrame(frameId);
     frameId = null;
@@ -241,7 +259,8 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
       if (duration.peek() <= 0) return;
       time.value = from;
       state.value = 'playing';
-      void clock.play(from); // inside the caller's gesture (Playback.unlock runs synchronously)
+      // Inside the caller's gesture (Playback.unlock runs synchronously); a failed start pauses again.
+      clock.play(from).catch(() => stoppedByClock());
       stopLoop();
       frameId = env.requestFrame(loop);
     },
@@ -282,6 +301,9 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
       stopProject();
       stopObserving();
       engine.removeEventListener('message', onMessage);
+      clock.onInterrupted = previousInterrupted;
+      // The canvas was handed to the engine and cannot be used again: a remount makes a fresh one.
+      canvas.remove();
     },
   };
   return controller;

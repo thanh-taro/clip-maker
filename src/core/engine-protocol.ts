@@ -58,7 +58,7 @@ export type ToEngine =
   | { readonly type: 'engine:lookThumbnails'; readonly clipId: string }
   /** Statistics of the playback so far (tests and NFR-03 measurement). */
   | { readonly type: 'engine:stats' }
-  /** Releases decoders, caches and GPU buffers (before an export, ADR-0003 §5). */
+  /** Releases every decoder, decoded frame and coarse copy (before an export, ADR-0003 §5); the compositor and its context stay. */
   | { readonly type: 'engine:release' };
 
 export interface EngineStats {

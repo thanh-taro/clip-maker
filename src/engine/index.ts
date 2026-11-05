@@ -11,10 +11,19 @@ export function startEngineWorker(): Worker {
 export { createSequentialFrameReader, type SequentialFrameReader } from './sequential';
 export { Engine, SLOW_PAINTS, SLOW_WINDOW_MS, WARMUP_US } from './engine';
 export type { EngineDeps, EngineFrame, SlotLike, VideoSourceLike, CoarseBitmap } from './engine';
-export { DecoderSlot, PLAY_WAIT_MS } from './decoder';
-export type { DecodedFrame, DecoderFactory, DecoderLike, FrameResult, PacketLike, TrackReader } from './decoder';
+export { DecoderSlot, IDLE_MS, JUMP_US, MAX_IN_FLIGHT, PLAY_WAIT_MS } from './decoder';
+export type {
+  DecodedFrame,
+  DecoderFactory,
+  DecoderLike,
+  FrameResult,
+  PacketLike,
+  SlotOptions,
+  TrackReader,
+} from './decoder';
 export {
   assignSlots,
+  runKeys,
   COARSE_AFTER_FRAMES,
   EPSILON_US,
   evictionIndex,

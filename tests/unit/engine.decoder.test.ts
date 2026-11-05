@@ -2,8 +2,8 @@
 // needed, open-GOP leading pictures dropped, edit-list frames before 0 dropped, ≤ 12 frames held,
 // coarse-then-exact, slow sources shown at their newest frame, WebKit-style held-back frames flushed.
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DecoderSlot, PLAY_WAIT_MS } from '../../src/engine';
-import { FakeFrame, fakeDecoder, fakeSlot, fakeTrack, type DecoderLog } from '../support/engine';
+import { IDLE_MS, PLAY_WAIT_MS } from '../../src/engine';
+import { FakeFrame, fakeSlot, type DecoderLog } from '../support/engine';
 
 const ts30 = (k: number): number => Math.floor((k * 1_000_000) / 30);
 let log: DecoderLog;
@@ -85,45 +85,73 @@ describe('ADR-0009 decoder slot', () => {
     const slot = fakeSlot({ rate: 30, frames: 300, gop: 30 }, { delayMs: 40 }, log);
     await slot.frameAt(0, 'exact');
     const restarts = slot.stats.restarts;
-    const t0 = performance.now();
-    const r = await slot.frameAt(ts30(70), 'play');
-    expect(performance.now() - t0).toBeLessThan(PLAY_WAIT_MS + 60);
+    let r = await slot.frameAt(ts30(20), 'play');
+    for (const k of [40, 60, 70]) {
+      const t0 = performance.now();
+      r = await slot.frameAt(ts30(k), 'play');
+      expect(performance.now() - t0).toBeLessThan(PLAY_WAIT_MS + 60);
+    }
     expect(r.exact).toBe(false);
     expect(r.frame!.timestamp).toBeLessThan(ts30(70));
-    expect(slot.stats.restarts).toBe(restarts);
+    expect(slot.stats.restarts).toBe(restarts); // continuous playback: decode forward, never restart
     slot.close();
   });
 
-  it('MOD-Engine a decoder error rejects the request and the next request starts a fresh decoder', async () => {
-    let fail = true;
-    const base = fakeDecoder({}, log);
-    const slot = new DecoderSlot<FakeFrame>(
-      fakeTrack({ rate: 30, frames: 60, gop: 30 }),
-      (output, error) => {
-        const d = base(output, error);
-        if (fail) {
-          fail = false;
-          return {
-            ...d,
-            get state() {
-              return 'configured';
-            },
-            get decodeQueueSize() {
-              return 0;
-            },
-            decode: () => error(new Error('Decoder failure')),
-            flush: d.flush,
-            restart: d.restart,
-            close: d.close,
-          };
-        }
-        return d;
-      },
-      33_333,
-      (f) => f.clone(),
-    );
-    await expect(slot.frameAt(ts30(5), 'exact')).rejects.toThrow('Decoder failure');
-    expect((await slot.frameAt(ts30(5), 'exact')).frame!.timestamp).toBe(ts30(5));
+  it('F-002.R3 a seek while playing (a jump) restarts at the target’s keyframe instead of decoding the gap', async () => {
+    const slot = fakeSlot({ rate: 30, frames: 600, gop: 30 }, { delayMs: 5 }, log);
+    await slot.frameAt(0, 'play');
+    await slot.frameAt(ts30(1), 'play');
+    log.decoded = [];
+    await slot.frameAt(ts30(400), 'play', undefined, true);
+    expect(Math.min(...log.decoded)).toBe(ts30(390));
+    // A jump further than 1 s between playing requests (a cut) counts as one too.
+    log.decoded = [];
+    await slot.frameAt(ts30(500), 'play');
+    expect(Math.min(...log.decoded)).toBe(ts30(480));
     slot.close();
   });
+
+  it('MOD-Engine one decoder error rejects; the retry makes a fresh decoder that prefers software', async () => {
+    const slot = fakeSlot({ rate: 30, frames: 60, gop: 30 }, { failDecoders: 1 }, log);
+    await expect(slot.frameAt(ts30(5), 'exact')).rejects.toThrow('Decoder failure');
+    expect((await slot.frameAt(ts30(5), 'exact')).frame!.timestamp).toBe(ts30(5));
+    expect(log.made).toEqual([false, true]);
+    slot.close();
+  });
+
+  it('MOD-Engine close() during a request answers no frame, makes no new decoder and leaves no frame open', async () => {
+    await new Promise((r) => setTimeout(r, 100)); // earlier tests' late outputs settle first
+    const before = FakeFrame.open;
+    const slot = fakeSlot({ rate: 30, frames: 300, gop: 30 }, { delayMs: 30 }, log);
+    const pending = slot.frameAt(ts30(25), 'exact');
+    await new Promise((r) => setTimeout(r, 5));
+    slot.close();
+    const made = log.made!.length;
+    const r = await pending;
+    expect(r.frame).toBeNull();
+    expect(await slot.frameAt(ts30(3), 'exact')).toMatchObject({ frame: null });
+    await new Promise((r) => setTimeout(r, 60)); // late outputs of the closed decoder are closed too
+    expect(log.made!.length).toBe(made);
+    expect(FakeFrame.open).toBe(before);
+  });
+
+  it('MOD-Engine a slow but working decoder is not flushed: idleness is time since its last output', async () => {
+    const slot = fakeSlot({ rate: 30, frames: 300, gop: 300 }, { delayMs: 60 }, log);
+    expect(IDLE_MS).toBeGreaterThanOrEqual(150);
+    const r = await slot.frameAt(ts30(40), 'exact');
+    expect(r.exact).toBe(true);
+    expect(r.frame!.timestamp).toBe(ts30(40));
+    expect(slot.stats.flushes).toBe(0);
+    slot.close();
+  });
+
+  it('F-015.R4 the export reader never flushes mid-clip: a decoder holding frames back is fed on instead', async () => {
+    const slot = fakeSlot({ rate: 30, frames: 120, gop: 120 }, { holdBack: 14 }, log, { idleFlush: false });
+    for (const k of [0, 1, 2, 30]) expect((await slot.frameAt(ts30(k), 'exact')).frame!.timestamp).toBe(ts30(k));
+    expect(slot.stats.flushes).toBe(0);
+    expect(slot.stats.restarts).toBe(1);
+    // At the clip end the remaining frames come out with a flush.
+    expect((await slot.frameAt(ts30(119), 'exact')).frame!.timestamp).toBe(ts30(119));
+    slot.close();
+  }, 15_000);
 });

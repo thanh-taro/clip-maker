@@ -1,8 +1,10 @@
 // MOD-Engine pure scheduling rules (ADR-0009 outcome rules 1–6): frame choice by the index's
 // presentation time, slow-playback fallback, eviction, restart decision, decoder slot assignment.
 import { describe, expect, it } from 'vitest';
+import { video } from '../support/project';
 import {
   assignSlots,
+  runKeys,
   evictionIndex,
   isLeadingPicture,
   needsRestart,
@@ -103,5 +105,19 @@ describe('ADR-0009 outcome rule 5: decoder slots', () => {
   it('MOD-Engine a cross-fade between two clips of one source gets two slots', () => {
     const r = assignSlots(['a'], [1], ['a', 'a'], 3);
     expect(new Set(r).size).toBe(2);
+  });
+});
+
+describe('ADR-0009 §4 decode runs', () => {
+  it('MOD-Engine a split keeps one decoder; a cut within one source, a cross-fade or another source gets its own', () => {
+    const a = video('a', 2, { sourceId: 'x' });
+    const split = video('b', 4, { sourceId: 'x' }, 2); // continues a's footage
+    const cut = video('c', 9, { sourceId: 'x' }, 7); // 4–7 s removed
+    const k = runKeys([a, split, cut]);
+    expect(k.get('b')).toBe(k.get('a'));
+    expect(k.get('c')).toBe('c');
+    const xf = runKeys([{ ...a, crossFadeNext: 500_000 }, split]);
+    expect(xf.get('b')).toBe('b');
+    expect(runKeys([a, video('d', 4, { sourceId: 'y' }, 2)]).get('d')).toBe('d');
   });
 });

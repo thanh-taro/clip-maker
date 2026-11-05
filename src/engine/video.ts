@@ -4,7 +4,7 @@
 import { createVideoDecoder, resolveVideoDecoderConfig } from '../codec';
 import { openInput, type OpenedInput } from '../container';
 import type { Rotation } from '../compositor';
-import { DecoderSlot, type DecoderFactory, type PacketLike, type TrackReader } from './decoder';
+import { DecoderSlot, type DecoderFactory, type PacketLike, type SlotOptions, type TrackReader } from './decoder';
 
 export interface VideoSource {
   readonly id: string;
@@ -14,7 +14,8 @@ export interface VideoSource {
   readonly frameUs: number;
   /** Mean seconds between keyframes (null when unknown). */
   readonly keySpacing: number | null;
-  newSlot(maxFrames: number): DecoderSlot<VideoFrame>;
+  /** A decoder slot; the preview flushes decoders that hold frames back, the export reader never does. */
+  newSlot(maxFrames: number, options?: SlotOptions): DecoderSlot<VideoFrame>;
   close(): void;
 }
 
@@ -56,8 +57,17 @@ export async function openVideoSource(id: string, file: Blob): Promise<VideoSour
     const keySpacing = await input.keyframeSpacing().catch(() => null);
     const reader = readerOf(input);
     const opened = input;
-    const factory: DecoderFactory<VideoFrame> = (output, error) => {
-      const d = createVideoDecoder(config, output, error);
+    const soft: VideoDecoderConfig = { ...config, hardwareAcceleration: 'prefer-software' };
+    // The retry after a decoder error prefers software decoding (MOD-Codec hardware/software retry).
+    const factory: DecoderFactory<VideoFrame> = (output, error, software) => {
+      let used = software ? soft : config;
+      let d: VideoDecoder;
+      try {
+        d = createVideoDecoder(used, output, error);
+      } catch {
+        used = config;
+        d = createVideoDecoder(used, output, error);
+      }
       return {
         get state() {
           return d.state;
@@ -69,7 +79,7 @@ export async function openVideoSource(id: string, file: Blob): Promise<VideoSour
         flush: () => d.flush(),
         restart: () => {
           d.reset();
-          d.configure(config);
+          d.configure(used);
         },
         close: () => d.close(),
       };
@@ -80,7 +90,16 @@ export async function openVideoSource(id: string, file: Blob): Promise<VideoSour
       rotation: track.rotation,
       frameUs,
       keySpacing,
-      newSlot: (max) => new DecoderSlot<VideoFrame>(reader, factory, frameUs, (f) => f.clone(), max),
+      newSlot: (max, options = { idleFlush: true }) =>
+        new DecoderSlot<VideoFrame>(
+          reader,
+          factory,
+          frameUs,
+          (f) => f.clone(),
+          max,
+          () => performance.now(),
+          options,
+        ),
       close: () => opened.close(),
     };
   } catch (e) {

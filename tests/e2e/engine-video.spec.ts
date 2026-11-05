@@ -75,6 +75,20 @@ test.describe('MOD-Compositor on the GPU', () => {
   });
 });
 
+test.describe('MOD-Compositor review fixes (E3)', () => {
+  test('F-009 a cross-fade whose second frame is missing shows weight × clip + weight × background (never darker)', async ({
+    page,
+  }) => {
+    const r = await page.evaluate(() => window.harness.video.crossFadeMissing());
+    const expected = [255 * (r.w0 + r.w1), 255 * r.w1, 255 * r.w1];
+    r.px.forEach((v, i) => expect(Math.abs(v - expected[i]!)).toBeLessThanOrEqual(2));
+  });
+
+  test('MOD-Compositor the texture of a removed text layer is deleted', async ({ page }) => {
+    expect(await page.evaluate(() => window.harness.video.textTextures())).toEqual([2, 1]);
+  });
+});
+
 test.describe('MOD-Engine decode and seek', () => {
   test('F-002.R1 a decoded frame is painted full-frame and reads back as the frame for the time (seek at frame boundaries)', async ({
     page,

@@ -15,7 +15,8 @@ export interface SequentialFrameReader {
 
 export async function createSequentialFrameReader(id: string, file: Blob): Promise<SequentialFrameReader> {
   const src = await openVideoSource(id, file);
-  const slot = src.newSlot(MAX_FRAMES);
+  // Never flushed mid-clip: a flush forces a keyframe restart (ADR-0009 outcome rule 3).
+  const slot = src.newSlot(MAX_FRAMES, { idleFlush: false });
   return {
     async frameAt(t) {
       const r = await slot.frameAt(t, 'exact');

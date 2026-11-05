@@ -10,9 +10,12 @@ import { proj, S, video } from '../support/project';
 class FakeClock {
   t: Micros = 0;
   playing = false;
+  failPlay = false;
   calls: string[] = [];
+  onInterrupted: (() => void) | null = null;
   async play(from: Micros): Promise<void> {
     this.calls.push(`play ${from}`);
+    if (this.failPlay) throw new Error('audio could not start');
     this.t = from;
     this.playing = true;
   }
@@ -45,13 +48,25 @@ function setup(project: Project = proj({ clips: [video('a', 4)] })) {
   let sizeCb: ((w: number, h: number) => void) | null = null;
   const offscreen = { offscreen: true };
   let transfers = 0;
-  const canvas = {
-    style: {} as Record<string, string>,
-    transferControlToOffscreen: () => {
-      transfers++;
-      return offscreen;
-    },
+  // A canvas can be handed over once; a removed one is replaced by a fresh one (as `canvasOf` does).
+  const makeCanvas = () => {
+    let done = false;
+    const c = {
+      removed: false,
+      style: {} as Record<string, string>,
+      transferControlToOffscreen: () => {
+        if (done) throw new Error('InvalidStateError: already transferred');
+        done = true;
+        transfers++;
+        return offscreen;
+      },
+      remove: () => {
+        c.removed = true;
+      },
+    };
+    return c;
   };
+  let canvas = makeCanvas();
   const env: PreviewEnv = {
     requestFrame: (fn) => frames.push(fn),
     cancelFrame: () => undefined,
@@ -61,17 +76,24 @@ function setup(project: Project = proj({ clips: [video('a', 4)] })) {
       fn(800, 450);
       return () => undefined;
     },
-    canvasOf: () => canvas as unknown as HTMLCanvasElement,
+    canvasOf: () => {
+      if (canvas.removed) canvas = makeCanvas();
+      return canvas as unknown as HTMLCanvasElement;
+    },
   };
   const clock = new FakeClock();
   const project$ = signal(project);
-  const ctl = mountPreview({} as HTMLElement, { project: project$ }, { engine, clock, env });
+  const element = {} as HTMLElement;
+  const ctl = mountPreview(element, { project: project$ }, { engine, clock, env });
   return {
     ctl,
+    remount: () => mountPreview(element, { project: project$ }, { engine, clock, env }),
     clock,
     sent,
     project$,
-    canvas,
+    get canvas() {
+      return canvas;
+    },
     transfers: () => transfers,
     resize: (w: number, h: number) => sizeCb?.(w, h),
     emit: (m: FromEngine) => listener?.({ data: m } as MessageEvent<FromEngine>),
@@ -220,5 +242,38 @@ describe('MOD-Preview timing maths', () => {
   it('F-002 play from the end starts at 0; elsewhere at the playhead', () => {
     expect(playFrom(5 * S, 5 * S)).toBe(0);
     expect(playFrom(2 * S, 5 * S)).toBe(2 * S);
+  });
+});
+
+describe('MOD-Preview lifecycle and clock failures (E3 review)', () => {
+  it('MOD-Preview after dispose the transferred canvas is removed, so mounting again works with a fresh one', () => {
+    const r = setup();
+    const first = r.canvas;
+    r.ctl.dispose();
+    expect(first.removed).toBe(true);
+    const again = r.remount();
+    expect(r.transfers()).toBe(2);
+    expect(r.canvas).not.toBe(first);
+    again.dispose();
+  });
+
+  it('F-002.R2 when the sound cannot start, playback returns to paused', async () => {
+    const r = setup();
+    r.clock.failPlay = true;
+    r.ctl.play();
+    await new Promise((res) => setTimeout(res, 0));
+    expect(r.ctl.state.value).toBe('paused');
+    expect(r.of('engine:seek').length).toBeGreaterThan(0);
+  });
+
+  it('F-002 a system interruption of the sound pauses playback (Play resumes it)', () => {
+    const r = setup();
+    r.ctl.play();
+    r.clock.t = 1_500_000;
+    r.clock.onInterrupted?.();
+    expect(r.ctl.state.value).toBe('paused');
+    expect(r.ctl.time.value).toBe(1_500_000);
+    r.ctl.play();
+    expect(r.ctl.state.value).toBe('playing');
   });
 });

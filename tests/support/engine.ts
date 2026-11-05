@@ -3,7 +3,13 @@
 // that count how many are open, and a fake compositor that records paints.
 import type { FramePlan } from '../../src/plan';
 import type { Compositor, PaintFrame } from '../../src/compositor';
-import { DecoderSlot, type DecoderFactory, type PacketLike, type TrackReader } from '../../src/engine';
+import {
+  DecoderSlot,
+  type DecoderFactory,
+  type PacketLike,
+  type SlotOptions,
+  type TrackReader,
+} from '../../src/engine';
 
 export class FakeFrame {
   static open = 0;
@@ -82,27 +88,38 @@ export interface DecoderOptions {
   readonly holdBack?: number;
   /** Delay before each output, ms (a slow decoder). */
   readonly delayMs?: number;
+  /** The first this-many decoders made report an error on their first decode. */
+  readonly failDecoders?: number;
 }
 
 export interface DecoderLog {
   decoded: number[];
   restarts: number;
   flushes: number;
+  /** One entry per decoder made: whether software decoding was asked for. */
+  made?: boolean[];
 }
 
 export function fakeDecoder(
   o: DecoderOptions = {},
   log: DecoderLog = { decoded: [], restarts: 0, flushes: 0 },
 ): DecoderFactory<FakeFrame> {
-  return (output) => {
+  let made = 0;
+  return (output, error, software) => {
+    (log.made ??= []).push(software);
+    const failing = made++ < (o.failDecoders ?? 0);
     let queue: number[] = [];
     let state = 'configured';
+    let epoch = 0; // reset() and close() drop pending outputs, as WebCodecs does
     const emit = (): void => {
       const ts = queue.shift();
       if (ts === undefined) return;
-      const f = new FakeFrame(ts);
-      if (o.delayMs) setTimeout(() => output(f), o.delayMs);
-      else queueMicrotask(() => output(f));
+      const at = epoch;
+      const deliver = (): void => {
+        if (at === epoch) output(new FakeFrame(ts));
+      };
+      if (o.delayMs) setTimeout(deliver, o.delayMs);
+      else queueMicrotask(deliver);
     };
     return {
       get state() {
@@ -112,6 +129,11 @@ export function fakeDecoder(
         return Math.max(0, queue.length - (o.holdBack ?? 0));
       },
       decode(p) {
+        if (failing) {
+          state = 'closed';
+          queueMicrotask(() => error(new Error('EncodingError: Decoder failure')));
+          return;
+        }
         const ts = Math.round(p.timestamp * 1e6);
         log.decoded.push(ts);
         queue.push(ts);
@@ -125,18 +147,33 @@ export function fakeDecoder(
       },
       restart() {
         log.restarts++;
+        epoch++;
         queue = [];
       },
       close() {
         state = 'closed';
+        epoch++;
         queue = [];
       },
     };
   };
 }
 
-export function fakeSlot(track: TrackOptions, dec: DecoderOptions = {}, log?: DecoderLog): DecoderSlot<FakeFrame> {
-  return new DecoderSlot<FakeFrame>(fakeTrack(track), fakeDecoder(dec, log), 1_000_000 / track.rate, (f) => f.clone());
+export function fakeSlot(
+  track: TrackOptions,
+  dec: DecoderOptions = {},
+  log?: DecoderLog,
+  options: SlotOptions = { idleFlush: true },
+): DecoderSlot<FakeFrame> {
+  return new DecoderSlot<FakeFrame>(
+    fakeTrack(track),
+    fakeDecoder(dec, log),
+    1_000_000 / track.rate,
+    (f) => f.clone(),
+    12,
+    () => performance.now(),
+    options,
+  );
 }
 
 /** The frame index of a source frame timestamp on a `rate` grid. */
@@ -159,6 +196,7 @@ export class FakeCompositor implements Compositor {
   width = 640;
   height = 360;
   readonly halfFloat = true;
+  textTextures = 0;
   private handlers = new Set<() => void>();
   get lost(): boolean {
     return this.lostNow;

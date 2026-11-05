@@ -2,7 +2,7 @@
 // from SP-compositor / SP-mem-hdr `DecoderSlot`), separated from WebCodecs so they are property-tested.
 // Implements: rules.md "Source frames" (the frame whose display interval [ts, next ts) contains the
 // source time), F-002.R1/R3, NFR-03 (seek strategy), NFR-05 (bounded frames per decoder).
-import type { Micros } from '../core';
+import type { Clip, Micros } from '../core';
 
 /** Frame starts are floored to µs; the index lookup adds 2 µs (ADR-0009 outcome rule 1). */
 export const EPSILON_US = 2;
@@ -73,15 +73,21 @@ export interface DecoderState {
 
 /**
  * Implements: ADR-0009 outcome rules 2, 4 and 6 — restart at the keyframe `keyTs` (and drop open-GOP
- * leading pictures) or decode forward to `want`? Going back always restarts. While playing, a target
- * still ahead of the decoder never restarts: decoding forward and showing the newest frame keeps
- * slow sources moving (outcome rule 6). A seek restarts when the target's keyframe lies beyond the
- * next packet to feed.
+ * leading pictures) or decode forward to `want`? Going back always restarts. A target whose keyframe
+ * lies beyond the next packet restarts there, except while playing a continuous request: a decoder
+ * that is merely behind decodes forward and shows its newest frame (outcome rule 6). A playing request
+ * that is `discontinuous` (a seek while playing, a cut to other footage) restarts like a seek.
  */
-export function needsRestart(s: DecoderState, want: Micros, keyTs: Micros, mode: FrameMode): boolean {
+export function needsRestart(
+  s: DecoderState,
+  want: Micros,
+  keyTs: Micros,
+  mode: FrameMode,
+  discontinuous = false,
+): boolean {
   if (!s.configured || s.needKey) return true;
   if (want <= s.maxOutTs) return true;
-  if (mode === 'play') return false;
+  if (mode === 'play' && !discontinuous) return false;
   // The target's keyframe lies past the next packet: decoding forward would decode a whole gap.
   if (s.hasNext && keyTs > s.nextTs) return true;
   return !s.hasNext && want > s.lastFedTs;
@@ -136,4 +142,27 @@ export function assignSlots(
     out.push(i);
   }
   return out;
+}
+
+/**
+ * Decode runs (ADR-0009 §4 "next clip warm-up"): main-track video clips that continue the previous
+ * clip's footage (same source, no cross-fade, in point = the previous out point, same speed) share a
+ * decoder; any other clip — including a later piece of the same source after a cut — gets its own
+ * slot, so the warm-up never shows removed footage. Returns clip id → run key.
+ */
+export function runKeys(clips: readonly Clip[]): Map<string, string> {
+  const keys = new Map<string, string>();
+  clips.forEach((c, i) => {
+    const prev = clips[i - 1];
+    const continues =
+      prev !== undefined &&
+      prev.kind === 'video' &&
+      c.kind === 'video' &&
+      prev.sourceId === c.sourceId &&
+      prev.crossFadeNext === 0 &&
+      prev.out === c.in &&
+      (prev.speedPct ?? 100) === (c.speedPct ?? 100);
+    keys.set(c.id, continues ? keys.get(prev.id)! : c.id);
+  });
+  return keys;
 }

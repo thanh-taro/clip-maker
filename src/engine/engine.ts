@@ -26,8 +26,8 @@ import { framePlan, type FramePlan } from '../plan';
 import type { Compositor, CompositorOptions, EffectsResult, LookTable, PaintFrame, Rotation } from '../compositor';
 import type { Budget } from './budget';
 import { CoarseCache, keepsCoarse } from './coarse';
-import type { FrameResult } from './decoder';
-import { assignSlots, type FrameMode } from './frames';
+import type { FrameResult, SlotOptions } from './decoder';
+import { assignSlots, runKeys, type FrameMode } from './frames';
 
 /** A decoded frame the engine can paint (a `VideoFrame` in the worker). */
 export interface EngineFrame {
@@ -39,7 +39,7 @@ export interface EngineFrame {
 
 /** The decoder-slot surface the engine drives (DecoderSlot in the worker, fakes in tests). */
 export interface SlotLike<F extends EngineFrame = EngineFrame> {
-  frameAt(t: Micros, mode: FrameMode, onCoarse?: (f: F) => void): Promise<FrameResult<F>>;
+  frameAt(t: Micros, mode: FrameMode, onCoarse?: (f: F) => void, jump?: boolean): Promise<FrameResult<F>>;
   prefetch(t: Micros): Promise<void>;
   peek(t: Micros): F | null;
   close(): void;
@@ -52,7 +52,7 @@ export interface VideoSourceLike<F extends EngineFrame = EngineFrame> {
   readonly rotation: Rotation;
   readonly frameUs: number;
   readonly keySpacing: number | null;
-  newSlot(maxFrames: number): SlotLike<F>;
+  newSlot(maxFrames: number, options?: SlotOptions): SlotLike<F>;
   close(): void;
 }
 
@@ -87,6 +87,8 @@ interface Request {
 }
 
 interface Bound {
+  /** The decode run the slot serves (runKeys); null when free. */
+  key: string | null;
   sourceId: string | null;
   slot: SlotLike | null;
   lastUsed: number;
@@ -110,7 +112,11 @@ export class Engine {
   private lastK = -1;
   private lastExact = false;
   private lastT: Micros = 0;
-  private dirty = true;
+  /** Bumped by every change that alters the picture; a render records the version it painted. */
+  private version = 0;
+  private paintedVersion = -1;
+  /** Bumped by release and source removal: renders started before them neither paint nor report. */
+  private gen = 0;
   private useCounter = 0;
   private slowTimes = new Map<string, number[]>();
   private reportedSlow = new Set<string>();
@@ -220,11 +226,13 @@ export class Engine {
 
   /** ADR-0009 §7: removing a source releases its decoders, frames and coarse copies. */
   private dropSource(id: string): void {
+    this.gen++;
     for (const b of this.slots)
       if (b.sourceId === id) {
         b.slot?.close();
         b.slot = null;
         b.sourceId = null;
+        b.key = null;
       }
     this.coarse.get(id)?.clear();
     this.coarse.delete(id);
@@ -236,22 +244,26 @@ export class Engine {
 
   /** ADR-0003 §5: before an export, every decoder and cache goes. */
   release(): void {
+    this.gen++;
     for (const id of [...this.videos.keys()]) this.dropSource(id);
     for (const b of this.slots) b.slot?.close();
     this.slots = [];
     for (const c of this.coarse.values()) c.clear();
     this.coarse.clear();
     this.lastK = -1;
-    this.dirty = true;
+    this.version++;
   }
 
+  /** The picture changed: paint the current time again (a queued request already will). */
   private repaint(): void {
-    this.dirty = true;
+    this.version++;
+    if (this.pending) return;
     this.request({ t: this.lastT, playing: false, seek: false });
   }
 
   private request(r: Request): void {
-    this.pending = r;
+    // A tick replacing a queued seek keeps it a seek: the decoder may restart for it.
+    this.pending = { ...r, seek: r.seek || (this.pending?.seek ?? false) };
     if (this.busy) return;
     this.busy = true;
     this.idle = this.loop();
@@ -295,35 +307,51 @@ export class Engine {
     this.deps.post({ type: 'engine:sourceError', id });
   }
 
-  /** Decoder slots for the plan's video layers (ADR-0009 outcome rule 5). */
-  private async slotsFor(plan: FramePlan): Promise<(SlotLike | null)[]> {
-    const wanted = plan.layers.map((l) => (l.clip.kind === 'video' ? l.clip.sourceId : null));
-    const sources = await Promise.all(wanted.map((id) => (id ? this.video(id) : Promise.resolve(null))));
-    const ids = wanted.filter((id, i): id is string => id !== null && sources[i] !== null);
-    const idx = assignSlots(
-      this.slots.map((b) => b.sourceId),
-      this.slots.map((b) => b.lastUsed),
-      ids,
-      this.deps.budget.decoders,
+  /**
+   * Decoder slots for video layers (ADR-0009 outcome rule 5, one helper for render and warm-up), one
+   * per decode run (runKeys). Slots serving the `keep` runs are never taken; a layer that finds no
+   * slot gets null.
+   */
+  private async slotsFor(
+    project: Project,
+    layers: FramePlan['layers'],
+    keep: readonly string[] = [],
+  ): Promise<(SlotLike | null)[]> {
+    const keys = runKeys(project.clips);
+    const wanted = layers.map((l) =>
+      l.clip.kind === 'video' ? { key: keys.get(l.clip.id) ?? l.clip.id, sourceId: l.clip.sourceId } : null,
     );
+    const sources = await Promise.all(wanted.map((w) => (w ? this.video(w.sourceId) : Promise.resolve(null))));
+    const live = wanted.filter((w, i): w is { key: string; sourceId: string } => w !== null && sources[i] !== null);
+    const idx = assignSlots(
+      this.slots.map((b) => b.key),
+      this.slots.map((b) => b.lastUsed),
+      [...keep, ...live.map((w) => w.key)],
+      this.deps.budget.decoders,
+    ).slice(keep.length);
     const out: (SlotLike | null)[] = [];
     let n = 0;
-    wanted.forEach((id, i) => {
+    wanted.forEach((w, i) => {
       const src = sources[i];
-      if (!id || !src) {
+      if (!w || !src) {
         out.push(null);
         return;
       }
-      const at = idx[n++]!;
-      const b = (this.slots[at] ??= { sourceId: null, slot: null, lastUsed: 0 });
-      if (b.sourceId !== id || !b.slot) {
-        b.slot?.close();
-        b.slot = src.newSlot(this.deps.budget.framesPerDecoder);
-        b.sourceId = id;
-        this.watchCoarse(id, src, b.slot);
+      const at = idx[n++] ?? -1;
+      if (at < 0) {
+        out.push(null);
+        return;
       }
-      b.lastUsed = ++this.useCounter;
-      out.push(b.slot);
+      const bound = (this.slots[at] ??= { key: null, sourceId: null, slot: null, lastUsed: 0 });
+      if (bound.key !== w.key || !bound.slot) {
+        bound.slot?.close();
+        bound.slot = src.newSlot(this.deps.budget.framesPerDecoder, { idleFlush: true });
+        bound.key = w.key;
+        bound.sourceId = w.sourceId;
+        this.watchCoarse(w.sourceId, src, bound.slot);
+      }
+      bound.lastUsed = ++this.useCounter;
+      out.push(bound.slot);
     });
     return out;
   }
@@ -338,9 +366,14 @@ export class Engine {
     const c = cache;
     slot.onFrame = (f) => {
       if (!c.wants(f.timestamp)) return;
+      const ts = f.timestamp;
       void this.deps
         .coarseCopy(f)
-        .then((b) => c.add(f.timestamp, b))
+        .then((b) => {
+          // The source may have gone meanwhile; `add` re-checks the spacing and closes extras.
+          if (this.coarse.get(id) !== c) b.close();
+          else c.add(ts, b);
+        })
         .catch(() => undefined);
     };
   }
@@ -364,21 +397,25 @@ export class Engine {
     const comp = this.comp;
     const project = this.project;
     if (!comp || !project || comp.lost) return;
+    const version = this.version;
+    const gen = this.gen;
+    const stale = (): boolean => gen !== this.gen;
     const rate = project.frame.frameRate;
     const total = projectFrames(project);
     let k = frameIndexAt(Math.max(0, req.t), rate);
     // Nothing past the end is drawn (INV-07): at or after the end the last frame stays on screen.
     if (total > 0 && k >= total) k = total - 1;
-    if (!this.dirty && k === this.lastK && this.lastExact) return;
+    if (this.paintedVersion === version && k === this.lastK && this.lastExact) return;
     this.lastT = req.t;
     const plan = framePlan(project, k);
     const mode: FrameMode = req.playing ? 'play' : 'exact';
-    const slots = await this.slotsFor(plan);
+    const slots = await this.slotsFor(project, plan.layers);
     const rotations = await Promise.all(
       plan.layers.map(async (l) =>
         l.clip.kind === 'video' ? ((await this.video(l.clip.sourceId))?.rotation ?? 0) : 0,
       ),
     );
+    if (stale()) return;
     let coarsePainted = false;
     const coarseFrames = (i: number, f: PaintFrame): (PaintFrame | null)[] =>
       plan.layers.map((l, j) => {
@@ -408,29 +445,31 @@ export class Engine {
         if (!slot) return { frame: null, exact: false };
         const onCoarse = req.seek
           ? (f: EngineFrame): void => {
-              if (!coarsePainted) {
+              if (!coarsePainted && !stale()) {
                 this.paint(plan, coarseFrames(i, this.paintFrame(f, rotations[i] as Rotation)), false);
                 coarsePainted = true;
               }
               f.close();
             }
           : undefined;
-        try {
-          const r = await slot.frameAt(l.sourceTime, mode, onCoarse);
-          return { frame: r.frame ? this.paintFrame(r.frame, rotations[i] as Rotation) : null, exact: r.exact };
-        } catch {
-          this.sourceFailed(l.clip.sourceId);
-          return { frame: null, exact: false };
-        }
+        const r = await this.decodeWithRetry(slot, l.sourceTime, mode, onCoarse, req.seek, l.clip.sourceId, stale);
+        return r?.frame
+          ? { frame: this.paintFrame(r.frame, rotations[i] as Rotation), exact: r.exact }
+          : { frame: null, exact: false };
       }),
     );
+    // Released or a source removed meanwhile: these frames may be closed already.
+    if (stale()) return;
     // A newer seek or tick replaces this one before it is painted (latest wins).
     if (this.pending && !req.playing && this.pending.seek) return;
     const exact = results.every((r) => r.exact && r.frame !== null);
     if (req.playing) {
-      if (this.lastK >= 0 && k > this.lastK + 1) this.counts.skipped += k - this.lastK - 1;
-      if (results.some((r) => r.frame === null) && plan.layers.length > 0)
+      if (results.some((r, i) => r.frame === null && plan.layers[i]!.clip.kind === 'video')) {
+        // Keep the previous picture rather than show a hole; the sound plays on (F-002 edge case).
         this.deps.post({ type: 'engine:stalled', t: plan.time });
+        return;
+      }
+      if (this.lastK >= 0 && k > this.lastK + 1) this.counts.skipped += k - this.lastK - 1;
       results.forEach((r, i) => {
         if (!r.exact && r.frame) this.noteInexact(plan.layers[i]!.clip.sourceId);
       });
@@ -443,8 +482,32 @@ export class Engine {
     );
     this.lastK = k;
     this.lastExact = exact;
-    this.dirty = false;
+    this.paintedVersion = version; // changes that arrived meanwhile are painted by the queued request
     if (req.playing) this.decodeAhead(project, plan, slots);
+  }
+
+  /**
+   * A decoder error is retried once with a fresh decoder (software preferred); only a repeated failure
+   * refuses the source (RULE-22: only that item is left out). Stale renders report nothing.
+   */
+  private async decodeWithRetry(
+    slot: SlotLike,
+    t: Micros,
+    mode: FrameMode,
+    onCoarse: ((f: EngineFrame) => void) | undefined,
+    jump: boolean,
+    sourceId: string,
+    stale: () => boolean,
+  ): Promise<FrameResult<EngineFrame> | null> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await slot.frameAt(t, mode, onCoarse, jump || attempt > 0);
+      } catch {
+        if (stale()) return null;
+      }
+    }
+    this.sourceFailed(sourceId);
+    return null;
   }
 
   private photoFrame(sourceId: string): PaintFrame | null {
@@ -465,7 +528,10 @@ export class Engine {
     }
   }
 
-  /** Decode-ahead for the visible clips, and the next clip's warm-up (ADR-0009 §4). */
+  /**
+   * Decode-ahead for the visible clips, and the next clip's warm-up (ADR-0009 §4): the next decode run
+   * gets a slot the visible clips do not use and decodes its first frame.
+   */
   private decodeAhead(project: Project, plan: FramePlan, slots: readonly (SlotLike | null)[]): void {
     plan.layers.forEach((l, i) => void slots[i]?.prefetch(l.sourceTime).catch(() => undefined));
     const rate = project.frame.frameRate;
@@ -475,16 +541,15 @@ export class Engine {
     const clip = project.clips[nextIndex];
     if (!span || !clip || clip.kind !== 'video') return;
     if (frameStart(span.startFrame, rate) - plan.time > WARMUP_US) return;
-    if (this.slots.some((b) => b.sourceId === clip.sourceId)) return;
-    const visible = new Set(plan.layers.map((l) => l.clip.sourceId));
-    const free =
-      this.slots.length < this.deps.budget.decoders || this.slots.some((b) => !b.sourceId || !visible.has(b.sourceId));
-    if (!free) return;
-    const warm = framePlan(project, span.startFrame);
-    void this.slotsFor({ ...warm, layers: warm.layers.filter((l) => l.clip.id === clip.id) })
+    const keys = runKeys(project.clips);
+    const key = keys.get(clip.id) ?? clip.id;
+    if (this.slots.some((b) => b.key === key)) return; // the same decode run, or already warm
+    const layer = framePlan(project, span.startFrame).layers.find((l) => l.clip.id === clip.id);
+    if (!layer) return;
+    const visible = plan.layers.map((l) => keys.get(l.clip.id) ?? l.clip.id);
+    void this.slotsFor(project, [layer], visible)
       .then(async ([slot]) => {
-        const layer = warm.layers.find((l) => l.clip.id === clip.id);
-        if (slot && layer) await slot.frameAt(layer.sourceTime, 'exact');
+        if (slot) await slot.frameAt(layer.sourceTime, 'exact');
       })
       .catch(() => undefined);
   }

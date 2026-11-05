@@ -231,7 +231,7 @@ WebKit).
 | Engine worker, its own bundle (container read ≈ 73 KB, codec, plan, engine, compositor + shaders; 82.5 KB measured in E3) | ≤ 150 KB |
 | Audio worker + worklet | ≤ 50 KB |
 | Analysis worker, its own bundle (container read ≈ 73 KB, codec, media; 72.3 KB measured in E3) | ≤ 105 KB |
-| Export worker (container writer ≈ 48 KB measured, gifenc, export) | ≤ 80 KB |
+| Export worker, its own bundle (container read ≈ 73 KB + writer ≈ 48 KB, codec, plan, compositor, export, gifenc) | ≤ 180 KB |
 | Export-audio worker | ≤ 10 KB |
 | **Code and styles total** (every bundle counted, so code shared by two workers counts twice) | **≤ 560 KB** |
 | Fonts (5 packages, latin + vietnamese) | ≈ 200 KB |

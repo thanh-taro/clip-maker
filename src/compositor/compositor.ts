@@ -66,6 +66,8 @@ export interface Compositor {
   sync(): void;
   /** The drawn frame as RGBA rows from the top (tests and the effects check only; never for exports). */
   readPixels(): Uint8Array;
+  /** Text textures held (tests: removed layers free theirs). */
+  readonly textTextures: number;
   dispose(): void;
 }
 
@@ -227,6 +229,9 @@ class GlCompositor implements Compositor {
   }
   get height(): number {
     return this.size[1];
+  }
+  get textTextures(): number {
+    return this.r?.text.size ?? 0;
   }
   get halfFloat(): boolean {
     return this.res().halfOk;
@@ -413,9 +418,9 @@ class GlCompositor implements Compositor {
     if (cur && cur.bitmap === bitmap) return cur.tex;
     const tex = cur?.tex ?? makeTex(gl);
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    // WebGL ignores UNPACK_PREMULTIPLY_ALPHA for ImageBitmap sources: the bitmap must already be
+    // premultiplied (MOD-Preview's rasteriser creates it with premultiplyAlpha: 'premultiply').
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     r.text.set(id, { tex, bitmap });
     return tex;
   }
@@ -437,12 +442,16 @@ class GlCompositor implements Compositor {
     gl.bindVertexArray(r.vao);
     gl.disable(gl.BLEND);
     const [bgR, bgG, bgB] = list.background;
-    const drawn: { fbo: Fbo; weight: number; opacity: number }[] = [];
+    const drawn: { fbo: Fbo | null; weight: number; opacity: number }[] = [];
     let slot: 0 | 1 = 0;
     for (const L of list.layers) {
+      if (drawn.length === 2) break;
       const i = plan.layers.findIndex((l) => l.clip.id === L.clipId);
       const frame = frames[i];
-      if (!frame) continue;
+      if (L.blank || !frame) {
+        drawn.push({ fbo: null, weight: L.weight, opacity: L.opacity });
+        continue;
+      }
       const it = this.intermediate(slot, L.intermediate.width, L.intermediate.height);
       // 1. Source upload (SDR and HDR alike: the engine's conversion, ADR-0007 outcome rule 1).
       gl.activeTexture(gl.TEXTURE0);
@@ -478,16 +487,17 @@ class GlCompositor implements Compositor {
       this.quad(L.quad);
       drawn.push({ fbo: lay, weight: L.weight, opacity: L.opacity });
       slot = 1;
-      if (drawn.length === 2) break;
     }
     // 4. Fades and cross-fades into the output (RULE-10).
     this.target(null);
     const pm = r.prog.mix;
     gl.useProgram(pm.p);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, drawn[0]?.fbo.tex ?? r.layers[0]!.tex);
+    gl.bindTexture(gl.TEXTURE_2D, drawn[0]?.fbo?.tex ?? r.layers[0]!.tex);
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, drawn[1]?.fbo.tex ?? r.layers[1]!.tex);
+    gl.bindTexture(gl.TEXTURE_2D, drawn[1]?.fbo?.tex ?? r.layers[1]!.tex);
+    gl.uniform1i(pm.u('uB0'), drawn[0] && !drawn[0].fbo ? 1 : 0);
+    gl.uniform1i(pm.u('uB1'), drawn[1] && !drawn[1].fbo ? 1 : 0);
     gl.uniform1i(pm.u('uL0'), 0);
     gl.uniform1i(pm.u('uL1'), 1);
     gl.uniform3f(pm.u('uBg'), bgR, bgG, bgB);
@@ -500,6 +510,12 @@ class GlCompositor implements Compositor {
     this.quad(FULL);
     gl.bindTexture(gl.TEXTURE_2D, null); // unit 1: the layers are render targets again next frame
     gl.activeTexture(gl.TEXTURE0);
+    // Textures of text layers no longer given are deleted.
+    for (const [id, t] of r.text)
+      if (!textBitmaps.has(id)) {
+        gl.deleteTexture(t.tex);
+        r.text.delete(id);
+      }
     // 5. Text bitmaps in stacking order, premultiplied (ADR-0012).
     if (list.texts.length) {
       const pt = r.prog.tex;

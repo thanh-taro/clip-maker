@@ -51,12 +51,21 @@ export interface DecoderLike {
   close(): void;
 }
 
-export type DecoderFactory<F extends DecodedFrame> = (output: (f: F) => void, error: (e: Error) => void) => DecoderLike;
+/** Makes a configured decoder; `software` is true on the retry after a decoder error. */
+export type DecoderFactory<F extends DecodedFrame> = (
+  output: (f: F) => void,
+  error: (e: Error) => void,
+  software: boolean,
+) => DecoderLike;
 
 /** How long a playing tick waits for the exact frame before showing the newest one (outcome rule 6). */
 export const PLAY_WAIT_MS = 20;
-/** Polls without progress before the decoder is flushed (WebKit holds frames back). */
-const IDLE_POLLS = 3;
+/** No output for this long while nothing more can be fed: the decoder holds frames back (WebKit). */
+export const IDLE_MS = 150;
+/** Packets inside the decoder at most (fed, not yet output). */
+export const MAX_IN_FLIGHT = 16;
+/** A playing request this far from the previous one is a jump (a cut or a seek), not slow decoding. */
+export const JUMP_US = 1_000_000;
 const POLL_MS = 15;
 
 const toUs = (s: number): Micros => Math.round(s * 1_000_000);
@@ -65,6 +74,11 @@ export interface FrameResult<F> {
   readonly frame: F | null;
   readonly exact: boolean;
   readonly restarted: boolean;
+}
+
+export interface SlotOptions {
+  /** Flush a decoder that holds frames back (preview). The sequential export reader never does. */
+  readonly idleFlush?: boolean;
 }
 
 export interface SlotStats {
@@ -98,6 +112,12 @@ export class DecoderSlot<F extends DecodedFrame> {
   private inFlight = 0;
   private lock: Promise<unknown> = Promise.resolve();
   private gen = 0;
+  /** After close(): no decoder is ever made again and requests answer with no frame. */
+  private closed = false;
+  /** Decoder errors since the last frame came out; the retry prefers software decoding. */
+  private failures = 0;
+  private lastProgress = 0;
+  private lastWant: Micros | null = null;
 
   constructor(
     readonly reader: TrackReader,
@@ -106,9 +126,11 @@ export class DecoderSlot<F extends DecodedFrame> {
     private readonly clone: (f: F) => F,
     private readonly max = MAX_FRAMES,
     private readonly now: () => number = () => performance.now(),
+    private readonly options: SlotOptions = {},
   ) {}
 
   private ensureDecoder(): DecoderLike {
+    if (this.closed) throw new Error('decoder slot closed');
     if (this.decoder && this.decoder.state !== 'closed' && !this.error) return this.decoder;
     if (this.decoder && this.decoder.state !== 'closed') this.decoder.close();
     this.error = null;
@@ -116,8 +138,10 @@ export class DecoderSlot<F extends DecodedFrame> {
       (f) => this.onOutput(f),
       (e) => {
         this.error = e;
+        this.failures++;
         this.wake();
       },
+      this.failures > 0,
     );
     this.needKey = true;
     return this.decoder;
@@ -130,7 +154,13 @@ export class DecoderSlot<F extends DecodedFrame> {
   }
 
   private onOutput(f: F): void {
+    if (this.closed) {
+      f.close();
+      return;
+    }
     this.inFlight = Math.max(0, this.inFlight - 1);
+    this.lastProgress = this.now();
+    this.failures = 0;
     // Edit lists arrive as negative timestamps; frames before 0 are dropped (outcome rule 1).
     if (f.timestamp < 0) {
       f.close();
@@ -188,6 +218,7 @@ export class DecoderSlot<F extends DecodedFrame> {
       if (ts > this.skipBefore) this.skipBefore = null;
     }
     this.ensureDecoder().decode(p);
+    this.lastProgress = this.now();
     this.lastFedTs = Math.max(this.lastFedTs, ts);
     this.stats.fed++;
     this.inFlight++;
@@ -195,11 +226,15 @@ export class DecoderSlot<F extends DecodedFrame> {
     this.next = n.done ? null : n.value;
   }
 
-  /** Frames at or ahead of `t`, decoded or still inside the decoder. */
+  /** Decoded frames at or ahead of `t` (packets still inside the decoder are capped separately). */
   private ahead(t: Micros): number {
-    let n = this.inFlight;
+    let n = 0;
     for (const f of this.frames) if (f.timestamp >= t - EPSILON_US) n++;
     return n;
+  }
+
+  private queue(dec: DecoderLike): number {
+    return Math.max(dec.decodeQueueSize, this.inFlight >= MAX_IN_FLIGHT ? MAX_IN_FLIGHT : 0);
   }
 
   private async wait(): Promise<void> {
@@ -224,14 +259,20 @@ export class DecoderSlot<F extends DecodedFrame> {
    * The frame shown at source time `t`. 'exact' (seek, scrub, paused, export) waits for it; 'play'
    * waits at most PLAY_WAIT_MS and otherwise returns the newest decoded frame (outcome rule 6).
    * `onCoarse` gets one copy of the first frame decoded after a keyframe restart when the target lies
-   * well past the keyframe (coarse-then-exact, outcome rule 4); the caller closes it.
+   * well past the keyframe (coarse-then-exact, outcome rule 4); the caller closes it. After close()
+   * the answer is no frame. A decoder error rejects; the next request makes a fresh decoder.
    */
-  frameAt(t: Micros, mode: FrameMode = 'exact', onCoarse?: (f: F) => void): Promise<FrameResult<F>> {
+  frameAt(t: Micros, mode: FrameMode = 'exact', onCoarse?: (f: F) => void, jump = false): Promise<FrameResult<F>> {
     const gen = ++this.gen;
     return this.withLock(async () => {
+      const none: FrameResult<F> = { frame: null, exact: false, restarted: false };
+      if (this.closed) return none;
       this.pinned = null; // the previous result has been painted
       this.target = t;
       const { want, key } = await this.wanted(t);
+      if (this.closed) return none;
+      const discontinuous = jump || this.lastWant === null || want < this.lastWant || want - this.lastWant > JUMP_US;
+      this.lastWant = want;
       this.target = want;
       const cached = pickFrame(this.frames, want);
       if (cached) return this.hit(cached, true, false);
@@ -250,16 +291,19 @@ export class DecoderSlot<F extends DecodedFrame> {
         want,
         keyTs,
         mode,
+        discontinuous,
       );
       if (restarted) {
         await this.restart(key);
+        if (this.closed) return none;
         this.coarseWanted = !!onCoarse && want - keyTs > COARSE_AFTER_FRAMES * this.frameUs;
         this.coarse = null;
       }
       const started = this.now();
-      let idle = 0;
+      this.lastProgress = started;
       try {
         for (;;) {
+          if (this.closed) return none;
           const hit = pickFrame(this.frames, want);
           if (hit) return this.hit(hit, true, restarted);
           if (this.error) throw this.error;
@@ -272,19 +316,24 @@ export class DecoderSlot<F extends DecodedFrame> {
           if (mode === 'play' && (this.now() - started >= PLAY_WAIT_MS || gen !== this.gen))
             return this.hit(newestAtOrBefore(this.frames, want), false, restarted);
           const dec = this.ensureDecoder();
-          if (
-            this.next &&
-            wantsFeed(this.lastFedTs, want, this.frameUs, dec.decodeQueueSize, this.ahead(want), this.max)
-          ) {
+          if (this.next && wantsFeed(this.lastFedTs, want, this.frameUs, this.queue(dec), this.ahead(want), this.max)) {
             await this.feed();
             continue;
           }
-          const before = this.maxOutTs;
           await this.wait();
-          if (this.maxOutTs === before && dec.decodeQueueSize === 0) idle++;
-          else idle = 0;
-          // Out of packets, or the decoder holds frames back: flush (a keyframe is needed afterwards).
-          if (idle >= IDLE_POLLS || (!this.next && dec.decodeQueueSize === 0 && idle >= 1)) {
+          if (this.closed) return none;
+          const quiet = this.now() - this.lastProgress >= IDLE_MS;
+          const ended = !this.next && dec.decodeQueueSize === 0;
+          if (!ended && quiet && !this.options.idleFlush && this.next) {
+            // The export reader never flushes mid-clip: it feeds on until the decoder lets frames out.
+            await this.feed();
+            continue;
+          }
+          // Out of packets (a clip end), or the decoder holds frames back: flush (a keyframe follows).
+          if (
+            (ended && this.now() - this.lastProgress >= POLL_MS) ||
+            (quiet && (this.options.idleFlush || !this.next))
+          ) {
             await dec.flush().catch((e: unknown) => {
               this.error = e instanceof Error ? e : new Error(String(e));
             });
@@ -309,8 +358,15 @@ export class DecoderSlot<F extends DecodedFrame> {
   prefetch(t: Micros): Promise<void> {
     const gen = this.gen;
     return this.withLock(async () => {
-      while (gen === this.gen && this.next && !this.needKey && !this.error && this.decoder?.state === 'configured') {
-        if (!wantsFeed(this.lastFedTs, t, this.frameUs, this.decoder.decodeQueueSize, this.ahead(t), this.max)) break;
+      while (
+        gen === this.gen &&
+        !this.closed &&
+        this.next &&
+        !this.needKey &&
+        !this.error &&
+        this.decoder?.state === 'configured'
+      ) {
+        if (!wantsFeed(this.lastFedTs, t, this.frameUs, this.queue(this.decoder), this.ahead(t), this.max)) break;
         await this.feed();
       }
     });
@@ -323,7 +379,9 @@ export class DecoderSlot<F extends DecodedFrame> {
 
   /** Ends a cross-clip use: flush happens at clip ends and seeks only (outcome rule 3). */
   close(): void {
+    this.closed = true;
     this.gen++;
+    this.wake();
     for (const f of this.frames) f.close();
     this.frames = [];
     this.pinned = null;

@@ -3,8 +3,23 @@
 // errors, context-loss recovery (ADR-0006 outcome rule 6), release (ADR-0003 §5).
 import { describe, expect, it } from 'vitest';
 import type { EngineMedia, FromEngine, Project, ToEngine } from '../../src/core';
-import { BUDGETS, Engine, SLOW_PAINTS, type EngineDeps, type SlotLike, type VideoSourceLike } from '../../src/engine';
-import { FakeCompositor, FakeFrame, fakeSlot, type TrackOptions } from '../support/engine';
+import {
+  BUDGETS,
+  Engine,
+  runKeys,
+  SLOW_PAINTS,
+  type EngineDeps,
+  type SlotLike,
+  type VideoSourceLike,
+} from '../../src/engine';
+import {
+  FakeCompositor,
+  FakeFrame,
+  fakeSlot,
+  type DecoderLog,
+  type DecoderOptions,
+  type TrackOptions,
+} from '../support/engine';
 import { photo, proj, S, video } from '../support/project';
 
 const ts30 = (k: number): number => Math.floor((k * 1_000_000) / 30);
@@ -33,6 +48,7 @@ function rig(
     open?: EngineDeps['openVideo'];
     media?: EngineMedia[];
     now?: () => number;
+    coarseCopy?: EngineDeps['coarseCopy'];
   } = {},
 ): Rig {
   const comp = new FakeCompositor();
@@ -42,7 +58,9 @@ function rig(
     createCompositor: () => comp,
     openVideo: opts.open ?? (async () => source({ rate: 30, frames: 300, gop: 30 })),
     effectsCheck: async () => ({ ok: true, fps: 45, slow: false }),
-    coarseCopy: async (f) => ({ width: 64, height: 36, close: () => undefined, timestamp: f.timestamp }) as never,
+    coarseCopy:
+      opts.coarseCopy ??
+      (async (f) => ({ width: 64, height: 36, close: () => undefined, timestamp: f.timestamp }) as never),
     budget: BUDGETS.laptop,
     phone: false,
     now: opts.now ?? (() => performance.now()),
@@ -240,5 +258,143 @@ describe('MOD-Engine messages', () => {
     await r.send({ type: 'engine:looks', tables: { x: new Uint8Array(4) } });
     expect(r.comp.looks).toBe(1);
     expect(r.comp.paints.length).toBe(n + 2);
+  });
+});
+
+/** A source whose slots each keep their own decode log. */
+function logged(track: TrackOptions, dec: DecoderOptions, logs: DecoderLog[]): VideoSourceLike {
+  return source(track, () => {
+    const log: DecoderLog = { decoded: [], restarts: 0, flushes: 0 };
+    logs.push(log);
+    return fakeSlot(track, dec, log) as unknown as SlotLike;
+  });
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+describe('MOD-Engine review fixes (E3)', () => {
+  it('F-002.R1 changes arriving during an in-flight seek are painted, and the queued seek is not lost', async () => {
+    const r = rig(twoClips(), {
+      open: async () =>
+        source(
+          { rate: 30, frames: 300, gop: 30 },
+          () => fakeSlot({ rate: 30, frames: 300, gop: 30 }, { delayMs: 10 }) as unknown as SlotLike,
+        ),
+    });
+    await r.send({ type: 'engine:seek', t: 0 });
+    r.engine.handle({ type: 'engine:seek', t: ts30(40) }); // in flight
+    await sleep(2);
+    r.engine.handle({ type: 'engine:seek', t: ts30(80) }); // queued
+    r.engine.handle({ type: 'engine:compare', clipId: 'a' }); // arrives during the render
+    await r.engine.settled();
+    expect(r.comp.paints.at(-1)).toMatchObject({ frameIndex: 80, compare: 'a' });
+    // Paused at the same frame, an edit during the render is still painted.
+    r.engine.handle({ type: 'engine:seek', t: ts30(20) });
+    await sleep(2);
+    r.engine.handle({ type: 'engine:compare', clipId: null });
+    await r.engine.settled();
+    expect(r.comp.paints.at(-1)).toMatchObject({ frameIndex: 20, compare: null });
+  });
+
+  it('F-002.R3 a seek while playing restarts at the target keyframe (no decoding through the gap)', async () => {
+    const logs: DecoderLog[] = [];
+    const track = { rate: 30, frames: 900, gop: 30 };
+    const r = rig(proj({ clips: [video('a', 30)] }), { open: async () => logged(track, { delayMs: 2 }, logs) });
+    await r.send({ type: 'engine:tick', t: 0, playing: true });
+    r.engine.handle({ type: 'engine:tick', t: ts30(1), playing: true });
+    r.engine.handle({ type: 'engine:seek', t: ts30(400) });
+    r.engine.handle({ type: 'engine:tick', t: ts30(400) + 1000, playing: true }); // replaces the seek, stays one
+    await r.engine.settled();
+    await sleep(30);
+    const decoded = logs.flatMap((l) => l.decoded);
+    expect(decoded.some((t) => t > ts30(60) && t < ts30(390))).toBe(false);
+    expect(decoded).toContain(ts30(390));
+  });
+
+  it('MOD-Engine a cut within one source warms its own decoder and never shows the removed footage', async () => {
+    const logs: DecoderLog[] = [];
+    const track = { rate: 30, frames: 300, gop: 30 };
+    const p = proj({ clips: [video('a', 2, { sourceId: 'src-x' }), video('b', 7, { sourceId: 'src-x' }, 5)] });
+    expect(new Set(runKeys(p.clips).values()).size).toBe(2);
+    const r = rig(p, { open: async () => logged(track, { delayMs: 3 }, logs) });
+    for (let k = 0; k < 60; k += 2) await r.send({ type: 'engine:tick', t: ts30(k), playing: true });
+    await sleep(40);
+    expect(logs.length).toBe(2); // the next clip's decoder is warm before the cut
+    await r.send({ type: 'engine:tick', t: ts30(60), playing: true });
+    expect(r.comp.paints.at(-1)!.frames).toEqual([5 * S]);
+    expect(r.shown().at(-1)!.exact).toBe(true);
+    const decoded = logs.flatMap((l) => l.decoded);
+    expect(decoded.some((t) => t > 2.5 * S && t < 5 * S)).toBe(false);
+  });
+
+  it('F-009 while playing, a cross-fade whose second frame is missing keeps the previous picture; paused it paints background-only', async () => {
+    const p = proj({ clips: [video('a', 4, { crossFadeNext: S }), video('b', 4)] });
+    const r = rig(p, {
+      open: async (id) =>
+        id === 'src-b' ? Promise.reject(new Error('codec')) : source({ rate: 30, frames: 300, gop: 30 }),
+    });
+    await r.send({ type: 'engine:tick', t: ts30(80), playing: true });
+    const n = r.comp.paints.length;
+    await r.send({ type: 'engine:tick', t: ts30(100), playing: true });
+    expect(r.comp.paints.length).toBe(n);
+    expect(r.events.some((e) => e.type === 'engine:stalled')).toBe(true);
+    await r.send({ type: 'engine:seek', t: ts30(100) });
+    expect(r.comp.paints.at(-1)!.frames).toEqual([ts30(100), null]);
+  });
+
+  it('ADR-0003 release during an in-flight render neither paints nor reports a source error', async () => {
+    const r = rig(twoClips(), {
+      open: async () =>
+        source(
+          { rate: 30, frames: 300, gop: 30 },
+          () => fakeSlot({ rate: 30, frames: 300, gop: 30 }, { delayMs: 30 }) as unknown as SlotLike,
+        ),
+    });
+    await r.send({ type: 'engine:seek', t: 0 });
+    const n = r.comp.paints.length;
+    r.engine.handle({ type: 'engine:seek', t: ts30(50) });
+    await sleep(5);
+    r.engine.handle({ type: 'engine:release' });
+    await r.engine.settled();
+    await sleep(60);
+    expect(r.events.some((e) => e.type === 'engine:sourceError')).toBe(false);
+    expect(r.comp.paints.length).toBe(n);
+  });
+
+  it('RULE-22 one transient decoder error does not refuse the source; repeated failures do', async () => {
+    const track = { rate: 30, frames: 300, gop: 30 };
+    const once = rig(twoClips(), {
+      open: async () => source(track, () => fakeSlot(track, { failDecoders: 1 }) as unknown as SlotLike),
+    });
+    await once.send({ type: 'engine:seek', t: ts30(12) });
+    expect(once.events.some((e) => e.type === 'engine:sourceError')).toBe(false);
+    expect(once.shown().at(-1)).toMatchObject({ frameIndex: 12, exact: true });
+    const always = rig(twoClips(), {
+      open: async () => source(track, () => fakeSlot(track, { failDecoders: 9 }) as unknown as SlotLike),
+    });
+    await always.send({ type: 'engine:seek', t: ts30(12) });
+    expect(always.events.filter((e) => e.type === 'engine:sourceError')).toEqual([
+      { type: 'engine:sourceError', id: 'src-a' },
+    ]);
+  });
+
+  it('MOD-Engine a coarse copy finishing after its source was removed is closed', async () => {
+    let made = 0;
+    let closed = 0;
+    const r = rig(twoClips(), {
+      open: async () => source({ rate: 30, frames: 300, gop: 300 }),
+      coarseCopy: async () => {
+        made++;
+        await sleep(40);
+        return { width: 1, height: 1, close: () => closed++ };
+      },
+    });
+    r.engine.handle({ type: 'engine:seek', t: ts30(50) });
+    await sleep(5);
+    r.engine.handle({ type: 'engine:media', media: [] }); // copies still in progress
+    await r.engine.settled();
+    await sleep(80);
+    expect(made).toBeGreaterThan(0);
+    expect(closed).toBe(made);
   });
 });

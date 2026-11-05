@@ -181,9 +181,29 @@ describe('RULE-04 / RULE-10 background, fades and cross-fades', () => {
     expect(list.texts).toEqual([]);
   });
 
-  it('F-002.R1 a layer without its frame is left out (its background shows)', () => {
+  it('F-002.R1 a layer without its frame is drawn as its background only', () => {
     const p = proj({ clips: [video('a', 4)] });
-    expect(drawList(framePlan(p, 0), 1920, 1080, [null], NO_TEXT).layers).toEqual([]);
+    const layers = drawList(framePlan(p, 0), 1920, 1080, [null], NO_TEXT).layers;
+    expect(layers).toHaveLength(1);
+    expect(layers[0]).toMatchObject({ clipId: 'a', blank: true, weight: 1, opacity: 1 });
+  });
+
+  it('F-009 a cross-fade with one frame missing keeps both weights: the missing one contributes its background', () => {
+    const p = proj({ clips: [video('a', 4, { crossFadeNext: S }), video('b', 4)] });
+    const plan = framePlan(p, 3 * 30 + 15);
+    const list = drawList(plan, 1920, 1080, [HD, null], NO_TEXT);
+    expect(list.layers.map((l) => [l.clipId, l.blank])).toEqual([
+      ['a', false],
+      ['b', true],
+    ]);
+    expect(list.layers[0]!.weight + list.layers[1]!.weight).toBeCloseTo(1, 9);
+    // The mix of a clip pixel with a missing partner on white: weight × clip + weight × white (not darker).
+    const white = { fadeTo: [1, 1, 1] as const, background: [1, 1, 1] as const };
+    const c = mixPixel(white, [
+      { colour: [0, 0, 0], weight: list.layers[0]!.weight, opacity: 1 },
+      { colour: white.background, weight: list.layers[1]!.weight, opacity: 1 },
+    ]);
+    expect(c[0]).toBeCloseTo(list.layers[1]!.weight, 9);
   });
 });
 

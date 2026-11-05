@@ -388,6 +388,75 @@ export const videoHarness = {
     return sync !== null && sync.controller.state.peek() === 'playing' && sync.playback.now() > 0;
   },
 
+  /**
+   * F-009 on the GPU: a cross-fade on white whose second clip has no frame. Returns the centre pixel
+   * and the plan's weights (the missing clip must contribute its background, not darken the picture).
+   */
+  async crossFadeMissing(): Promise<{ px: number[]; w0: number; w1: number }> {
+    const c = new OffscreenCanvas(64, 36);
+    const g = c.getContext('2d')!;
+    g.fillStyle = 'rgb(255,0,0)';
+    g.fillRect(0, 0, 64, 36);
+    const red = await createImageBitmap(c);
+    const base = photoProject(64, 36, {}, null);
+    const clip = base.clips[0]!;
+    const project: Project = {
+      ...base,
+      frame: { aspect: '16:9', frameRate: 30, background: 'white' },
+      clips: [
+        { ...clip, id: 'p1', crossFadeNext: 1_000_000 },
+        { ...clip, id: 'p2' },
+      ],
+    };
+    const comp = createCompositor(new OffscreenCanvas(64, 36), new Map(), { preserve: true });
+    const plan = framePlan(project, 75); // inside the 1 s cross-fade (frames 60–89)
+    comp.paint(plan, [{ image: red, width: 64, height: 36, rotation: 0 }, null]);
+    const all = comp.readPixels();
+    const i = (18 * 64 + 32) * 4;
+    comp.dispose();
+    red.close();
+    return { px: Array.from(all.subarray(i, i + 3)), w0: plan.layers[0]!.weight, w1: plan.layers[1]!.weight };
+  },
+
+  /** Text textures of layers no longer given are deleted (counts before and after). */
+  async textTextures(): Promise<[number, number]> {
+    const c = new OffscreenCanvas(16, 8);
+    c.getContext('2d')!.fillRect(0, 0, 16, 8);
+    const bitmap = await createImageBitmap(c, { premultiplyAlpha: 'premultiply' });
+    const base = photoProject(64, 36, {}, null);
+    const text = (id: string) => ({
+      id,
+      content: id,
+      start: 0,
+      end: 3_000_000,
+      typeface: 'sans' as const,
+      size: 6,
+      colour: 'white' as const,
+      style: 'plain' as const,
+      align: 'centre' as const,
+      x: 0.5,
+      y: 0.5,
+      fade: false,
+    });
+    const project: Project = { ...base, textLayers: [text('t1'), text('t2')] };
+    const comp = createCompositor(new OffscreenCanvas(64, 36), new Map(), { preserve: true });
+    const plan = framePlan(project, 0);
+    comp.paint(
+      plan,
+      [null],
+      new Map([
+        ['t1', { bitmap, s: 36 }],
+        ['t2', { bitmap, s: 36 }],
+      ]),
+    );
+    const before = comp.textTextures;
+    comp.paint(plan, [null], new Map([['t1', { bitmap, s: 36 }]]));
+    const after = comp.textTextures;
+    comp.dispose();
+    bitmap.close();
+    return [before, after];
+  },
+
   /** RULE-22 effects check in this engine. */
   effects: () => effectsCheck(),
 };
