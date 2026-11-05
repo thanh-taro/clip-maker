@@ -1,0 +1,356 @@
+/* MOD-App — CMP-StatusBar (specs/30-experience/components/CMP-StatusBar.md; design board
+   CMP-StatusBar.dc.html), tokens only. wide: success dot, badge text, source link with an external-link
+   icon. narrow (< 700 px, D-038): shield icon and the badge at the smallest type size, kept whole down to
+   320 px (F-020.AC1), and an icon-only source link; both extend their hit area to touch size (RULE-21).
+   The privacy details popover sits above the badge (F-020.R2); the notices view is a modal dialog (R4). */
+@layer layout {
+  .tk-status-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-3);
+    min-inline-size: 0;
+    padding-inline: var(--tk-space-2);
+    background: var(--tk-color-bg);
+    border-block-start: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+  }
+
+  .tk-privacy-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tk-space-2);
+    min-inline-size: 0;
+    block-size: var(--tk-size-target-min);
+    padding-inline: var(--tk-space-2);
+    border: 0;
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    color: var(--tk-color-muted);
+    font-size: inherit;
+    font-weight: var(--tk-font-weight-medium);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .tk-privacy-badge:hover,
+  .tk-privacy-badge[aria-expanded='true'] {
+    background: var(--tk-color-surface2);
+    color: var(--tk-color-fg);
+  }
+
+  .tk-privacy-badge__dot {
+    flex: none;
+    inline-size: var(--tk-space-2);
+    block-size: var(--tk-space-2);
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-success);
+  }
+
+  .tk-privacy-badge__icon {
+    display: none;
+    color: var(--tk-color-success);
+  }
+
+  .tk-source-link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tk-space-1);
+    min-block-size: var(--tk-size-target-min);
+    color: var(--tk-color-fg);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    white-space: nowrap;
+  }
+
+  .tk-source-link__code {
+    display: none;
+  }
+
+  @container tk-editor (width < 700px) {
+    .tk-status-bar {
+      gap: 0;
+      padding-inline: var(--tk-space-1) 0;
+      font-size: var(--tk-font-size-2xs);
+    }
+
+    .tk-privacy-badge {
+      gap: var(--tk-space-1);
+      block-size: var(--tk-size-statusbar);
+      padding-inline: var(--tk-space-1);
+    }
+
+    .tk-privacy-badge__dot {
+      display: none;
+    }
+
+    .tk-privacy-badge__icon {
+      display: inline;
+    }
+
+    /* Icon-only source link at the end of the row; its words stay as the accessible name. */
+    .tk-source-link {
+      display: grid;
+      place-items: center;
+      flex: none;
+      margin-inline-start: auto;
+      inline-size: var(--tk-size-touch-target);
+      block-size: var(--tk-size-statusbar);
+    }
+
+    .tk-source-link__text {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .tk-source-link__external {
+      display: none;
+    }
+
+    .tk-source-link__code {
+      display: inline;
+    }
+
+    /* Touch-size hit areas reaching into the safe area below the row (CMP-StatusBar "narrow"). */
+    .tk-privacy-badge::after,
+    .tk-source-link::after {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      inset-block: calc((var(--tk-size-statusbar) - var(--tk-size-touch-target)) / 2);
+    }
+  }
+
+  /* wide with a coarse pointer: the same touch-size hit areas (RULE-21, NFR-06). */
+  @media (pointer: coarse) {
+    .tk-privacy-badge::after,
+    .tk-source-link::after {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      inset-block: calc((var(--tk-size-target-min) - var(--tk-size-touch-target)) / 2);
+    }
+  }
+
+  /* Quiet icon buttons of the popover and the notices view. */
+  .tk-privacy-details .tk-icon-button,
+  .tk-notices .tk-icon-button {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    inline-size: var(--tk-size-tool-button);
+    block-size: var(--tk-size-tool-button);
+    padding: 0;
+    border: var(--tk-border-width-hairline) solid transparent;
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    color: var(--tk-color-muted);
+    cursor: pointer;
+  }
+
+  .tk-privacy-details .tk-icon-button:hover,
+  .tk-notices .tk-icon-button:hover {
+    background: var(--tk-color-surface2);
+    color: var(--tk-color-fg);
+  }
+
+  @media (pointer: coarse) {
+    .tk-privacy-details .tk-icon-button,
+    .tk-notices .tk-icon-button {
+      inline-size: var(--tk-size-touch-target);
+      block-size: var(--tk-size-touch-target);
+    }
+  }
+
+  /* Privacy details (CMP-StatusBar "privacy details open"): above the badge, at most the popover width. */
+  .tk-privacy-details {
+    position: absolute;
+    z-index: 1;
+    inset-inline-start: var(--tk-space-2);
+    inset-block-end: calc(100% + var(--tk-space-2));
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-2);
+    inline-size: min(var(--tk-size-popover), 100% - 2 * var(--tk-space-2));
+    /* Never clipped in a short host frame: the popover scrolls instead. */
+    max-block-size: calc(100dvh - var(--tk-size-statusbar) - 2 * var(--tk-space-2));
+    overflow: auto;
+    padding-block: var(--tk-space-3);
+    padding-inline: var(--tk-space-3-5) var(--tk-space-1);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-xs);
+    line-height: var(--tk-font-line-height-normal);
+  }
+
+  .tk-privacy-details:focus {
+    outline: none;
+  }
+
+  .tk-privacy-details__head {
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-privacy-details__icon {
+    color: var(--tk-color-success);
+  }
+
+  .tk-privacy-details__title {
+    flex: 1;
+    margin: 0;
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-bold);
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  .tk-privacy-details__body {
+    margin: 0;
+    padding-inline-end: var(--tk-space-2-5);
+  }
+
+  .tk-privacy-details__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--tk-space-2);
+    padding-inline-end: var(--tk-space-2-5);
+  }
+
+  /* Dialog primary actions are outlined in accent (style.md principle 2). */
+  .tk-button--outlined-accent {
+    border-color: var(--tk-color-accent);
+    color: var(--tk-color-accent);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  /* Licence notices view (CMP-StatusBar "licence notices view"): an in-tool modal dialog. */
+  .tk-notices {
+    inline-size: min(100% - 2 * var(--tk-space-4), 3 * var(--tk-size-panel));
+    max-inline-size: none;
+    max-block-size: calc(100% - 2 * var(--tk-space-4));
+    padding: 0;
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    line-height: var(--tk-font-line-height-normal);
+  }
+
+  .tk-notices[open] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tk-notices::backdrop {
+    background: var(--tk-color-scrim);
+  }
+
+  .tk-notices__head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--tk-space-2);
+    block-size: var(--tk-size-touch-target);
+    padding-inline: var(--tk-space-1);
+    border-block-end: var(--tk-border-width-hairline) solid var(--tk-color-line);
+  }
+
+  .tk-notices__title {
+    flex: 1;
+    margin: 0;
+    font-size: var(--tk-font-size-md);
+    font-weight: var(--tk-font-weight-bold);
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  .tk-notices__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-3);
+    padding: var(--tk-space-2) var(--tk-space-4) var(--tk-space-4);
+    overflow: auto;
+  }
+
+  .tk-notices__heading {
+    margin: 0 0 var(--tk-space-1);
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-2xs);
+    font-weight: var(--tk-font-weight-semibold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .tk-notices__table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .tk-notices__table th,
+  .tk-notices__table td {
+    padding: var(--tk-space-0-5) var(--tk-space-2) var(--tk-space-0-5) 0;
+    border-block-end: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    text-align: start;
+    line-height: var(--tk-font-line-height-tight);
+    overflow-wrap: anywhere;
+  }
+
+  .tk-notices__table th {
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-notices__table th:first-child {
+    inline-size: 34%;
+  }
+
+  .tk-notices__table th:nth-child(2) {
+    inline-size: 46%;
+  }
+
+  .tk-notices__source {
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-xs);
+  }
+
+  .tk-notices__text {
+    margin-block-start: var(--tk-space-2);
+  }
+
+  .tk-notices__text-title {
+    margin: 0 0 var(--tk-space-1);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-notices__text-body {
+    margin: 0;
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-2xs);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  @media (forced-colors: active) {
+    .tk-status-bar {
+      border-color: CanvasText;
+    }
+
+    .tk-privacy-badge__dot {
+      background: CanvasText;
+    }
+  }
+}

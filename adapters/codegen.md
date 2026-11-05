@@ -12,7 +12,7 @@ produce.
 | `scripts/gen-types.mjs` | `specs/10-domain/project.schema.json` | `src/core/project.gen.ts` | MOD-Core types (`Project`, `Clip`, `TextLayer`, …) |
 | `scripts/gen-copy.mjs` | `specs/30-experience/copy.md` | `src/copy/messages.gen.ts` | MOD-Copy `t(id, params)` |
 | `scripts/gen-looks.mjs` | `specs/30-experience/looks.md` (+ copy.md) | `src/core/looks.gen.ts` | `LOOK_IDS`, `LOOK_GROUPS`, `LOOKS` (RULE-09) |
-| `scripts/gen-notices.mjs` | `specs/40-technical/dependencies.md` + installed packages | `public/third-party-notices.txt` | shipped at `/third-party-notices.txt`; the in-tool notices view (F-020.R4) |
+| `scripts/gen-notices.mjs` | `specs/40-technical/dependencies.md` + installed packages | `public/third-party-notices.txt`, `src/app/notices.gen.ts` | shipped at `/third-party-notices.txt`; the in-tool notices view's rows (F-020.R4, compiled into the page) |
 | `scripts/gen-headers.mjs` | `src/host/boot.js` + `HOST_ORIGINS` + `TOOL_ORIGIN` | `public/_headers` | Cloudflare static assets (phase 7), `vite preview` (local release preview) |
 
 `scripts/gen-all.mjs` runs all six; `--check` compares instead of writing. Build-time outputs (not
@@ -23,7 +23,7 @@ Still to come with their features: `gen-looks` table packing (`.cube` → 33³ P
 ## Tokens → CSS custom properties and the text palette
 - Style Dictionary 5 (DEP-20) formats the values; the script only splits the colour themes.
 - Names: `--tk-<path in kebab case>`, e.g. `color.lineStrong` → `--tk-color-line-strong`,
-  `size.toolButton` → `--tk-size-tool-button`, `space.1_5` → `--tk-space-1_5`. Colour names drop
+  `size.toolButton` → `--tk-size-tool-button`, `space.1_5` → `--tk-space-1-5` (the generator turns `_` into `-`). Colour names drop
   the theme segment (`color.dark.bg` and `color.light.bg` are both `--tk-color-bg`).
 - Scheme (adapters/design.md, same as the portal): everything inside `@layer tokens`; **dark**
   values and all non-colour tokens on `:root`; **light** colours under `[data-theme="light"]`; a
@@ -64,6 +64,13 @@ Still to come with their features: `gen-looks` table packing (`.cube` → 33³ P
   with its installed version, licence and licence file text; MPL-2.0 packages (ADR-0005) also get
   "used unmodified" and a link to the exact source tag of the shipped version. CC-BY rows (build-time
   data) get an attribution line. Bundled music tracks join once registered (ADR-0013).
+- `notices.gen.ts` holds the in-tool view's rows (F-020.R4, "every shipped dependency and asset"):
+  `NOTICE_FONTS` (each `@fontsource*` package, titled by its family name), `NOTICE_CODE` (every other
+  shipped package, titled `<name> <version>`, source `npmjs.com/package/<name>`, the package's
+  licence; then each shipped asset row that is the owner's own work, e.g. DEP-12 and DEP-13, source
+  the repository) and `NOTICE_TEXTS` (the notices a registry row says must be kept, "(+ X notice)",
+  e.g. DEP-11's Feather MIT notice, in full; generation fails if the text is not in the package's
+  licence file). The view adds MOD-Core's `MUSIC_TRACKS` (title, source, licence) at run time.
 
 ## Boot script and `_headers`
 - `src/host/boot.js` is the only inline script. `scripts/lib/boot.mjs` strips its comment-only
