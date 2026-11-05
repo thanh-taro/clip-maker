@@ -12,7 +12,7 @@ import {
 } from '../../src/core';
 import { framePlan } from '../../src/plan';
 import * as P from '../../src/project';
-import { S, audioSource, photoSource, proj, videoSource } from '../support/project';
+import { S, TRACKS, audioSource, photoSource, proj, videoSource } from '../support/project';
 
 type Op = (p: Project, nextId: () => string) => P.EditResult;
 type Pick = 'any' | 'clip' | 'text' | 'audio';
@@ -49,10 +49,11 @@ const edge = fc.constantFrom<'start' | 'end'>('start', 'end');
 
 const opArb: fc.Arbitrary<Op> = fc.oneof(
   fc
-    .tuple(fc.integer({ min: 1, max: 600 }), fc.constantFrom('video', 'photo', 'audio'))
-    .map(([tenths, kind]): Op => (p, nextId) => {
+    // Durations from one 60 fps frame (below every minimum) up to 60 s (review E1 #10).
+    .tuple(fc.integer({ min: 16_667, max: 60 * S }), fc.constantFrom('video', 'photo', 'audio'))
+    .map(([us, kind]): Op => (p, nextId) => {
       const id = nextId();
-      const secs = tenths / 10 + 0.2;
+      const secs = us / S;
       const src = kind === 'audio' ? audioSource(id, secs) : kind === 'photo' ? photoSource(id) : videoSource(id, secs);
       return P.addMedia(p, [src], at(p, 500), nextId);
     }),
@@ -62,7 +63,10 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   on('clip', fc.integer({ min: 0, max: 60 * S }), (p, id, x) => P.setClipIn(p, id, x)),
   on('clip', fc.integer({ min: 0, max: 60 * S }), (p, id, x) => P.setClipOut(p, id, x)),
   on('clip', fc.integer({ min: 0, max: 70 * S }), (p, id, x) => P.setPhotoDuration(p, id, x)),
-  on('any', fc.tuple(frac, edge), (p, id, [x, e]) => P.trimTo(p, id, e, at(p, x), 30 * S)),
+  // With and without the music catalog: an unknown track end must never let a clip grow.
+  on('any', fc.tuple(frac, edge, fc.boolean()), (p, id, [x, e, catalog]) =>
+    catalog ? P.trimTo(p, id, e, at(p, x), TRACKS) : P.trimTo(p, id, e, at(p, x)),
+  ),
   on('any', frac, (p, id, x, nextId) => P.splitAt(p, id, at(p, x), nextId)),
   on('clip', fc.integer({ min: 0, max: 500 }), (p, id, s) => P.setSpeed(p, id, s)),
   on('clip', fc.integer({ min: 0, max: 30 }), (p, id, x) => P.setCrossFade(p, id, x)),
@@ -76,17 +80,17 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   ),
   on('text', fc.tuple(frac, frac), (p, id, [a, b]) => P.setTextTimes(p, id, at(p, a), at(p, b))),
   on('any', fc.integer({ min: -400, max: 400 }), (p, id, d) => P.moveItemTime(p, id, d)),
-  fc.tuple(fc.integer({ min: 1, max: 300 }), frac).map(
-    ([tenths, x]): Op =>
+  fc.tuple(fc.constantFrom(...TRACKS.map((t) => t.id)), frac).map(
+    ([track, x]): Op =>
       (p, nextId) =>
-        P.addMusic(p, { id: 'music', duration: tenths * 100_000 }, at(p, x), nextId),
+        P.addMusic(p, track, at(p, x), nextId, TRACKS),
   ),
   on('audio', frac, (p, id, x) => P.moveAudio(p, id, at(p, x))),
   on('audio', fc.constant(0), (p, id, _, nextId) => P.duplicateAudio(p, id, nextId)),
-  fc.constantFrom<FrameRate>(24, 25, 30, 60).map(
-    (r): Op =>
+  fc.tuple(fc.constantFrom<FrameRate>(24, 25, 30, 60), fc.boolean()).map(
+    ([r, catalog]): Op =>
       (p) =>
-        P.setFrameRate(p, r),
+        catalog ? P.setFrameRate(p, r, TRACKS) : P.setFrameRate(p, r),
   ),
   idx.map(
     (i): Op =>
@@ -99,15 +103,18 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
 const seedArb = fc
   .tuple(
     fc.array(fc.integer({ min: 2, max: 900 }), { minLength: 1, maxLength: 5 }),
+    fc.boolean(),
     fc.constantFrom<FrameRate>(24, 25, 30, 60),
   )
-  .map(([tenths, rate]) => {
+  .map(([tenths, chosen, rate]) => {
     let n = 0;
     const nextId = () => `s${++n}`;
-    const sources = tenths.map((d, i) => (i % 3 === 2 ? photoSource(`v${i}`) : videoSource(`v${i}`, d / 10)));
+    const sources = tenths.map((d, i) =>
+      i % 3 === 2 ? photoSource(`v${i}`) : videoSource(`v${i}`, d / 10, { frameRate: i === 1 ? 60 : 30 }),
+    );
     let p: Project = {
       ...proj({ rate }),
-      frame: { aspect: 'original' as const, frameRate: rate, background: 'black' as const, frameRateChosen: true },
+      frame: { aspect: 'original' as const, frameRate: rate, background: 'black' as const, frameRateChosen: chosen },
     };
     p = P.addMedia(p, [...sources, audioSource('a0', 7)], 0, nextId).project;
     p = P.addText(p, 0, nextId).project;
@@ -123,12 +130,12 @@ it('INV-03 INV-04 INV-06 hold after every operation (with RULE-05 minimums and R
       let n = 0;
       const nextId = () => `x${++n}`;
       let p = seed;
-      expect(invariantViolations(p)).toEqual([]);
+      expect(invariantViolations(p, TRACKS)).toEqual([]);
       for (const op of ops) {
         const r = op(p, nextId);
         if (r.project === p) continue;
         changed++;
-        expect(invariantViolations(r.project)).toEqual([]);
+        expect(invariantViolations(r.project, TRACKS)).toEqual([]);
         expect(projectFrames(r.project)).toBeLessThanOrEqual(maxProjectFrames(r.project.frame.frameRate));
         expect(Object.isFrozen(r.project)).toBe(true);
         p = r.project;

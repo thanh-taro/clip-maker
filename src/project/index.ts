@@ -42,13 +42,20 @@ export const unexported = computed(() => !isEmpty.value && epoch.value !== expor
 
 let gestureToken: number | null = null;
 let gestureCounter = 0;
+/** The change epoch before the open gesture's first step (RULE-19). */
+let gestureEpoch: number | null = null;
 
-/** RULE-13: one continuous drag, slider movement or text editing session is one step. */
-export function beginGesture(_key: string): void {
+/**
+ * RULE-13: one continuous drag, slider movement or text editing session is one step. Every edit made
+ * until `endGesture` coalesces into a single step.
+ */
+export function beginGesture(): void {
   gestureToken = ++gestureCounter;
+  gestureEpoch = null;
 }
 export function endGesture(): void {
   gestureToken = null;
+  gestureEpoch = null;
 }
 
 /** Apply an operation to the session's project as one undo step (none when nothing changed). */
@@ -58,11 +65,15 @@ export function edit(op: (p: Project) => EditResult): readonly Notice[] {
   if (r.project !== before) {
     const step: Step = { before, after: r.project, changed: r.changed, gesture: gestureToken };
     const old = history.value;
+    if (gestureToken !== null && gestureEpoch === null) gestureEpoch = epoch.value;
     history.value = record(old, step);
-    // A gesture that ended where it began leaves no step; keep the original document's identity.
+    // A gesture that ended where it began leaves no step: keep the original document's identity, and
+    // (RULE-19) the change epoch it had, since no undo step was made.
     const dropped = history.value.past.length < old.past.length;
+    const wasExported = exportedEpoch.value === gestureEpoch;
     project.value = dropped ? old.past[old.past.length - 1]!.before : r.project;
     epoch.value++;
+    if (dropped && wasExported) exportedEpoch.value = epoch.value;
   }
   return r.notices;
 }

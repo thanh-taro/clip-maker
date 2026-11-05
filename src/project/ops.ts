@@ -4,10 +4,10 @@
 // changed (selected after undo or redo, RULE-13).
 import {
   DEFAULT_PLACEMENT,
+  MUSIC_TRACKS,
   RULE_04,
   RULE_05,
   RULE_06,
-  RULE_10,
   RULE_02,
   RULE_11,
   RULE_12,
@@ -20,16 +20,20 @@ import {
   clipFrames,
   crossFadeLimit,
   fitClipFrames,
-  frameAtOrAfter,
+  fitAudioFades,
   frameIndexAt,
   frameStart,
   framesOf,
   isBlankText,
+  isTooShort,
+  maxAudioFadeFrames,
   layoutClips,
   maxClipFadeFrames,
   maxProjectFrames,
   minCrossFadeFrames,
   minDuration,
+  retimeAudio,
+  retimeClip,
   minFrames,
   moveTarget,
   nearestFrame,
@@ -42,7 +46,11 @@ import {
   rangeForFrames,
   secondsToFrames,
   snapToFrame,
+  sourceEnd,
+  speedFor,
   speedOf,
+  splitClip,
+  trimAudioClip,
   type Adjustments,
   type AdjustmentName,
   type AudioClip,
@@ -51,6 +59,7 @@ import {
   type FrameRate,
   type Look,
   type Micros,
+  type MusicTrack,
   type Notice,
   type Placement,
   type Project,
@@ -91,8 +100,6 @@ const result = (p: Project, next: Project, changed: readonly string[], notices: 
 
 const rateOf = (p: Project): FrameRate => p.frame.frameRate;
 const clipIndex = (p: Project, id: string): number => p.clips.findIndex((c) => c.id === id);
-const sourceDuration = (p: Project, sourceId: string): Micros =>
-  p.sources.find((s) => s.id === sourceId)?.duration ?? Infinity;
 const trackContext = (p: Project): TrackContext => ({
   rate: rateOf(p),
   projectEnd: projectEnd(p),
@@ -114,8 +121,10 @@ function commitClips(p: Project, clips: readonly Clip[], changed: readonly strin
 }
 
 /**
- * Commit a clip whose length changed (trim, speed, duration): when the project would pass the limit,
- * the change stops at the limit along `edge` with COPY-notice.length_limited (RULE-03).
+ * Commit a clip whose length changed (trim, duration): when a longer clip would pass the limit, it
+ * stops at the limit along `edge` with COPY-notice.length_limited (RULE-03). A shorter clip that would
+ * pass it (its cross-fades shrink or go) is refused with COPY-notice.length_full: a cross-fade being
+ * removed or shortened past the limit is refused (RULE-03), and a clip is never cut shorter than asked.
  */
 function commitLength(p: Project, index: number, candidate: Clip, edge: 'start' | 'end'): EditResult {
   const rate = rateOf(p);
@@ -123,7 +132,9 @@ function commitLength(p: Project, index: number, candidate: Clip, edge: 'start' 
   const normal = normaliseClips(clips, rate);
   if (layoutClips(normal, rate).frames <= maxProjectFrames(rate))
     return result(p, { ...p, clips: normal }, [candidate.id]);
-  const fit = fitClipFrames(clips, index, clipFrames(candidate, rate) - 1, minFrames(rate), rate, edge);
+  const current = p.clips[index];
+  if (!current || clipFrames(candidate, rate) <= clipFrames(current, rate)) return same(p, ['notice.length_full']);
+  const fit = fitClipFrames(clips, index, clipFrames(candidate, rate) - 1, clipFrames(current, rate), rate, edge);
   if (!fit) return same(p, ['notice.length_full']);
   return result(p, { ...p, clips: fit.clips }, [candidate.id], ['notice.length_limited']);
 }
@@ -171,7 +182,7 @@ function appendClip(p: Project, source: Source, nextId: NextId): EditResult {
   const clip = newClip(source, nextId(), rate);
   const clips = [...p.clips, clip];
   const wanted = clipFrames(clip, rate);
-  const fit = fitClipFrames(clips, clips.length - 1, wanted, Math.min(minFrames(rate), wanted), rate);
+  const fit = fitClipFrames(clips, clips.length - 1, wanted, minFrames(rate), rate);
   if (!fit) return same(p, ['notice.length_full']);
   return result(p, { ...p, clips: fit.clips }, [clip.id], fit.frames < wanted ? ['notice.length_limited'] : []);
 }
@@ -200,15 +211,26 @@ function placeOne(p: Project, source: Source, playhead: Micros, nextId: NextId):
 }
 
 /**
- * Implements: F-001.R3/R6 — a batch of accepted, probed sources as one step. Each is kept as a source
+ * Implements: F-001.R3/R6 — a batch of probed sources as one step. RULE-02: a video or audio source
+ * shorter than the minimum is refused (COPY-reason.too_short, spec question 7). Each is kept as a source
  * (RULE-01) and placed: video and photo at the end of the main track, audio per RULE-12. Until the
  * user chooses a rate, the first video at 50 fps or more sets 60 fps (RULE-04).
  */
-export function addMedia(p: Project, sources: readonly Source[], playhead: Micros, nextId: NextId): EditResult {
+export function addMedia(
+  p: Project,
+  sources: readonly Source[],
+  playhead: Micros,
+  nextId: NextId,
+  tracks: readonly MusicTrack[] = MUSIC_TRACKS,
+): EditResult {
   let cur = p;
   const notices: Notice[] = [];
   const changed: string[] = [];
   for (const source of sources) {
+    if (isTooShort(source)) {
+      notices.push('reason.too_short');
+      continue;
+    }
     if (cur.sources.length >= RULE_02.maxSources) {
       notices.push('reason.too_many');
       continue;
@@ -222,7 +244,7 @@ export function addMedia(p: Project, sources: readonly Source[], playhead: Micro
       (source.frameRate ?? 0) >= RULE_04.detectHighRateFrom &&
       cur.frame.frameRate !== 60
     ) {
-      const r = retime(cur, 60, false);
+      const r = retime(cur, 60, false, tracks);
       cur = r.project;
       notices.push(...r.notices);
     }
@@ -240,14 +262,16 @@ export function placeSource(p: Project, sourceId: string, playhead: Micros, next
   return source ? placeOne(p, source, playhead, nextId) : same(p);
 }
 
-/** Implements: F-011.R1 — place a bundled music track (ENT-MusicTrack, not a source). */
+/** Implements: F-011.R1 — place a bundled music track (ENT-MusicTrack, not a source) from the catalog. */
 export function addMusic(
   p: Project,
-  track: { readonly id: string; readonly duration: Micros },
+  trackId: string,
   playhead: Micros,
   nextId: NextId,
+  tracks: readonly MusicTrack[] = MUSIC_TRACKS,
 ): EditResult {
-  return placeAudio(p, track.id, track.duration, playhead, nextId);
+  const track = tracks.find((t) => t.id === trackId);
+  return track ? placeAudio(p, track.id, track.duration, playhead, nextId) : same(p);
 }
 
 /** Implements: F-001.R4 — removing a source also removes its clips (RULE-05 delete rules). */
@@ -313,7 +337,7 @@ export function duplicateClip(p: Project, id: string, nextId: NextId): EditResul
   const copy: Clip = { ...clip, id: nextId() };
   const clips = [...p.clips.slice(0, i), { ...clip, crossFadeNext: 0 }, copy, ...p.clips.slice(i + 1)];
   const wanted = clipFrames(copy, rate);
-  const fit = fitClipFrames(clips, i + 1, wanted, Math.min(minFrames(rate), wanted), rate);
+  const fit = fitClipFrames(clips, i + 1, wanted, minFrames(rate), rate);
   if (!fit) return same(p, ['notice.length_full']);
   return result(p, { ...p, clips: fit.clips }, [copy.id], fit.frames < wanted ? ['notice.length_limited'] : []);
 }
@@ -341,7 +365,7 @@ export function setClipOut(p: Project, id: string, outPoint: Micros): EditResult
   if (!clip || clip.kind !== 'video') return same(p);
   const rate = rateOf(p);
   const inPoint = clip.in ?? 0;
-  const limit = sourceDuration(p, clip.sourceId);
+  const limit = Math.max(sourceEnd(p, clip.sourceId) ?? clip.out ?? 0, clip.out ?? 0);
   let newOut = clamp(Math.round(outPoint), inPoint, limit);
   if (clipFrames({ ...clip, out: newOut }, rate) < minFrames(rate))
     newOut = Math.min(limit, inPoint + rangeForFrames(minFrames(rate), speedOf(clip), rate));
@@ -366,10 +390,16 @@ export function setPhotoDuration(p: Project, id: string, duration: Micros): Edit
 
 /**
  * Implements: F-004.R6 (start here / end here) and edge drags — trim the item's start or end to the
- * timeline time `t` (a clip, text layer or audio clip). `maxOut` bounds an audio clip whose source is
- * a bundled track (not in `sources`).
+ * timeline time `t` (a clip, text layer or audio clip). An audio clip stays within its source or
+ * bundled track (`tracks`, MOD-Core's catalog by default).
  */
-export function trimTo(p: Project, id: string, edge: 'start' | 'end', t: Micros, maxOut?: Micros): EditResult {
+export function trimTo(
+  p: Project,
+  id: string,
+  edge: 'start' | 'end',
+  t: Micros,
+  tracks: readonly MusicTrack[] = MUSIC_TRACKS,
+): EditResult {
   const rate = rateOf(p);
   const k = nearestFrame(Math.max(0, t), rate);
   const i = clipIndex(p, id);
@@ -393,45 +423,13 @@ export function trimTo(p: Project, id: string, edge: 'start' | 'end', t: Micros,
       ? setTextTimes(p, id, frameStart(k, rate), layer.end)
       : setTextTimes(p, id, layer.start, frameStart(k, rate));
   const a = p.audioClips.find((x) => x.id === id);
-  if (a) return trimAudio(p, a, edge, frameStart(k, rate), maxOut ?? sourceDuration(p, a.sourceId));
-  return same(p);
-}
-
-/** Implements: RULE-12 audio trims — within the source, never overlapping (INV-06), at least 0.1 s. */
-function trimAudio(p: Project, a: AudioClip, edge: 'start' | 'end', t: Micros, maxOut: Micros): EditResult {
-  const rate = rateOf(p);
-  const others = p.audioClips.filter((x) => x.id !== a.id);
-  const end = audioEnd(a);
-  let next: AudioClip;
-  if (edge === 'start') {
-    const prevEnd = Math.max(0, ...others.filter((x) => x.start < a.start).map(audioEnd));
-    const earliest = frameStart(frameAtOrAfter(Math.max(prevEnd, a.start - a.in), rate), rate);
-    const latest = frameStart(frameIndexAt(end - minDuration(rate), rate), rate);
-    const start = clamp(t, earliest, latest);
-    next = { ...a, start, in: a.in + (start - a.start) };
-  } else {
-    const nextStart = Math.min(Infinity, ...others.filter((x) => x.start >= end).map((x) => x.start));
-    const newEnd = clamp(t, a.start + minDuration(rate), Math.min(nextStart, a.start + (maxOut - a.in)));
-    next = { ...a, out: a.in + (newEnd - a.start) };
+  if (a) {
+    const others = p.audioClips.filter((x) => x.id !== a.id);
+    const next = trimAudioClip(a, others, edge, frameStart(k, rate), sourceEnd(p, a.sourceId, tracks), rate);
+    if (next === a) return same(p);
+    return result(p, { ...p, audioClips: p.audioClips.map((x) => (x.id === a.id ? next : x)) }, [a.id]);
   }
-  if (next.start === a.start && next.in === a.in && next.out === a.out) return same(p);
-  next = fitAudioFades(next, rate);
-  return result(p, { ...p, audioClips: p.audioClips.map((x) => (x.id === a.id ? next : x)) }, [a.id]);
-}
-
-/** RULE-10: audio fade in + fade out never exceed the clip; shrink in proportion. */
-function fitAudioFades(a: AudioClip, rate: FrameRate): AudioClip {
-  const len = a.out - a.in;
-  if (a.fadeIn + a.fadeOut <= len) return a;
-  const fi = framesOf(a.fadeIn, rate);
-  const fo = framesOf(a.fadeOut, rate);
-  const total = fi + fo;
-  const avail = frameIndexAt(len, rate);
-  return {
-    ...a,
-    fadeIn: frameStart(Math.floor((fi * avail) / total), rate),
-    fadeOut: frameStart(Math.floor((fo * avail) / total), rate),
-  };
+  return same(p);
 }
 
 /**
@@ -447,29 +445,14 @@ export function splitAt(p: Project, id: string, t: Micros, nextId: NextId): Edit
   const i = clipIndex(p, id);
   const clip = p.clips[i];
   if (clip) {
-    const span = layoutClips(p.clips, rate).spans[i]!;
-    if (k - span.startFrame < min || span.endFrame - k < min) return same(p, ['notice.split_too_close']);
-    const head = k - span.startFrame;
-    let first: Clip;
-    let second: Clip;
-    const secondId = nextId();
-    if (clip.kind === 'photo') {
-      first = { ...clip, duration: frameStart(head, rate) };
-      second = { ...clip, id: secondId, duration: frameStart(span.endFrame - k, rate) };
-    } else {
-      const cut =
-        (clip.in ?? 0) + Math.round(((frameStart(k, rate) - frameStart(span.startFrame, rate)) * speedOf(clip)) / 100);
-      first = { ...clip, out: cut };
-      second = { ...clip, id: secondId, in: cut };
-    }
-    first = { ...first, fadeOut: 0, crossFadeNext: 0 };
-    second = { ...second, fadeIn: 0 };
-    if (span.endFrame - k < span.crossFadeFrames) second = { ...second, crossFadeNext: 0 };
-    const clips: Clip[] = [...p.clips.slice(0, i), first, second, ...p.clips.slice(i + 1)];
+    const layout = layoutClips(p.clips, rate);
+    const incoming = i > 0 ? (layout.spans[i - 1]?.crossFadeFrames ?? 0) : 0;
+    const split = splitClip(clip, layout.spans[i]!, incoming, k, rate, nextId());
+    if (!split) return same(p, ['notice.split_too_close']);
+    const clips: Clip[] = [...p.clips.slice(0, i), split.first, split.second, ...p.clips.slice(i + 1)];
     const prev = clips[i - 1];
-    const incoming = i > 0 ? (layoutClips(p.clips, rate).spans[i - 1]?.crossFadeFrames ?? 0) : 0;
-    if (prev && head < incoming) clips[i - 1] = { ...prev, crossFadeNext: 0 };
-    return commitClips(p, clips, [clip.id, secondId]);
+    if (prev && split.removeIncoming) clips[i - 1] = { ...prev, crossFadeNext: 0 };
+    return commitClips(p, clips, [clip.id, split.second.id]);
   }
   const ti = p.textLayers.findIndex((x) => x.id === id);
   const layer = p.textLayers[ti];
@@ -509,23 +492,13 @@ export function setSpeed(p: Project, id: string, speedPct: number): EditResult {
   const clip = p.clips[i];
   if (!clip || clip.kind !== 'video') return same(p);
   const rate = rateOf(p);
-  const step = RULE_06.stepPct;
-  const current = speedOf(clip);
-  let want = clamp(Math.round(speedPct / step) * step, RULE_06.minPct, RULE_06.maxPct);
-  const framesAt = (s: number) => clipFrames({ ...clip, speedPct: s }, rate);
-  while (want > current && framesAt(want) < minFrames(rate)) want -= step;
-  if (want === current) return same(p);
-  const tryAt = (s: number) => normaliseClips(replaceAt(p.clips, i, { ...clip, speedPct: s }), rate);
-  let clips = tryAt(want);
-  let limited = false;
-  while (layoutClips(clips, rate).frames > maxProjectFrames(rate) && want < current) {
-    want += step;
-    clips = tryAt(want);
-    limited = true;
-  }
-  if (want === current) return same(p, limited ? ['notice.length_limited'] : []);
-  if (layoutClips(clips, rate).frames > maxProjectFrames(rate)) return same(p, ['notice.length_full']);
-  return result(p, { ...p, clips }, [id], limited ? ['notice.length_limited'] : []);
+  const tryAt = (sp: number) => normaliseClips(replaceAt(p.clips, i, { ...clip, speedPct: sp }), rate);
+  const fits = (sp: number) => layoutClips(tryAt(sp), rate).frames <= maxProjectFrames(rate);
+  const { speedPct: speed, limited } = speedFor(clip, speedPct, rate, fits);
+  const notices: Notice[] = limited ? ['notice.length_limited'] : [];
+  if (speed === speedOf(clip)) return same(p, notices);
+  if (!fits(speed)) return same(p, ['notice.length_full']);
+  return result(p, { ...p, clips: tryAt(speed) }, [id], notices);
 }
 
 // ── fades and cross-fades (F-009, RULE-10) ─────────────────────────────────────────────────────
@@ -550,7 +523,7 @@ export function setFade(p: Project, id: string, edge: 'in' | 'out', tenths: numb
   const a = p.audioClips.find((x) => x.id === id);
   if (a) {
     const room = frameIndexAt(Math.max(0, a.out - a.in - a[otherKey]), rate);
-    const value = frameStart(clamp(want, 0, Math.min(secondsToFrames(RULE_10.audioFadeMaxSeconds, rate), room)), rate);
+    const value = frameStart(clamp(want, 0, Math.min(maxAudioFadeFrames(rate), room)), rate);
     if (value === a[key]) return same(p);
     return result(p, { ...p, audioClips: p.audioClips.map((x) => (x.id === id ? { ...a, [key]: value } : x)) }, [id]);
   }
@@ -850,8 +823,8 @@ export function setBackground(p: Project, background: Frame['background']): Edit
 }
 
 /** Implements: RULE-04 the user chooses the frame rate (detection stops); every time is re-timed. */
-export function setFrameRate(p: Project, rate: FrameRate): EditResult {
-  return retime(p, rate, true);
+export function setFrameRate(p: Project, rate: FrameRate, tracks: readonly MusicTrack[] = MUSIC_TRACKS): EditResult {
+  return retime(p, rate, true, tracks);
 }
 
 /**
@@ -859,42 +832,24 @@ export function setFrameRate(p: Project, rate: FrameRate): EditResult {
  * cross-fade goes below its minimum; RULE-03 — the last clip is shortened at its end to fit, with
  * COPY-notice.length_limited.
  */
-function retime(p: Project, rate: FrameRate, chosen: boolean): EditResult {
+function retime(p: Project, rate: FrameRate, chosen: boolean, tracks: readonly MusicTrack[]): EditResult {
   const frame: Frame = chosen
     ? { ...p.frame, frameRate: rate, frameRateChosen: true }
     : { ...p.frame, frameRate: rate };
   if (p.frame.frameRate === rate) return chosen && !p.frame.frameRateChosen ? result(p, { ...p, frame }, []) : same(p);
-  const snap = (t: Micros) => frameStart(nearestFrame(t, rate), rate);
   const min = minFrames(rate);
-  let clips: Clip[] = p.clips.map((c) => {
-    let next: Clip = { ...c, fadeIn: snap(c.fadeIn), fadeOut: snap(c.fadeOut) };
-    if (c.crossFadeNext > 0)
-      next = {
-        ...next,
-        crossFadeNext: frameStart(Math.max(nearestFrame(c.crossFadeNext, rate), minCrossFadeFrames(rate)), rate),
-      };
-    if (c.kind === 'photo')
-      next = { ...next, duration: frameStart(Math.max(nearestFrame(c.duration ?? 0, rate), min), rate) };
-    else if (clipFrames(next, rate) < min) {
-      // Round up to the minimum: extend the end, or the start when the source ends first.
-      const needed = rangeForFrames(min, speedOf(c), rate);
-      const end = sourceDuration(p, c.sourceId);
-      const inPoint = c.in ?? 0;
-      next =
-        inPoint + needed <= end
-          ? { ...next, out: inPoint + needed }
-          : { ...next, in: Math.max(0, end - needed), out: end };
-    }
-    return next;
-  });
-  clips = normaliseClips(clips, rate) as Clip[];
+  let clips = normaliseClips(
+    p.clips.map((c) => retimeClip(c, rate, sourceEnd(p, c.sourceId))),
+    rate,
+  );
   const notices: Notice[] = [];
   const last = clips.length - 1;
   if (last >= 0 && layoutClips(clips, rate).frames > maxProjectFrames(rate)) {
     const wanted = clipFrames(clips[last]!, rate);
+    // Spec gap (review E1 #6): when the last clip can't absorb the overflow, the change is refused.
     const fit = fitClipFrames(clips, last, wanted - 1, min, rate);
     if (!fit) return same(p, ['notice.length_full']);
-    clips = fit.clips as Clip[];
+    clips = fit.clips;
     notices.push('notice.length_limited');
   }
   const textLayers = p.textLayers.map((t) => {
@@ -902,27 +857,6 @@ function retime(p: Project, rate: FrameRate, chosen: boolean): EditResult {
     const e = Math.max(nearestFrame(t.end, rate), s + min);
     return { ...t, start: frameStart(s, rate), end: frameStart(e, rate) };
   });
-  // Audio starts move to frame starts and no audio clip goes below its minimum. Where two clips
-  // that touched would now overlap, the later one moves to the first frame start after the earlier
-  // one ends (INV-06; nothing gets shorter) — an open question in the E1 report.
-  const moved = new Map<string, AudioClip>();
-  let lastEnd = 0;
-  const snapped = p.audioClips
-    .map((a) => {
-      let next = { ...a, start: snap(a.start) };
-      if (next.out - next.in < minDuration(rate)) {
-        const out = Math.min(sourceDuration(p, a.sourceId), next.in + minDuration(rate));
-        next = { ...next, out, in: Math.min(next.in, Math.max(0, out - minDuration(rate))) };
-      }
-      return next;
-    })
-    .sort((x, y) => x.start - y.start);
-  for (const a of snapped) {
-    const start = a.start < lastEnd ? frameStart(frameAtOrAfter(lastEnd, rate), rate) : a.start;
-    const next = start === a.start ? a : { ...a, start };
-    moved.set(a.id, next);
-    lastEnd = audioEnd(next);
-  }
-  const audioClips = p.audioClips.map((a) => moved.get(a.id) ?? a);
+  const audioClips = retimeAudio(p.audioClips, rate, (id) => sourceEnd(p, id, tracks));
   return result(p, { ...p, frame, clips, textLayers, audioClips }, [], notices);
 }

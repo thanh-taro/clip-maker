@@ -47,7 +47,8 @@ it('MOD-Core a duration picked in 0.1 s steps is the nearest whole frame count, 
       const n = pickedFrames(tenths, r, minFrames(r));
       expect(n).toBeGreaterThanOrEqual(minFrames(r));
       const exact = (tenths * r) / 10;
-      if (exact >= minFrames(r)) expect(Math.abs(n - exact)).toBeLessThanOrEqual(0.5);
+      // Nearest whole frame, exactly halfway rounding up (rules.md); below the minimum, the minimum.
+      expect(n).toBe(Math.max(Math.floor(exact + 0.5), minFrames(r)));
     }),
   );
 });

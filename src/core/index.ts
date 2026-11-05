@@ -16,6 +16,8 @@ export * from './timing';
 export * from './audio';
 export * from './text';
 export * from './visual';
+export * from './music';
+export * from './edits';
 export * from './check';
 
 // Export tables (RULE-15, architecture.md "Export tables") — built with F-015.

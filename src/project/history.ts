@@ -43,14 +43,18 @@ export function record(h: History, step: Step): History {
   return { past: past.length > HISTORY_DEPTH ? past.slice(past.length - HISTORY_DEPTH) : past, future: [] };
 }
 
+const sameValue = (x: unknown, y: unknown): boolean => x === y || JSON.stringify(x) === JSON.stringify(y);
 const sameItems = (a: readonly unknown[], b: readonly unknown[]): boolean =>
-  a === b || (a.length === b.length && a.every((x, i) => x === b[i]));
+  a === b || (a.length === b.length && a.every((x, i) => sameValue(x, b[i])));
 
-/** The two documents hold the same objects (an edit session that ended where it began). */
+/**
+ * The two documents hold the same values (an edit session that ended where it began, such as a
+ * slider dragged away and back). Only used when merging a gesture's steps.
+ */
 export function sameDocument(a: Project, b: Project): boolean {
   return (
     a === b ||
-    (a.frame === b.frame &&
+    (sameValue(a.frame, b.frame) &&
       sameItems(a.sources, b.sources) &&
       sameItems(a.clips, b.clips) &&
       sameItems(a.textLayers, b.textLayers) &&
