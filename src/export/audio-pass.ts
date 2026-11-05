@@ -6,7 +6,16 @@
 // Packet times are shifted by the trial's encoder delay so the writer's edit list removes the priming.
 // The WAV writer streams 16-bit blocks with a fixed-seed triangular dither (ADR-0010 §11).
 // Implements: RULE-12 Mix (decoded export ≤ −1.0 dBTP), F-011.R5, F-016.R2, RULE-16 WAV, NFR-08.
-import { Mixer, TruePeakMeter, verifyAndTrim, linearOf, wavHeader, type SourceBank, type TrimResult } from '../audio';
+import {
+  Mixer,
+  TruePeakMeter,
+  TRIM_LIMIT_DB,
+  verifyAndTrim,
+  linearOf,
+  wavHeader,
+  type SourceBank,
+  type TrimResult,
+} from '../audio';
 import { createAudioDecoder, createAudioEncoder, withNormalisedDescription } from '../codec';
 import type { AudioPacketData } from '../core';
 import type { Voice } from '../plan';
@@ -75,9 +84,19 @@ export interface LossyResult {
   readonly trim: TrimResult;
 }
 
+/** A sound encoder or decoder error (ADR-0010 outcome item 10 rule (c): after a hide, an interruption). */
+export class AudioCodecError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AudioCodecError';
+  }
+}
+
 /**
- * Implements: ADR-0008 outcome item 2 — encode, decode, measure, trim (≤ 3 passes; fallback −3 dB);
- * with a known project gain (shared by the video and audio-only exports) one encode at that gain.
+ * Implements: ADR-0008 outcome item 2 — encode, decode, measure, trim (≤ 3 passes; the −3 dB fallback
+ * is encoded but not measured). With a known project gain (shared by every export of the mix) one
+ * encode at that gain is measured; if it is above −1.0 dBTP the trim runs again from that gain.
+ * `onAlive` is called while mixing and while decoding (liveness for the interruption rules).
  */
 export async function lossyAudio(
   job: MixJob,
@@ -86,21 +105,33 @@ export async function lossyAudio(
   codecs: AudioCodecs,
   knownGainDb: number | null,
   onProgress?: (done: number, total: number) => void,
+  onAlive?: () => void,
 ): Promise<LossyResult> {
   let last: { packets: EncodedOut[]; config: AudioDecoderConfig } | null = null;
-  const pass = async (gainDb: number): Promise<number> => {
+  const pass = async (gainDb: number, measure = true): Promise<number> => {
     last = await codecs.encode(
       config,
-      mixBlocks(job, linearOf(gainDb), (d) => onProgress?.(d, job.endSample)),
+      mixBlocks(job, linearOf(gainDb), (d) => {
+        onProgress?.(d, job.endSample);
+        onAlive?.();
+      }),
     );
+    if (!measure) return Number.NaN;
     const meter = new TruePeakMeter();
-    await codecs.decode(last.config, last.packets, (planes) => meter.push(planes));
+    await codecs.decode(last.config, last.packets, (planes) => {
+      meter.push(planes);
+      onAlive?.();
+    });
     return meter.finish().dB;
   };
   let trim: TrimResult;
   if (knownGainDb !== null) {
     const peakDb = await pass(knownGainDb);
-    trim = { gainDb: knownGainDb, peakDb, passes: 1, fallback: false };
+    if (peakDb <= TRIM_LIMIT_DB) trim = { gainDb: knownGainDb, peakDb, passes: 1, fallback: false };
+    else {
+      const again = await verifyAndTrim(pass, knownGainDb);
+      trim = { ...again, passes: again.passes + 1 };
+    }
   } else trim = await verifyAndTrim(pass);
   const done = last as { packets: EncodedOut[]; config: AudioDecoderConfig } | null;
   if (!done) throw new Error('audio: no encode pass ran');
@@ -142,9 +173,10 @@ export async function wavAudio(
   job: MixJob,
   out: (bytes: Uint8Array) => void,
   onProgress?: (done: number, total: number) => void,
+  gainDb = 0,
 ): Promise<{ header: Uint8Array; frames: number }> {
   const dither = new Dither();
-  for await (const [L, R] of mixBlocks(job, 1, (d) => onProgress?.(d, job.endSample))) {
+  for await (const [L, R] of mixBlocks(job, linearOf(gainDb), (d) => onProgress?.(d, job.endSample))) {
     const b = new Uint8Array(L.length * 4);
     const v = new DataView(b.buffer);
     for (let i = 0; i < L.length; i++) {
@@ -156,8 +188,43 @@ export async function wavAudio(
   return { header: wavHeader(job.endSample), frames: job.endSample };
 }
 
-const waitFor = (target: EventTarget, type: string): Promise<void> =>
-  new Promise((r) => target.addEventListener(type, () => r(), { once: true }));
+/** A codec queue that does not move for this long is a stall (as the video encoder, ADR-0010 outcome item 2). */
+export const AUDIO_STALL_MS = 20_000;
+
+/**
+ * Waits for `dequeue` while `queued()` is over the cap, checking every second; throws an
+ * AudioCodecError when the queue has not moved for AUDIO_STALL_MS (a dead or hung codec).
+ */
+export async function drain(target: EventTarget, queued: () => number, failed: () => string | null): Promise<void> {
+  let last = Date.now();
+  let size = queued();
+  while (queued() > AUDIO_QUEUE_CAP && !failed()) {
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 1000);
+      target.addEventListener('dequeue', () => (clearTimeout(timer), resolve()), { once: true });
+    });
+    if (queued() !== size) {
+      size = queued();
+      last = Date.now();
+    } else if (Date.now() - last >= AUDIO_STALL_MS)
+      throw new AudioCodecError(`AudioStall: the queue has not moved for ${AUDIO_STALL_MS} ms`);
+  }
+}
+
+/** flush() with the same stall limit. */
+async function flushWithin(p: Promise<void>): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      p,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new AudioCodecError('AudioStall: flush did not finish')), AUDIO_STALL_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const errorText = (e: unknown): string =>
   e instanceof Error || e instanceof DOMException ? `${e.name}: ${e.message}` : String(e);
@@ -197,12 +264,16 @@ export const webCodecsAudio: AudioCodecs = {
       enc.encode(data);
       data.close();
       at += L.length;
-      while (enc.encodeQueueSize > AUDIO_QUEUE_CAP && !failure) await waitFor(enc, 'dequeue');
+      await drain(
+        enc,
+        () => enc.encodeQueueSize,
+        () => failure,
+      );
     }
-    if (!failure) await enc.flush().catch((e: unknown) => (failure ??= errorText(e)));
+    if (!failure) await flushWithin(enc.flush().catch((e: unknown) => void (failure ??= errorText(e))));
     if (enc.state !== 'closed') enc.close();
-    if (failure) throw new Error(failure);
-    if (!decoderConfig) throw new Error('EncodingError: no decoder config from the audio encoder');
+    if (failure) throw new AudioCodecError(failure);
+    if (!decoderConfig) throw new AudioCodecError('EncodingError: no decoder config from the audio encoder');
     // WebKit's AAC description is a whole ES_Descriptor (ADR-0004 outcome item 4).
     return { packets, config: withNormalisedDescription(decoderConfig as AudioDecoderConfig) };
   },
@@ -227,10 +298,14 @@ export const webCodecsAudio: AudioCodecs = {
     for (const p of packets) {
       if (failure) break;
       dec.decode(new EncodedAudioChunk({ type: p.key ? 'key' : 'delta', timestamp: p.timestamp, data: p.data }));
-      while (dec.decodeQueueSize > AUDIO_QUEUE_CAP && !failure) await waitFor(dec, 'dequeue');
+      await drain(
+        dec,
+        () => dec.decodeQueueSize,
+        () => failure,
+      );
     }
-    if (!failure) await dec.flush().catch((e: unknown) => (failure ??= errorText(e)));
+    if (!failure) await flushWithin(dec.flush().catch((e: unknown) => void (failure ??= errorText(e))));
     if (dec.state !== 'closed') dec.close();
-    if (failure) throw new Error(failure);
+    if (failure) throw new AudioCodecError(failure);
   },
 };

@@ -13,6 +13,7 @@ import {
   bitrateFor,
   estimateBytes,
   exportFileName,
+  floorFor,
   frameAspect,
   frameStart,
   gifOutputSize,
@@ -28,6 +29,7 @@ import {
   type Calibration,
   type EngineMedia,
   type ExportAudioSpec,
+  type ExportFailure,
   type ExportOutput,
   type ExportSettings,
   type ExportStats,
@@ -42,10 +44,13 @@ import {
   type VideoResolution,
 } from '../core';
 import { voices } from '../plan';
-import type { Scratch, ScratchFile } from '../scratch';
+import type { ScratchFile } from '../scratch';
+import type { Scratch } from '../scratch';
 import { chooseSink, MEMORY_CAP, ROOM_FACTOR } from './sinks';
 import { ABORT_ANSWER_MS, InterruptWatch, ProgressTracker, type ProgressView } from './watch';
 
+// MOD-App reaches MOD-Scratch's start-up and the Scratch type through MOD-Export (import boundaries).
+export { initScratch, Scratch, browserScratchEnv } from '../scratch';
 export * from './sinks';
 export * from './watch';
 export { LateAudioMux, MemorySpill, type SpillStore } from './mux';
@@ -67,35 +72,83 @@ export interface WorkerPair {
 }
 
 /**
- * The idle export worker pair. An export takes the pair and a fresh idle pair is started for the next
- * one (ADR-0003 §5: created per export, terminated after it; both created idle so an export makes no
- * request).
+ * The one owner of the export workers (MOD-App starts it at boot). An export takes the idle pair and a
+ * fresh idle pair is started for the next one (ADR-0003 §5: created per export, terminated after it; both
+ * created idle so an export makes no request). The estimate's calibrations run one at a time in the idle
+ * export worker, each tagged with an id so a stale answer never settles a newer request; taking or
+ * renewing the pair rejects the calibrations still pending.
  */
 export class ExportWorkers {
   private idle: WorkerPair;
-  /** A calibration is running in the idle pair. */
-  busy = false;
+  private nextId = 1;
+  private queue: Promise<unknown> = Promise.resolve();
+  private readonly pending = new Map<
+    number,
+    { resolve: (c: Calibration) => void; reject: (e: Error) => void; post: () => void }
+  >();
+
   constructor(
     private readonly spawn: () => WorkerPair = () => ({ video: startExportWorker(), audio: startExportAudioWorker() }),
   ) {
-    this.idle = spawn();
+    this.idle = this.start();
   }
+
+  private start(): WorkerPair {
+    const pair = this.spawn();
+    pair.video.addEventListener('message', (e: MessageEvent<FromExport>) => {
+      const m = e.data;
+      if (pair !== this.idle || (m.type !== 'export:calibration' && m.type !== 'export:calibrationFailed')) return;
+      const p = this.pending.get(m.id);
+      if (!p) return; // stale: its request was rejected already
+      this.pending.delete(m.id);
+      if (m.type === 'export:calibration') p.resolve(m.cal);
+      else p.reject(new Error(m.message));
+    });
+    return pair;
+  }
+
   /** The idle pair, kept idle (the estimate's calibration runs in it). */
   peek(): WorkerPair {
     return this.idle;
   }
+
+  get busy(): boolean {
+    return this.pending.size > 0;
+  }
+
+  /** Runs one calibration encode in the idle export worker, after the ones before it. */
+  calibrate(job: Extract<ToExport, { type: 'export:calibrate' }>['job']): Promise<Calibration> {
+    const id = this.nextId++;
+    const video = this.idle.video;
+    const run = new Promise<Calibration>((resolve, reject) => {
+      this.pending.set(id, {
+        resolve,
+        reject,
+        post: () => video.postMessage({ type: 'export:calibrate', id, job } satisfies ToExport),
+      });
+    });
+    this.queue = this.queue.then(() => {
+      this.pending.get(id)?.post();
+      return run.catch(() => undefined);
+    });
+    return run;
+  }
+
   take(): WorkerPair {
     // An estimate still calibrating in the idle pair is dropped: the export starts on fresh workers.
     if (this.busy) this.renew();
     const pair = this.idle;
-    this.idle = this.spawn();
+    this.idle = this.start();
     return pair;
   }
-  /** Terminates the idle pair (cancelling a calibration) and starts a new one. */
+
+  /** Terminates the idle pair (cancelling its calibrations) and starts a new one. */
   renew(): void {
-    this.busy = false;
+    for (const p of this.pending.values()) p.reject(new Error('AbortError: the calibration was cancelled'));
+    this.pending.clear();
+    this.queue = Promise.resolve();
     terminate(this.idle);
-    this.idle = this.spawn();
+    this.idle = this.start();
   }
 }
 
@@ -169,10 +222,29 @@ export function downloadBlob(blob: Blob, fileName: string): string {
   return url;
 }
 
-/** RULE-15 "Sound": included when any voice is unmuted, audible and has decoded sound. */
-export function hasSound(project: Project, pcm: readonly PcmSource[]): boolean {
-  const ids = new Set(pcm.map((p) => p.sourceId));
-  return voices(project).some((v) => v.gain > 0 && ids.has(v.sourceId));
+/** The sources heard in the mix: unmuted voices whose source has sound (bundled music always has). */
+function soundingSources(project: Project): Set<string> {
+  const byId = new Map(project.sources.map((src) => [src.id, src]));
+  const ids = new Set<string>();
+  for (const v of voices(project)) {
+    const src = byId.get(v.sourceId);
+    if (v.gain > 0 && (src ? src.hasSound === true : true)) ids.add(v.sourceId);
+  }
+  return ids;
+}
+
+/** RULE-15 "Sound": included when any unmuted voice has sound. */
+export function hasSound(project: Project): boolean {
+  return soundingSources(project).size > 0;
+}
+
+/**
+ * Sources heard in the mix whose decoded sound was not given. An export never drops sound silently:
+ * it fails with COPY-error.export_failed instead (build-spec-questions Q33).
+ */
+export function missingSound(project: Project, pcm: readonly PcmSource[]): string[] {
+  const have = new Set(pcm.map((p) => p.sourceId));
+  return [...soundingSources(project)].filter((id) => !have.has(id));
 }
 
 /** The mix's identity: the shared final gain applies to exports of the same mix (ADR-0008 outcome item 2). */
@@ -290,40 +362,29 @@ export interface EstimateResult {
 
 /** Runs the calibration encode in the idle export worker (cancellable: `ctx.workers.renew()`). */
 function calibrate(ctx: ExportContext, project: Project, output: ExportOutput): Promise<Calibration> {
-  const worker = ctx.workers.peek().video;
-  ctx.workers.busy = true;
-  return new Promise((resolve, reject) => {
-    const onMessage = (e: MessageEvent<FromExport>): void => {
-      if (e.data.type === 'export:calibration') {
-        worker.removeEventListener('message', onMessage);
-        ctx.workers.busy = false;
-        resolve(e.data.cal);
-      } else if (e.data.type === 'export:failed') {
-        worker.removeEventListener('message', onMessage);
-        ctx.workers.busy = false;
-        reject(new Error(e.data.error.message));
-      }
-    };
-    worker.addEventListener('message', onMessage);
-    const { width, height } = output.kind === 'video' ? output.video : { width: 0, height: 0 };
-    worker.postMessage({
-      type: 'export:calibrate',
-      job: { project, media: ctx.media, looks: ctx.looks, texts: ctx.texts(width, height), output },
-    } satisfies ToExport);
+  const { width, height } = output.kind === 'video' ? output.video : { width: 0, height: 0 };
+  return ctx.workers.calibrate({
+    project,
+    media: ctx.media,
+    looks: ctx.looks,
+    texts: ctx.texts(width, height),
+    output,
   });
 }
 
 /**
  * Implements: F-015.R2 / AC11 (estimate within ±25 %: 3 × 2 s calibration capped at nominal) and the
- * size target's reachability (RULE-15, D-020, ADR-0010 outcome item 7: bitrate ≥ floor and the
- * target-rate pre-check predicts ≤ X; effective floor = max(table floor, delivered rate)).
+ * size target's reachability (RULE-15, D-020, ADR-0010 outcome item 7): a resolution is offered only if
+ * the target's bitrate is at least its effective floor **and** its pre-check (the calibration at the
+ * target's constant bitrate) predicts ≤ X; a resolution whose pre-check fails gets its delivered rate as
+ * its effective floor. With no resolution, the smallest whole-MB target uses 480's effective floor.
  */
 export async function estimate(
   project: Project,
   settings: ExportSettings,
   ctx: ExportContext,
 ): Promise<EstimateResult> {
-  const sound = hasSound(project, ctx.pcm);
+  const sound = hasSound(project);
   const planned = planOutput(project, settings, ctx.caps, sound);
   if (planned.output.kind !== 'video' || settings.kind !== 'video')
     return { bytes: planned.nominalBytes, reachable: true };
@@ -337,27 +398,51 @@ export async function estimate(
       reachable: true,
     };
   }
-  const offered = [480, 720, 1080, 1440, 2160].filter((r) => r <= settings.resolution) as VideoResolution[];
+  const X = settings.targetMB * MB;
+  const offered = RESOLUTIONS.filter((r) => r <= settings.resolution);
   const base = { targetMB: settings.targetMB, seconds: planned.frames / rate, rate, audioBps: aBps, offered };
-  let plan = sizeTargetPlan({ ...base, resolution: settings.resolution });
-  if (plan.reachable) {
-    const cal = await calibrate(ctx, project, out);
+  const delivered: Partial<Record<VideoResolution, number>> = {};
+  const at = (resolution: VideoResolution): ExportOutput =>
+    planOutput(project, { ...settings, resolution }, ctx.caps, sound).output;
+  for (const r of [...offered].sort((a, b) => b - a)) {
+    if (!sizeTargetPlan({ ...base, resolution: r, delivered }).reachable) continue;
+    const o = at(r);
+    const cal = await calibrate(ctx, project, o);
     const predicted = predictedTargetBytes(cal, planned.frames, rate, aBps);
-    if (predicted > settings.targetMB * MB) {
-      plan = sizeTargetPlan({
-        ...base,
-        resolution: settings.resolution,
-        delivered: { [settings.resolution]: Math.max(deliveredBps(cal, rate), out.video.bitrate + 1) },
-      });
-    } else return { bytes: Math.min(predicted, settings.targetMB * MB), reachable: true };
+    if (predicted <= X) {
+      return r === settings.resolution
+        ? { bytes: predicted, reachable: true }
+        : { bytes: predicted, reachable: false, suggestedResolution: r };
+    }
+    // The encoder cannot go that low on this content: its delivered rate is this size's floor.
+    const bitrate = o.kind === 'video' ? o.video.bitrate : 0;
+    delivered[r] = Math.max(deliveredBps(cal, rate), bitrate + 1);
   }
+  if (delivered[480] === undefined) {
+    // D-020: the smallest whole-MB target 480 can meet, with 480's effective floor measured at its floor.
+    const o = at(480);
+    if (o.kind === 'video') {
+      const floor = floorFor(480, rate);
+      const cal = await calibrate(ctx, project, {
+        ...o,
+        video: {
+          ...o.video,
+          bitrate: floor,
+          bitrateMode: ctx.caps.video.bitrateModes.includes('constant') ? 'constant' : 'variable',
+        },
+      });
+      delivered[480] = Math.max(floor, deliveredBps(cal, rate));
+    }
+  }
+  const plan = sizeTargetPlan({ ...base, resolution: 480, delivered });
   return {
-    bytes: settings.targetMB * MB,
+    bytes: X,
     reachable: false,
-    ...(plan.suggestedResolution ? { suggestedResolution: plan.suggestedResolution } : {}),
-    ...(plan.smallestTargetMB ? { smallestTargetMB: plan.smallestTargetMB } : {}),
+    ...(plan.smallestTargetMB ? { smallestTargetMB: Math.max(plan.smallestTargetMB, settings.targetMB + 1) } : {}),
   };
 }
+
+const RESOLUTIONS: readonly VideoResolution[] = [480, 720, 1080, 1440, 2160];
 
 /** The COPY IDs an export can end with (MOD-App shows them). */
 export type ExportErrorId = 'error.export_failed' | 'error.export_interrupted' | 'error.no_space';
@@ -388,6 +473,11 @@ export interface ExportHandle {
 /** Wall-clock checks of the interruption rules (ADR-0010 outcome item 10). */
 export const WATCH_MS = 250;
 
+/** No message from the export worker for this long while the page is visible: it is dead or hung. */
+export const SILENCE_MS = 30_000;
+/** A second delete of a failed export's files, in case the worker's handle was still open. */
+export const DISCARD_RETRY_MS = 300;
+
 /**
  * Implements: F-015.R1/R3/R5/R6/R7, F-016.R2, NFR-11 — runs one export: sink choice (or
  * COPY-error.no_space), both workers, progress, interruption, cancel and the hand-over.
@@ -401,43 +491,52 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
   let finish: (r: ExportResult) => void = () => undefined;
   const result = new Promise<ExportResult>((r) => (finish = r));
   let settled = false;
+  /** The finished file is being handed over: the interruption rules no longer apply. */
+  let handing = false;
 
   await ctx.scratch.cleanup(); // ADR-0010 outcome item 6: the next export deletes due files
-  const sound = hasSound(project, ctx.pcm);
+  const sound = hasSound(project);
   let planned: PlannedOutput;
   try {
     planned = planOutput(project, settings, ctx.caps, sound);
   } catch (e) {
     return failedHandle({ ok: false, error: 'error.export_failed', detail: String(e) });
   }
-  const room = ctx.scratch.available && (await ctx.scratch.hasRoom(planned.nominalBytes * ROOM_FACTOR));
-  const kind = chooseSink({
-    opfs: ctx.scratch.available,
-    room,
-    estimate: planned.nominalBytes,
-    cap: ctx.phone ? MEMORY_CAP.phone : MEMORY_CAP.laptop,
-  });
+  const out = planned.output;
+  const missing = out.kind === 'gif' || (out.kind === 'video' && !out.audio) ? [] : missingSound(project, ctx.pcm);
+  if (missing.length)
+    return failedHandle({
+      ok: false,
+      error: 'error.export_failed',
+      detail: `NotFoundError: no sound for ${missing.join(', ')}`,
+    });
+  // Scratch only while this session holds its Web Lock, so no sweep can take its files (MOD-Scratch).
+  const locked = ctx.scratch.available && (await ctx.scratch.holdSessionLock());
+  // Room for the file × 1.3 and, in the worst case, the spill file (all the video) — build-spec Q32.
+  const spill = out.kind === 'video' && out.audio ? (out.video.bitrate * planned.frames) / out.video.rate / 8 : 0;
+  const room = locked && (await ctx.scratch.hasRoom(planned.nominalBytes * ROOM_FACTOR + spill));
+  const cap = ctx.phone ? MEMORY_CAP.phone : MEMORY_CAP.laptop;
+  const kind = chooseSink({ opfs: locked, room, estimate: planned.nominalBytes, cap });
   if (kind === 'no_space') return failedHandle({ ok: false, error: 'error.no_space' });
-  const memoryAllowed = planned.nominalBytes * ROOM_FACTOR < (ctx.phone ? MEMORY_CAP.phone : MEMORY_CAP.laptop);
+  const memoryAllowed = planned.nominalBytes * ROOM_FACTOR < cap;
   const file = kind === 'scratch' ? ctx.scratch.create() : null;
   const pair = ctx.workers.take();
-  const needsAudio =
-    planned.output.kind === 'audio' || (planned.output.kind === 'video' && planned.output.audio !== null);
+  const needsAudio = out.kind === 'audio' || (out.kind === 'video' && out.audio !== null);
   const channel = needsAudio ? new MessageChannel() : null;
-  const out = planned.output;
-  const { width, height } = out.kind === 'video' ? out.video : { width: 0, height: 0 };
+  const { width, height } = out.kind === 'video' ? out.video : out.kind === 'gif' ? out : { width: 0, height: 0 };
   const audioCodec =
     out.kind === 'audio' && out.container === 'wav' ? 'pcm16' : out.kind !== 'gif' ? out.audio?.codec : undefined;
   const key = mixKey(project);
   const lossy = audioCodec === 'aac' || audioCodec === 'opus';
-  let trim: TrimInfo | null = null;
+  let lastHeard = now();
 
   const stopTimers: (() => void)[] = [];
   let cleaned: Promise<void> = Promise.resolve();
   /**
    * The result is reported at once (cancel within 1 s, NFR-11; the message at detection, ADR-0010
    * outcome item 10); behind it the export worker closes and deletes its scratch files, both workers are
-   * terminated (after 1.5 s without an answer) and the files are deleted again in case it could not.
+   * terminated (after 1.5 s without an answer) and the files are deleted again — once more after a short
+   * delay if they are still listed.
    */
   const end = (r: ExportResult, keepFile = false): Promise<void> => {
     if (settled) return cleaned;
@@ -458,42 +557,70 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
         });
       }
       terminate(pair);
-      if (!keepFile && file) await file.discard();
+      if (!keepFile && file) {
+        await file.discard();
+        const names = await ctx.scratch.names();
+        if (names.includes(file.name) || names.includes(file.spill)) {
+          await new Promise((r) => setTimeout(r, DISCARD_RETRY_MS));
+          await file.discard();
+        }
+      }
     })();
     return cleaned;
   };
-  const fail = (kindOf: 'encoder' | 'webgl' | 'other', detail: string): void => {
+  const fail = (kindOf: ExportFailure['kind'] | 'other', detail: string): void => {
+    if (kindOf === 'no_space') return void end({ ok: false, error: 'error.no_space', detail });
     const interrupted = (kindOf === 'encoder' || kindOf === 'webgl') && watch.errorKind() === 'interrupted';
     void end({ ok: false, error: interrupted ? 'error.export_interrupted' : 'error.export_failed', detail });
   };
-  const progress = (done: number, total: number): void => {
+  /** Liveness: any sign of work counts for the interruption rules (ADR-0010 outcome item 10). */
+  const alive = (): void => {
+    lastHeard = now();
     watch.progress(now());
+  };
+  const progress = (done: number, total: number): void => {
+    alive();
     const v = tracker.update(done, total, now());
     for (const l of listeners) l(v);
   };
 
   pair.video.addEventListener('message', (e: MessageEvent<FromExport>) => {
     const m = e.data;
-    if (settled) return;
-    if (m.type === 'export:progress' && out.kind === 'video') progress(m.done, m.total);
-    else if (m.type === 'export:failed')
-      fail(m.error.kind === 'encoder' || m.error.kind === 'webgl' ? m.error.kind : 'other', m.error.message);
-    else if (m.type === 'export:done') void handOver(m.blob, m.bytes, m.stats);
+    if (settled || handing) return;
+    if (m.type === 'export:progress' && out.kind !== 'audio') progress(m.done, m.total);
+    else if (m.type === 'export:progress' || m.type === 'export:alive') alive();
+    else if (m.type === 'export:failed') fail(m.error.kind, m.error.message);
+    else if (m.type === 'export:done') void handOver(m.blob, m.bytes, m.stats, m.trim);
   });
   pair.audio.onmessage = (e: MessageEvent<FromExportAudio>) => {
     const m = e.data;
-    if (settled) return;
+    if (settled || handing) return;
     if (m.type === 'exportAudio:progress' && out.kind === 'audio') progress(m.done, m.total);
-    else if (m.type === 'exportAudio:done') {
-      trim = m.trim;
-      if (lossy && m.trim) ctx.gains.set(key, m.trim.gainDb);
-    } else if (m.type === 'exportAudio:failed') fail('other', m.message);
+    else if (m.type === 'exportAudio:progress' || m.type === 'exportAudio:alive') alive();
+    else if (m.type === 'exportAudio:failed') fail(m.kind === 'encoder' ? 'encoder' : 'other', m.message);
   };
-  const handOver = async (blob: Blob | null, bytes: number, stats: ExportStats): Promise<void> => {
+  // A worker that dies (an uncaught error, a message that cannot be read) fails the export.
+  for (const w of [pair.video, pair.audio])
+    for (const type of ['error', 'messageerror'])
+      w.addEventListener(type, (e: Event) => {
+        if (settled || handing || (w === pair.audio && !needsAudio)) return;
+        fail('other', `WorkerError: ${(e as ErrorEvent).message ?? type}`);
+      });
+
+  const handOver = async (
+    blob: Blob | null,
+    bytes: number,
+    stats: ExportStats,
+    trim: TrimInfo | null,
+  ): Promise<void> => {
+    handing = true;
     try {
       const data = blob ?? (file ? await file.file() : null);
       if (!data) throw new Error('NotFoundError: no file');
+      // Cancelled while the file was being opened: nothing is saved.
+      if (settled) return;
       const fileName = exportFileName((ctx.clock ?? (() => new Date()))(), planned.ext);
+      if (lossy && trim) ctx.gains.set(key, trim.gainDb);
       for (const l of listeners) l(tracker.done());
       const url = (ctx.save ?? downloadBlob)(data, fileName);
       // ADR-0010 outcome item 6: nothing revoked or deleted for 10 s after the click.
@@ -501,6 +628,7 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
       else setTimeout(() => URL.revokeObjectURL(url), 10_000);
       void end({ ok: true, fileName, bytes, stats, trim, fullProject: out.kind !== 'gif' }, true);
     } catch (e) {
+      handing = false;
       fail('other', String(e));
     }
   };
@@ -508,10 +636,18 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
   const setI = ctx.setInterval ?? ((f: () => void, ms: number) => setInterval(f, ms));
   const clearI = ctx.clearInterval ?? ((id: unknown) => clearInterval(id as number));
   const timer = setI(() => {
-    if (!settled && watch.interrupted(now())) void end({ ok: false, error: 'error.export_interrupted' });
+    if (settled || handing) return;
+    if (watch.interrupted(now())) void end({ ok: false, error: 'error.export_interrupted' });
+    else if (!vis.hidden() && now() - lastHeard >= SILENCE_MS)
+      fail('other', `TimeoutError: no answer from the export for ${SILENCE_MS} ms`);
   }, WATCH_MS);
   stopTimers.push(() => clearI(timer));
-  stopTimers.push(vis.onChange(() => watch.visibility(vis.hidden(), now())));
+  stopTimers.push(
+    vis.onChange(() => {
+      watch.visibility(vis.hidden(), now());
+      if (!vis.hidden()) lastHeard = Math.max(lastHeard, now());
+    }),
+  );
 
   if (channel && audioCodec) {
     pair.audio.postMessage(
@@ -522,7 +658,8 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
         codec: audioCodec,
         bitrate: out.kind !== 'gif' ? (out.audio?.bitrate ?? 0) : 0,
         encoderDelay: out.kind !== 'gif' ? (out.audio?.encoderDelay ?? 0) : 0,
-        gainDb: lossy ? (ctx.gains.get(key) ?? null) : null,
+        // ADR-0008 outcome item 2: the final gain is shared by every export of the mix (WAV included).
+        gainDb: ctx.gains.get(key) ?? null,
         port: channel.port2,
       } satisfies ToExportAudio,
       [channel.port2],

@@ -8,7 +8,7 @@ import { endSampleOf, pcmSource, type SoundSource } from '../audio';
 import { audioEncoderConfig } from '../codec';
 import { helloFrom, type AudioPortMessage, type FromExportAudio, type ToExportAudio, type WorkerScope } from '../core';
 import { voices } from '../plan';
-import { lossyAudio, wavAudio, webCodecsAudio, type MixJob } from './audio-pass';
+import { AudioCodecError, lossyAudio, wavAudio, webCodecsAudio, type MixJob } from './audio-pass';
 import { errorText } from './encoder';
 import { PROGRESS_POST_MS } from './watch';
 
@@ -27,17 +27,38 @@ scope.onmessage = (e: MessageEvent<ToExportAudio>) => {
   // The whole project, to its end (INV-07): the same length as the video's sound (NFR-08).
   const job: MixJob = { voices: voices(m.project), bank: (id) => sources.get(id), endSample: endSampleOf(m.project) };
   let last = -Infinity;
+  let lastAlive = -Infinity;
   const progress = (done: number, total: number): void => {
     const t = performance.now();
     if (t - last < PROGRESS_POST_MS && done < total) return;
     last = t;
     scope.postMessage({ type: 'exportAudio:progress', done, total });
   };
+  // Liveness over the port (the export worker's sound-wait watchdog) and to the main thread (the
+  // interruption rules count it while the video worker waits for the sound).
+  const alive = (): void => {
+    const t = performance.now();
+    if (t - lastAlive < PROGRESS_POST_MS) return;
+    lastAlive = t;
+    send({ type: 'alive' });
+    scope.postMessage({ type: 'exportAudio:alive' });
+  };
   void (async () => {
     try {
       if (m.codec === 'pcm16') {
-        const r = await wavAudio(job, (b) => send({ type: 'pcm', bytes: b }, [b.buffer]), progress);
-        send({ type: 'end', frames: r.frames });
+        // ADR-0008 outcome item 2: the project's final gain is shared by every export of the mix.
+        const gainDb = m.gainDb ?? 0;
+        const r = await wavAudio(
+          job,
+          (b) => {
+            send({ type: 'pcm', bytes: b }, [b.buffer]);
+            alive();
+          },
+          progress,
+          gainDb,
+        );
+        const trim = { gainDb, peakDb: null, passes: 1, fallback: false };
+        send({ type: 'end', frames: r.frames, trim });
         scope.postMessage({ type: 'exportAudio:done', trim: null });
       } else {
         const r = await lossyAudio(
@@ -47,17 +68,19 @@ scope.onmessage = (e: MessageEvent<ToExportAudio>) => {
           webCodecsAudio,
           m.gainDb,
           progress,
+          alive,
         );
         send(
-          { type: 'packets', decoderConfig: r.decoderConfig, packets: r.packets },
+          { type: 'packets', decoderConfig: r.decoderConfig, packets: r.packets, trim: r.trim },
           r.packets.map((p) => p.data.buffer),
         );
         scope.postMessage({ type: 'exportAudio:done', trim: r.trim });
       }
     } catch (err) {
       const message = errorText(err);
-      send({ type: 'failed', message });
-      scope.postMessage({ type: 'exportAudio:failed', message });
+      const kind = err instanceof AudioCodecError ? 'encoder' : 'other';
+      send({ type: 'failed', kind, message });
+      scope.postMessage({ type: 'exportAudio:failed', kind, message });
     }
   })();
 };

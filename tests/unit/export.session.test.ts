@@ -1,120 +1,10 @@
 // MOD-Export main-thread session with fake workers, storage, visibility and clock: sink choice and
 // COPY-error.no_space, the hand-over and file name, error vs interruption, cancel, the shared gain.
 import { describe, expect, it } from 'vitest';
-import type { FromExport, FromExportAudio, ToExport, ToExportAudio } from '../../src/core';
-import {
-  ExportWorkers,
-  hasSound,
-  planOutput,
-  start,
-  type ExportCaps,
-  type ExportContext,
-  type VisibilitySource,
-} from '../../src/export';
-import { Scratch, type ScratchEnv } from '../../src/scratch';
+import type { FromExport, ToExport, ToExportAudio } from '../../src/core';
+import { hasSound, missingSound, planOutput, start } from '../../src/export';
+import { balanced, CAPS, harness, lastPair } from '../support/export-session';
 import { proj, video } from '../support/project';
-
-class FakeWorker extends EventTarget {
-  readonly posted: unknown[] = [];
-  terminated = false;
-  onmessage: ((e: MessageEvent) => void) | null = null;
-  postMessage(m: unknown): void {
-    this.posted.push(m);
-  }
-  terminate(): void {
-    this.terminated = true;
-  }
-  emit(data: unknown): void {
-    const e = new MessageEvent('message', { data });
-    this.onmessage?.(e);
-    this.dispatchEvent(e);
-  }
-}
-
-const CAPS: ExportCaps = {
-  videoFormat: { id: 'mp4-h264-aac', container: 'mp4', video: 'h264', audio: 'aac', fallback: false },
-  audioFormat: { id: 'm4a-aac', fallback: false },
-  video: { latencyMode: 'quality', acceleration: 'no-preference', bitrateModes: ['constant', 'variable'] },
-  audio: { aac: { encoderDelay: 2112, deliveredKbps: 141 } },
-};
-
-function harness(o: { storage?: boolean; seconds?: number } = {}) {
-  const pairs: { video: FakeWorker; audio: FakeWorker }[] = [];
-  const workers = new ExportWorkers(() => {
-    const p = { video: new FakeWorker(), audio: new FakeWorker() };
-    pairs.push(p);
-    return p as unknown as { video: Worker; audio: Worker };
-  });
-  const files = new Map<string, Uint8Array>();
-  const env: ScratchEnv = {
-    storage: o.storage
-      ? {
-          estimate: async () => ({ quota: 10e9, usage: 0 }),
-          getDirectory: async () => ({
-            getDirectoryHandle: async () => ({
-              async *entries() {
-                for (const n of files.keys()) yield [n, { kind: 'file' }] as [string, { kind: string }];
-              },
-              getFileHandle: async (n: string) => ({
-                kind: 'file' as const,
-                getFile: async () => new File([(files.get(n) ?? new Uint8Array(0)) as BlobPart], n),
-              }),
-              removeEntry: async (n: string) => void files.delete(n),
-            }),
-          }),
-        }
-      : null,
-    locks: null,
-    session: 'sess1',
-    now: () => clock.t,
-    setTimeout: (f, ms) => setTimeout(f, ms),
-    clearTimeout: (id) => clearTimeout(id as ReturnType<typeof setTimeout>),
-    revokeObjectURL: () => undefined,
-  };
-  const clock = { t: 1_000_000 };
-  let hidden = false;
-  const visListeners: (() => void)[] = [];
-  const visibility: VisibilitySource = {
-    hidden: () => hidden,
-    onChange: (f) => (visListeners.push(f), () => undefined),
-  };
-  const ticks: (() => void)[] = [];
-  const saved: { name: string; size: number }[] = [];
-  const ctx: ExportContext = {
-    workers,
-    scratch: new Scratch(env),
-    caps: CAPS,
-    media: [],
-    pcm: [{ sourceId: 'src-a', L: new Float32Array(10), R: new Float32Array(10) }],
-    looks: {},
-    texts: () => ({}),
-    phone: true,
-    gains: new Map(),
-    visibility,
-    now: () => clock.t,
-    clock: () => new Date(2026, 10, 3, 14, 5, 9),
-    save: (blob, name) => (saved.push({ name, size: blob.size }), 'blob:x'),
-    setInterval: (f) => (ticks.push(f), ticks.length),
-    clearInterval: () => undefined,
-  };
-  const project = proj({ clips: [video('a', o.seconds ?? 2)] });
-  return {
-    ctx,
-    project,
-    pairs,
-    files,
-    saved,
-    clock,
-    tick: () => ticks.forEach((f) => f()),
-    hide: (h: boolean) => {
-      hidden = h;
-      visListeners.forEach((f) => f());
-    },
-  };
-}
-
-const balanced = { kind: 'video', resolution: 720, quality: 'balanced' } as const;
-const lastPair = (h: ReturnType<typeof harness>) => h.pairs[0]!;
 
 describe('MOD-Export session', () => {
   it('F-019.R7 F-015 edge case an export that fits neither scratch nor memory is refused before it starts with COPY-error.no_space', async () => {
@@ -138,15 +28,13 @@ describe('MOD-Export session', () => {
     });
     const audioStart = pair.audio.posted[0] as Extract<ToExportAudio, { type: 'exportAudio:start' }>;
     expect(audioStart).toMatchObject({ codec: 'aac', bitrate: 128_000, encoderDelay: 2112, gainDb: null });
-    pair.audio.emit({
-      type: 'exportAudio:done',
-      trim: { gainDb: -2.1, peakDb: -1.3, passes: 2, fallback: false },
-    } satisfies FromExportAudio);
+    // The trim result travels with the file (over the port), not in a separate cross-worker message.
     pair.video.emit({
       type: 'export:done',
       bytes: 5,
       blob: new Blob([new Uint8Array(5)]),
       stats: {},
+      trim: { gainDb: -2.1, peakDb: -1.3, passes: 2, fallback: false },
     } as unknown as FromExport);
     const r = await handle.result;
     expect(r).toMatchObject({ ok: true, fileName: 'clip-20261103-140509.mp4', bytes: 5, fullProject: true });
@@ -230,9 +118,10 @@ describe('MOD-Export output planning', () => {
     const muted = proj({ clips: [video('a', 2, { muted: true })] });
     const loud = proj({ clips: [video('a', 2)] });
     const pcm = [{ sourceId: 'src-a', L: new Float32Array(1), R: new Float32Array(1) }];
-    expect(hasSound(muted, pcm)).toBe(false);
-    expect(hasSound(loud, pcm)).toBe(true);
-    expect(hasSound(loud, [])).toBe(false);
+    expect(hasSound(muted)).toBe(false);
+    expect(hasSound(loud)).toBe(true);
+    expect(missingSound(loud, pcm)).toEqual([]);
+    expect(missingSound(loud, [])).toEqual(['src-a']);
   });
 
   it('RULE-16 audio-only is AAC in M4A at 192 kbps, or WAV; a GIF covers at most 15 s at its own size', () => {

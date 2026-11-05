@@ -25,18 +25,21 @@ export interface TrimResult {
   readonly fallback: boolean;
 }
 
-/** One encode → decode → measure pass at a global gain; returns the decoded true peak in dBTP. */
-export type TrimPass = (gainDb: number) => number | Promise<number>;
+/**
+ * One encode → decode → measure pass at a global gain; returns the decoded true peak in dBTP. With
+ * `measure` false (the fallback encode) nothing is decoded or measured and the result is ignored.
+ */
+export type TrimPass = (gainDb: number, measure?: boolean) => number | Promise<number>;
 
 /**
- * Pass 1 encodes at 0 dB. While the decoded true peak is above −1.0 dBTP and passes remain, the next
+ * Pass 1 encodes at `startDb` (0 dB, or a project's earlier shared gain). While the decoded true peak is above −1.0 dBTP and passes remain, the next
  * gain aims at −1.5 dBTP: the first step is the excess over −1.5 dB plus 0.2 dB; later steps use the
  * gain→peak slope measured between the last two passes (secant). A non-positive or unusable slope
  * falls back to 1 dB per dB. If the last pass is still above −1.0, one more encode at the last gain
  * −3 dB is taken unmeasured (`fallback`).
  */
-export async function verifyAndTrim(pass: TrimPass): Promise<TrimResult> {
-  let gain = 0;
+export async function verifyAndTrim(pass: TrimPass, startDb = 0): Promise<TrimResult> {
+  let gain = Math.min(0, startDb);
   let peak = await pass(gain);
   let passes = 1;
   let prev: { gain: number; peak: number } | null = null;
@@ -54,6 +57,6 @@ export async function verifyAndTrim(pass: TrimPass): Promise<TrimResult> {
   }
   if (peak <= TRIM_LIMIT_DB) return { gainDb: gain, peakDb: peak, passes, fallback: false };
   gain += TRIM_FALLBACK_DB;
-  await pass(gain);
+  await pass(gain, false);
   return { gainDb: gain, peakDb: null, passes: passes + 1, fallback: true };
 }

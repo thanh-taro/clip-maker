@@ -66,7 +66,8 @@ export class LateAudioMux {
   constructor(
     private readonly writer: Writer,
     private readonly hasAudio: boolean,
-    private readonly openSpill: () => SpillStore,
+    /** Opened only when a video packet must wait (lazily; a fresh store per mux). */
+    private readonly openSpill: () => SpillStore | Promise<SpillStore>,
     options: { log?: boolean } = {},
   ) {
     this.log = options.log ? [] : null;
@@ -83,7 +84,7 @@ export class LateAudioMux {
     if (config && !this.videoConfig) this.videoConfig = config;
     return this.run(async () => {
       if (this.hasAudio && !this.audio) {
-        this.spill ??= this.openSpill();
+        this.spill ??= await this.openSpill();
         const offset = this.spill.append(p.data);
         this.spilled.push({ timestamp: p.timestamp, duration: p.duration, key: p.key, offset, length: p.data.length });
         this.spilledBytes += p.data.length;

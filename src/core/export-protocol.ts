@@ -82,7 +82,7 @@ export interface ExportJob {
 
 /** Why an export stopped. `kind` decides the message: interrupted/failed/no_space (main side). */
 export interface ExportFailure {
-  readonly kind: 'encoder' | 'webgl' | 'source' | 'sink' | 'over_target' | 'audio' | 'internal';
+  readonly kind: 'encoder' | 'webgl' | 'source' | 'sink' | 'no_space' | 'over_target' | 'audio' | 'internal';
   /** `name: message` (ADR-0010 outcome item 2: WebKit's stack omits the message). */
   readonly message: string;
 }
@@ -104,6 +104,8 @@ export interface ExportStats {
   readonly spilledBytes: number;
   /** Most encoded video held in memory at once by the muxer stage (must stay ~0). */
   readonly heldVideoBytesMax: number;
+  /** Encoder re-creations after a stall (ADR-0010 outcome item 2). */
+  readonly encoderRestarts: number;
   readonly sink: 'scratch' | 'memory';
 }
 
@@ -114,24 +116,29 @@ export type ToExport =
   /** Cancel or interruption: close and delete the scratch files now, then answer (ADR-0010 outcome item 10). */
   | { readonly type: 'export:abort' }
   /** The 3 × 2 s calibration encode for the estimate or a size target's pre-check. */
-  | { readonly type: 'export:calibrate'; readonly job: Omit<ExportJob, 'sink' | 'audio'> };
+  | { readonly type: 'export:calibrate'; readonly id: number; readonly job: Omit<ExportJob, 'sink' | 'audio'> };
 
 /** Export worker → main thread. */
 export type FromExport =
   | { readonly type: 'hello'; readonly worker: 'export'; readonly protocol: number }
   /** Frames muxed so far over every pass (`total` grows when the corrective pass starts). */
   | { readonly type: 'export:progress'; readonly done: number; readonly total: number }
+  /** Liveness during phases without frame progress (waiting for the sound, replay, index). */
+  | { readonly type: 'export:alive' }
   | {
       readonly type: 'export:done';
       readonly bytes: number;
       /** The memory sink's file; null when the file is the scratch file `job.sink.name`. */
       readonly blob: Blob | null;
       readonly stats: ExportStats;
+      /** The sound's verify-and-trim result, relayed over the port (null without lossy sound). */
+      readonly trim: TrimInfo | null;
     }
   | { readonly type: 'export:failed'; readonly error: ExportFailure }
   /** The scratch handles are closed and the files deleted; the worker can be terminated. */
   | { readonly type: 'export:aborted' }
-  | { readonly type: 'export:calibration'; readonly cal: Calibration };
+  | { readonly type: 'export:calibration'; readonly id: number; readonly cal: Calibration }
+  | { readonly type: 'export:calibrationFailed'; readonly id: number; readonly message: string };
 
 /** A decoded 48 kHz stereo source for the mix (until windowed decoding, as `audio:pcm`). */
 export interface PcmSource {
@@ -151,7 +158,7 @@ export type ToExportAudio =
       readonly codec: 'aac' | 'opus' | 'pcm16';
       readonly bitrate: number;
       readonly encoderDelay: number;
-      /** The project's final gain from an earlier lossy export of the same mix (shared, ADR-0008). */
+      /** The project's final gain from an earlier export of the same mix (shared by every export, ADR-0008). */
       readonly gainDb: number | null;
       /** To the export worker. */
       readonly port: MessagePort;
@@ -171,11 +178,15 @@ export type AudioPortMessage =
       readonly type: 'packets';
       readonly decoderConfig: AudioDecoderConfig;
       readonly packets: readonly AudioPacketData[];
+      readonly trim: TrimInfo;
     }
   /** WAV: the bytes after the 44-byte header, in order. */
   | { readonly type: 'pcm'; readonly bytes: Uint8Array }
-  | { readonly type: 'end'; readonly frames: number }
-  | { readonly type: 'failed'; readonly message: string };
+  | { readonly type: 'end'; readonly frames: number; readonly trim: TrimInfo }
+  /** Liveness while mixing, encoding and verifying (the export worker's sound-wait watchdog). */
+  | { readonly type: 'alive' }
+  /** `encoder`: a sound encoder/decoder error (rule (c) after a hide); `other` otherwise. */
+  | { readonly type: 'failed'; readonly kind: 'encoder' | 'other'; readonly message: string };
 
 export interface TrimInfo {
   readonly gainDb: number;
@@ -189,5 +200,7 @@ export type FromExportAudio =
   | { readonly type: 'hello'; readonly worker: 'export-audio'; readonly protocol: number }
   /** Samples mixed in the current pass (audio-only progress). */
   | { readonly type: 'exportAudio:progress'; readonly done: number; readonly total: number }
+  /** Liveness while mixing, encoding and verifying (counts for the interruption rules). */
+  | { readonly type: 'exportAudio:alive' }
   | { readonly type: 'exportAudio:done'; readonly trim: TrimInfo | null }
-  | { readonly type: 'exportAudio:failed'; readonly message: string };
+  | { readonly type: 'exportAudio:failed'; readonly kind: 'encoder' | 'other'; readonly message: string };

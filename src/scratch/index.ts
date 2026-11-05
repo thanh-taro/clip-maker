@@ -9,7 +9,8 @@
 // Implements: F-015.R7, F-019.R7, INV-01, NFR-11.
 
 /** The one directory MOD-Scratch owns. */
-export const SCRATCH_DIR = 'scratch';
+/** The one directory MOD-Scratch owns, named for the tool (the origin may host other tools). */
+export const SCRATCH_DIR = 'clip-maker-scratch';
 /** Success: nothing revoked or deleted for 10 s after the download click (ADR-0010 outcome item 6). */
 export const HANDOVER_HOLD_MS = 10_000;
 /** Writes go out in batches of at least 1 MB (sync-handle writes 2–4× slower with 64 KB). */
@@ -148,6 +149,8 @@ export interface ScratchSink extends ByteSink {
  * falls back to the memory sink. Implements: ADR-0010 §2.1, outcome item 5.
  */
 async function openHandle(name: string, storage: StorageLike): Promise<{ dir: DirLike; handle: SyncHandleLike }> {
+  // Defence in depth: only our own `export-<session>-<random>.part` names are ever opened.
+  if (!parseScratchName(name)) throw new Error(`SecurityError: not a scratch file name: ${name}`);
   const dir = await scratchDir(storage);
   const fh = await dir.getFileHandle(name, { create: true });
   try {
@@ -485,4 +488,16 @@ export class Scratch {
       /* gone already, or still open: the next export or start-up removes it */
     }
   }
+}
+
+/**
+ * Implements: F-015.AC14, INV-01, ADR-0010 outcome item 6 — at start-up: this session takes its Web
+ * Lock for the page's life, then sweeps what closed pages left. Called once by the app at boot; the
+ * returned Scratch is the one every export uses.
+ */
+export async function initScratch(env: ScratchEnv = browserScratchEnv()): Promise<{ scratch: Scratch; log: SweepLog }> {
+  const scratch = new Scratch(env);
+  await scratch.holdSessionLock();
+  const log = await scratch.sweep().catch(() => ({ deleted: [], skipped: [] }));
+  return { scratch, log };
 }

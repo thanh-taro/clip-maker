@@ -205,6 +205,93 @@ test.describe('MOD-Export GIF (RULE-16)', () => {
   });
 });
 
+test.describe('MOD-Export outputs carry no extra metadata (F-015.AC4, RULE-15 Contents)', () => {
+  const formats = [
+    { name: 'MP4 H.264 + AAC', settings: balanced480, caps: {} },
+    {
+      name: 'WebM VP9 + Opus',
+      settings: balanced480,
+      caps: {
+        videoFormat: { id: 'webm-vp9-opus', container: 'webm', video: 'vp9', audio: 'opus', fallback: true },
+      },
+    },
+    { name: 'M4A AAC', settings: { kind: 'audio', format: 'compressed' }, caps: {} },
+    {
+      name: 'Ogg Opus',
+      settings: { kind: 'audio', format: 'compressed' },
+      caps: { audioFormat: { id: 'ogg-opus', fallback: true } },
+    },
+    { name: 'WAV', settings: { kind: 'audio', format: 'wav' }, caps: {} },
+    { name: 'GIF', settings: { kind: 'gif', size: 320, rate: 15, from: 0 }, caps: {} },
+  ] as const;
+  for (const f of formats) {
+    test(`F-015.AC4 F-015.R4 ${f.name}: zero creation/modification times, no tags, no library or source names`, async ({
+      page,
+    }) => {
+      test.setTimeout(120_000);
+      const ok = await page.evaluate(async (c) => {
+        const caps = await window.harness.export.caps();
+        const v = (c as { videoFormat?: { video: string } }).videoFormat;
+        if (v && v.video === 'vp9')
+          return (
+            (await VideoEncoder.isConfigSupported({ codec: 'vp09.00.30.08', width: 640, height: 480 })).supported ===
+              true && !!caps.audio.opus
+          );
+        if ((c as { audioFormat?: unknown }).audioFormat) return !!caps.audio.opus;
+        return true;
+      }, f.caps);
+      test.skip(!ok, `${f.name} cannot be encoded by this engine`);
+      const r = await page.evaluate(
+        ([settings, caps]) => window.harness.export.run({ frames: 30, settings, sound: true, caps }),
+        [f.settings, f.caps] as const,
+      );
+      expect(r.result.ok, JSON.stringify(r.result)).toBe(true);
+      expect(r.metadata).toEqual({ library: false, sourceName: false, times: [], tags: [] });
+    });
+  }
+});
+
+test.describe('MOD-Export review fixes (E5)', () => {
+  test('F-015.AC11 the panel’s estimate is within ±25 % of the exported file', async ({ page }) => {
+    test.setTimeout(120_000);
+    const r = await page.evaluate(
+      (settings) => window.harness.export.run({ frames: 240, settings, sound: true, dense: true, estimate: true }),
+      balanced480,
+    );
+    expect(r.result.ok).toBe(true);
+    const ratio = r.estimated!.bytes / r.file!.bytes;
+    test.info().annotations.push({ type: 'estimate', description: `estimate ÷ file = ${ratio.toFixed(3)}` });
+    expect(ratio).toBeGreaterThan(0.75);
+    expect(ratio).toBeLessThan(1.25);
+  });
+
+  test('F-016.AC3 a running GIF export cancels within 1 s and nothing is saved', async ({ page }) => {
+    test.setTimeout(60_000);
+    const r = await page.evaluate(() =>
+      window.harness.export.run({
+        frames: 300,
+        settings: { kind: 'gif', size: 640, rate: 15, from: 0 },
+        sound: false,
+        cancelAt: 0.1,
+      }),
+    );
+    expect(r.result).toEqual({ ok: false, error: 'cancelled' });
+    expect(r.cancelMs!).toBeLessThan(1000);
+    expect(r.gif).toBeNull();
+  });
+
+  test('F-016.AC2 a WAV export of clip sound and music holds exactly the RULE-12 mix, 16-bit 48 kHz stereo', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const r = await page.evaluate(() =>
+      window.harness.export.run({ frames: 60, settings: { kind: 'audio', format: 'wav' }, sound: true, music: true }),
+    );
+    expect(r.result.ok, JSON.stringify(r.result)).toBe(true);
+    expect(r.wavMatchesMix).toBe(true);
+  });
+});
+
 test.describe('MOD-Scratch and cancel', () => {
   // WebKit's persistent contexts share one website data store: storage tests run one at a time.
   test.describe.configure({ mode: 'serial' });

@@ -19,11 +19,18 @@ export const errorText = (e: unknown): string =>
 
 export class StageError extends Error {
   constructor(
-    readonly kind: 'encoder' | 'webgl' | 'source' | 'sink' | 'over_target' | 'audio' | 'internal',
+    readonly kind: 'encoder' | 'webgl' | 'source' | 'sink' | 'no_space' | 'over_target' | 'audio' | 'internal',
     message: string,
   ) {
     super(message);
     this.name = 'StageError';
+  }
+}
+
+/** The encoder produced nothing for STALL_MS while frames waited (the stage recovers by re-creating it). */
+export class StallError extends StageError {
+  constructor(gapMs: number) {
+    super('encoder', `EncoderStall: no output for ${Math.round(gapMs)} ms`);
   }
 }
 
@@ -148,20 +155,32 @@ export class VideoEncodeStage {
       const gap = this.now() - this.lastOutput;
       if (gap >= STALL_MS) {
         this.longestGapMs = Math.max(this.longestGapMs, gap);
-        throw new StageError('encoder', `EncoderStall: no output for ${Math.round(gap)} ms`);
+        throw new StallError(gap);
       }
     }
     this.waitMs += this.now() - t0;
     this.enc.encode(frame, { keyFrame });
   }
 
+  /** Flushes, with the same watchdog: no output for STALL_MS while the flush is pending is a stall. */
   async flush(): Promise<void> {
     this.check();
+    let stalled = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const watchdog = new Promise<void>((resolve) => {
+      timer = setInterval(() => {
+        if (this.now() - this.lastOutput >= STALL_MS) {
+          stalled = true;
+          resolve();
+        }
+      }, 1000);
+    });
     try {
-      await this.enc.flush();
-    } catch (e) {
-      this.failure ??= errorText(e);
+      await Promise.race([this.enc.flush().catch((e: unknown) => void (this.failure ??= errorText(e))), watchdog]);
+    } finally {
+      clearInterval(timer);
     }
+    if (stalled) throw new StallError(this.now() - this.lastOutput);
     this.check();
   }
 

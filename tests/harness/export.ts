@@ -2,7 +2,7 @@
 // A frame-coded clip is made in the page (tests/harness/video.ts) and its sound is generated, so nothing
 // is added to git. Exports run through MOD-Export's main-thread side and its two real workers; results
 // are read back with MOD-Container and compared with the compositor's paint (the preview's picture).
-import { TruePeakMeter } from '../../src/audio';
+import { endSampleOf, pcmSource, TruePeakMeter, type SoundSource } from '../../src/audio';
 import {
   chooseAudioFormat,
   chooseVideoFormat,
@@ -16,8 +16,11 @@ import { createCompositor } from '../../src/compositor';
 import { createOutput, openInput, type OutPacket } from '../../src/container';
 import { frameStart, projectFrames, type ExportSettings, type PcmSource, type Project } from '../../src/core';
 import {
+  estimate,
   ExportWorkers,
   LateAudioMux,
+  wavAudio,
+  type EstimateResult,
   MemorySpill,
   start,
   type ExportCaps,
@@ -25,7 +28,7 @@ import {
   type ExportResult,
 } from '../../src/export';
 import { FrameSource } from '../../src/export/pipeline';
-import { framePlan } from '../../src/plan';
+import { framePlan, voices } from '../../src/plan';
 import { browserScratchEnv, browserStorage, lockName, Scratch, SCRATCH_DIR } from '../../src/scratch';
 import { de00, lab, type Rgb } from '../support/colour';
 import { CLIP_H, CLIP_W, codedProject, makeClip, readCode } from './video';
@@ -81,6 +84,14 @@ interface Options {
   /** Cancel when this fraction of progress is reported. */
   readonly cancelAt?: number;
   readonly scratch?: boolean;
+  /** Overrides of the capability record (e.g. force the WebM or Ogg fallback formats). */
+  readonly caps?: Partial<ExportCaps>;
+  /** Add a second sound (an audio clip over the whole project) for the mix checks. */
+  readonly music?: boolean;
+  /** Ask the panel's estimate first (F-015.AC11). */
+  readonly estimate?: boolean;
+  /** Dense, music-like sound (noise) instead of two tones: what the delivered AAC rate is measured on. */
+  readonly dense?: boolean;
 }
 
 export interface FrameCheck {
@@ -92,6 +103,9 @@ export interface FrameCheck {
 
 export interface RunReport {
   readonly result: ExportResult | { ok: false; error: string };
+  readonly estimated: EstimateResult | null;
+  readonly metadata: MetadataReport | null;
+  readonly wavMatchesMix: boolean | null;
   readonly ms: number;
   readonly cancelMs: number | null;
   readonly progress: number[];
@@ -125,6 +139,90 @@ export interface RunReport {
 }
 
 let lastBlob: Blob | null = null;
+
+/** Deterministic dense noise (LCG), like the trial's delivered-rate measure. */
+function densePcm(seconds: number): PcmSource {
+  const n = Math.ceil(seconds * 48_000);
+  const L = new Float32Array(n);
+  const R = new Float32Array(n);
+  let x = 12345;
+  for (let i = 0; i < n; i++) {
+    x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+    L[i] = (x / 0xffffffff - 0.5) * 0.6;
+    x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+    R[i] = (x / 0xffffffff - 0.5) * 0.6;
+  }
+  return { sourceId: 'src-a', L, R };
+}
+
+/** A second, quieter sound (the "music" of the mix checks). */
+function musicPcm(seconds: number): PcmSource {
+  const n = Math.ceil(seconds * 48_000);
+  const L = Float32Array.from({ length: n }, (_, i) => 0.4 * Math.sin((2 * Math.PI * 220 * i) / 48_000));
+  return { sourceId: 'src-m', L, R: L.slice() };
+}
+
+/** F-016.AC2: the WAV's samples are the RULE-12 mix of the project (the same render, dithered). */
+async function wavMatches(blob: Blob, project: Project, pcm: readonly PcmSource[]): Promise<boolean> {
+  const sources = new Map<string, SoundSource>(pcm.map((p) => [p.sourceId, pcmSource(p.L, p.R)]));
+  const parts: Uint8Array[] = [];
+  await wavAudio({ voices: voices(project), bank: (id) => sources.get(id), endSample: endSampleOf(project) }, (b) =>
+    parts.push(b),
+  );
+  const file = new Uint8Array(await blob.arrayBuffer()).subarray(44);
+  let at = 0;
+  for (const part of parts) {
+    for (let i = 0; i < part.length; i++) if (file[at + i] !== part[i]) return false;
+    at += part.length;
+  }
+  return at === file.length;
+}
+
+export interface MetadataReport {
+  readonly library: boolean;
+  readonly sourceName: boolean;
+  /** MP4 boxes whose creation or modification time is not 0. */
+  readonly times: string[];
+  /** Metadata containers present: MP4 udta/meta, WebM Tags, WAV LIST. */
+  readonly tags: string[];
+}
+
+/** F-015.AC4: what an output says beyond what its format requires. */
+async function metadataCheck(blob: Blob): Promise<MetadataReport> {
+  const b = new Uint8Array(await blob.arrayBuffer());
+  const text = new TextDecoder('latin1').decode(b);
+  const times: string[] = [];
+  const tags: string[] = [];
+  const isMp4 = text.slice(4, 8) === 'ftyp';
+  const walk = (from: number, to: number): void => {
+    for (let at = from; at + 8 <= to;) {
+      const v = new DataView(b.buffer, at);
+      let size = v.getUint32(0);
+      const type = text.slice(at + 4, at + 8);
+      if (size === 1) size = Number(v.getBigUint64(8));
+      if (size === 0) size = to - at;
+      if (size < 8) return;
+      if (type === 'udta' || type === 'meta') tags.push(type);
+      if (type === 'mvhd' || type === 'tkhd' || type === 'mdhd') {
+        const version = b[at + 8];
+        const c =
+          version === 1 ? Number(v.getBigUint64(12)) + Number(v.getBigUint64(20)) : v.getUint32(12) + v.getUint32(16);
+        if (c !== 0) times.push(type);
+      }
+      if (['moov', 'trak', 'mdia', 'minf', 'stbl', 'edts'].includes(type)) walk(at + 8, at + size);
+      at += size;
+    }
+  };
+  if (isMp4) walk(0, b.length);
+  if (text.startsWith('\x1aE\xdf\xa3') && text.includes('\x12\x54\xc3\x67')) tags.push('Tags');
+  if (text.startsWith('RIFF') && text.includes('LIST')) tags.push('LIST');
+  return {
+    library: /mediabunny/i.test(text),
+    sourceName: text.includes('coded.mp4') || text.includes('coded.webm'),
+    times,
+    tags,
+  };
+}
 
 export interface GifReport {
   readonly header: string;
@@ -194,16 +292,43 @@ async function analyseGif(blob: Blob): Promise<GifReport> {
 
 async function run(o: Options): Promise<RunReport> {
   const clip = await makeClip({ rate: 30, frames: o.frames, gop: 30 });
-  const project: Project = codedProject({ rate: 30, frames: o.frames, gop: 30 });
+  const coded = codedProject({ rate: 30, frames: o.frames, gop: 30 });
   const seconds = o.frames / 30;
+  const project: Project = {
+    ...coded,
+    sources: [
+      ...coded.sources.map((src) => ({ ...src, hasSound: o.sound })),
+      ...(o.music
+        ? [{ id: 'src-m', kind: 'audio' as const, name: 'm', bytes: 1, duration: (seconds + 1) * 1e6, hasSound: true }]
+        : []),
+    ],
+    audioClips: o.music
+      ? [
+          {
+            id: 'm',
+            sourceId: 'src-m',
+            start: 0,
+            in: 0,
+            out: Math.round(seconds * 1e6),
+            volume: 60,
+            muted: false,
+            fadeIn: 0,
+            fadeOut: 0,
+          },
+        ]
+      : [],
+  };
   workers ??= new ExportWorkers();
   let saved: Blob | null = null;
   const ctx: ExportContext = {
     workers,
     scratch: o.scratch === false ? new Scratch({ ...browserScratchEnv(), storage: null }) : scratch,
-    caps: await caps(),
+    caps: { ...(await caps()), ...o.caps },
     media: [{ id: 'src-a', kind: 'video', file: clip }],
-    pcm: o.sound ? [loudPcm(seconds + 1)] : [],
+    pcm: [
+      ...(o.sound ? [o.dense ? densePcm(seconds + 1) : loudPcm(seconds + 1)] : []),
+      ...(o.music ? [musicPcm(seconds + 1)] : []),
+    ],
     looks: {},
     texts: () => ({}),
     phone: false,
@@ -213,6 +338,7 @@ async function run(o: Options): Promise<RunReport> {
       return URL.createObjectURL(blob);
     },
   };
+  const estimated = o.estimate ? await estimate(project, o.settings, ctx) : null;
   const t0 = performance.now();
   const handle = await start(project, o.settings, ctx);
   const progress: number[] = [];
@@ -235,8 +361,14 @@ async function run(o: Options): Promise<RunReport> {
   lastBlob = saved;
   return {
     result,
+    estimated,
     ms,
     cancelMs,
+    metadata: saved ? await metadataCheck(saved) : null,
+    wavMatchesMix:
+      saved && o.settings.kind === 'audio' && o.settings.format === 'wav'
+        ? await wavMatches(saved, project, ctx.pcm)
+        : null,
     progress,
     remaining,
     scratchFile: handle.scratchFile?.name ?? null,

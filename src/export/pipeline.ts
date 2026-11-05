@@ -10,9 +10,9 @@ import { wavHeader } from '../audio';
 import { createCompositor, type Compositor, type LookTable, type PaintFrame } from '../compositor';
 import { createOutput, type MediaWriter, type OutPacket, type Sink } from '../container';
 import {
-  correctiveBps,
   frameStart,
   gifDelays,
+  gopFrames,
   projectFrames,
   scheduledFrame,
   type AudioPortMessage,
@@ -24,12 +24,14 @@ import {
   type FromExport,
   type Project,
   type TextBitmap,
+  type TrimInfo,
 } from '../core';
 import { createSequentialFrameReader, type SequentialFrameReader } from '../engine';
 import { GIFEncoder, applyPalette, quantize } from 'gifenc';
 import { framePlan, gifFramePlan, type FramePlan } from '../plan';
-import { openScratchSink, openScratchSpill, type StorageLike } from '../scratch';
-import { encoderConfig, errorText, StageError, VideoEncodeStage, type EncodedVideo } from './encoder';
+import { openScratchSink, openScratchSpill, type ScratchSpill, type StorageLike } from '../scratch';
+import { AbortGate, encodeFrames, runTargetPasses, sinkError, withHeartbeat } from './control';
+import { encoderConfig, errorText, StageError, VideoEncodeStage } from './encoder';
 import { LateAudioMux, MemorySpill, type SpillStore } from './mux';
 import { MemorySink } from './sinks';
 import { PROGRESS_POST_MS } from './watch';
@@ -38,8 +40,8 @@ export interface PipelineDeps {
   readonly storage: StorageLike | null;
   readonly post: (m: FromExport, transfer?: Transferable[]) => void;
   readonly now?: () => number;
-  /** Registers how to drop the open sink at once (abort: close the handles, delete the files). */
-  readonly onSink?: (discard: () => Promise<void>) => void;
+  /** The abort gate: drops the open sink at once on abort (close the handles, delete the files). */
+  readonly gate?: AbortGate;
 }
 
 /** The decoded pictures of a plan's layers: per-clip sequential readers and the photos. */
@@ -129,13 +131,25 @@ interface OpenedSink {
   readonly sink: Sink;
   readonly bytes: () => number;
   readonly reset: () => void;
+  /** A fresh spill store, opened only when a video packet must wait for the sound. */
   readonly spill: () => Promise<SpillStore>;
-  /** Deletes the spill file if one was opened (it is not needed once the file is complete). */
+  /** Deletes the current spill file if one is open (not needed once the file is complete). */
   readonly dropSpill: () => Promise<void>;
   /** Closes; returns the memory file (null for the scratch file). */
   readonly finish: (type: string) => Blob | null;
   readonly discard: () => Promise<void>;
 }
+
+/** Sink writes: a storage quota error becomes COPY-error.no_space (F-019.R7). */
+const guarded = (write: (c: Uint8Array, p: number) => void): Sink['write'] => {
+  return (c, p) => {
+    try {
+      write(c, p);
+    } catch (e) {
+      throw sinkError(e);
+    }
+  };
+};
 
 /** ADR-0010 §2 / outcome item 5: the scratch file, or memory when it can't be opened and memory may be used. */
 async function openSink(job: ExportJob, storage: StorageLike | null): Promise<OpenedSink> {
@@ -143,24 +157,52 @@ async function openSink(job: ExportJob, storage: StorageLike | null): Promise<Op
   if (choice.kind === 'scratch' && storage) {
     try {
       const s = await openScratchSink(choice.name, storage);
-      let spill: Promise<SpillStore> | null = null;
+      let spill: ScratchSpill | null = null;
+      const dropSpill = async (): Promise<void> => {
+        const old = spill;
+        spill = null;
+        await old?.discard();
+      };
       return {
         kind: 'scratch',
-        sink: { write: (c, p) => s.write(c, p), close: () => s.flush() },
-        bytes: () => (s.flush(), s.size),
-        reset: () => s.reset(),
-        spill: () => (spill ??= openScratchSpill(choice.spill, storage)),
-        dropSpill: async () => {
-          if (spill) await (await spill.catch(() => null))?.discard();
+        sink: { write: guarded((c, p) => s.write(c, p)), close: () => s.flush() },
+        bytes: () => {
+          try {
+            s.flush();
+          } catch (e) {
+            throw sinkError(e);
+          }
+          return s.size;
         },
+        reset: () => s.reset(),
+        spill: async () => {
+          await dropSpill();
+          spill = await openScratchSpill(choice.spill, storage);
+          const opened = spill;
+          return {
+            append: (d) => {
+              try {
+                return opened.append(d);
+              } catch (e) {
+                throw sinkError(e);
+              }
+            },
+            read: (o, n) => opened.read(o, n),
+            get bytes() {
+              return opened.bytes;
+            },
+            discard: () => opened.discard(),
+          };
+        },
+        dropSpill,
         finish: () => (s.close(), null),
         discard: async () => {
           await s.discard();
-          if (spill) await (await spill.catch(() => null))?.discard();
+          await dropSpill().catch(() => undefined);
         },
       };
     } catch (e) {
-      if (!choice.memoryFallback) throw new StageError('sink', errorText(e));
+      if (!choice.memoryFallback) throw sinkError(e);
     }
   } else if (choice.kind === 'scratch' && !choice.memoryFallback)
     throw new StageError('sink', 'NotFoundError: no scratch storage');
@@ -177,37 +219,60 @@ async function openSink(job: ExportJob, storage: StorageLike | null): Promise<Op
   };
 }
 
-/** The verified sound from the export-audio worker (over the job's port). */
-function soundFrom(port: MessagePort | null): {
-  packets: Promise<{ packets: OutPacket[]; config: AudioDecoderConfig }>;
-  pcm: (onBytes: (b: Uint8Array) => void) => Promise<number>;
-} {
+/** No message from the export-audio worker for this long while the video waits for it: a dead worker. */
+export const SOUND_STALL_MS = 30_000;
+
+interface Sound {
+  readonly packets: Promise<{ packets: OutPacket[]; config: AudioDecoderConfig; trim: TrimInfo }>;
+  readonly pcm: (onBytes: (b: Uint8Array) => void) => Promise<{ frames: number; trim: TrimInfo }>;
+  /** Rejects when the export-audio worker falls silent for SOUND_STALL_MS before it delivered. */
+  readonly watchdog: Promise<never>;
+  stop(): void;
+}
+
+/** The verified sound from the export-audio worker (over the job's port), with its trim result. */
+export function soundFrom(port: MessagePort | null): Sound {
   let onPcm: ((b: Uint8Array) => void) | null = null;
-  let resolvePackets: (v: { packets: OutPacket[]; config: AudioDecoderConfig }) => void = () => undefined;
-  let resolveEnd: (frames: number) => void = () => undefined;
-  let rejectAll: (e: Error) => void = () => undefined;
-  const pcmBacklog: Uint8Array[] = [];
-  const packets = new Promise<{ packets: OutPacket[]; config: AudioDecoderConfig }>((res, rej) => {
+  const backlog: Uint8Array[] = [];
+  let resolvePackets: (v: { packets: OutPacket[]; config: AudioDecoderConfig; trim: TrimInfo }) => void = () =>
+    undefined;
+  let resolveEnd: (v: { frames: number; trim: TrimInfo }) => void = () => undefined;
+  const rejects: ((e: Error) => void)[] = [];
+  const packets = new Promise<{ packets: OutPacket[]; config: AudioDecoderConfig; trim: TrimInfo }>((res, rej) => {
     resolvePackets = res;
-    const prev = rejectAll;
-    rejectAll = (e) => (prev(e), rej(e));
+    rejects.push(rej);
   });
-  const end = new Promise<number>((res, rej) => {
+  const end = new Promise<{ frames: number; trim: TrimInfo }>((res, rej) => {
     resolveEnd = res;
-    const prev = rejectAll;
-    rejectAll = (e) => (prev(e), rej(e));
+    rejects.push(rej);
   });
-  packets.catch(() => undefined);
-  end.catch(() => undefined);
+  let rejectWatch: (e: Error) => void = () => undefined;
+  const watchdog = new Promise<never>((_, rej) => (rejectWatch = rej));
+  for (const p of [packets, end, watchdog]) p.catch(() => undefined);
+  let last = Date.now();
+  let delivered = false;
+  const fail = (e: Error): void => {
+    for (const r of rejects) r(e);
+    rejectWatch(e);
+  };
+  const timer = setInterval(() => {
+    if (!delivered && Date.now() - last >= SOUND_STALL_MS)
+      fail(new StageError('audio', `TimeoutError: no sound for ${SOUND_STALL_MS} ms`));
+  }, 1000);
   if (port) {
     port.onmessage = (e: MessageEvent<AudioPortMessage>) => {
+      last = Date.now();
       const m = e.data;
-      if (m.type === 'packets') resolvePackets({ packets: [...m.packets], config: m.decoderConfig });
-      else if (m.type === 'pcm') {
+      if (m.type === 'packets') {
+        delivered = true;
+        resolvePackets({ packets: [...m.packets], config: m.decoderConfig, trim: m.trim });
+      } else if (m.type === 'pcm') {
         if (onPcm) onPcm(m.bytes);
-        else pcmBacklog.push(m.bytes);
-      } else if (m.type === 'end') resolveEnd(m.frames);
-      else rejectAll(new StageError('audio', m.message));
+        else backlog.push(m.bytes);
+      } else if (m.type === 'end') {
+        delivered = true;
+        resolveEnd({ frames: m.frames, trim: m.trim });
+      } else if (m.type === 'failed') fail(new StageError(m.kind === 'encoder' ? 'encoder' : 'audio', m.message));
     };
     port.start();
   }
@@ -215,9 +280,11 @@ function soundFrom(port: MessagePort | null): {
     packets,
     pcm: (f) => {
       onPcm = f;
-      for (const b of pcmBacklog.splice(0)) f(b);
+      for (const b of backlog.splice(0)) f(b);
       return end;
     },
+    watchdog,
+    stop: () => clearInterval(timer),
   };
 }
 
@@ -248,8 +315,27 @@ const noStats = (
   longestOutputGapMs: 0,
   spilledBytes: 0,
   heldVideoBytesMax: 0,
+  encoderRestarts: 0,
   sink,
 });
+
+/** Opens the sink and registers it with the abort gate (a sink opened after an abort is dropped). */
+async function openRegistered(job: ExportJob, deps: PipelineDeps): Promise<OpenedSink> {
+  const sink = await openSink(job, deps.storage);
+  if (deps.gate && !deps.gate.register(sink.discard)) {
+    await sink.discard().catch(() => undefined);
+    throw new StageError('internal', 'AbortError: the export was cancelled');
+  }
+  return sink;
+}
+
+/** Posts `export:done`; from then on an abort no longer deletes the file. */
+function done(deps: PipelineDeps, m: Extract<FromExport, { type: 'export:done' }>): void {
+  deps.gate?.clear();
+  deps.post(m);
+}
+
+const beat = (deps: PipelineDeps) => (): void => deps.post({ type: 'export:alive' });
 
 /**
  * Implements: F-016.R1, RULE-16 GIF (loops forever, no sound, its own size and rate), ADR-0010 §10 —
@@ -262,8 +348,7 @@ async function gifExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
   if (out.kind !== 'gif') throw new StageError('internal', 'not a GIF job');
   const now = deps.now ?? (() => performance.now());
   const t0 = now();
-  const sink = await openSink(job, deps.storage);
-  deps.onSink?.(sink.discard);
+  const sink = await openRegistered(job, deps);
   const { comp } = compositorFor(job, out.width, out.height);
   const source = new FrameSource(job.media);
   const texts = new Map(Object.entries(job.texts));
@@ -306,12 +391,8 @@ async function gifExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
     flush();
     const bytes = sink.bytes();
     const blob = sink.finish(MIME.gif);
-    deps.post({
-      type: 'export:done',
-      bytes,
-      blob,
-      stats: noStats(sink.kind, out.frames, now() - t0, paintMs, source.decodeMs),
-    });
+    const stats = noStats(sink.kind, out.frames, now() - t0, paintMs, source.decodeMs);
+    done(deps, { type: 'export:done', bytes, blob, stats, trim: null });
   } catch (e) {
     await sink.discard().catch(() => undefined);
     throw e;
@@ -330,21 +411,11 @@ async function videoExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
   const v = out.video;
   const frames = projectFrames(job.project);
   if (frames <= 0) throw new StageError('internal', 'RangeError: empty project');
-  const sink = await openSink(job, deps.storage);
-  deps.onSink?.(sink.discard);
+  const sink = await openRegistered(job, deps);
   const sound = out.audio ? soundFrom(job.audio) : null;
   const texts = new Map(Object.entries(job.texts));
   const { comp, canvas } = compositorFor(job, v.width, v.height);
-  const stats = {
-    wrapMs: 0,
-    paintMs: 0,
-    decodeMs: 0,
-    encodeWaitMs: 0,
-    longestOutputGapMs: 0,
-    spilledBytes: 0,
-    held: 0,
-  };
-  const bitrates: number[] = [];
+  const stats = { wrapMs: 0, paintMs: 0, decodeMs: 0, encodeWaitMs: 0, gap: 0, spilled: 0, held: 0, restarts: 0 };
   let total = frames;
   let doneFrames = 0;
   let lastPost = -Infinity;
@@ -354,37 +425,50 @@ async function videoExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
     lastPost = t;
     deps.post({ type: 'export:progress', done: doneFrames, total });
   };
+  let trim: TrimInfo | null = null;
   try {
-    let bitrate = v.bitrate;
-    for (let pass = 1; ; pass++) {
-      bitrates.push(bitrate);
-      const writer = await createOutput(v.container, sink.sink, {
-        video: { codec: v.codec === 'h264' ? 'avc' : v.codec, frameRate: v.rate },
-        ...(out.audio ? { audio: { codec: out.audio.codec } } : {}),
-      });
-      const spill = out.audio ? await sink.spill() : null;
-      const mux = new LateAudioMux(writer, !!out.audio, () => spill ?? new MemorySpill());
-      const soundIn = sound ? sound.packets.then((a) => mux.audioReady(a.packets, a.config)) : Promise.resolve();
-      soundIn.catch(() => undefined);
-      const pass1 = await encodePass(job, v, bitrate, comp, canvas, texts, mux, stats, () => {
-        doneFrames++;
-        progress();
-      });
-      await soundIn;
-      await mux.finish();
-      await writer.finalize();
-      stats.spilledBytes += mux.spilledBytes;
-      stats.held = Math.max(stats.held, mux.heldVideoBytesMax);
-      stats.longestOutputGapMs = Math.max(stats.longestOutputGapMs, pass1.longestGapMs);
-      const bytes = sink.bytes();
-      if (out.targetBytes === null || bytes <= out.targetBytes) break;
-      // RULE-15 / F-015.AC10: one corrective pass; a file still above the target is never handed over.
-      if (pass >= 2)
-        throw new StageError('over_target', `RangeError: ${bytes} bytes over the ${out.targetBytes} target`);
-      bitrate = correctiveBps(bitrate, out.targetBytes - (bytes - pass1.videoBytes), pass1.videoBytes);
-      total += frames;
-      sink.reset();
-    }
+    const { bitrates } = await runTargetPasses({
+      bitrate: v.bitrate,
+      targetBytes: out.targetBytes,
+      reset: () => {
+        total += frames;
+        sink.reset();
+      },
+      pass: async (bitrate) => {
+        const writer = await createOutput(v.container, sink.sink, {
+          video: { codec: v.codec === 'h264' ? 'avc' : v.codec, frameRate: v.rate },
+          ...(out.audio ? { audio: { codec: out.audio.codec } } : {}),
+        });
+        // A fresh, lazily opened spill per pass (never a store discarded by an earlier pass).
+        const mux = new LateAudioMux(writer, !!out.audio, () => sink.spill());
+        const soundIn = sound
+          ? sound.packets.then((a) => {
+              trim = a.trim;
+              return mux.audioReady(a.packets, a.config);
+            })
+          : Promise.resolve();
+        soundIn.catch(() => undefined);
+        const pass = await Promise.race([
+          encodePass(job, v, bitrate, comp, canvas, texts, mux, stats, () => {
+            doneFrames++;
+            progress();
+          }),
+          ...(sound ? [sound.watchdog] : []),
+        ]);
+        // Phases without frame progress post liveness beats (ADR-0010 outcome item 10).
+        await withHeartbeat(
+          (async () => {
+            await Promise.race([soundIn, ...(sound ? [sound.watchdog] : [])]);
+            await mux.finish();
+            await writer.finalize();
+          })(),
+          beat(deps),
+        );
+        stats.spilled += mux.spilledBytes;
+        stats.held = Math.max(stats.held, mux.heldVideoBytesMax);
+        return { bytes: sink.bytes(), videoBytes: pass.videoBytes };
+      },
+    });
     progress(true);
     await sink.dropSpill();
     const bytes = sink.bytes();
@@ -398,21 +482,23 @@ async function videoExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
       paintMs: stats.paintMs,
       decodeMs: stats.decodeMs,
       encodeWaitMs: stats.encodeWaitMs,
-      longestOutputGapMs: stats.longestOutputGapMs,
-      spilledBytes: stats.spilledBytes,
+      longestOutputGapMs: stats.gap,
+      spilledBytes: stats.spilled,
       heldVideoBytesMax: stats.held,
+      encoderRestarts: stats.restarts,
       sink: sink.kind,
     };
-    deps.post({ type: 'export:done', bytes, blob, stats: result });
+    done(deps, { type: 'export:done', bytes, blob, stats: result, trim });
   } catch (e) {
     await sink.discard().catch(() => undefined);
     throw e;
   } finally {
+    sound?.stop();
     comp.dispose();
   }
 }
 
-/** One full encode of the project into `mux`. */
+/** One full encode of the project into `mux` (with the encoder restart after a stall). */
 async function encodePass(
   job: ExportJob,
   v: ExportVideoSpec,
@@ -421,46 +507,69 @@ async function encodePass(
   canvas: OffscreenCanvas,
   texts: ReadonlyMap<string, TextBitmap>,
   mux: LateAudioMux,
-  stats: { wrapMs: number; paintMs: number; decodeMs: number; encodeWaitMs: number },
+  stats: { wrapMs: number; paintMs: number; decodeMs: number; encodeWaitMs: number; gap: number; restarts: number },
   onFrame: () => void,
-): Promise<{ videoBytes: number; longestGapMs: number }> {
+): Promise<{ videoBytes: number }> {
   const frames = projectFrames(job.project);
-  const source = new FrameSource(job.media);
+  let source = new FrameSource(job.media);
   let muxError: unknown = null;
   let pending: Promise<void> = Promise.resolve();
-  const enc = new VideoEncodeStage(encoderConfig(v, bitrate), (e: EncodedVideo) => {
-    pending = mux.video(e.packet, e.config);
-    pending.catch((err: unknown) => (muxError ??= err));
-  });
+  let videoBytes = 0;
+  const stages: VideoEncodeStage[] = [];
+  let best = 0;
   try {
-    for (let k = 0; k < frames; k++) {
-      if (muxError) throw new StageError('sink', errorText(muxError));
-      const plan = framePlan(job.project, k);
-      const pictures = await source.frames(plan);
-      let t = performance.now();
-      paintFrame(comp, plan, pictures, texts);
-      const t2 = performance.now();
-      stats.paintMs += t2 - t;
-      const f = scheduledFrame(k, v.rate);
-      // One wrap per frame: ≈ 70 % of phone export time (architecture.md risk 3a).
-      const frame = new VideoFrame(canvas, { timestamp: f.timestamp, duration: f.duration });
-      t = performance.now();
-      stats.wrapMs += t - t2;
-      try {
-        await enc.encode(frame, f.key);
-      } finally {
-        frame.close();
-      }
-      onFrame();
-    }
-    await enc.flush();
+    const r = await encodeFrames({
+      frames,
+      gop: gopFrames(v.rate),
+      render: async (k) => {
+        if (muxError) throw sinkError(muxError);
+        const plan = framePlan(job.project, k);
+        const pictures = await source.frames(plan);
+        let t = performance.now();
+        paintFrame(comp, plan, pictures, texts);
+        const t2 = performance.now();
+        stats.paintMs += t2 - t;
+        const f = scheduledFrame(k, v.rate);
+        // One wrap per frame: ≈ 70 % of phone export time (architecture.md risk 3a).
+        const frame = new VideoFrame(canvas, { timestamp: f.timestamp, duration: f.duration });
+        t = performance.now();
+        stats.wrapMs += t - t2;
+        return frame;
+      },
+      createEncoder: (onPacket) => {
+        const stage = new VideoEncodeStage(encoderConfig(v, bitrate), onPacket);
+        stages.push(stage);
+        return stage;
+      },
+      frameOf: (e) => Math.round(e.packet.timestamp * v.rate),
+      deliver: (e) => {
+        videoBytes += e.packet.data.length;
+        pending = mux.video(e.packet, e.config);
+        pending.catch((err: unknown) => (muxError ??= err));
+      },
+      rewind: async () => {
+        await source.close();
+        source = new FrameSource(job.media);
+      },
+      onFrame: (k) => {
+        // Progress never goes back after a restart (frames re-encoded are not counted twice).
+        if (k + 1 > best) {
+          best = k + 1;
+          onFrame();
+        }
+      },
+    });
     await pending;
-    if (muxError) throw new StageError('sink', errorText(muxError));
-    stats.decodeMs += source.decodeMs;
-    stats.encodeWaitMs += enc.waitMs;
-    return { videoBytes: enc.bytes, longestGapMs: enc.longestGapMs };
+    if (muxError) throw sinkError(muxError);
+    stats.restarts += r.restarts;
+    return { videoBytes };
   } finally {
-    enc.close();
+    for (const s of stages) {
+      stats.encodeWaitMs += s.waitMs;
+      stats.gap = Math.max(stats.gap, s.longestGapMs);
+      s.close();
+    }
+    stats.decodeMs += source.decodeMs;
     await source.close();
   }
 }
@@ -471,30 +580,44 @@ async function audioExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
   if (out.kind !== 'audio') throw new StageError('internal', 'not an audio job');
   const now = deps.now ?? (() => performance.now());
   const t0 = now();
-  const sink = await openSink(job, deps.storage);
-  deps.onSink?.(sink.discard);
+  const sink = await openRegistered(job, deps);
   const sound = soundFrom(job.audio);
+  let trim: TrimInfo | null = null;
   try {
-    if (out.container === 'wav') {
-      let at = 44;
-      const frames = await sound.pcm((b) => {
-        sink.sink.write(b, at);
-        at += b.length;
-      });
-      sink.sink.write(wavHeader(frames), 0);
-    } else {
-      if (!out.audio) throw new StageError('internal', 'no audio spec');
-      const writer: MediaWriter = await createOutput(out.container, sink.sink, { audio: { codec: out.audio.codec } });
-      const a = await sound.packets;
-      for (const [i, p] of a.packets.entries()) await writer.addAudio(p, i === 0 ? a.config : undefined);
-      await writer.finalize();
-    }
+    await withHeartbeat(
+      Promise.race([
+        (async () => {
+          if (out.container === 'wav') {
+            let at = 44;
+            const end = await sound.pcm((b) => {
+              sink.sink.write(b, at);
+              at += b.length;
+            });
+            sink.sink.write(wavHeader(end.frames), 0);
+            trim = end.trim;
+          } else {
+            if (!out.audio) throw new StageError('internal', 'no audio spec');
+            const writer: MediaWriter = await createOutput(out.container, sink.sink, {
+              audio: { codec: out.audio.codec },
+            });
+            const a = await sound.packets;
+            trim = a.trim;
+            for (const [i, p] of a.packets.entries()) await writer.addAudio(p, i === 0 ? a.config : undefined);
+            await writer.finalize();
+          }
+        })(),
+        sound.watchdog,
+      ]),
+      beat(deps),
+    );
     const bytes = sink.bytes();
     const blob = sink.finish(MIME[out.container]);
-    deps.post({ type: 'export:done', bytes, blob, stats: noStats(sink.kind, 0, now() - t0) });
+    done(deps, { type: 'export:done', bytes, blob, stats: noStats(sink.kind, 0, now() - t0), trim });
   } catch (e) {
     await sink.discard().catch(() => undefined);
     throw e;
+  } finally {
+    sound.stop();
   }
 }
 
@@ -505,11 +628,8 @@ export async function runExport(job: ExportJob, deps: PipelineDeps): Promise<voi
     else if (job.output.kind === 'audio') await audioExport(job, deps);
     else await gifExport(job, deps);
   } catch (e) {
-    const error =
-      e instanceof StageError
-        ? { kind: e.kind, message: e.message }
-        : { kind: 'internal' as const, message: errorText(e) };
-    deps.post({ type: 'export:failed', error });
+    const err = e instanceof StageError ? e : new StageError('internal', errorText(e));
+    deps.post({ type: 'export:failed', error: { kind: err.kind, message: err.message } });
   }
 }
 
