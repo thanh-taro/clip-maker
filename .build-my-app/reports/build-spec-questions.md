@@ -14,3 +14,11 @@ From E1 (MOD-Core/Project/Plan). The behaviour currently built is in [brackets].
 10. **Clock:** ADR-0008 §5 says "`getOutputTimestamp()` minus `outputLatency`", but the output timestamp already describes what reaches the speakers. [The output timestamp is used, carried forward to now; `currentTime − outputLatency − baseLatency` only when there is no timestamp.] Proposal: write it this way in platform-mapping.
 11. **Limiter margin:** the −1.5 dBTP ceiling holds on the limiter's own side-chain. Independent meters read up to −1.46 dBTP (BS.1770-4) and −1.39 dBTP (a 64-tap meter) on synthetic +6 dBTP overs. This matches the ADR's "PCM ≤ −1.35 dBTP" and stays inside RULE-12's −1 dBTP. [Tests check ≤ −1.35 on the meters.] No change proposed.
 12. **"Underruns counted in debug builds":** there is no debug build flag. [Always counted; it is cheap. The stats come back only on request.] Proposal: drop "in debug builds".
+
+## Technical items from E2 (MOD-Container/Codec/Media), decided by Claude
+13. **Size budgets:** Vite bundles each worker separately, so the reader (about 73 KB) lands in the analysis worker and, later, the engine worker. The per-worker budgets are rebalanced (analysis ≤ 105 KB) and the code total stays ≤ 560 KB, inside NFR-10's 600 KB. Measured today: 109 KB in total. architecture.md's Size row will be updated in E3.
+14. **The 3840 × 2160 scale-down box rotates with portrait video.** Accepted.
+15. **"Shorter than one frame":** superseded by question 7 (the 0.125 s minimum).
+16. **Damaged files → COPY-reason.no_media** ("no usable picture or sound", RULE-01). Accepted.
+17. **A source's stored width and height are the size it is used at** (after scale-down). Accepted. The original size is kept for display.
+18. **RULE-22 device check:** E2 requires a video AND an audio encoder, but the rule only needs a video output. Decision: require a video encoder only. With no audio encoder, sound export is unavailable rather than the device being unsupported. Fix in F-023.
