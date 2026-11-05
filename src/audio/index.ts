@@ -1,13 +1,12 @@
-// MOD-Audio — windowed decoding, resampling, time-stretch, mix, limiter, playback clock
-// (specs/40-technical/modules/MOD-Audio.md, ADR-0008). Phase 3.3 scaffold: starting the audio and
-// export-audio workers, the worklet module's URL, and the public surface; built with F-002, F-005,
-// F-009, F-011 and F-016.
-import { notImplemented, type Micros } from '../core';
-import type { AudioPlan } from '../plan';
+// MOD-Audio — the deterministic mixer, time-stretch, limiter, playback clock and WAV writer
+// (specs/40-technical/modules/MOD-Audio.md, ADR-0008 and its outcome). Also starts the audio and
+// export-audio workers and names the worklet module's URL.
+// Not yet here: windowed decoding, stereo mapping and 48 kHz resampling (they arrive with
+// MOD-Container/MOD-Codec, ADR-0008 §2/§6) and the picker audition (F-011).
 // The worklet is bundled as its own hashed same-origin module (ADR-0003; CSP `script-src 'self'`).
 import workletUrl from './playback.worklet.ts?worker&url';
 
-/** URL of the AudioWorklet module, for `audioContext.audioWorklet.addModule` in the Play gesture. */
+/** URL of the AudioWorklet module, for `audioContext.audioWorklet.addModule` in the first gesture. */
 export const WORKLET_URL: string = workletUrl;
 
 export function startAudioWorker(): Worker {
@@ -19,8 +18,13 @@ export function startExportAudioWorker(): Worker {
   return new Worker(new URL('./export-audio.worker.ts', import.meta.url), { type: 'module', name: 'export-audio' });
 }
 
-export const render = (_plan: AudioPlan, _fromSample: number, _count: number): [Float32Array, Float32Array] =>
-  notImplemented('MOD-Audio render');
-export const clock = {
-  now: (): Micros => notImplemented('MOD-Audio clock.now'),
-};
+export { render, renderOffline, Mixer, LIMITER_PREROLL, originOf, type MixerOptions } from './mixer';
+export { Limiter, LIMITER_CEILING_DB, LIMITER_LOOKAHEAD, LIMITER_RELEASE_MS } from './limiter';
+export { truePeak, BS1770_METER, SIDE_CHAIN, designInterpolator, dbOf, linearOf, type Interpolator } from './truepeak';
+export { createStretcher, seekDecodeFrom, Wsola, type Stretcher } from './wsola';
+export { pcmSource, bankOf, type SoundSource, type SourceBank } from './source';
+export { verifyAndTrim, TRIM_LIMIT_DB, TRIM_TARGET_DB, TRIM_MAX_PASSES, type TrimPass, type TrimResult } from './trim';
+export { wavHeader, wavData, encodeWav, pcm16, WAV_HEADER_BYTES } from './wav';
+export { Streamer, sampleAt, endSampleOf } from './stream';
+export { Playback, boundedResume, browserEnv, type AudioEnv, type PlaybackState } from './playback';
+export * from './protocol';
