@@ -43,18 +43,18 @@
     },
     "architecture": {
       "title": "3 Architecture & spikes",
-      "status": "in_progress",
-      "step": "3.2 spikes: tonight owner runs: step 6 (timestretch 8452), C (ios 8470/8471), mem-hdr re-run (8461 dec.html + mem.html?tasks=t1,t2,t3&src=url). Then apply spike-amendments to ADRs, G3.",
+      "status": "done",
+      "step": "3.3 foundations: stack+ADRs accepted (D-043); spec changes SC-1..11 being applied (D-044..046); scaffold agent running; then license audit (gifenc etc.), G3 checks",
       "gate": {
-        "status": "pending",
-        "at": null,
-        "note": null
+        "status": "passed",
+        "at": "2026-11-04T16:00:48+00:00",
+        "note": "Fresh clone + 9-step CI green; 13 spikes closed; ADR-0001..0016 accepted; 36 deps approved; Lighthouse dropped (D-047)"
       }
     },
     "build": {
       "title": "4 Implementation",
-      "status": "pending",
-      "step": null,
+      "status": "in_progress",
+      "step": "4 PAUSED (owner, token cost): wave 1 approved; next = apply wave 1 decisions, then wave 2 (F-021, F-022, then F-001). See .build-my-app/reports/RESUME.md",
       "gate": {
         "status": "pending",
         "at": null,
@@ -622,6 +622,102 @@
       "answer": "APPROVED by owner 2026-11-03: unmodified pinned mediabunny under scoped MPL-2.0 exception (ADR-0005); writer only in export worker; container budget ~110 KB gzip; typed error for no-tracks/0-packets",
       "asked": "2026-11-03T12:39:25+00:00",
       "answered": "2026-11-03T12:39:26+00:00"
+    },
+    {
+      "id": "D-043",
+      "question": "Approve stack + ADR-0001..0016 (amended by spikes)",
+      "options": [],
+      "recommendation": null,
+      "kind": "technical",
+      "phase": "architecture",
+      "status": "answered",
+      "answer": "approved 2026-11-04",
+      "asked": "2026-11-04T15:35:42+00:00",
+      "answered": "2026-11-04T15:35:44+00:00"
+    },
+    {
+      "id": "D-044",
+      "question": "G3 corrective spec changes SC-1..8, SC-11",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "architecture",
+      "status": "answered",
+      "answer": "accepted",
+      "asked": "2026-11-04T15:35:45+00:00",
+      "answered": "2026-11-04T15:35:46+00:00"
+    },
+    {
+      "id": "D-045",
+      "question": "Share button (SC-9)",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "architecture",
+      "status": "answered",
+      "answer": "add Share (F-015.R9/AC15, COPY-action.share); hidden embedded without web-share",
+      "asked": "2026-11-04T15:35:46+00:00",
+      "answered": "2026-11-04T15:35:47+00:00"
+    },
+    {
+      "id": "D-046",
+      "question": "Silent mode (SC-10)",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "architecture",
+      "status": "answered",
+      "answer": "(b) preview plays sound like video apps (audioSession playback)",
+      "asked": "2026-11-04T15:35:47+00:00",
+      "answered": "2026-11-04T15:35:47+00:00"
+    },
+    {
+      "id": "D-047",
+      "question": "Lighthouse CI (DEP-26)",
+      "options": [],
+      "recommendation": null,
+      "kind": "legal",
+      "phase": "architecture",
+      "status": "answered",
+      "answer": "dropped; perf via Playwright + size budgets",
+      "asked": "2026-11-04T16:00:40+00:00",
+      "answered": "2026-11-04T16:00:40+00:00"
+    },
+    {
+      "id": "D-048",
+      "question": "Design tokens DEP-12",
+      "options": [],
+      "recommendation": null,
+      "kind": "legal",
+      "phase": "architecture",
+      "status": "answered",
+      "answer": "owner's own work, pinned to portal commit 4c4ae94",
+      "asked": "2026-11-04T16:00:40+00:00",
+      "answered": "2026-11-04T16:00:40+00:00"
+    },
+    {
+      "id": "D-049",
+      "question": "Gate G3",
+      "options": [],
+      "recommendation": null,
+      "kind": "technical",
+      "phase": "architecture",
+      "status": "answered",
+      "answer": "approved 2026-11-04",
+      "asked": "2026-11-04T16:00:40+00:00",
+      "answered": "2026-11-04T16:00:40+00:00"
+    },
+    {
+      "id": "D-050",
+      "question": "Start build",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "build",
+      "status": "answered",
+      "answer": "start with wave 0 (engine foundation), pause for review after",
+      "asked": "2026-11-05T02:03:31+00:00",
+      "answered": "2026-11-05T02:03:31+00:00"
     }
   ],
   "loops": {
@@ -1250,9 +1346,145 @@
     {
       "at": "2026-11-04T08:51:42+00:00",
       "event": "architecture step: 3.2 spikes: tonight owner runs: step 6 (timestretch 8452), C (ios 8470/8471), mem-hdr re-run (8461 dec.html + mem.html?tasks=t1,t2,t3&src=url). Then apply spike-amendments to ADRs, G3."
+    },
+    {
+      "at": "2026-11-04T15:35:42+00:00",
+      "event": "decision D-043 opened: Approve stack + ADR-0001..0016 (amended by spikes)"
+    },
+    {
+      "at": "2026-11-04T15:35:44+00:00",
+      "event": "decision D-043 answered: approved 2026-11-04"
+    },
+    {
+      "at": "2026-11-04T15:35:45+00:00",
+      "event": "decision D-044 opened: G3 corrective spec changes SC-1..8, SC-11"
+    },
+    {
+      "at": "2026-11-04T15:35:46+00:00",
+      "event": "decision D-044 answered: accepted"
+    },
+    {
+      "at": "2026-11-04T15:35:46+00:00",
+      "event": "decision D-045 opened: Share button (SC-9)"
+    },
+    {
+      "at": "2026-11-04T15:35:47+00:00",
+      "event": "decision D-045 answered: add Share (F-015.R9/AC15, COPY-action.share); hidden embedded without web-share"
+    },
+    {
+      "at": "2026-11-04T15:35:47+00:00",
+      "event": "decision D-046 opened: Silent mode (SC-10)"
+    },
+    {
+      "at": "2026-11-04T15:35:47+00:00",
+      "event": "decision D-046 answered: (b) preview plays sound like video apps (audioSession playback)"
+    },
+    {
+      "at": "2026-11-04T15:36:34+00:00",
+      "event": "architecture step: 3.3 foundations: stack+ADRs accepted (D-043); spec changes SC-1..11 being applied (D-044..046); scaffold agent running; then license audit (gifenc etc.), G3 checks"
+    },
+    {
+      "at": "2026-11-04T15:59:11+00:00",
+      "event": "phase architecture -> gate"
+    },
+    {
+      "at": "2026-11-04T16:00:40+00:00",
+      "event": "decision D-047 opened: Lighthouse CI (DEP-26)"
+    },
+    {
+      "at": "2026-11-04T16:00:40+00:00",
+      "event": "decision D-047 answered: dropped; perf via Playwright + size budgets"
+    },
+    {
+      "at": "2026-11-04T16:00:40+00:00",
+      "event": "decision D-048 opened: Design tokens DEP-12"
+    },
+    {
+      "at": "2026-11-04T16:00:40+00:00",
+      "event": "decision D-048 answered: owner's own work, pinned to portal commit 4c4ae94"
+    },
+    {
+      "at": "2026-11-04T16:00:40+00:00",
+      "event": "decision D-049 opened: Gate G3"
+    },
+    {
+      "at": "2026-11-04T16:00:40+00:00",
+      "event": "decision D-049 answered: approved 2026-11-04"
+    },
+    {
+      "at": "2026-11-04T16:00:48+00:00",
+      "event": "gate architecture passed: Fresh clone + 9-step CI green; 13 spikes closed; ADR-0001..0016 accepted; 36 deps approved; Lighthouse dropped (D-047)"
+    },
+    {
+      "at": "2026-11-04T16:01:00+00:00",
+      "event": "phase build -> in_progress"
+    },
+    {
+      "at": "2026-11-04T16:01:24+00:00",
+      "event": "build step: 4 plan written (.build-my-app/reports/build-plan.md); awaiting owner go"
+    },
+    {
+      "at": "2026-11-05T02:03:31+00:00",
+      "event": "decision D-050 opened: Start build"
+    },
+    {
+      "at": "2026-11-05T02:03:31+00:00",
+      "event": "decision D-050 answered: start with wave 0 (engine foundation), pause for review after"
+    },
+    {
+      "at": "2026-11-05T02:03:32+00:00",
+      "event": "build step: 4 wave 0: E1 (MOD-Project/Plan/Core) building"
+    },
+    {
+      "at": "2026-11-05T02:31:43+00:00",
+      "event": "build step: 4 wave 0: E1 merged (3566e72); E1 review + E2 + E4 running"
+    },
+    {
+      "at": "2026-11-05T03:11:03+00:00",
+      "event": "context compaction (auto) at: build-my-app: phase 4 Implementation [in_progress] — 4 wave 0: E1 merged (3566e72); E1 review + E2 + E4 running · 4/8 phases done · autonomy balanced"
+    },
+    {
+      "at": "2026-11-05T03:12:36+00:00",
+      "event": "build step: 4 wave 0: E1, E2, E4 merged, pnpm check 9/9 green; E3 (compositor+engine+preview) running"
+    },
+    {
+      "at": "2026-11-05T04:18:05+00:00",
+      "event": "build step: 4 wave 0: E1-E4 merged, pnpm check 9/9; E5 (export+scratch) running"
+    },
+    {
+      "at": "2026-11-05T06:34:51+00:00",
+      "event": "build step: 4 wave 0 COMPLETE (E1-E5 merged, pnpm check 9/9); paused for owner review of the engine + spec questions before wave 1"
+    },
+    {
+      "at": "2026-11-05T07:43:13+00:00",
+      "event": "build step: 4 wave 0 approved by owner (all proposals accepted, square 1080x1080); applying decisions; wave 1: F-019 + F-020 running, F-023 after the device-check fix"
+    },
+    {
+      "at": "2026-11-05T08:33:15+00:00",
+      "event": "build step: 4 wave 1: F-019 merged; F-020 in review; decisions branch + RULE-05 audio-min fix in progress; F-023 next"
+    },
+    {
+      "at": "2026-11-05T08:40:46+00:00",
+      "event": "build step: 4 wave 1: F-019 + wave-0 decisions merged (check 9/9); F-020 fixing review; F-023 running"
+    },
+    {
+      "at": "2026-11-05T09:07:43+00:00",
+      "event": "build step: 4 wave 1: F-019, F-020, decisions merged (check 9/9; realtime split to check:realtime); F-023 running"
+    },
+    {
+      "at": "2026-11-05T10:48:03+00:00",
+      "event": "build step: 4 wave 1 COMPLETE (F-019, F-020, F-023 merged; check 9/9; check:realtime 7/7 + 1 skip); paused for owner review"
+    },
+    {
+      "at": "2026-11-05T10:56:36+00:00",
+      "event": "build step: 4 wave 1 approved (Q47/51/54/60 as recommended); applying decisions; wave 2: F-021 + F-022 running, F-001 after the token merge"
+    },
+    {
+      "at": "2026-11-05T10:57:44+00:00",
+      "event": "build step: 4 PAUSED (owner, token cost): wave 1 approved; next = apply wave 1 decisions, then wave 2 (F-021, F-022, then F-001). See .build-my-app/reports/RESUME.md"
     }
   ],
-  "updated": "2026-11-04T08:51:42+00:00",
+  "updated": "2026-11-05T10:57:44+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
