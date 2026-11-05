@@ -19,7 +19,7 @@ export const BUDGET = {
   // its own, so the container reader (≈ 73 KB, ADR-0005 outcome) cannot be a shared chunk: it is
   // counted here as 75 KB on top of the 30 KB (E2; architecture.md Size row change proposed).
   analysis: 105_000,
-  export: 80_000,
+  export: 180_000, // its own bundle: container read + write (≈ 121 KB), compositor, codec, export, gifenc (E3 review)
   'export-audio': 10_000,
   code: 560_000, // code and styles total
   fonts: 200_000, // "≈ 200 KB" for the five font packages

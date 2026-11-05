@@ -8,6 +8,7 @@ export type * from './project.gen';
 export { PALETTE, PALETTE_HEX, type PaletteName } from './palette.gen';
 export { LOOK_GROUPS, LOOK_IDS, LOOKS, type LookGroup, type LookId } from './looks.gen';
 export * from './messages';
+export type * from './engine-protocol';
 export { NotImplementedError, notImplemented } from './stub';
 export * from './time';
 export * from './limits';

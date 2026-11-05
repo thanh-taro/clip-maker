@@ -1,15 +1,60 @@
 // MOD-Compositor — the one WebGL2 `paint` for preview, thumbnails and exports
-// (specs/40-technical/modules/MOD-Compositor.md, ADR-0006, ADR-0007). Never reads language, theme or
-// view state (INV-05). Phase 3.3 scaffold: the public surface; built with F-002 and F-006 … F-012.
-import { notImplemented } from '../core';
-import type { FramePlan } from '../plan';
-
-export interface Compositor {
-  paint(plan: FramePlan, frames: unknown, textBitmaps: unknown): void;
-  resize(width: number, height: number): void;
-}
-
-export const createCompositor = (_canvas: OffscreenCanvas, _looks: unknown): Compositor =>
-  notImplemented('MOD-Compositor createCompositor');
-export const effectsCheck = (): Promise<{ ok: boolean; fps: number; slow: boolean }> =>
-  notImplemented('MOD-Compositor effectsCheck');
+// (specs/40-technical/modules/MOD-Compositor.md, ADR-0006, ADR-0007 and their outcomes). Never reads
+// language, theme or view state (INV-05). Pure parts (grade maths, look tables, plan → draw list) are
+// separate from the WebGL code so they are tested without a GPU; `reference` is the CPU oracle.
+export {
+  createCompositor,
+  ContextLostError,
+  RECOVER_INTERVAL_MS,
+  RECOVER_TRIES,
+  type Compositor,
+  type CompositorOptions,
+  type PaintFrame,
+} from './compositor';
+export {
+  effectsCheck,
+  effectsProject,
+  classifyEffects,
+  SLOW_FPS,
+  EFFECTS_FRAMES,
+  EFFECTS_WARMUP,
+  type EffectsResult,
+} from './effects';
+export {
+  backgroundColour,
+  drawList,
+  hexToRgb,
+  intermediateSize,
+  mixPixel,
+  placeQuad,
+  type DrawList,
+  type DrawOptions,
+  type LayerDraw,
+  type Quad,
+  type Rotation,
+  type SourceSize,
+  type TextDraw,
+} from './draw';
+export {
+  clipHash,
+  gradeUniforms,
+  grainCell,
+  grainHash,
+  NEUTRAL,
+  pcg,
+  reference,
+  toLinear,
+  toSrgb,
+  type GradeUniforms,
+  type Rgb,
+} from './grade';
+export {
+  decodeLookStrip,
+  identityTable,
+  lutSample,
+  LUT_BYTES,
+  LUT_N,
+  stripFromTable,
+  tableFromStrip,
+  type LookTable,
+} from './lut';

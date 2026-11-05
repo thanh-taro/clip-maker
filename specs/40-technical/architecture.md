@@ -228,17 +228,18 @@ WebKit).
 | HTML (boot script, inline icons) | ≤ 15 KB |
 | CSS | ≤ 25 KB |
 | Main JS (Preact, signals, app, project, core, plan, timeline, preview, keys, host, copy, assets) | ≤ 200 KB |
-| Engine worker (container read ≈ 73 KB measured, codec, engine, compositor + shaders) | ≤ 150 KB |
+| Engine worker, its own bundle (container read ≈ 73 KB, codec, plan, engine, compositor + shaders; 82.5 KB measured in E3) | ≤ 150 KB |
 | Audio worker + worklet | ≤ 50 KB |
-| Analysis worker (shared chunks counted once) | ≤ 30 KB extra |
-| Export worker (container writer ≈ 48 KB measured, gifenc, export) | ≤ 80 KB extra |
-| Export-audio worker (shares the audio worker's code) | ≤ 10 KB extra |
-| **Code and styles total** | **≤ 560 KB** |
+| Analysis worker, its own bundle (container read ≈ 73 KB, codec, media; 72.3 KB measured in E3) | ≤ 105 KB |
+| Export worker, its own bundle (container read ≈ 73 KB + writer ≈ 48 KB, codec, plan, compositor, export, gifenc) | ≤ 180 KB |
+| Export-audio worker | ≤ 10 KB |
+| **Code and styles total** (every bundle counted, so code shared by two workers counts twice) | **≤ 560 KB** |
 | Fonts (5 packages, latin + vietnamese) | ≈ 200 KB |
 | Look tables (16 × 33³ 8-bit PNG, ≤ 30 KB each; measured 4–15 KB) | ≤ 0.5 MB (fonts + looks ≤ 1.5 MB) |
 | Music pack | ≤ 10 MB, fetched after the editor is usable |
-All code loads at start-up (no lazy chunks); one export worker is created idle at start so a first
-export makes no request.
+Budgets are per bundle: the build bundles each module worker on its own (no shared chunks between
+workers), so a worker's budget includes every module it imports. All code loads at start-up (no lazy
+chunks); one export worker is created idle at start so a first export makes no request.
 
 ### Runtime targets and spike measurements
 Laptop = MacBook M3 (spike hosts were heavily loaded, so laptop timings are upper bounds); phone =

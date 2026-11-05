@@ -1,8 +1,11 @@
-// MOD-Compositor public surface (phase 3.3 scaffold).
+// MOD-Compositor public surface (specs/40-technical/modules/MOD-Compositor.md "Public surface").
 import { expect, it } from 'vitest';
-import { createCompositor, effectsCheck } from '../../src/compositor';
+import * as compositor from '../../src/compositor';
 
-it('MOD-Compositor exposes createCompositor and effectsCheck (built with F-002 / F-023)', () => {
-  expect(typeof createCompositor).toBe('function');
-  expect(typeof effectsCheck).toBe('function');
+it('MOD-Compositor exposes createCompositor, effectsCheck and the CPU reference', () => {
+  expect(typeof compositor.createCompositor).toBe('function');
+  expect(typeof compositor.effectsCheck).toBe('function');
+  expect(typeof compositor.reference.grade).toBe('function');
+  expect(compositor.RECOVER_TRIES).toBe(5);
+  expect(compositor.RECOVER_INTERVAL_MS).toBe(400);
 });
