@@ -2,6 +2,7 @@
 // while the project is empty (SCR-Editor "empty"). Phase 3.3 skeleton: content and labels; the picker,
 // drop and paste come with F-001.
 import { t } from '../copy';
+import { acceptsMedia } from './device';
 import { Icon } from './icons';
 
 export function EmptyState({ addRef }: { addRef: (el: HTMLButtonElement | null) => void }) {
@@ -13,7 +14,13 @@ export function EmptyState({ addRef }: { addRef: (el: HTMLButtonElement | null) 
         <Icon name="music" size={20} />
       </div>
       <h1 class="tk-empty__title">{t('empty.title')}</h1>
-      <button type="button" class="tk-button tk-button--outlined" data-action="add-media" ref={addRef}>
+      <button
+        type="button"
+        class="tk-button tk-button--outlined"
+        data-action="add-media"
+        aria-disabled={acceptsMedia.value ? undefined : 'true'}
+        ref={addRef}
+      >
         <Icon name="addMedia" size={16} />
         {t('action.add_media')}
       </button>

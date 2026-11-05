@@ -342,9 +342,17 @@ export class Scratch {
     return (this.lock ??= new Promise<boolean>((granted) => {
       void locks.request(lockName(this.env.session), { mode: 'exclusive' }, () => {
         granted(true);
-        return new Promise<never>(() => undefined);
+        return new Promise<void>((unlock) => (this.unlock = unlock));
       });
     }));
+  }
+
+  private unlock: (() => void) | null = null;
+
+  /** Gives the session lock back (RULE-22: an unsupported device keeps no scratch session). */
+  releaseSessionLock(): void {
+    this.unlock?.();
+    this.unlock = null;
   }
 
   /** A new export file name of this session; MOD-Export opens it in the export worker. */

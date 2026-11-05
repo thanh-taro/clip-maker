@@ -142,6 +142,13 @@ export class ExportWorkers {
     return pair;
   }
 
+  /** Terminates the idle pair for good (RULE-22: an unsupported device runs no workers). */
+  dispose(): void {
+    for (const p of this.pending.values()) p.reject(new Error('AbortError: the calibration was cancelled'));
+    this.pending.clear();
+    terminate(this.idle);
+  }
+
   /** Terminates the idle pair (cancelling its calibrations) and starts a new one. */
   renew(): void {
     for (const p of this.pending.values()) p.reject(new Error('AbortError: the calibration was cancelled'));

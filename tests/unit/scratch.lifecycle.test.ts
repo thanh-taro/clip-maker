@@ -126,6 +126,16 @@ describe('MOD-Scratch sweep (F-015.AC14)', () => {
     expect(locks.held.has(lockName('me1'))).toBe(true); // this session's lock, held for the page's life
   });
 
+  it('RULE-22 an unsupported device releases the session lock it took at start-up', async () => {
+    const locks = new FakeLocks();
+    const s = new Scratch(env(new FakeDir(), locks).e);
+    await s.holdSessionLock();
+    expect(locks.held.has(lockName('me1'))).toBe(true);
+    s.releaseSessionLock();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(locks.held.has(lockName('me1'))).toBe(false);
+  });
+
   it('ADR-0010 outcome item 6 a file whose delete throws is skipped and the sweep goes on', async () => {
     const dir = new FakeDir();
     dir.files.set('export-dead1-a.part', new Uint8Array(1));

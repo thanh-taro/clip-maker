@@ -23,7 +23,7 @@ export function Shell({ addRef }: { addRef: (el: HTMLButtonElement | null) => vo
       data-workers={workersReady.value.length}
     >
       <Toolbar />
-      <main class="tk-preview-area">
+      <main class="tk-preview-area" tabIndex={-1}>
         {empty ? <EmptyState addRef={addRef} /> : null}
         <SlowNotice />
       </main>

@@ -79,9 +79,15 @@
     color: var(--tk-color-muted);
   }
 
+  /* Add media while the start-up check runs (RULE-22, F-023): unavailable but readable. */
+  [data-action='add-media'][aria-disabled='true'] {
+    color: var(--tk-color-muted);
+    cursor: default;
+  }
+
   /* CMP-Notice placement: bottom centre of the preview area, at most the popover width; narrow: full
      width with side margins. Never over the toolbar, inspector or timeline. */
-  .tk-notices {
+  .tk-notice-stack {
     position: absolute;
     inset-inline: var(--tk-space-4);
     inset-block-end: var(--tk-space-4);

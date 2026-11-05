@@ -75,9 +75,22 @@ export const classifyEffects = (fps: number): EffectsResult => ({ ok: true, fps,
 
 /**
  * Implements: RULE-22 effects check. Resolves `{ ok: false }` when the device cannot draw the chain at
- * all (no WebGL2, no 3D textures, a shader that does not compile).
+ * all (no WebGL2, no 3D textures, a shader that does not compile). `onDrawn(true)` comes as soon as the
+ * first warm-up frame has drawn and synced (≈ 100 ms); `onDrawn(false)` if it never could.
  */
-export async function effectsCheck(): Promise<EffectsResult> {
+export async function effectsCheck(onDrawn?: (ok: boolean) => void): Promise<EffectsResult> {
+  let told = false;
+  const tell = (ok: boolean) => {
+    if (told) return;
+    told = true;
+    onDrawn?.(ok);
+  };
+  const result = await timedCheck(() => tell(true));
+  tell(result.ok);
+  return result;
+}
+
+async function timedCheck(drawn: () => void): Promise<EffectsResult> {
   try {
     const source = new OffscreenCanvas(1440, 1080);
     const g = source.getContext('2d');
@@ -94,7 +107,11 @@ export async function effectsCheck(): Promise<EffectsResult> {
     try {
       const project = effectsProject();
       const frame = { image: bitmap, width: bitmap.width, height: bitmap.height, rotation: 0 as const };
-      for (let i = 0; i < EFFECTS_WARMUP; i++) comp.paint(framePlan(project, i), [frame]);
+      // The first warm-up frame, synced: the chain compiled and drew (F-023, the opening-screen answer).
+      comp.paint(framePlan(project, 0), [frame]);
+      comp.sync();
+      drawn();
+      for (let i = 1; i < EFFECTS_WARMUP; i++) comp.paint(framePlan(project, i), [frame]);
       comp.sync();
       const t0 = performance.now();
       for (let i = 0; i < EFFECTS_FRAMES; i++) comp.paint(framePlan(project, EFFECTS_WARMUP + i), [frame]);

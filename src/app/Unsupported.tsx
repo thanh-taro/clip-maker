@@ -28,7 +28,7 @@ export function Unsupported({
             {t('unsupported.title')}
           </h1>
           <div class="tk-unsupported__body" data-copy="unsupported.body">
-            <p>{body.before}</p>
+            {body.before ? <p>{body.before}</p> : null}
             <ul class="tk-unsupported__missing">
               {missing.map((m, i) => (
                 <li key={m} data-missing={m}>
@@ -37,7 +37,7 @@ export function Unsupported({
                 </li>
               ))}
             </ul>
-            <p class="tk-unsupported__hint">{body.after}</p>
+            {body.after ? <p class="tk-unsupported__hint">{body.after}</p> : null}
           </div>
         </section>
       </main>

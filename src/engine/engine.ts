@@ -66,7 +66,8 @@ export interface EngineDeps {
   post(m: FromEngine): void;
   createCompositor(canvas: OffscreenCanvas, looks: ReadonlyMap<string, LookTable>, o: CompositorOptions): Compositor;
   openVideo(id: string, file: Blob): Promise<VideoSourceLike>;
-  effectsCheck(): Promise<EffectsResult>;
+  /** `onDrawn` is called once the chain compiled and drew its first frame (MOD-Compositor). */
+  effectsCheck(onDrawn?: (ok: boolean) => void): Promise<EffectsResult>;
   /** A preview-size copy of a frame for the coarse cache (ADR-0009 outcome rule 4). */
   coarseCopy(frame: EngineFrame): Promise<CoarseBitmap>;
   readonly budget: Budget;
@@ -164,7 +165,10 @@ export class Engine {
         this.overlay = m.overlay;
         return this.repaint();
       case 'engine:effectsCheck':
-        void this.deps.effectsCheck().then((r) => this.deps.post({ type: 'engine:effects', ...r }));
+        // RULE-22 (F-023): "drawn" decides the opening screen; the timed result only the slow notice.
+        void this.deps
+          .effectsCheck((ok) => this.deps.post({ type: 'engine:effectsDrawn', ok }))
+          .then((r) => this.deps.post({ type: 'engine:effects', ...r }));
         return;
       case 'engine:lookThumbnails':
         // RULE-09 thumbnails need MOD-Plan's thumbnailPlan, built with F-008.

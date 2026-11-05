@@ -9,6 +9,11 @@ import { MEDIA_HARNESS_PORT } from './support/ports';
 
 const APP_HARNESS = `http://localhost:${MEDIA_HARNESS_PORT}/app.html`;
 
+/** `window.appHarness` of tests/harness/app.tsx. */
+interface AppHarness {
+  appHarness: { draw(): void; workers(): number };
+}
+
 const TEXT = {
   'en-US': {
     title: "This browser can't edit video",
@@ -172,20 +177,28 @@ test.describe('F-023 SCR-Unsupported (production build)', () => {
   });
 });
 
+/** Software WebGL (SwiftShader, llvmpipe) is slow by the rule and is not a reference device (ADR-0016). */
+async function softwareWebgl(page: Page): Promise<boolean> {
+  const renderer = await page.evaluate(() => {
+    const gl = document.createElement('canvas').getContext('webgl2');
+    const info = gl?.getExtension('WEBGL_debug_renderer_info');
+    return gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+  });
+  test.info().annotations.push({ type: 'renderer', description: renderer || '(not exposed)' });
+  return /swiftshader|llvmpipe|software/i.test(renderer);
+}
+
 test.describe('F-023 start-up check timing', () => {
   test(
     'F-023.AC4 the check is done within NFR-02 on this device and the network log shows no request',
     {
       tag: '@realtime',
     },
-    async ({ page, baseURL, browserName }) => {
-      test.skip(
-        browserName === 'chromium',
-        "Playwright's Chromium draws WebGL in software (≈ 13 fps here): not a reference device (ADR-0016)",
-      );
+    async ({ page, baseURL }) => {
       const origin = new URL(baseURL ?? '').origin;
       const w = watch(page, origin);
       await page.goto('/');
+      test.skip(await softwareWebgl(page), 'software WebGL is not a reference device (ADR-0016)');
       const editor = page.locator('[data-screen="SCR-Editor"]');
       await expect(editor).toHaveAttribute('data-device', 'supported');
       const timing = await page.evaluate(() => {
@@ -209,6 +222,9 @@ test.describe('F-023 start-up check timing', () => {
   );
 });
 
+const addMedia = (page: Page, lang: keyof typeof TEXT) =>
+  page.getByRole('main').getByRole('button', { name: TEXT[lang].addMedia });
+
 test.describe('F-023 effects check (app harness)', () => {
   for (const [lang, theme] of [
     ['en-US', 'light'],
@@ -224,27 +240,56 @@ test.describe('F-023 effects check (app harness)', () => {
       const notice = page.locator('[data-notice="slow_device"]');
       await expect(notice).toHaveText(t.slow);
       await expect(page.getByRole('status').filter({ has: notice })).toHaveAttribute('aria-live', 'polite');
-      await expect(page.getByRole('main').getByRole('button', { name: t.addMedia })).toBeEnabled();
+      await expect(addMedia(page, lang)).not.toHaveAttribute('aria-disabled', 'true');
       await axe(page);
-      await notice.getByRole('button', { name: t.close }).click();
+      // Closing it with focus inside moves focus to Add media, not to the page.
+      await notice.getByRole('button', { name: t.close }).focus();
+      await page.keyboard.press('Enter');
       await expect(notice).toHaveCount(0);
+      await expect(addMedia(page, lang)).toBeFocused();
     });
   }
 
-  test('RULE-22 an effect chain the device cannot draw turns the opening screen into SCR-Unsupported', async ({
+  test('F-023.R1 RULE-22 Add media is unavailable while the effect chain has not drawn, then available', async ({
+    page,
+  }) => {
+    await page.goto(`${APP_HARNESS}?effects=pending&lang=en-US`);
+    const editor = page.locator('[data-screen="SCR-Editor"]');
+    await expect(editor).toHaveAttribute('data-device', 'drawing-check');
+    await expect(addMedia(page, 'en-US')).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('toolbar').getByRole('button', { name: TEXT['en-US'].addMedia })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    await page.evaluate(() => (window as unknown as AppHarness).appHarness.draw());
+    await expect(editor).toHaveAttribute('data-device', 'supported');
+    await expect(addMedia(page, 'en-US')).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  test('RULE-22 an effect chain the device cannot draw turns the opening screen into SCR-Unsupported, with no workers', async ({
     page,
   }) => {
     await page.goto(`${APP_HARNESS}?effects=fail&lang=en-US`);
     await expectUnsupported(page, 'en-US', ['effects']);
+    expect(await page.evaluate(() => (window as unknown as AppHarness).appHarness.workers())).toBe(0);
+    // The scratch session lock taken at start-up is given back.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          async () =>
+            ((await navigator.locks.query()).held ?? []).filter((l) => l.name?.startsWith('clipmaker-scratch:')).length,
+        ),
+      )
+      .toBe(0);
   });
 
-  test('RULE-22 a device that draws effects fast enough opens the editor without the notice', async ({
-    page,
-    browserName,
-  }) => {
-    test.skip(browserName === 'chromium', "Playwright's Chromium draws WebGL in software: slow by the rule");
+  test('RULE-22 a device that draws effects fast enough opens the editor without the notice', async ({ page }) => {
     await page.goto(`${APP_HARNESS}?lang=en-US`);
+    test.skip(await softwareWebgl(page), 'software WebGL is slow by the rule');
     await expect(page.locator('[data-screen="SCR-Editor"]')).toHaveAttribute('data-device', 'supported');
+    await expect
+      .poll(() => page.evaluate(() => performance.getEntriesByName('tk-effects-timed').length), { timeout: 15_000 })
+      .toBe(1);
     await expect(page.locator('[data-notice="slow_device"]')).toHaveCount(0);
   });
 });

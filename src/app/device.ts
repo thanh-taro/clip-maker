@@ -1,14 +1,15 @@
 // MOD-App — the RULE-22 start-up device check and the session's slow-device notice (F-023).
 // The check runs before any media is accepted (MOD-App "runs the capability probe before accepting
-// media"), in three parts:
+// media"), in three parts (platform-mapping "Start-up check", build-spec-questions 59):
 //   1. presence: the codec interfaces and a WebGL2 context exist (synchronous; the Gecko Android
 //      browser has no codec interfaces at all, architecture.md);
-//   2. the MOD-Codec minimal probe (decode at 1080p, one encode per video codec, sound encoders),
-//      ≤ 300 ms; a failure here shows SCR-Unsupported before the editor is ever drawn;
-//   3. the timed effects check in the engine worker (MOD-Compositor, 1080p, 5 + 30 frames). The editor
-//      is drawn while it runs, but media is accepted only once it passed (`acceptsMedia`); a chain the
-//      device cannot draw at all turns the opening screen into SCR-Unsupported, a slow one gives
-//      COPY-notice.slow_device (build-spec-questions 59).
+//   2. the MOD-Codec minimal probe on the main thread (decode at 1080p, one encode per video codec,
+//      sound encoders), ≤ 300 ms, every call bounded by a timeout. It always runs, so every failure is
+//      listed; a failure shows SCR-Unsupported before the editor is ever drawn;
+//   3. the engine worker's effects check (MOD-Compositor). Its first answer, "the chain compiled and
+//      drew" (≈ 100 ms), decides the opening screen and lets media in (`acceptsMedia`); the timed
+//      result (5 + 30 frames at 1080p) comes later and only shows COPY-notice.slow_device. An engine
+//      that never answers counts as slow, never as unsupported (RULE-22: slow drawing never blocks).
 // Nothing here makes a request (F-023.R4). Everything the device offers is injectable (`DeviceDeps`)
 // so tests can play an unsupported device (adapters/tests.md "Device support").
 import { computed, effect, signal, type ReadonlySignal } from '@preact/signals';
@@ -26,11 +27,21 @@ import {
   type Missing,
 } from '../codec';
 
-/** The RULE-22 effects answer of the engine worker (MOD-Compositor `effectsCheck`). */
-export interface EffectsAnswer {
-  readonly ok: boolean;
-  readonly slow: boolean;
+/** The engine's two answers to one effects check. */
+export interface EffectsRun {
+  /** The chain compiled and drew its first frame (false: it can't be drawn at all). */
+  readonly drawn: Promise<boolean>;
+  /** The timed result: below the speed threshold or not. */
+  readonly timed: Promise<{ readonly slow: boolean }>;
 }
+
+/** How long each engine answer may take before it counts as slow (never as unsupported). */
+export interface CheckTimeouts {
+  readonly drawnMs: number;
+  readonly timedMs: number;
+}
+
+export const CHECK_TIMEOUTS: CheckTimeouts = { drawnMs: 3000, timedMs: 10_000 };
 
 /** What the start-up check asks of the device; the browser by default, fakes in tests. */
 export interface DeviceDeps {
@@ -38,21 +49,25 @@ export interface DeviceDeps {
   features(): DeviceFeatures;
   /** The MOD-Codec minimal probe (part 2). */
   codecs(): Promise<Capabilities>;
-  /** The timed effects check (part 3); only asked when parts 1 and 2 passed. */
-  effects(): Promise<EffectsAnswer>;
+  /** The effects check (part 3); only asked when parts 1 and 2 passed. */
+  effects(): EffectsRun;
+  readonly timeouts?: CheckTimeouts;
 }
 
 /** The opening screen and whether media may be added yet. */
 export type DeviceStatus =
   | { readonly status: 'checking' }
-  /** The editor is shown; the effects check is still running, so no media is accepted yet. */
+  /** The editor is shown; the effect chain has not drawn yet, so no media is accepted yet. */
   | { readonly status: 'drawing-check' }
   | { readonly status: 'supported' }
   | { readonly status: 'unsupported'; readonly missing: readonly Missing[] };
 
 export const device = signal<DeviceStatus>({ status: 'checking' });
 
-/** Implements: F-023.R1 — media is accepted only on a device that passed every RULE-22 check. */
+/**
+ * Implements: F-023.R1 — media is accepted only on a device that passed every RULE-22 check. Files
+ * picked before then are queued by F-001 until this turns true (or the screen turns unsupported).
+ */
 export const acceptsMedia: ReadonlySignal<boolean> = computed(() => device.value.status === 'supported');
 
 /** The probe's record, for the export panel's offers (RULE-15, RULE-16, F-023.R3/R5). */
@@ -64,16 +79,24 @@ function inRuleOrder(...lists: (readonly Missing[])[]): Missing[] {
   return (['decode', 'encode', 'effects'] as const).filter((m) => all.has(m));
 }
 
+function set(s: DeviceStatus): DeviceStatus {
+  device.value = s;
+  return s;
+}
+
+/** A promise that settles with `value` after `ms` unless `p` settles first. */
+function within<T>(p: Promise<T>, ms: number, value: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<T>((resolve) => (timer = setTimeout(() => resolve(value), ms)));
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 /**
  * Implements: F-023.R1/R4/R5, RULE-22 — parts 1 and 2 of the check. Resolves the opening screen:
  * `unsupported` with every failed check, or `drawing-check` (the editor opens; call `finishCheck`).
- * The codec probe is skipped when the interfaces are missing (nothing to ask).
  */
 export async function openingCheck(deps: DeviceDeps): Promise<DeviceStatus> {
   const presence = missingCapabilities(deps.features());
-  if (presence.includes('decode') || presence.includes('encode')) {
-    return set({ status: 'unsupported', missing: presence });
-  }
   const caps = await deps.codecs();
   capabilities.value = caps;
   const missing = inRuleOrder(presence, deviceCheck(caps));
@@ -81,21 +104,27 @@ export async function openingCheck(deps: DeviceDeps): Promise<DeviceStatus> {
 }
 
 /**
- * Implements: F-023.R1, RULE-22 — part 3. A device that cannot draw the effect chain at all is
- * unsupported (COPY-unsupported.missing_effects); one that draws it below the speed threshold opens
- * anyway with COPY-notice.slow_device. Either way the result is final for the session.
+ * Implements: F-023.R1, RULE-22 — part 3. `status` follows the first answer: a chain the device can't
+ * draw at all is unsupported (COPY-unsupported.missing_effects); otherwise media is accepted. `timed`
+ * settles when the timed result has shown COPY-notice.slow_device or not.
  */
-export async function finishCheck(deps: DeviceDeps): Promise<DeviceStatus> {
-  if (device.peek().status !== 'drawing-check') return device.peek();
-  const r = await deps.effects();
-  if (!r.ok) return set({ status: 'unsupported', missing: ['effects'] });
-  if (r.slow) reportSlow();
-  return set({ status: 'supported' });
-}
-
-function set(s: DeviceStatus): DeviceStatus {
-  device.value = s;
-  return s;
+export async function finishCheck(deps: DeviceDeps): Promise<{ status: DeviceStatus; timed: Promise<void> }> {
+  const none = Promise.resolve();
+  if (device.peek().status !== 'drawing-check') return { status: device.peek(), timed: none };
+  const t = deps.timeouts ?? CHECK_TIMEOUTS;
+  const run = deps.effects();
+  type First = 'drawn' | 'failed' | 'late';
+  const drawn = await within<First>(
+    run.drawn.then((ok): First => (ok ? 'drawn' : 'failed')),
+    t.drawnMs,
+    'late',
+  );
+  if (drawn === 'failed') return { status: set({ status: 'unsupported', missing: ['effects'] }), timed: none };
+  if (drawn === 'late') reportSlow();
+  const timed = within(run.timed, t.timedMs, { slow: true }).then((r) => {
+    if (r.slow) reportSlow();
+  });
+  return { status: set({ status: 'supported' }), timed };
 }
 
 // ── COPY-notice.slow_device: shown once per session (RULE-22) ────────────────────────────────────
@@ -144,29 +173,43 @@ interface EnginePort {
 }
 
 /**
- * The effects check run by the engine worker (platform-mapping "Start-up check"; question 30). An
- * engine worker that fails to start cannot draw anything, which counts as "can't draw effects".
+ * The effects check run by the engine worker (platform-mapping "Start-up check"): `engine:effectsDrawn`
+ * then `engine:effects`. An engine worker that fails to start cannot draw anything.
  */
-export function engineEffects(engine: EnginePort): Promise<EffectsAnswer> {
-  return new Promise((resolve) => {
-    const done = (r: EffectsAnswer) => {
-      engine.removeEventListener('message', onMessage);
-      engine.removeEventListener('error', onError);
-      resolve(r);
-    };
-    const onMessage = (e: MessageEvent<FromEngine>) => {
-      if (e.data?.type === 'engine:effects') done({ ok: e.data.ok, slow: e.data.ok && e.data.slow });
-    };
-    const onError = () => done({ ok: false, slow: false });
-    engine.addEventListener('message', onMessage);
-    engine.addEventListener('error', onError);
-    engine.postMessage({ type: 'engine:effectsCheck' });
-  });
+export function engineEffects(engine: EnginePort): EffectsRun {
+  let drawn: (ok: boolean) => void = () => undefined;
+  let timed: (r: { slow: boolean }) => void = () => undefined;
+  const run: EffectsRun = {
+    drawn: new Promise((r) => (drawn = r)),
+    timed: new Promise((r) => (timed = r)),
+  };
+  const stop = () => {
+    engine.removeEventListener('message', onMessage);
+    engine.removeEventListener('error', onError);
+  };
+  const onMessage = (e: MessageEvent<FromEngine>) => {
+    const m = e.data;
+    if (m?.type === 'engine:effectsDrawn') drawn(m.ok);
+    if (m?.type === 'engine:effects') {
+      drawn(m.ok);
+      timed({ slow: m.ok && m.slow });
+      stop();
+    }
+  };
+  const onError = () => {
+    drawn(false);
+    timed({ slow: false });
+    stop();
+  };
+  engine.addEventListener('message', onMessage);
+  engine.addEventListener('error', onError);
+  engine.postMessage({ type: 'engine:effectsCheck' });
+  return run;
 }
 
 /**
- * The browser's device: interface presence, the codec probe on this thread (a WebGL2 context stands in
- * for "can draw" until the engine's timed check answers) and the engine worker's effects check.
+ * The browser's device: interface presence, the codec probe on this thread (platform-mapping: the
+ * main thread, 32–54 ms) and the engine worker's effects check.
  */
 export function browserDevice(engine: () => EnginePort | undefined): DeviceDeps {
   return {
@@ -174,7 +217,7 @@ export function browserDevice(engine: () => EnginePort | undefined): DeviceDeps 
     codecs: () => probeCapabilities(browserCodecApi(), webgl2EffectsCheck),
     effects: () => {
       const port = engine();
-      return port ? engineEffects(port) : Promise.resolve({ ok: false, slow: false });
+      return port ? engineEffects(port) : { drawn: Promise.resolve(false), timed: Promise.resolve({ slow: false }) };
     },
   };
 }
@@ -191,11 +234,11 @@ const MISSING_COPY = {
 export interface UnsupportedBody {
   /** The whole sentence with the list joined for the language (the accessible reading). */
   readonly text: string;
-  /** Text before the list ("Missing:"). */
+  /** Text before the list ("Missing:"); may be empty in a language that puts the list first. */
   readonly before: string;
   /** One COPY-unsupported.missing_* item per failed check, in the order of the rule. */
   readonly items: readonly string[];
-  /** Text after the list, without the full stop that closed the list ("Open Clip Maker in …"). */
+  /** Text after the list, without the full stop that closed it; may be empty. */
   readonly after: string;
 }
 

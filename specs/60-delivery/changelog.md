@@ -2,6 +2,10 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-05 — F-023 building
+- F-023 set to `building` (phase 4, wave 1). It stays `building` until F-015/F-016 show the export format note (R3/AC3) and F-002 wires the slow-source notice (AC7).
+- platform-mapping "Start-up check": the codec probe runs on the main thread with a 1 s bound per call; the engine's effects check answers "drawn" (decides the screen and media) before the timed result (slow notice only); engine timeouts count as slow (build questions 59, 62).
+
 ## 2026-11-05 — F-019 building
 - F-019 set to `building` (phase 4, wave 1).
 - MOD-Host: `canShareFile(file)` added to the public surface (build question 48); the portal now grants `share` to Clip Maker (taro-kit 4c4ae94); a browser focus limit noted in the portal contract (build question 46).

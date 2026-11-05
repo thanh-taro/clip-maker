@@ -1,6 +1,6 @@
 // MOD-Codec — the start-up probe, the device check, the export grid and the format choice, against
 // fake codec interfaces (the real engines run in tests/e2e/media-codec.spec.ts).
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   chooseAudioFormat,
   chooseVideoFormat,
@@ -11,6 +11,7 @@ import {
   probeCapabilities,
   probeExportGrid,
   soundExportAvailable,
+  SUPPORTS_TIMEOUT_MS,
   withNormalisedDescription,
   type Capabilities,
   type CodecApi,
@@ -56,6 +57,29 @@ const caps = (over: Partial<Capabilities> = {}): Capabilities => ({
 });
 
 describe('MOD-Codec probe', () => {
+  it('F-023.R4 a config check that never answers counts as "no" after its timeout; the probe finishes', async () => {
+    vi.useFakeTimers();
+    try {
+      const hang = { isConfigSupported: () => new Promise<never>(() => undefined) };
+      const yes = { isConfigSupported: async () => ({ supported: true }) };
+      const api = {
+        VideoDecoder: yes,
+        VideoEncoder: hang,
+        AudioDecoder: yes,
+        AudioEncoder: hang,
+      } as unknown as CodecApi;
+      const done = probeCapabilities(api, effects(true));
+      await vi.advanceTimersByTimeAsync(SUPPORTS_TIMEOUT_MS * 4);
+      const c = await done;
+      expect(c.decode.length).toBeGreaterThan(0);
+      expect(c.encode).toEqual({ h264: false, vp9: false, vp8: false });
+      expect(c.audioEncode).toEqual({ aac: false, opus: false });
+      expect(SUPPORTS_TIMEOUT_MS).toBeLessThanOrEqual(1000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('ADR-0004 the start-up probe asks at most 4 isConfigSupported calls at once', async () => {
     const fake = fakeApi(() => true);
     await probeCapabilities(fake.api, effects(true));
