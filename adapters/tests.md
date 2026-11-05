@@ -46,6 +46,9 @@ acceptance criterion needs a test whose **title starts with its ID**;
   fixtures with our own encoder.
 
 ## Performance
+- `pnpm check:realtime` — the tests tagged `@realtime` (wall-clock: A/V sync, export speed, worklet
+  underruns), serially on one engine at a time. `pnpm check` leaves them out because parallel builds load
+  the machine; they run on a quiet machine at every wave gate and in QA.
 - `pnpm check:size` — compressed budgets on every build (NFR-10, architecture.md "Size").
 - Lighthouse (NFR-02) and the NFR-03/04/05 timing suites run before release (ADR-0016 §6), on a quiet
   host with the load average recorded.

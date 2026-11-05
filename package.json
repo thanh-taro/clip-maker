@@ -28,6 +28,7 @@
     "check:dist": "node scripts/check-dist.mjs",
     "check": "node scripts/check.mjs",
     "check:fast": "node scripts/check.mjs --no-e2e",
+    "check:realtime": "playwright test --project=chromium-realtime --project=webkit-realtime --no-deps --workers=1",
     "spec:lint": "python3 tools/spec_lint.py"
   },
   "dependencies": {

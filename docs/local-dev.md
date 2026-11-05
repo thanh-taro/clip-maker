@@ -19,6 +19,7 @@ before phase 7.
 | **Preview the production build** (the exact `dist/` with its `_headers`, http://localhost:4173) | `pnpm build && pnpm preview` |
 | **Check** (every local gate incl. the e2e smoke, below) | `pnpm check` |
 | **Check without e2e** | `pnpm check:fast` |
+| **Wall-clock tests** (@realtime: A/V sync, export speed, underruns; quiet machine, every wave gate and QA) | `pnpm check:realtime` |
 | **Reset** (remove build/test output and the Vite cache, regenerate) | `pnpm reset` (`pnpm reset --all` also removes `node_modules`; then `pnpm bootstrap`) |
 
 `pnpm setup` is a built-in pnpm command, hence `bootstrap` (as in the sibling tools).

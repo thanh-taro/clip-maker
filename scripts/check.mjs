@@ -1,7 +1,9 @@
 // `pnpm check` — every local gate in one command (ADR-0002 §5: no code-host workflows; MOD-Build).
 // The licence step is strict (package.json passes --strict) since the 2026-11-04 audit.
 // Stops at the first failing step and prints a summary. Includes the Playwright smoke on Chromium and
-// WebKit; `pnpm check:fast` (`--no-e2e`) skips it.
+// WebKit; `pnpm check:fast` (`--no-e2e`) skips it. Wall-clock tests tagged @realtime (A/V sync,
+// export speed, worklet underruns) are left out here because parallel worktree builds load the
+// machine; run them with `pnpm check:realtime` (6 tests) on a quiet machine at every wave gate and in QA.
 import { spawnSync } from 'node:child_process';
 import { ROOT } from './lib/util.mjs';
 
@@ -15,7 +17,7 @@ const steps = [
   ['build', 'pnpm', ['build']],
   ['licence audit + dist scan', 'pnpm', ['check:licenses']],
   ['size budgets', 'pnpm', ['check:size']],
-  ...(e2e ? [['e2e smoke (chromium + webkit)', 'pnpm', ['test:e2e']]] : []),
+  ...(e2e ? [['e2e smoke (chromium + webkit)', 'pnpm', ['test:e2e', '--grep-invert', '@realtime']]] : []),
 ];
 
 const done = [];
