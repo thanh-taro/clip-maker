@@ -17,7 +17,8 @@ follows, seeking and flushing, and bundled-music audition in the picker.
 Evidence: SP-audio, SP-timestretch, SP-speed, SP-frame, SP-ios (ADR-0008 outcome).
 - Limiter: −1.5 dBTP internal ceiling, 5 ms look-ahead, 80 ms release, 4× side-chain with 32 taps
   per phase; BS.1770-4 Annex 2 meter for compliance. The verify-and-trim pass (decode, measure,
-  secant-step gain aimed at −1.5 dBTP, stop at ≤ −1.0, ≤ 3 passes, else −3 dB) runs in the
+  secant-step gain aimed at −1.5 dBTP, stop at ≤ −1.0; the first encode counts as a pass, so ≤ 3 passes means ≤ 2 trims; the excess is
+  measured over −1.5 dBTP; otherwise the fallback is the last gain − 3 dB, encoded once more and not re-measured) runs in the
   export-audio worker; the final gain is shared by the video and audio-only exports of a project.
 - WSOLA: Hann 40 ms, hop 20 ms, search ± 12 ms (coarse on decimated L+R, ± 4-sample refine), sync
   frame every 50 frames pinned at offset 0, no cross-fade, 1× bypass. After a seek, decode from the
@@ -34,7 +35,10 @@ Evidence: SP-audio, SP-timestretch, SP-speed, SP-frame, SP-ios (ADR-0008 outcome
 - Deciding which voices exist (MOD-Plan), encoding or writing files (MOD-Export), UI.
 
 ## Public surface
-- `render(audioPlan, fromSample, count)` → stereo `Float32Array`s (pure over decoded windows).
+- `render(voices, sources, endSample, from, count)` → stereo `Float32Array`s (pure over decoded
+  windows). It takes every voice up to `endSample`, not only those sounding in the block, because
+  the limiter's 1 s pre-roll needs earlier voices. A streaming `Mixer` serves playback and
+  `renderOffline` serves exports.
 - Audio worker messages: `setProject`, `play(fromT)`, `pause`, `seek(t)`, `audition(trackId)`.
 - Main thread: `clock.now()` → project time; `onEnded`.
 

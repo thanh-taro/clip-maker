@@ -15,6 +15,8 @@ From E1 (MOD-Core/Project/Plan). The behaviour currently built is in [brackets].
 11. **Limiter margin:** the −1.5 dBTP ceiling holds on the limiter's own side-chain. Independent meters read up to −1.46 dBTP (BS.1770-4) and −1.39 dBTP (a 64-tap meter) on synthetic +6 dBTP overs. This matches the ADR's "PCM ≤ −1.35 dBTP" and stays inside RULE-12's −1 dBTP. [Tests check ≤ −1.35 on the meters.] No change proposed.
 12. **"Underruns counted in debug builds":** there is no debug build flag. [Always counted; it is cheap. The stats come back only on request.] Proposal: drop "in debug builds".
 
+*Items 8–12 applied 2026-11-05 to MOD-Audio, ADR-0008 and platform-mapping (11 needed no change).*
+
 ## Technical items from E2 (MOD-Container/Codec/Media), decided by Claude
 13. **Size budgets:** Vite bundles each worker separately, so the reader (about 73 KB) lands in the analysis worker and, later, the engine worker. The per-worker budgets are rebalanced (analysis ≤ 105 KB) and the code total stays ≤ 560 KB, inside NFR-10's 600 KB. Measured today: 109 KB in total. architecture.md's Size row will be updated in E3.
 14. **The 3840 × 2160 scale-down box rotates with portrait video.** Accepted.

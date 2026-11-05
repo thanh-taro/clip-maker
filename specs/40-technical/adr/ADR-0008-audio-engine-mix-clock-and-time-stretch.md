@@ -42,8 +42,9 @@ Stretch is MIT but ships as WebAssembly, which needs `'wasm-unsafe-eval'` in the
 5. **Clock and sync**: playback creates `AudioContext({ sampleRate: 48000, latencyHint:
    'interactive' })` in the Play gesture. The worklet plays blocks the audio worker streams ahead
    (≈ 250 ms buffer, transferred `ArrayBuffer`s over a `MessagePort`) and reports the sample
-   position. Project time on screen = position mapped through `getOutputTimestamp()` minus
-   `outputLatency`; the main thread's frame ticks ask the engine worker for the frame at that time.
+   position. Project time on screen = position mapped through `getOutputTimestamp()` (which already
+   describes what reaches the speakers), carried forward to now; without a timestamp,
+   `currentTime − outputLatency − baseLatency`; the main thread's frame ticks ask the engine worker for the frame at that time.
    The picture follows the sound, so drift cannot accumulate; a silent project still plays through
    the same clock. Seek = flush the queue, re-render from the new position (the limiter pre-rolls
    1 s so its state matches the export closely).
@@ -113,8 +114,9 @@ SP-frame, SP-ios (iPhone 14 Pro Safari 27.0.1), SP-gpu-color (iOS gesture findin
 2. **§3 verify-and-trim (new, lossy exports)**: after encoding the whole mix, decode and measure the
    true peak. If above **−1.0 dBTP** (the NFR/F-011.AC5 limit), apply a global gain aimed at
    **−1.5 dBTP decoded**, using the measured gain→peak slope from the previous pass (secant step;
-   first step = the excess + 0.2 dB), and encode again; at most **3 passes**; if still above −1.0
-   after 3, apply a fixed −3 dB trim and record it. (The fixed-step rule measured in SP-speed needed
+   first step = the excess over −1.5 dBTP + 0.2 dB), and encode again; at most **3 passes**, counting
+   the first encode (so at most 2 trims); if still above −1.0 after 3, apply the last gain − 3 dB,
+   encode once more without measuring again, and record it. (The fixed-step rule measured in SP-speed needed
    3 passes and ended at −2.58 dBTP in Chrome, −1.18 in WebKit and on the iPhone.) The video export
    and the audio-only export of the same project use the same final gain (NFR-08's 1 ms and
    identical sound). Cost ≈ 0.4–1 s per pass per minute of audio on the laptop.
@@ -133,7 +135,7 @@ SP-frame, SP-ios (iPhone 14 Pro Safari 27.0.1), SP-gpu-color (iOS gesture findin
 5. **§6 decoding after a seek** starts at the previous sync point's source position minus 32 ms,
    i.e. up to `1 s × speed` of source before the seek point (4 s at 4×).
 6. **§5 clock and buffer**: lead **400 ms** (was ≈ 250 ms); underruns and the queue low-water mark
-   counted in the worklet in debug builds. The worklet's `MessagePort` is started explicitly
+   always counted in the worklet (cheap); the stats are returned only on request. The worklet's `MessagePort` is started explicitly
    (`port.start()` when using `addEventListener`).
 7. **§5 context lifecycle**: on iOS set `navigator.audioSession.type = 'playback'` (where present)
    before creating the `AudioContext`; create/unlock the context inside the **first user gesture**
