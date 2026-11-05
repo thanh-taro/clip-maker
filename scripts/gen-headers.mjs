@@ -124,8 +124,16 @@ export const SW_CSP = "default-src 'none'; connect-src 'self'";
  * (tests/e2e/support/host-harness.mjs), which serves a build allow-listing a local stub portal.
  */
 export function headersRules(origins = hostOrigins(), tool = toolOrigin()) {
+  // Every value is checked here too, so no caller can inject a directive through the API (NFR-09).
+  const checked = (entry, what) => {
+    const o = typeof entry === 'string' ? normaliseOrigin(entry) : new Error(`not an origin: ${String(entry)}`);
+    if (o instanceof Error) throw new Error(`${what} refused: ${o.message}`);
+    return o;
+  };
+  const allow = origins.map((o) => checked(o, 'host origin'));
+  const toolAllowed = checked(tool, 'tool origin');
   return `/*
-  Content-Security-Policy: ${pageCsp(origins)}
+  Content-Security-Policy: ${pageCsp(allow)}
   Permissions-Policy: ${PERMISSIONS_POLICY}
   Referrer-Policy: no-referrer
   X-Content-Type-Options: nosniff
@@ -135,7 +143,7 @@ export function headersRules(origins = hostOrigins(), tool = toolOrigin()) {
 /assets/*
   ! Cache-Control
   Cache-Control: public, max-age=31536000, immutable
-  Access-Control-Allow-Origin: ${tool}
+  Access-Control-Allow-Origin: ${toolAllowed}
 /sw.js
   ! Content-Security-Policy
   Content-Security-Policy: ${SW_CSP}

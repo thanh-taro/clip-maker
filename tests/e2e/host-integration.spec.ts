@@ -6,13 +6,22 @@
 // Not covered yet (need later features): AC2's edited project and playback (F-001, F-002), AC6 across
 // every M-1 feature, AC7/AC9 export from the frame (F-015's UI), AC8's "Space plays" (F-002, F-017).
 import { expect, test, type Frame, type Page } from '@playwright/test';
-import { HOST_ALLOWED, HOST_OTHER, hostPageUrl, TOOL_ALLOWED, TOOL_EMPTY, type HostOptions } from './support/host-urls';
+import {
+  HOST_ALLOWED,
+  HOST_OTHER,
+  hostPageUrl,
+  TOOL_ALLOWED,
+  TOOL_BOTH,
+  TOOL_EMPTY,
+  type HostOptions,
+} from './support/host-urls';
 
 const SHELL = '[data-screen="SCR-Editor"]';
 const DARK_WORK_AREA = 'rgb(11, 8, 18)';
 const LIGHT_WORK_AREA = 'rgb(236, 232, 244)';
 
 type HostWindow = Window & {
+  __frameLoads: number;
   __received: { origin: string; data: unknown }[];
   __sendTheme: (v: unknown) => void;
   __sendLanguage: (v: unknown) => void;
@@ -208,23 +217,77 @@ test('F-019.AC5 settings from an origin that is not allowed or from a window oth
   await expect(html).toHaveAttribute('data-theme', 'light');
 });
 
+/** The page CSP's frame-ancestors directive of a response, exactly. */
+async function frameAncestorsOf(page: Page, url: string): Promise<string | undefined> {
+  const csp = (await page.request.get(url)).headers()['content-security-policy'] ?? '';
+  return csp
+    .split(';')
+    .map((d) => d.trim())
+    .find((d) => d.startsWith('frame-ancestors'));
+}
+
+/**
+ * Waits until the host's frame has finished loading, then returns what its document is: in place of a
+ * blocked page the browser shows an error page (Chromium) or an empty document (WebKit, which keeps the
+ * frame's URL origin), never the tool's own document.
+ */
+async function loadedFrameDocument(page: Page): Promise<{ origin: string; title: string; shell: boolean } | null> {
+  await expect.poll(() => page.evaluate(() => (window as unknown as HostWindow).__frameLoads)).toBeGreaterThan(0);
+  const frame = await (await page.locator('#tool').elementHandle())?.contentFrame();
+  if (!frame) return null;
+  return frame
+    .evaluate(
+      (sel) => ({ origin: location.origin, title: document.title, shell: document.querySelector(sel) !== null }),
+      SHELL,
+    )
+    .catch(() => null);
+}
+
+/** A loaded frame document that is not the tool's: no tool title, no shell (or not readable at all). */
+const notTheTool = (doc: { title: string; shell: boolean } | null) =>
+  doc === null || (doc.title !== 'Clip Maker' && !doc.shell);
+
 test('F-019.AC5 a page that is not allowed cannot embed the tool', async ({ page }) => {
-  const res = await page.request.get(`${TOOL_ALLOWED}/`);
-  expect(res.headers()['content-security-policy']).toContain(`frame-ancestors ${HOST_ALLOWED}`);
+  expect(await frameAncestorsOf(page, `${TOOL_ALLOWED}/`)).toBe(`frame-ancestors ${HOST_ALLOWED}`);
 
   await openHost(page, { theme: 'dark' }, HOST_OTHER);
-  await settle(page);
-  await expect(page.frameLocator('#tool').locator(SHELL)).toHaveCount(0);
+  const blocked = await loadedFrameDocument(page);
+  expect(notTheTool(blocked), JSON.stringify(blocked)).toBe(true);
   expect(await received(page)).toEqual([]);
 
-  // An empty allow-list means standalone only (RULE-17): no page may embed it, and it runs on its own.
-  const empty = await page.request.get(`${TOOL_EMPTY}/`);
-  expect(empty.headers()['content-security-policy']).toContain("frame-ancestors 'none'");
+  // Control: the allowed host's frame loads the tool's own document.
+  await openHost(page, { theme: 'dark' });
+  expect(await loadedFrameDocument(page)).toMatchObject({ origin: TOOL_ALLOWED, title: 'Clip Maker' });
+  await toolFrame(page);
+
+  // An empty allow-list deploys frame-ancestors 'none' (RULE-17: standalone only). TOOL_EMPTY is a
+  // header-only stand-in for that build (the HOST_ORIGINS="" build itself is a unit test).
+  expect(await frameAncestorsOf(page, `${TOOL_EMPTY}/`)).toBe("frame-ancestors 'none'");
   await openHost(page, { theme: 'dark' }, HOST_ALLOWED, TOOL_EMPTY);
-  await settle(page);
-  await expect(page.frameLocator('#tool').locator(SHELL)).toHaveCount(0);
+  const none = await loadedFrameDocument(page);
+  expect(notTheTool(none), JSON.stringify(none)).toBe(true);
   await page.goto(`${TOOL_EMPTY}/`);
   await expect(page.locator(SHELL)).toBeVisible();
+});
+
+test('F-019.AC5 embedded by a page the tool does not allow, it sends no ready signal and ignores its settings', async ({
+  page,
+}) => {
+  // The headers let HOST_OTHER frame this server, but the tool's compiled-in allow-list is HOST_ALLOWED
+  // only: the tool's own origin checks (ready target, settings) are what refuse it.
+  expect(await frameAncestorsOf(page, `${TOOL_BOTH}/`)).toBe(`frame-ancestors ${HOST_ALLOWED} ${HOST_OTHER}`);
+  await openHost(page, { theme: 'dark', lang: 'en-US' }, HOST_OTHER, TOOL_BOTH);
+  const tool = page.frameLocator('#tool');
+  await expect(tool.locator(SHELL)).toBeVisible();
+  const html = tool.locator('html');
+  await expect(html).toHaveAttribute('data-theme', 'dark');
+
+  await sendTheme(page, 'light');
+  await sendLanguage(page, 'vi-VN');
+  await settle(page);
+  await expect(html).toHaveAttribute('data-theme', 'dark');
+  await expect(html).toHaveAttribute('lang', 'en-US');
+  expect(await received(page)).toEqual([]);
 });
 
 test('F-019.R5 the only message the tool sends the host is one ready signal without content', async ({ page }) => {
@@ -296,12 +359,4 @@ test('F-019.R6 until focus moves into the tool, keys go to the host page; after 
     .click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('KeyN');
   await expect.poll(() => frame.evaluate(() => (window as ToolWindow).__keys)).toEqual(['KeyN']);
-});
-
-test('F-019 embedded, the tool shows no theme control and no title of its own', async ({ page }) => {
-  await openHost(page, { theme: 'dark', lang: 'en-US' });
-  const frame = await toolFrame(page);
-  await expect(frame.getByText('Clip Maker', { exact: true })).toHaveCount(0);
-  await expect(frame.getByRole('button', { name: /theme|dark|light/i })).toHaveCount(0);
-  await expect(frame.getByRole('switch')).toHaveCount(0);
 });

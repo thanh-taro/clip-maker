@@ -10,6 +10,7 @@ export const HOST_PORTS = {
   toolAllowed: HOST_PORT_BASE + 1,
   hostOther: HOST_PORT_BASE + 2,
   toolEmpty: HOST_PORT_BASE + 3,
+  toolBoth: HOST_PORT_BASE + 4,
 } as const;
 
 /** The one allowed host origin: a stub of the TaroKit portal's tool page. */
@@ -18,8 +19,17 @@ export const HOST_ALLOWED = `http://localhost:${HOST_PORTS.hostAllowed}`;
 export const TOOL_ALLOWED = `http://127.0.0.1:${HOST_PORTS.toolAllowed}`;
 /** A host origin not in the allow-list. */
 export const HOST_OTHER = `http://localhost:${HOST_PORTS.hostOther}`;
-/** The same build served with an empty allow-list (frame-ancestors 'none'): standalone only. */
+/**
+ * The same build served with frame-ancestors 'none', as an empty allow-list deploys. A header-only
+ * shortcut: its compiled-in allow-list is still [HOST_ALLOWED] (a real HOST_ORIGINS="" build is
+ * checked in tests/unit/host.contract.test.ts).
+ */
 export const TOOL_EMPTY = `http://127.0.0.1:${HOST_PORTS.toolEmpty}`;
+/**
+ * The same build served with frame-ancestors allowing HOST_ALLOWED and HOST_OTHER: HOST_OTHER can embed
+ * it, but its compiled-in allow-list is only [HOST_ALLOWED], so the tool's own origin check is exercised.
+ */
+export const TOOL_BOTH = `http://127.0.0.1:${HOST_PORTS.toolBoth}`;
 
 export interface HostOptions {
   readonly theme?: 'light' | 'dark';

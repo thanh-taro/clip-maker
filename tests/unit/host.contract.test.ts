@@ -1,12 +1,19 @@
 // MOD-Host — F-019 host contract cases as pure functions (RULE-17, NFR-09, INV-08): settings messages
 // that must be ignored, the optional web-share grant, and the deployed headers that decide who may embed.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { acceptSettings, canShareFile, readyTarget } from '../../src/host';
 // @ts-expect-error -- plain ESM build script without type declarations
-import { headersRules } from '../../scripts/gen-headers.mjs';
+import { headersRules, hostOrigins } from '../../scripts/gen-headers.mjs';
 
 const HOST = 'https://tarokit.app';
 const parent = {};
+/** The frame-ancestors directive of the page CSP in a `_headers` text. */
+const frameAncestors = (rules: string) =>
+  /Content-Security-Policy: (.*)/
+    .exec(rules)![1]!
+    .split(';')
+    .map((d) => d.trim())
+    .find((d) => d.startsWith('frame-ancestors'));
 const msg = (data: unknown, origin = HOST, source: unknown = parent) => ({ data, origin, source });
 
 describe('MOD-Host host contract', () => {
@@ -44,11 +51,39 @@ describe('MOD-Host host contract', () => {
 
   it('F-019.R4 the deployed headers let only the allowed origins embed the tool', () => {
     const rules: string = headersRules([HOST], 'https://clip-maker.tarokit.app');
-    expect(rules).toContain(`frame-ancestors ${HOST}`);
-    expect(headersRules([], 'https://clip-maker.tarokit.app')).toContain("frame-ancestors 'none'");
+    expect(frameAncestors(rules)).toBe(`frame-ancestors ${HOST}`);
+    expect(frameAncestors(headersRules([HOST, 'http://localhost:4321'], HOST))).toBe(
+      `frame-ancestors ${HOST} http://localhost:4321`,
+    );
     // Web share and full screen stay delegable by the host frame (optional grants, RULE-17).
     expect(rules).toContain('fullscreen=(self)');
     expect(rules).toContain('web-share=(self)');
+  });
+
+  it('NFR-09 the headers refuse an origin that would inject a directive', () => {
+    const tool = 'https://clip-maker.tarokit.app';
+    for (const bad of [
+      'https://a.example; script-src *',
+      '*',
+      "'self'",
+      'https://a.example/path',
+      'http://a.example',
+    ]) {
+      expect(() => headersRules([bad], tool)).toThrow(/refused/);
+      expect(() => headersRules([HOST], bad)).toThrow(/refused/);
+    }
+  });
+
+  it('F-019.R4 a build with HOST_ORIGINS="" has an empty allow-list and frame-ancestors none', () => {
+    vi.stubEnv('HOST_ORIGINS', '');
+    try {
+      // The same list vite.config.ts compiles into MOD-Host (__HOST_ORIGINS__) and the headers use.
+      const origins: string[] = hostOrigins();
+      expect(origins).toEqual([]);
+      expect(frameAncestors(headersRules(origins, 'https://clip-maker.tarokit.app'))).toBe("frame-ancestors 'none'");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
