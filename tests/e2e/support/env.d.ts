@@ -3,4 +3,8 @@
 declare module 'node:url' {
   export function fileURLToPath(url: string | URL): string;
 }
+declare module 'node:fs' {
+  export function readFileSync(path: string): Uint8Array;
+}
 declare const process: { env: Record<string, string | undefined> };
+declare const Buffer: { from(data: number[] | string, encoding?: 'base64'): Uint8Array };
