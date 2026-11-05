@@ -4,7 +4,8 @@
 // The branded Chrome (`channel: 'chrome'`, DEP-34, owner decision D-035; H.264/HEVC, GPU timing) is an
 // opt-in project: `E2E_CHROME=1 pnpm test:e2e --project=chrome`.
 import { defineConfig, devices } from '@playwright/test';
-import { MEDIA_HARNESS_PORT, PREVIEW_PORT } from './tests/e2e/support/ports';
+import { HOST_PORT_BASE, MEDIA_HARNESS_PORT, PREVIEW_PORT } from './tests/e2e/support/ports';
+import { HOST_ALLOWED } from './tests/e2e/support/host-urls';
 
 const CI = !!process.env['CI'];
 const PORT = PREVIEW_PORT;
@@ -35,6 +36,15 @@ export default defineConfig({
       url: `http://localhost:${MEDIA_HARNESS_PORT}`,
       reuseExistingServer: !!process.env['E2E_REUSE'],
       timeout: 60_000,
+    },
+    // The multi-origin host harness (RULE-17 frame tests, F-019): builds dist-e2e/host allow-listing a
+    // stub portal and serves both with real headers (tests/e2e/support/host-harness.mjs).
+    {
+      command: 'node tests/e2e/support/host-harness.mjs',
+      url: `${HOST_ALLOWED}/host.html`,
+      env: { E2E_HOST_PORT_BASE: String(HOST_PORT_BASE) },
+      reuseExistingServer: !!process.env['E2E_REUSE'],
+      timeout: 120_000,
     },
   ],
   // Real-time tests (tag @realtime: A/V sync, worklet underruns) measure wall-clock timing, so they

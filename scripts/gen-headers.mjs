@@ -119,11 +119,13 @@ export const PERMISSIONS_POLICY = [
 
 export const SW_CSP = "default-src 'none'; connect-src 'self'";
 
-export function genHeaders({ check }) {
-  const out = `# ${GENERATED_HEADER(BOOT_SOURCE + ', HOST_ORIGINS and TOOL_ORIGIN', 'scripts/gen-headers.mjs')}
-# Every matching rule applies; "! Name" detaches a header set by an earlier rule.
-/*
-  Content-Security-Policy: ${pageCsp()}
+/**
+ * The `_headers` rules for an allow-list and tool origin. Also used by the e2e host harness
+ * (tests/e2e/support/host-harness.mjs), which serves a build allow-listing a local stub portal.
+ */
+export function headersRules(origins = hostOrigins(), tool = toolOrigin()) {
+  return `/*
+  Content-Security-Policy: ${pageCsp(origins)}
   Permissions-Policy: ${PERMISSIONS_POLICY}
   Referrer-Policy: no-referrer
   X-Content-Type-Options: nosniff
@@ -133,10 +135,16 @@ export function genHeaders({ check }) {
 /assets/*
   ! Cache-Control
   Cache-Control: public, max-age=31536000, immutable
-  Access-Control-Allow-Origin: ${toolOrigin()}
+  Access-Control-Allow-Origin: ${tool}
 /sw.js
   ! Content-Security-Policy
   Content-Security-Policy: ${SW_CSP}
 `;
+}
+
+export function genHeaders({ check }) {
+  const out = `# ${GENERATED_HEADER(BOOT_SOURCE + ', HOST_ORIGINS and TOOL_ORIGIN', 'scripts/gen-headers.mjs')}
+# Every matching rule applies; "! Name" detaches a header set by an earlier rule.
+${headersRules()}`;
   return emit(OUT, out, { check });
 }

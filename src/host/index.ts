@@ -11,6 +11,7 @@ export { loadFonts } from './fonts';
 export { matchLanguage, resolveLanguage } from './language';
 export { acceptSettings, READY_MESSAGE, readyTarget } from './messages';
 export type { Settings, Theme } from './messages';
+export { canShareFile, type ShareNavigator } from './share';
 
 /** The compiled-in allow-list of host origins (HOST_ORIGINS, vite.config.ts; RULE-17, NFR-09). */
 export const HOST_ORIGINS: readonly string[] = __HOST_ORIGINS__;
@@ -71,6 +72,9 @@ export function initHost(focusFirst?: () => HTMLElement | null): void {
     if (!hostOwnsTheme) setTheme(e.matches ? 'light' : 'dark');
   });
 
+  // Implements: F-019.R6 (focus enters only when the host moves it after ready, or on a click or Tab).
+  // WebKit refuses focus() in a cross-origin frame without a user gesture: there the tool's document
+  // keeps focus (keys reach the tool) with no control focused.
   if (focusFirst) {
     window.addEventListener(
       'focus',
