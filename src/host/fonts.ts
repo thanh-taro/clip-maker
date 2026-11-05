@@ -15,8 +15,19 @@ const FACES = [
   '800 1em Nunito',
 ];
 
-/** Loads every face; resolves when they are loaded or failed. */
+/**
+ * Loads every face; resolves when they are loaded or failed. Waits for the page's `load` event first:
+ * WebKit may run the module before the stylesheet's @font-face rules are in `document.fonts`, and a
+ * `load()` that matches no face loads nothing, so the face would be fetched later, on first use
+ * (F-020.R4 offline notices, NFR-01). Every declared face is then loaded, whatever its range.
+ */
 export function loadFonts(): Promise<unknown> {
   if (typeof document === 'undefined' || !('fonts' in document)) return Promise.resolve();
-  return Promise.allSettled(FACES.map((face) => document.fonts.load(face, SAMPLE)));
+  const all = () =>
+    Promise.allSettled([
+      ...FACES.map((face) => document.fonts.load(face, SAMPLE)),
+      ...Array.from(document.fonts as unknown as Iterable<FontFace>, (face) => face.load()),
+    ]);
+  if (document.readyState === 'complete') return all();
+  return new Promise((resolve) => addEventListener('load', () => resolve(all()), { once: true }));
 }

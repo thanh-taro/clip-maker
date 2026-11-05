@@ -12,7 +12,7 @@ produce.
 | `scripts/gen-types.mjs` | `specs/10-domain/project.schema.json` | `src/core/project.gen.ts` | MOD-Core types (`Project`, `Clip`, `TextLayer`, …) |
 | `scripts/gen-copy.mjs` | `specs/30-experience/copy.md` | `src/copy/messages.gen.ts` | MOD-Copy `t(id, params)` |
 | `scripts/gen-looks.mjs` | `specs/30-experience/looks.md` (+ copy.md) | `src/core/looks.gen.ts` | `LOOK_IDS`, `LOOK_GROUPS`, `LOOKS` (RULE-09) |
-| `scripts/gen-notices.mjs` | `specs/40-technical/dependencies.md` + installed packages | `public/third-party-notices.txt` | shipped at `/third-party-notices.txt`; the in-tool notices view (F-020.R4) |
+| `scripts/gen-notices.mjs` | `specs/40-technical/dependencies.md` + installed packages | `public/third-party-notices.txt`, `src/app/notices.gen.ts` | shipped at `/third-party-notices.txt`; the in-tool notices view's rows (F-020.R4, compiled into the page) |
 | `scripts/gen-headers.mjs` | `src/host/boot.js` + `HOST_ORIGINS` + `TOOL_ORIGIN` | `public/_headers` | Cloudflare static assets (phase 7), `vite preview` (local release preview) |
 
 `scripts/gen-all.mjs` runs all six; `--check` compares instead of writing. Build-time outputs (not
@@ -64,6 +64,10 @@ Still to come with their features: `gen-looks` table packing (`.cube` → 33³ P
   with its installed version, licence and licence file text; MPL-2.0 packages (ADR-0005) also get
   "used unmodified" and a link to the exact source tag of the shipped version. CC-BY rows (build-time
   data) get an attribution line. Bundled music tracks join once registered (ADR-0013).
+- `notices.gen.ts` holds the in-tool view's rows (F-020.R4): `NOTICE_FONTS` (each `@fontsource*`
+  package, titled by its family name) and `NOTICE_CODE` (every other shipped package, titled
+  `<name> <version>`), each with source `npmjs.com/package/<name>` and the package's licence. The
+  view adds MOD-Core's `MUSIC_TRACKS` (title, source, licence) at run time.
 
 ## Boot script and `_headers`
 - `src/host/boot.js` is the only inline script. `scripts/lib/boot.mjs` strips its comment-only

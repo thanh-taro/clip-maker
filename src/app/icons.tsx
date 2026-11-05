@@ -3,6 +3,8 @@
 // injected as HTML (ADR-0002 bans innerHTML) — and drawn with the stroke width of the designs.
 import type { JSX } from 'preact';
 import {
+  ArrowLeft,
+  Code,
   Download,
   EllipsisVertical,
   ExternalLink,
@@ -16,6 +18,7 @@ import {
   Type,
   Undo2,
   Video,
+  X,
 } from 'lucide-static';
 
 const SOURCES = {
@@ -35,6 +38,9 @@ const SOURCES = {
   // CMP-StatusBar
   shield: ShieldCheck,
   external: ExternalLink,
+  code: Code,
+  close: X,
+  back: ArrowLeft,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

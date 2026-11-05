@@ -9,6 +9,9 @@ import { abs, emit, GENERATED_HEADER } from './lib/util.mjs';
 import { findInstalled, isActive, isShipped, readRegistry, REGISTRY } from './lib/registry.mjs';
 
 const OUT = abs('public/third-party-notices.txt');
+/** The in-tool notices view's rows (F-020.R4): bundled into the page, so opening it makes no request. */
+const OUT_VIEW = abs('src/app/notices.gen.ts');
+const FONT_PACKAGE = /^@fontsource(-variable)?\//;
 const LICENSE_FILES = /^(licen[cs]e|copying|notice)(\.(md|txt))?$/i;
 
 function licenseText(dir) {
@@ -28,6 +31,9 @@ export function genNotices({ check }) {
   const rows = readRegistry().filter(isActive);
   const sections = [];
   const pending = [];
+  /** F-020.R4: one row per shipped package — typefaces and code — with title, source and licence. */
+  const fonts = [];
+  const code = [];
   for (const r of rows.filter(isShipped)) {
     for (const name of r.names) {
       const dir = findInstalled(name);
@@ -38,6 +44,15 @@ export function genNotices({ check }) {
       const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
       const text = licenseText(dir);
       const mpl = /MPL/i.test(pkg.license ?? r.license);
+      const licence = pkg.license ?? r.license;
+      const source = `npmjs.com/package/${pkg.name}`;
+      if (FONT_PACKAGE.test(pkg.name)) {
+        // "Self-host the Manrope font in a neatly bundled NPM package." → "Manrope".
+        const family = /Self-host the (.+?) font/i.exec(pkg.description ?? '')?.[1] ?? pkg.name;
+        fonts.push({ title: family, source, licence });
+      } else {
+        code.push({ title: `${pkg.name} ${pkg.version}`, source, licence });
+      }
       sections.push(
         [
           `${pkg.name} ${pkg.version} — ${pkg.license ?? r.license} (${r.id}, ${r.kind})`,
@@ -75,5 +90,17 @@ export function genNotices({ check }) {
     '',
   ].join('\n');
   if (pending.length) console.log(`notices: registered but not installed yet: ${pending.join(', ')}`);
-  return emit(OUT, out, { check });
+  const view = [
+    `// ${GENERATED_HEADER(REGISTRY, 'scripts/gen-notices.mjs')}`,
+    '// The rows of the in-tool licence notices view (F-020.R4, CMP-StatusBar): every shipped typeface and',
+    '// code package with its title, source and licence. Bundled music comes from MUSIC_TRACKS (MOD-Core).',
+    "import type { NoticeRow } from './notices';",
+    '',
+    `export const NOTICE_FONTS: readonly NoticeRow[] = ${JSON.stringify(fonts, null, 2)};`,
+    '',
+    `export const NOTICE_CODE: readonly NoticeRow[] = ${JSON.stringify(code, null, 2)};`,
+    '',
+  ].join('\n');
+  const txtOk = emit(OUT, out, { check });
+  return emit(OUT_VIEW, view, { check }) && txtOk;
 }
