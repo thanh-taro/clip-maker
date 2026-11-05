@@ -3,7 +3,7 @@
 // the trial encodes, the first-packet decode check and the format choice are built (E2); creating
 // the playback and export coders comes with MOD-Engine (E3) and MOD-Export (E5).
 import { notImplemented } from '../core';
-import type { Missing } from './probe';
+import { browserCodecApi, supports, type CodecApi, type Missing } from './probe';
 
 export * from './configs';
 export * from './probe';
@@ -49,9 +49,34 @@ export function detectFeatures(): DeviceFeatures {
   };
 }
 
-// Coder creation with the hardware/software retry — built with MOD-Engine (E3) and MOD-Export (E5).
-export const createVideoDecoder = (_config: VideoDecoderConfig): never =>
-  notImplemented('MOD-Codec createVideoDecoder');
+/**
+ * The decoder configuration to use for a track: as given when supported, otherwise with software
+ * decoding preferred (the hardware/software retry), or null when neither is supported. The container's
+ * rotation and flip are removed so frames come out as stored; MOD-Compositor applies the rotation
+ * (RULE-07 "computed on the rotated clip"). Implements: F-001.R2 (decode), RULE-22 (per-source refusal).
+ */
+export async function resolveVideoDecoderConfig(
+  config: VideoDecoderConfig,
+  api: Pick<CodecApi, 'VideoDecoder'> = browserCodecApi(),
+): Promise<VideoDecoderConfig | null> {
+  const { rotation: _r, flip: _f, ...plain } = config as VideoDecoderConfig & { rotation?: number; flip?: boolean };
+  if (await supports(api.VideoDecoder, plain)) return plain;
+  const soft: VideoDecoderConfig = { ...plain, hardwareAcceleration: 'prefer-software' };
+  return (await supports(api.VideoDecoder, soft)) ? soft : null;
+}
+
+/** A configured `VideoDecoder` (MOD-Engine preview, MOD-Export reader). Use a resolved configuration. */
+export function createVideoDecoder(
+  config: VideoDecoderConfig,
+  output: (frame: VideoFrame) => void,
+  error: (e: Error) => void,
+): VideoDecoder {
+  const d = new VideoDecoder({ output, error: (e) => error(e) });
+  d.configure(config);
+  return d;
+}
+
+// Encoder creation with the hardware/software retry — built with MOD-Export (E5).
 export const createVideoEncoder = (_config: VideoEncoderConfig): never =>
   notImplemented('MOD-Codec createVideoEncoder');
 export const createAudioDecoder = (_config: AudioDecoderConfig): never =>

@@ -15,6 +15,7 @@ import {
   type VideoCodecId,
 } from '../../src/codec';
 import { intake, startAnalysisWorker, type IntakeItem } from '../../src/media';
+import { videoHarness } from './video';
 
 const worker = startAnalysisWorker();
 const extra: File[] = [];
@@ -134,6 +135,8 @@ const harness = {
   exportGrid: (codec: VideoCodecId) => probeExportGrid(codec),
   trialVideo: (codec: VideoCodecId, w = 640, h = 360) => trialVideoEncode(videoEncoderConfig(codec, w, h, 30)),
   trialAudio: (codec: AudioCodecId) => trialAudioEncode(codec),
+  /** MOD-Compositor, MOD-Engine and MOD-Preview (tests/harness/video.ts). */
+  video: videoHarness,
   supportsDecode: async (codec: string) =>
     (await VideoDecoder.isConfigSupported({ codec, codedWidth: 1920, codedHeight: 1080 })).supported === true,
 };
