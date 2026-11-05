@@ -83,7 +83,7 @@ describe('F-014 undo and redo', () => {
   it('F-014.AC4 a slider dragged through many values is undone in one step', () => {
     load(proj({ clips: [video('A', 10)] }));
     const before = project.value;
-    beginGesture('slider:brightness');
+    beginGesture();
     for (let v = 1; v <= 40; v++) edit((p) => setAdjustments(p, 'A', { brightness: v }));
     endGesture();
     expect(project.value.clips[0]!.adjustments).toEqual({ brightness: 40 });
@@ -110,7 +110,7 @@ describe('F-014 undo and redo', () => {
   it('F-014.AC6 a new text layer typed in and finished is removed by one undo', () => {
     load(proj({ clips: [video('A', 10)] }));
     const before = project.value;
-    beginGesture('text-edit');
+    beginGesture();
     edit((p) => addText(p, 0, nextId));
     const id = project.value.textLayers[0]!.id;
     edit((p) => editText(p, id, 'H'));
@@ -129,7 +129,7 @@ describe('F-014 undo and redo', () => {
     undo();
     expect(canUndo.value).toBe(false);
     expect(steps).toBe(true);
-    beginGesture('text-edit');
+    beginGesture();
     edit((p) => addText(p, 0, nextId));
     edit((p) => finishText(p, p.textLayers[0]!.id));
     endGesture();
