@@ -7,6 +7,7 @@ export type Notice =
   | 'notice.split_too_close'
   | 'notice.text_limit'
   | 'notice.no_audio_room'
+  | 'notice.crossfade_too_short'
   | 'reason.too_many'
   | 'reason.too_short';
 
@@ -16,6 +17,7 @@ export const NOTICES: readonly Notice[] = Object.freeze([
   'notice.split_too_close',
   'notice.text_limit',
   'notice.no_audio_room',
+  'notice.crossfade_too_short',
   'reason.too_many',
   'reason.too_short',
 ]);

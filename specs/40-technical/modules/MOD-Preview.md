@@ -24,7 +24,11 @@ Evidence: SP-frame, SP-ios.
 - Drawing the picture (MOD-Compositor in the worker), timeline input (MOD-Timeline).
 
 ## Public surface
-- `mountPreview(element, signals)`; `rasteriseText(layer, scale)` → `ImageBitmap`; `enterFullscreen()`.
+- `mountPreview(element, { project }, { engine, clock })` → controller (play, pause, seek, step, time and play state). `engine` is the engine worker port (MOD-Core `ToEngine` / `FromEngine` messages, so MOD-Preview never imports MOD-Engine); `clock` is MOD-Audio's `Playback`. MOD-App wires both (F-002).
+- `rasteriseText(layer, scale)` → `ImageBitmap`; `enterFullscreen()`.
+
+## Deferred to later features
+Built in E3 without these, by scope: look thumbnails (F-008, with MOD-Plan's thumbnail plan; the engine answers with an error until then), `rasteriseText` and the text field (F-010; bitmaps are made with `premultiplyAlpha: 'premultiply'`, and the text-bitmap budget is enforced here), `enterFullscreen` (F-002.R7), and on-preview gestures (F-006, F-017).
 
 ## Implements
 F-002.R1/R7, F-006 (preview gestures), F-007.R7 (compare), F-010.R1/R3/R5/R6, F-017 (touch on preview); RULE-07 snapping, RULE-11, RULE-21 preview gestures. Decided by ADR-0006, ADR-0012.

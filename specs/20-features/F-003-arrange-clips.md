@@ -37,7 +37,7 @@ Joining clips in the right order is the core of every family montage and social 
 - **AC5** Given a screen reader or keyboard only, when the user moves a clip one place left, deletes it and duplicates another, then each works through visible controls. (R6, R1)
 - **AC6** Given clips A, B and C with cross-fades A–B and B–C, when B is deleted, then A and C are adjacent with no cross-fade. (R5)
 - **AC7** Given clip A with a cross-fade into B, when A is duplicated, then the order is A, A′, B, with no cross-fade between A and A′ and A′ cross-fading into B. (R5)
-- **AC8** Given a 9 min 59 s project whose only cross-fade is 1 s, when a reorder would remove it, then the reorder is refused with COPY-notice.length_full. (R5)
+- **AC8** Given a 9 min 59.5 s project whose only cross-fade is 1 s, when a reorder would remove it, then the reorder is refused with COPY-notice.length_full. (R5)
 
 ## UX notes
 On CMP-Timeline, clips show a thumbnail and their duration. Clip actions use COPY-action.move_left, COPY-action.move_right, COPY-action.delete and COPY-action.duplicate.

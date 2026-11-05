@@ -13,8 +13,7 @@ export const TEXT_DEFAULTS = Object.freeze({
   align: 'centre',
   x: RULE_11.defaultX,
   y: RULE_11.defaultY,
-  // RULE-10 says the text fade is "on or off" without naming a default; off until the spec says
-  // otherwise (open question in the E1 report).
+  // Implements: RULE-11 — a new layer's text fade (RULE-10) is off.
   fade: false,
 } as const satisfies Partial<TextLayer>);
 

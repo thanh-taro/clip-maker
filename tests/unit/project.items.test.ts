@@ -29,6 +29,7 @@ import {
   resetPlacement,
   restackText,
   setAdjustments,
+  crossFadeAvailability,
   setCrossFade,
   setFade,
   setFrameRate,
@@ -72,6 +73,27 @@ describe('F-009 fades and cross-fades (domain)', () => {
     const r = setCrossFade(p, 'A', 0);
     expect(r.project).toBe(p);
     expect(r.notices).toEqual(['notice.length_full']);
+  });
+
+  it('F-009.AC9 RULE-10 a cross-fade between a 0.1 s clip and a 5 s clip is unavailable with COPY-notice.crossfade_too_short', () => {
+    const p = proj({ clips: [video('A', 0.1), video('B', 5)] });
+    expect(crossFadeAvailability(p, 'A')).toEqual({ available: false, reason: 'notice.crossfade_too_short' });
+    const r = setCrossFade(p, 'A', 5);
+    expect(r.project).toBe(p);
+    expect(r.notices).toEqual(['notice.crossfade_too_short']);
+    // The short clip second: still unavailable.
+    const q = proj({ clips: [video('A', 5), video('B', 0.1)] });
+    expect(crossFadeAvailability(q, 'A').available).toBe(false);
+    expect(setCrossFade(q, 'A', 5).notices).toEqual(['notice.crossfade_too_short']);
+  });
+
+  it('RULE-10 a cross-fade is available when both clips hold 0.1 s within half their length; none after the last clip', () => {
+    // 0.2 s = 6 frames at 30 fps: half is 3 frames, exactly the minimum; 5 frames hold only 2.
+    const p = proj({ clips: [video('A', 0.2), video('B', 5)] });
+    expect(crossFadeAvailability(p, 'A')).toEqual({ available: true, reason: null });
+    expect(setCrossFade(p, 'A', 5).project.clips[0]!.crossFadeNext).toBe(frameStart(3, 30));
+    expect(crossFadeAvailability(p, 'B')).toEqual({ available: false, reason: null });
+    expect(crossFadeAvailability(proj({ clips: [video('A', 5 / 30), video('B', 5)] }), 'A').available).toBe(false);
   });
 
   it('F-009.AC8 a cross-fade set to 0.3 s at 25 fps lasts 8 frames', () => {
@@ -265,6 +287,27 @@ describe('F-012 frame (domain)', () => {
     expect(projectEnd(r.project)).toBe(600 * S);
     expect(r.notices).toEqual(['notice.length_limited']);
     ok(r.project);
+  });
+
+  it('RULE-04 after a frame-rate change an audio clip that now overlaps moves to the next free frame start', () => {
+    // At 30 fps: M runs frames 2–34, N starts at frame 34 where M ends. At 24 fps M's start rounds up
+    // (1.6 → 2 frames, 83,333 µs) so it ends at 1,150,000 µs, while N's start rounds down
+    // (27.2 → 27 frames, 1,125,000 µs): they would overlap, so N moves to frame 28 (1,166,666 µs).
+    const p = proj({
+      clips: [video('V', 10)],
+      audioClips: [audio('M', frameStart(2, 30) / S, frameStart(34, 30) / S), audio('N', frameStart(34, 30) / S, 3)],
+    });
+    const r = setFrameRate(p, 24);
+    const [m, n] = r.project.audioClips;
+    expect(m!.start).toBe(frameStart(2, 24));
+    expect(m!.start + m!.out - m!.in).toBe(1_150_000);
+    expect(n!.start).toBe(frameStart(28, 24));
+    ok(r.project);
+  });
+
+  it('RULE-11 a new text layer has its text fade off', () => {
+    const r = addText(proj({ clips: [video('V', 10)] }), 0, counter());
+    expect(r.project.textLayers[0]!.fade).toBe(false);
   });
 
   it('RULE-04 a frame-rate change moves text and audio times to frame starts at the new rate', () => {

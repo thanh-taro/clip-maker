@@ -153,6 +153,7 @@ Rules for every string:
 | **COPY-notice.split_too_close** | Move the playhead further from the clip's edge to split. | Hãy dời vị trí phát xa mép clip hơn để tách. | |
 | **COPY-notice.text_limit** | You've reached 50 text layers. | Đã đạt tối đa 50 lớp chữ. | |
 | **COPY-notice.no_audio_room** | No free room on the audio track here. | Không còn chỗ trống trên rãnh âm thanh tại đây. | |
+| **COPY-notice.crossfade_too_short** | These clips are too short for a cross-fade. | Các clip này quá ngắn để chuyển mờ. | |
 | **COPY-notice.no_sound_to_export** | This project has no sound to export. | Dự án không có âm thanh để xuất. | |
 | **COPY-notice.slow_device** | This device may play the preview unevenly. Exports are not affected. | Thiết bị này có thể phát xem trước không mượt. Tệp xuất không bị ảnh hưởng. | |
 | **COPY-error.refused_list** | Couldn't add: {list} | Không thêm được: {list} | List of "name: reason" |

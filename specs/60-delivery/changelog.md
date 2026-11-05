@@ -32,3 +32,20 @@ Owner decisions D-044 … D-046: all changes approved; SC-9 (Share) applied; SC-
 - F-015.R9 and F-015.AC15: Share a finished export where the device and frame allow (RULE-17); F-016.R3 includes sharing; new COPY-action.share; CMP-ExportProgress done state offers it; F-015 frontmatter gains RULE-17 (SC-9, D-045).
 - F-002: edge cases for system sound interruptions and the silent switch, option (b): the preview plays its sound like a video app (SC-10, D-046).
 - F-015: edge case for a size target still over after the corrective pass → fails per R6 (SC-11).
+
+## 2026-11-05 — Wave 0 review decisions
+Owner decisions on `.build-my-app/reports/build-spec-questions.md` items 1–7, 22–24, 34 and 42; technical items 18–21 and 26 applied by Claude.
+- F-003.AC8: the project is 9 min 59.5 s (item 1).
+- RULE-03: an add or duplicate is refused when less than the minimum length fits (item 2).
+- RULE-04: after a frame-rate change, an audio clip that now overlaps moves to the next free frame start (item 3).
+- RULE-11: a new layer's text fade is off (item 4).
+- RULE-10, F-009.R7 and AC9: a cross-fade between clips too short to hold 0.1 s is unavailable, with new COPY-notice.crossfade_too_short; F-009 UX notes (item 5).
+- RULE-06, F-005.R5 and AC4: a speed increase stopped by the minimum length shows COPY-notice.length_limited; F-005 frontmatter gains RULE-05 (item 6).
+- RULE-02: video and audio sources shorter than 0.125 s are refused with COPY-reason.too_short (item 7).
+- RULE-07: a flip mirrors the picture as displayed, after the rotation (item 22).
+- F-002: edge case — at or past the project end the preview keeps the last frame (INV-07) (item 23).
+- F-002.AC3: the playhead stays on the paused frame (item 24).
+- INV-01 and F-015.AC14: storage kept separately for the embedded and standalone tool is swept separately (item 42).
+- ADR-0010 outcome item 9: square frames are an exception to "long side a multiple of 16" (1080 × 1080) (item 34).
+- RULE-22, F-023.R5 and AC8: the encode check needs a video encoder only; without a sound encoder only the exports that need one are left out; F-023 frontmatter gains RULE-16 (item 18).
+- MOD-Engine public surface lists every worker message and event (item 19); MOD-Compositor no longer mentions an own HDR shader (item 20); MOD-Preview's `mountPreview` takes the engine and clock, and lists what is deferred to F-002/F-008/F-010 (items 21, 26); MOD-Codec lists `deviceCheck` and `soundExportAvailable` (item 18).

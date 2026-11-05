@@ -147,7 +147,7 @@ describe('MOD-Preview playback (F-002.R2)', () => {
     expect(r.clock.calls).toContain('pause');
   });
 
-  it('F-002.R2 pause keeps the playhead at the paused time (the start of the frame shown)', () => {
+  it('F-002.AC3 pause keeps the playhead on the paused frame (the start of the frame shown)', () => {
     const r = setup();
     r.ctl.play();
     r.clock.t = 1_234_567;

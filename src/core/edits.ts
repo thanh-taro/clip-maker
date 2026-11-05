@@ -21,8 +21,8 @@ import { clipFrames, minCrossFadeFrames, rangeForFrames, speedOf, type ClipSpan 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
 /**
- * Implements: RULE-02 "too short" with RULE-05's minimum (spec question 7): the shortest video or
- * audio source accepted — the 0.1 s minimum rounded up to whole frames at the slowest RULE-04 rate
+ * Implements: RULE-02 "too short" with RULE-05's minimum: the shortest video or audio source
+ * accepted — the 0.1 s minimum rounded up to whole frames at the slowest RULE-04 rate
  * (0.125 s at 24 fps), so no later frame-rate change can take a clip of it below its minimum.
  */
 export const MIN_SOURCE_DURATION: Micros = Math.max(...RULE_04.frameRates.map((r) => minDuration(r)));
@@ -37,8 +37,9 @@ export const speedStep = (speedPct: number): number =>
 
 /**
  * Implements: RULE-06 stops — an increase stops at the fastest step keeping the clip at its minimum
- * length; then, while `fits(speed)` is false, the speed rises toward the current one (the slowest
- * step that fits). Returns the speed to apply and whether RULE-03 limited it.
+ * length (RULE-05); then, while `fits(speed)` is false, the speed rises toward the current one (the
+ * slowest step that fits). Returns the speed to apply and whether either stop limited it; both show
+ * COPY-notice.length_limited (RULE-06, F-005.R4/R5).
  */
 export function speedFor(
   clip: Clip,
@@ -48,9 +49,11 @@ export function speedFor(
 ): { speedPct: number; limited: boolean } {
   const step = RULE_06.stepPct;
   const current = speedOf(clip);
-  let want = speedStep(requestedPct);
+  const requested = speedStep(requestedPct);
+  let want = requested;
   while (want > current && clipFrames({ ...clip, speedPct: want }, rate) < minFrames(rate)) want -= step;
-  let limited = false;
+  // Implements: F-005.R5 — an increase cut short by the minimum length says so.
+  let limited = want < requested;
   while (want < current && !fits(want)) {
     want += step;
     limited = true;
@@ -139,8 +142,8 @@ export function fitAudioFades(a: AudioClip, rate: FrameRate): AudioClip {
 /**
  * Implements: RULE-04 re-timing of the audio track: starts and fades move to frame starts at the new
  * rate, no clip goes below its minimum (within its source), and where two clips that touched would
- * now overlap the later one moves to the first frame start after the earlier one ends (INV-06;
- * spec question 3). Keeps the array order.
+ * now overlap the later one moves to the first frame start after the earlier one ends (INV-06,
+ * RULE-04). Keeps the array order.
  */
 export function retimeAudio(
   clips: readonly AudioClip[],

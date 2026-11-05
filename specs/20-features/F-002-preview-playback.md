@@ -33,7 +33,7 @@ People judge an edit by watching it. The preview must play smoothly and show exa
 ## Acceptance criteria
 - **AC1** Given a project with a clip using a look, a cross-fade and a text layer, when the playhead is inside the cross-fade, then the preview shows both clips blended with the look and the text. (R1)
 - **AC2** Given a paused project with sound, when the user plays, then picture and sound start together from the playhead and stop at the project end. (R2)
-- **AC3** Given playing, when the user pauses, then the playhead stays at the paused time. (R2)
+- **AC3** Given playing, when the user pauses, then the playhead stays on the paused frame. (R2)
 - **AC4** Given a paused project, when the user drags the playhead across a clip, then the preview follows within the NFR-03 latency. (R3)
 - **AC5** Given the playhead at 2.000 s at 30 fps, when the user steps forward, then it is at 2 s + 1 frame and the time shows `00:02:01`. (R4, R5)
 - **AC6** Given any project, when it is exported as video, then the frame at time t matches the preview frame at t within NFR-08. (R6)
@@ -46,6 +46,7 @@ CMP-Preview holds the picture and play controls; CMP-Timeline holds the playhead
 ## Edge cases
 - The device can't keep up → frames are skipped to keep sound in sync. Sound never drifts.
 - Play at the project end → it starts from 0.
+- Playhead at or past the project end → the preview keeps the last frame on screen; nothing past the end is drawn (INV-07).
 - Empty project → the preview shows the background with COPY-empty.title.
 - The system interrupts sound (a call, another app's audio, the phone locks) → playback pauses; Play resumes it.
 - The phone is set to silent → the preview still plays its sound, as video apps do; the device volume controls it.

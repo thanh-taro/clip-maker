@@ -17,7 +17,7 @@ New project (RULE-23). Exposes signals for the UI.
 
 ## Public surface
 - Signals: `project`, `history`, `selection`, `playhead`, `copiedGrade`, `unexported` (computed).
-- Operations: `addMedia(batch)`, `placeSource`, `removeSource`, `trim`, `split`, `move`, `delete`, `duplicate`, `setSpeed`, `setPlacement`, `setGrade`, `setLook`, `setFade`, `setCrossfade`, `addText`/`editText`/…, `addAudio`/`moveAudio`/…, `setFrame`, `applyToAll`, `muteOriginal`, `newProject`.
+- Operations: `addMedia(batch)`, `placeSource`, `removeSource`, `trim`, `split`, `move`, `delete`, `duplicate`, `setSpeed`, `setPlacement`, `setGrade`, `setLook`, `setFade`, `setCrossfade`, `crossFadeAvailability` (F-009.R7: available, or the reason), `addText`/`editText`/…, `addAudio`/`moveAudio`/…, `setFrame`, `applyToAll`, `muteOriginal`, `newProject`.
 - `beginGesture(key)` / `endGesture()` for coalescing; `undo()`, `redo()`; `markExported(kind)`.
 
 ## Implements

@@ -48,12 +48,23 @@ describe('F-001 adding media (domain)', () => {
     expect(r.notices).toContain('notice.length_limited');
   });
 
-  it('RULE-03 media that would add less than one frame is refused with COPY-notice.length_full but kept as a source', () => {
+  it('RULE-03 media is refused with COPY-notice.length_full when less than the minimum length fits, but kept as a source', () => {
     const p = proj({ clips: [video('A', 600)] });
     const r = addMedia(p, [videoSource('v', 30)], 0, counter());
     expect(r.project.clips).toHaveLength(1);
     expect(r.project.sources.map((s) => s.id)).toContain('v');
     expect(r.notices).toContain('notice.length_full');
+    // 2 frames of room at 30 fps: one frame fits, but the 0.1 s minimum (3 frames) does not.
+    const q = proj({ clips: [video('A', 17_998 / 30)] });
+    expect(projectFrames(q)).toBe(17_998);
+    const s = addMedia(q, [videoSource('w', 30), photoSource('ph')], 0, counter());
+    expect(s.project.clips).toHaveLength(1);
+    expect(s.notices).toContain('notice.length_full');
+    // 3 frames of room: the minimum fits, so the clip is placed with COPY-notice.length_limited.
+    const t = addMedia(proj({ clips: [video('A', 17_997 / 30)] }), [videoSource('w', 30)], 0, counter());
+    expect(t.project.clips).toHaveLength(2);
+    expect(projectFrames(t.project)).toBe(18_000);
+    expect(t.notices).toEqual(['notice.length_limited']);
   });
 
   it('RULE-05 a photo is added with the default 3 s duration', () => {
@@ -151,7 +162,7 @@ describe('F-003 arrange clips (domain)', () => {
     ok(r.project);
   });
 
-  it('RULE-03 a reorder that would remove a cross-fade past 10 minutes is refused with COPY-notice.length_full', () => {
+  it('F-003.AC8 RULE-03 a reorder that would remove the only 1 s cross-fade of a 9 min 59.5 s project is refused with COPY-notice.length_full', () => {
     // 9 min 59.5 s with one 1 s cross-fade: removing it would make 600.5 s.
     const p = proj({ clips: [video('A', 300, { crossFadeNext: S }), video('B', 200), video('C', 100.5)] });
     expect(projectEnd(p)).toBe(599.5 * S);
@@ -171,6 +182,15 @@ describe('F-003 arrange clips (domain)', () => {
     expect(s.notices).toEqual(['notice.length_limited']);
     const full = proj({ clips: [video('A', 595), video('B', 5)] });
     expect(duplicateClip(full, 'B', counter()).notices).toEqual(['notice.length_full']);
+  });
+
+  it('RULE-03 a duplicate is refused when less than the minimum length fits', () => {
+    // 2 frames of room at 30 fps, below the 3-frame minimum.
+    const p = proj({ clips: [video('A', 590), video('B', (17_998 - 17_700) / 30)] });
+    expect(projectFrames(p)).toBe(17_998);
+    const r = duplicateClip(p, 'B', counter());
+    expect(r.project).toBe(p);
+    expect(r.notices).toEqual(['notice.length_full']);
   });
 });
 
@@ -304,11 +324,25 @@ describe('F-005 speed (domain)', () => {
     expect(r.notices).toEqual(['notice.length_limited']);
   });
 
-  it('RULE-06 a speed increase stops at the fastest step that keeps the clip at its minimum length', () => {
+  it('F-005.AC4 RULE-06 4× on a 0.2 s clip stops at 2.40× (3 frames) with COPY-notice.length_limited', () => {
     // 6 frames of source: round(6 ÷ speed) must stay ≥ 3 frames, so 2.4× is the fastest step.
     const p = proj({ clips: [video('A', 0.2)] });
     const r = setSpeed(p, 'A', 400);
     expect(r.project.clips[0]!.speedPct).toBe(240);
+    expect(layoutOf(r.project).spans[0]!.frames).toBe(3);
+    expect(r.notices).toEqual(['notice.length_limited']);
+  });
+
+  it('RULE-06 a speed increase already at the fastest allowed step changes nothing but still says why', () => {
+    const p = proj({ clips: [video('A', 0.2, { speedPct: 240 })] });
+    const r = setSpeed(p, 'A', 300);
+    expect(r.project).toBe(p);
+    expect(r.notices).toEqual(['notice.length_limited']);
+  });
+
+  it('RULE-06 a speed increase within the minimum shows no notice', () => {
+    const r = setSpeed(proj({ clips: [video('A', 10)] }), 'A', 200);
+    expect(r.notices).toEqual([]);
   });
 
   it('RULE-06 speed snaps to 0.05× steps within 0.25×–4×', () => {

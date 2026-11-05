@@ -53,7 +53,9 @@ What the next export produces: kind (video, animated image, audio), and for each
   the device, and none survives the session except export scratch space that a closing page could
   not delete in time: scratch space is deleted when its export fails or is cancelled, and after a
   success once the browser has taken the file (or, if the page closes first, the next time the tool
-  opens); any other scratch left behind is also deleted the next time the tool opens.
+  opens); any other scratch left behind is also deleted the next time the tool opens. Where the
+  browser keeps separate storage for the tool embedded in the host and opened on its own, "the next
+  time the tool opens" means the next time it opens in that same context; each is swept separately.
 - **INV-02** For the same project time, the preview and an export show the same picture and play
   the same sound, as far as the export kind carries them: a video export has both, a GIF has the
   picture only (at its own size, frame rate and colour limits), an audio export the sound only. The

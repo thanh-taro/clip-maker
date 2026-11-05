@@ -121,16 +121,26 @@ export async function probeCapabilities(
 export type Missing = 'decode' | 'encode' | 'effects';
 
 /**
- * Implements: RULE-22, F-023.R1 — every failed start-up check, in the order of the rule. Encoding
- * passes when at least one complete video output format (video and sound encoder) passes
- * (ADR-0004 §2). Slow effects never block (they give COPY-notice.slow_device).
+ * Implements: RULE-22, F-023.R1/R5 — every failed start-up check, in the order of the rule. Encoding
+ * passes when a video output format's video encoder passes; a missing sound encoder never makes the
+ * device unsupported (see `soundExportAvailable`). Slow effects never block (they give
+ * COPY-notice.slow_device).
  */
 export function deviceCheck(caps: Capabilities): Missing[] {
   const missing: Missing[] = [];
   if (caps.decode.length === 0) missing.push('decode');
-  if (chooseVideoFormat(caps, true) === null) missing.push('encode');
+  if (chooseVideoFormat(caps, false) === null) missing.push('encode');
   if (!caps.effects.ok) missing.push('effects');
   return missing;
+}
+
+/**
+ * Implements: RULE-22, F-023.R5 — whether any sound encoder passed. Without one the device is still
+ * supported; only the exports that need a sound encoder are left out (a video export with sound,
+ * the compressed audio-only format), and WAV stays available (RULE-16).
+ */
+export function soundExportAvailable(caps: Pick<Capabilities, 'audioEncode'>): boolean {
+  return Object.values(caps.audioEncode).some(Boolean);
 }
 
 /** A video output format of RULE-15. */

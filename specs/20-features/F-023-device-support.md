@@ -6,7 +6,7 @@ milestone: M-1
 priority: P0
 personas: [PER-02, PER-04]
 entities: []
-rules: [RULE-22, RULE-01, RULE-15]
+rules: [RULE-22, RULE-01, RULE-15, RULE-16]
 screens: [SCR-Unsupported, SCR-Editor]
 components: [CMP-Notice]
 nfr: [NFR-12, NFR-02]
@@ -26,6 +26,7 @@ Editing video in a browser depends on what the browser and device can do. The to
 - **R2** Sources the device can't decode are refused one by one with a reason (RULE-01).
 - **R3** Export options the device can't encode aren't offered, and the export panel says when a fallback format is used (RULE-15).
 - **R4** The check finishes within the start-up time of NFR-02 and makes no network request.
+- **R5** A device that encodes video but no sound format still counts as supported. Only the exports that need a sound encoder are unavailable; WAV audio stays available (RULE-22, RULE-16).
 
 ## Acceptance criteria
 - **AC1** Given a browser that can't decode video, when the tool opens, then SCR-Unsupported shows COPY-unsupported.body with COPY-unsupported.missing_decode and no media can be added. (R1)
@@ -35,6 +36,7 @@ Editing video in a browser depends on what the browser and device can do. The to
 - **AC5** Given a browser that decodes video but can encode no video output format, when the tool opens, then SCR-Unsupported lists COPY-unsupported.missing_encode. (R1)
 - **AC6** Given a device whose effects draw below the speed threshold, when the tool opens, then the editor opens with COPY-notice.slow_device and media can be added. (R1)
 - **AC7** Given a source that the device decodes slower than real time, when it is added, then it is accepted, COPY-notice.slow_device is shown once for the session, and playback keeps sound in time while the picture shows the newest decoded frame. (R1)
+- **AC8** Given a browser that decodes and encodes video but can encode no sound format, when the tool opens, then the editor opens, no COPY-unsupported.missing_encode is listed, and the audio-only export offers WAV only. (R5)
 
 ## UX notes
 SCR-Unsupported with COPY-unsupported.title and COPY-unsupported.body, listing COPY-unsupported.missing_decode, COPY-unsupported.missing_encode and COPY-unsupported.missing_effects as they apply.

@@ -10,6 +10,7 @@ import {
   pool,
   probeCapabilities,
   probeExportGrid,
+  soundExportAvailable,
   withNormalisedDescription,
   type Capabilities,
   type CodecApi,
@@ -88,11 +89,25 @@ describe('MOD-Codec probe', () => {
     expect(deviceCheck(r)).toEqual(['decode', 'encode', 'effects']);
   });
 
-  it('RULE-22 a device that decodes but encodes no complete output format lacks encode', () => {
+  it('RULE-22 a device that decodes but encodes no video output format lacks encode', () => {
     expect(deviceCheck(caps({ encode: { h264: false, vp9: false, vp8: false } }))).toEqual(['encode']);
-    expect(deviceCheck(caps({ audioEncode: { aac: false, opus: false } }))).toEqual(['encode']);
     expect(deviceCheck(caps({ decode: [] }))).toEqual(['decode']);
     expect(deviceCheck(caps())).toEqual([]);
+  });
+
+  it('F-023.AC8 RULE-22 a device with a video encoder but no sound encoder is supported; sound export is reported unavailable', () => {
+    const noSound = caps({ audioEncode: { aac: false, opus: false } });
+    expect(deviceCheck(noSound)).toEqual([]);
+    expect(soundExportAvailable(noSound)).toBe(false);
+    expect(chooseAudioFormat(noSound)).toEqual({ id: 'wav', fallback: true });
+    expect(chooseVideoFormat(noSound, true)).toBeNull();
+    expect(chooseVideoFormat(noSound, false)).toMatchObject({ video: 'h264', audio: null });
+  });
+
+  it('RULE-22 sound export is available with either sound encoder', () => {
+    expect(soundExportAvailable(caps())).toBe(true);
+    expect(soundExportAvailable(caps({ audioEncode: { aac: false, opus: true } }))).toBe(true);
+    expect(soundExportAvailable(caps({ audioEncode: { aac: true, opus: false } }))).toBe(true);
   });
 });
 
