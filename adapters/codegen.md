@@ -23,7 +23,7 @@ Still to come with their features: `gen-looks` table packing (`.cube` → 33³ P
 ## Tokens → CSS custom properties and the text palette
 - Style Dictionary 5 (DEP-20) formats the values; the script only splits the colour themes.
 - Names: `--tk-<path in kebab case>`, e.g. `color.lineStrong` → `--tk-color-line-strong`,
-  `size.toolButton` → `--tk-size-tool-button`, `space.1_5` → `--tk-space-1_5`. Colour names drop
+  `size.toolButton` → `--tk-size-tool-button`, `space.1_5` → `--tk-space-1-5` (the generator turns `_` into `-`). Colour names drop
   the theme segment (`color.dark.bg` and `color.light.bg` are both `--tk-color-bg`).
 - Scheme (adapters/design.md, same as the portal): everything inside `@layer tokens`; **dark**
   values and all non-colour tokens on `:root`; **light** colours under `[data-theme="light"]`; a
@@ -64,10 +64,13 @@ Still to come with their features: `gen-looks` table packing (`.cube` → 33³ P
   with its installed version, licence and licence file text; MPL-2.0 packages (ADR-0005) also get
   "used unmodified" and a link to the exact source tag of the shipped version. CC-BY rows (build-time
   data) get an attribution line. Bundled music tracks join once registered (ADR-0013).
-- `notices.gen.ts` holds the in-tool view's rows (F-020.R4): `NOTICE_FONTS` (each `@fontsource*`
-  package, titled by its family name) and `NOTICE_CODE` (every other shipped package, titled
-  `<name> <version>`), each with source `npmjs.com/package/<name>` and the package's licence. The
-  view adds MOD-Core's `MUSIC_TRACKS` (title, source, licence) at run time.
+- `notices.gen.ts` holds the in-tool view's rows (F-020.R4, "every shipped dependency and asset"):
+  `NOTICE_FONTS` (each `@fontsource*` package, titled by its family name), `NOTICE_CODE` (every other
+  shipped package, titled `<name> <version>`, source `npmjs.com/package/<name>`, the package's
+  licence; then each shipped asset row that is the owner's own work, e.g. DEP-12 and DEP-13, source
+  the repository) and `NOTICE_TEXTS` (the notices a registry row says must be kept, "(+ X notice)",
+  e.g. DEP-11's Feather MIT notice, in full; generation fails if the text is not in the package's
+  licence file). The view adds MOD-Core's `MUSIC_TRACKS` (title, source, licence) at run time.
 
 ## Boot script and `_headers`
 - `src/host/boot.js` is the only inline script. `scripts/lib/boot.mjs` strips its comment-only

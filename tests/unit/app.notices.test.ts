@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MusicTrack } from '../../src/core';
 import { MUSIC_TRACKS } from '../../src/core';
-import { NOTICE_CODE, NOTICE_FONTS } from '../../src/app/notices.gen';
+import { NOTICE_CODE, NOTICE_FONTS, NOTICE_TEXTS } from '../../src/app/notices.gen';
 import { noticeSections } from '../../src/app/notices';
 // @ts-expect-error -- plain ESM build script without type declarations
 import { findInstalled, isActive, isShipped, readRegistry } from '../../scripts/lib/registry.mjs';
@@ -11,6 +11,7 @@ import { findInstalled, isActive, isShipped, readRegistry } from '../../scripts/
 interface Row {
   readonly names: readonly string[];
   readonly id: string;
+  readonly licenseNote: string;
 }
 
 /** Every npm package the registry says is shipped (runtime or asset) and that is installed. */
@@ -27,7 +28,9 @@ const tracks: readonly MusicTrack[] = [
 
 describe('F-020 licence notices', () => {
   it('F-020.AC4 the notices list every shipped dependency and typeface of the registry, each with title, source and licence', () => {
-    const listed = [...NOTICE_FONTS, ...NOTICE_CODE].map((r) => r.source.replace('npmjs.com/package/', ''));
+    const listed = [...NOTICE_FONTS, ...NOTICE_CODE]
+      .filter((r) => r.source.startsWith('npmjs.com/'))
+      .map((r) => r.source.replace('npmjs.com/package/', ''));
     expect(listed.sort()).toEqual(shipped().sort());
     for (const r of [...NOTICE_FONTS, ...NOTICE_CODE]) {
       expect(r.title.trim(), r.source).not.toBe('');
@@ -42,6 +45,25 @@ describe('F-020 licence notices', () => {
       'Nunito',
     ]);
     expect(NOTICE_CODE.some((r) => r.source.includes('@fontsource'))).toBe(false);
+  });
+
+  it("F-020.AC4 F-020.R4 the owner's own shipped assets (DEP-12 tokens, DEP-13 looks) are listed too", () => {
+    const own = (readRegistry() as Row[]).filter(
+      (r) => isActive(r) && isShipped(r) && r.names.length === 0 && /owner's own work/i.test(r.licenseNote),
+    );
+    expect(own.map((r) => r.id).sort()).toEqual(['DEP-12', 'DEP-13']);
+    const rows = NOTICE_CODE.filter((r) => r.source === 'github.com/thanh-taro/clip-maker');
+    expect(rows.map((r) => r.title)).toEqual(['Portal design tokens', 'Clip Maker looks pack']);
+    for (const r of rows) expect(r.licence).toMatch(/owner's own work/i);
+  });
+
+  it('F-020.R4 DEP-11 the Feather MIT notice the icons licence requires is shown in full', () => {
+    expect(NOTICE_TEXTS).toHaveLength(1);
+    const [n] = NOTICE_TEXTS;
+    expect(n!.title).toMatch(/^lucide-static .* Feather MIT notice$/);
+    expect(n!.text).toContain('Copyright (c) 2013-present Cole Bemis');
+    expect(n!.text).toContain('The above copyright notice and this permission notice shall be included');
+    expect(noticeSections().find((s) => s.heading === 'notices.code')?.texts).toBe(NOTICE_TEXTS);
   });
 
   it('F-020.AC4 RULE-12 every bundled music track is listed with its title, source and licence', () => {

@@ -12,6 +12,8 @@ const OUT = abs('public/third-party-notices.txt');
 /** The in-tool notices view's rows (F-020.R4): bundled into the page, so opening it makes no request. */
 const OUT_VIEW = abs('src/app/notices.gen.ts');
 const FONT_PACKAGE = /^@fontsource(-variable)?\//;
+/** Where the owner's own assets come from (F-020.R3). */
+const SOURCE_REPO = 'github.com/thanh-taro/clip-maker';
 const LICENSE_FILES = /^(licen[cs]e|copying|notice)(\.(md|txt))?$/i;
 
 function licenseText(dir) {
@@ -34,7 +36,19 @@ export function genNotices({ check }) {
   /** F-020.R4: one row per shipped package — typefaces and code — with title, source and licence. */
   const fonts = [];
   const code = [];
+  /** Notices a licence requires to be shown with the work (e.g. DEP-11's Feather MIT notice). */
+  const texts = [];
   for (const r of rows.filter(isShipped)) {
+    // Shipped assets that are the owner's own work (DEP-12 tokens, DEP-13 looks): listed as well, since
+    // F-020.R4 names every shipped dependency and asset. Music tracks are listed one by one instead.
+    if (r.names.length === 0 && /owner's own work/i.test(r.licenseNote)) {
+      const title = r.label
+        .replace(/\(.*?\)/g, '')
+        .replace(/`/g, '')
+        .trim();
+      code.push({ title, source: SOURCE_REPO, licence: r.licenseNote.trim() });
+      continue;
+    }
     for (const name of r.names) {
       const dir = findInstalled(name);
       if (!dir) {
@@ -52,6 +66,18 @@ export function genNotices({ check }) {
         fonts.push({ title: family, source, licence });
       } else {
         code.push({ title: `${pkg.name} ${pkg.version}`, source, licence });
+      }
+      // A registry note "(+ Feather MIT notice)": that notice is shown in full in the tool too.
+      const extra = /\(\+ (.+?) notice\)/i.exec(r.licenseNote);
+      if (extra) {
+        const lines = (text ?? '').split('\n');
+        const start = lines.findIndex((l) => /^The MIT License/.test(l));
+        if (start < 0)
+          throw new Error(`${REGISTRY}: ${r.id} needs the ${extra[1]} notice, not found in ${name}'s licence`);
+        texts.push({
+          title: `${pkg.name} ${pkg.version} — ${extra[1]} notice`,
+          text: lines.slice(start).join('\n').replace(' (for the icons listed above)', ''),
+        });
       }
       sections.push(
         [
@@ -92,13 +118,16 @@ export function genNotices({ check }) {
   if (pending.length) console.log(`notices: registered but not installed yet: ${pending.join(', ')}`);
   const view = [
     `// ${GENERATED_HEADER(REGISTRY, 'scripts/gen-notices.mjs')}`,
-    '// The rows of the in-tool licence notices view (F-020.R4, CMP-StatusBar): every shipped typeface and',
-    '// code package with its title, source and licence. Bundled music comes from MUSIC_TRACKS (MOD-Core).',
-    "import type { NoticeRow } from './notices';",
+    '// The rows of the in-tool licence notices view (F-020.R4, CMP-StatusBar): every shipped typeface,',
+    '// code package and asset with its title, source and licence, plus the notices a licence requires',
+    '// to be shown. Bundled music comes from MUSIC_TRACKS (MOD-Core).',
+    "import type { NoticeRow, NoticeText } from './notices';",
     '',
     `export const NOTICE_FONTS: readonly NoticeRow[] = ${JSON.stringify(fonts, null, 2)};`,
     '',
     `export const NOTICE_CODE: readonly NoticeRow[] = ${JSON.stringify(code, null, 2)};`,
+    '',
+    `export const NOTICE_TEXTS: readonly NoticeText[] = ${JSON.stringify(texts, null, 2)};`,
     '',
   ].join('\n');
   const txtOk = emit(OUT, out, { check });

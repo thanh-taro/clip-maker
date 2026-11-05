@@ -10,6 +10,9 @@
     grid-template-columns: minmax(0, 1fr);
     height: 100%;
     min-width: var(--tk-size-min-width);
+    /* RULE-21: the status row's touch hit areas reach into the bottom safe area, which stays inside
+       the clipped box (CMP-StatusBar "narrow"). */
+    padding-block-end: env(safe-area-inset-bottom);
     overflow: clip;
   }
 
@@ -39,10 +42,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: var(--tk-space-1_5);
+    gap: var(--tk-space-1-5);
     min-inline-size: var(--tk-size-tool-button);
     block-size: var(--tk-size-tool-button);
-    padding-inline: var(--tk-space-1_5);
+    padding-inline: var(--tk-space-1-5);
     border: var(--tk-border-width-hairline) solid transparent;
     border-radius: var(--tk-radius-sm);
     background: transparent;
@@ -148,7 +151,7 @@
   .tk-empty__privacy {
     display: inline-flex;
     align-items: center;
-    gap: var(--tk-space-1_5);
+    gap: var(--tk-space-1-5);
   }
 
   /* Timeline placeholder (CMP-Timeline; unavailable while empty). */

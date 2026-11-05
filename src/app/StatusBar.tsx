@@ -33,15 +33,18 @@ export function StatusBar() {
     else if (target === 'notices-button') noticesButton.current?.focus();
   }, [view]);
 
-  // Implements: F-020.AC2 — Esc or a click outside dismisses the details.
+  // Implements: F-020.AC2 — Esc or a click outside dismisses the details. One pair of listeners for the
+  // bar's lifetime, reading the current view, so they are in place whenever the details show.
+  const current = useRef<View>(view);
+  current.current = view;
   useEffect(() => {
-    if (view !== 'details') return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || current.current !== 'details') return;
       e.preventDefault();
       close(true);
     };
     const onPointer = (e: PointerEvent) => {
+      if (current.current !== 'details') return;
       const target = e.target as Node | null;
       if (!target || details.current?.contains(target) || badge.current?.contains(target)) return;
       close(false);
@@ -52,7 +55,7 @@ export function StatusBar() {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onPointer);
     };
-  }, [view]);
+  }, []);
 
   const toggle = () => {
     focusNext.current = view === 'closed' ? 'details' : 'badge';
@@ -110,6 +113,7 @@ export function StatusBar() {
 }
 
 const DETAILS_HEADING = 'tk-privacy-details-heading';
+const DETAILS_BODY = 'tk-privacy-details-body';
 
 // Implements: F-020.R2 — what the tool does and does not do with media, including export scratch space.
 function PrivacyDetails({
@@ -124,7 +128,14 @@ function PrivacyDetails({
   onNotices: () => void;
 }) {
   return (
-    <section ref={rootRef} class="tk-privacy-details" role="dialog" aria-labelledby={DETAILS_HEADING} tabIndex={-1}>
+    <section
+      ref={rootRef}
+      class="tk-privacy-details"
+      role="dialog"
+      aria-labelledby={DETAILS_HEADING}
+      aria-describedby={DETAILS_BODY}
+      tabIndex={-1}
+    >
       <div class="tk-privacy-details__head">
         <Icon name="shield" size={16} class="tk-privacy-details__icon" />
         <h2 id={DETAILS_HEADING} class="tk-privacy-details__title" data-copy="privacy.badge">
@@ -141,7 +152,7 @@ function PrivacyDetails({
           <Icon name="close" size={16} />
         </button>
       </div>
-      <p class="tk-privacy-details__body" data-copy="privacy.details">
+      <p id={DETAILS_BODY} class="tk-privacy-details__body" data-copy="privacy.details">
         {t('privacy.details')}
       </p>
       <div class="tk-privacy-details__actions">
@@ -165,10 +176,13 @@ const NOTICES_HEADING = 'tk-notices-heading';
 // no new tab. A modal dialog with real table headers; Esc and close end it, back returns to the details.
 function LicenceNotices({ onBack, onClose }: { onBack: () => void; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  /** Set when this view closes the dialog itself (unmounting for back or close), not the browser. */
+  const unmounting = useRef(false);
   useLayoutEffect(() => {
     const el = dialog.current;
     if (el && !el.open) el.showModal();
     return () => {
+      unmounting.current = true;
       if (el?.open) el.close();
     };
   }, []);
@@ -180,6 +194,10 @@ function LicenceNotices({ onBack, onClose }: { onBack: () => void; onClose: () =
       onCancel={(e) => {
         e.preventDefault();
         onClose();
+      }}
+      // Any other way the dialog closes (e.g. the browser closing it) keeps the view state in sync.
+      onClose={() => {
+        if (!unmounting.current) onClose();
       }}
     >
       <div class="tk-notices__head">
@@ -207,7 +225,10 @@ function LicenceNotices({ onBack, onClose }: { onBack: () => void; onClose: () =
           <Icon name="close" size={16} />
         </button>
       </div>
-      <div class="tk-notices__body">
+      {/* NFR-06: the scrolling list is reachable by keyboard (focusable, named by the heading; axe
+          scrollable-region-focusable). */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
+      <div class="tk-notices__body" role="region" aria-labelledby={NOTICES_HEADING} tabIndex={0}>
         {noticeSections().map((section) => {
           const id = `tk-notices-${section.heading.replace('.', '-')}`;
           return (
@@ -239,6 +260,12 @@ function LicenceNotices({ onBack, onClose }: { onBack: () => void; onClose: () =
                   ))}
                 </tbody>
               </table>
+              {section.texts.map((n) => (
+                <div key={n.title} class="tk-notices__text">
+                  <p class="tk-notices__text-title">{n.title}</p>
+                  <pre class="tk-notices__text-body">{n.text}</pre>
+                </div>
+              ))}
             </section>
           );
         })}

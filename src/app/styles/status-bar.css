@@ -128,6 +128,17 @@
     }
   }
 
+  /* wide with a coarse pointer: the same touch-size hit areas (RULE-21, NFR-06). */
+  @media (pointer: coarse) {
+    .tk-privacy-badge::after,
+    .tk-source-link::after {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      inset-block: calc((var(--tk-size-target-min) - var(--tk-size-touch-target)) / 2);
+    }
+  }
+
   /* Quiet icon buttons of the popover and the notices view. */
   .tk-privacy-details .tk-icon-button,
   .tk-notices .tk-icon-button {
@@ -168,6 +179,9 @@
     flex-direction: column;
     gap: var(--tk-space-2);
     inline-size: min(var(--tk-size-popover), 100% - 2 * var(--tk-space-2));
+    /* Never clipped in a short host frame: the popover scrolls instead. */
+    max-block-size: calc(100dvh - var(--tk-size-statusbar) - 2 * var(--tk-space-2));
+    overflow: auto;
     padding-block: var(--tk-space-3);
     padding-inline: var(--tk-space-3-5) var(--tk-space-1);
     border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
@@ -310,6 +324,24 @@
     color: var(--tk-color-muted);
     font-family: var(--tk-font-family-mono);
     font-size: var(--tk-font-size-xs);
+  }
+
+  .tk-notices__text {
+    margin-block-start: var(--tk-space-2);
+  }
+
+  .tk-notices__text-title {
+    margin: 0 0 var(--tk-space-1);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-notices__text-body {
+    margin: 0;
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-2xs);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   @media (forced-colors: active) {
