@@ -194,6 +194,15 @@ export function chooseAudioFormat(caps: Pick<Capabilities, 'audioEncode'>): Audi
   return { id: 'wav', fallback: true };
 }
 
+/**
+ * Implements: RULE-16, F-023.R5 — the audio-only choices offered: the compressed format when any sound
+ * encoder passed, and WAV always. Without a sound encoder only WAV is offered.
+ */
+export function audioFormatOffers(caps: Pick<Capabilities, 'audioEncode'>): AudioFormat[] {
+  const wav: AudioFormat = { id: 'wav', fallback: false };
+  return soundExportAvailable(caps) ? [chooseAudioFormat(caps), wav] : [wav];
+}
+
 /** One cell of the export grid. */
 export interface GridCell {
   readonly short: number;
