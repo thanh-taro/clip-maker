@@ -34,7 +34,7 @@ Toolbar (wide); time ruler with m:ss labels; playhead (head in the ruler band); 
 
 ## Accessibility
 - The region is named COPY-timeline.label; its action row is a toolbar.
-- Items are focusable in order (main track, then text, then audio) and are named by their name and duration; Alt+Left/Right move them per RULE-20.
+- Items are focusable in order (main track, then text, then audio) and are named by their name and duration; Alt+Left/Right move them per RULE-20. The main track's clips form a group named COPY-timeline.main_track.
 - Kind is shown by lane icon and position, not by colour alone.
 - Every drag has a visible control (RULE-21); handles and the cross-fade marker get a `size.handleHit` hit area on touch.
 - Snapping is a toggle button with a pressed state; the cross-fade marker exposes an expanded state while its popover is open.

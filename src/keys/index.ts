@@ -1,8 +1,10 @@
 // MOD-Keys — the RULE-20 keyboard map with scopes (specs/40-technical/modules/MOD-Keys.md).
 // Pure core: `scopeOf` says where focus is for a key, `resolveKey` maps a key event in that scope to an
 // action. MOD-App's binder executes actions. Built so far: the playback keys (F-002: Space, Left/Right
-// with Shift, Home/End) and Esc; the edit, history, view, file and help keys come with F-017.
-// Implements: RULE-20 Scope and Playback, F-017.R5 (a focused control that uses a key gets it).
+// with Shift, Home/End), Esc, and the arrange keys of F-003 (Delete/Backspace, Mod+D, Alt+Left/Right);
+// the other edit, history, view, file and help keys come with their features and F-017.
+// Implements: RULE-20 Scope, Playback and Edit (delete, duplicate, move), F-017.R5 (a focused control
+// that uses a key gets it), F-003.R6.
 
 /** Where focus is when a key is pressed (MOD-Keys "Responsibility"). */
 export type KeyScope = 'none' | 'field' | 'dialog' | 'control';
@@ -17,7 +19,14 @@ export type Action =
   | 'go-start'
   | 'go-end'
   /** Esc: leaves full screen (CMP-Preview), closes what is open. */
-  | 'escape';
+  | 'escape'
+  /** Delete or Backspace: delete the selection (F-003.R3). */
+  | 'delete'
+  /** Mod+D: duplicate the selection (F-003.R4). */
+  | 'duplicate'
+  /** Alt+Left / Alt+Right: move the selected clip one place earlier / later (F-003.R2). */
+  | 'move-earlier'
+  | 'move-later';
 
 /** Mod = Cmd on macOS, else Ctrl (RULE-20). */
 export const isMac = (platform: string): boolean => /mac|iphone|ipad|ipod/i.test(platform);
@@ -76,8 +85,12 @@ export function resolveKey(
     readonly repeat?: boolean;
   },
   scope: KeyScope,
+  /** Mod is Cmd (macOS, iOS) rather than Ctrl. */
+  mac = false,
 ): Action | null {
   if (scope === 'field' || scope === 'dialog' || scope === 'control') return null;
+  const edit = editKey(event, mac);
+  if (edit !== undefined) return edit;
   if (event.metaKey || event.ctrlKey || event.altKey) return null;
   // A held Space or Esc acts once; held arrows keep stepping.
   if (event.repeat && (event.code === 'Space' || event.code === 'Escape')) return null;
@@ -98,4 +111,25 @@ export function resolveKey(
     default:
       return null;
   }
+}
+
+/**
+ * RULE-20 *Edit* keys of F-003: Delete or Backspace (no modifier), Mod+D, Alt+Left / Alt+Right.
+ * Undefined when the key is not one of them (the playback map then decides).
+ */
+function editKey(
+  event: Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>,
+  mac: boolean,
+): Action | null | undefined {
+  const { code, metaKey, ctrlKey, shiftKey, altKey } = event;
+  const mod = mac ? metaKey && !ctrlKey : ctrlKey && !metaKey;
+  const plain = !metaKey && !ctrlKey && !altKey;
+  if ((code === 'Delete' || code === 'Backspace') && plain && !shiftKey) return 'delete';
+  if (code === 'KeyD' && mod && !altKey && !shiftKey) return 'duplicate';
+  if ((code === 'ArrowLeft' || code === 'ArrowRight') && altKey && !metaKey && !ctrlKey) {
+    // Shift+Alt moves a text layer or audio clip by 1 s (F-010, F-011); a clip moves one place only.
+    if (shiftKey) return null;
+    return code === 'ArrowLeft' ? 'move-earlier' : 'move-later';
+  }
+  return undefined;
 }

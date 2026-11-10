@@ -92,6 +92,9 @@ export function runAction(
     case 'go-end':
       ctl.toEnd();
       break;
+    default:
+      // Not a playback key (the arrange keys: ./arrange.ts).
+      return false;
   }
   return true;
 }

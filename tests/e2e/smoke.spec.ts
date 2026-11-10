@@ -14,6 +14,7 @@ const EMPTY_TITLE = {
   'vi-VN': 'Thêm video, ảnh hoặc nhạc để bắt đầu. Tất cả vẫn nằm trên máy bạn.',
 } as const;
 const TIMELINE = { 'en-US': 'Timeline', 'vi-VN': 'Dòng thời gian' } as const;
+const EDITOR = { 'en-US': 'Editor', 'vi-VN': 'Trình chỉnh sửa' } as const;
 
 /** Records every request and console error; any request to another origin is aborted (never sent). */
 function watch(page: Page, origin: string) {
@@ -55,7 +56,7 @@ for (const [lang, theme] of [
     await expect(page).toHaveTitle('Clip Maker');
 
     // Regions in reading order: toolbar, preview (empty state), timeline, status bar.
-    await expect(page.getByRole('toolbar')).toBeVisible();
+    await expect(page.getByRole('toolbar', { name: EDITOR[lang] })).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(EMPTY_TITLE[lang]);
     await expect(page.getByRole('region', { name: TIMELINE[lang] })).toBeAttached();
     await expect(page.locator('footer').getByText(BADGE[lang], { exact: true })).toBeVisible();

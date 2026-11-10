@@ -1,4 +1,4 @@
-/* MOD-App — stylesheet entry (ADR-0002 §3). Order: generated tokens, fonts, reset, base, layout, status bar, media, preview. No
+/* MOD-App — stylesheet entry (ADR-0002 §3). Order: generated tokens, fonts, reset, base, layout, status bar, media, preview, timeline. No
    inline styles or <style> blocks (strict CSP `style-src 'self'`, ADR-0014). */
 @import './tokens.gen.css';
 @import './fonts.css';
@@ -8,3 +8,4 @@
 @import './status-bar.css';
 @import './media.css';
 @import './preview.css';
+@import './timeline.css';
