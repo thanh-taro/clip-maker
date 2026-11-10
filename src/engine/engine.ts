@@ -225,6 +225,9 @@ export class Engine {
       }
       if (old.kind === 'photo' && (now?.kind !== 'photo' || now.bitmap !== old.bitmap)) old.bitmap.close();
     }
+    // A source asked for before its media arrived was remembered as missing: open it now (F-002.R1; the
+    // app sends a project's media after the project, once the registry has it).
+    for (const id of next.keys()) if (!this.media.has(id)) this.videos.delete(id);
     this.media = next;
   }
 

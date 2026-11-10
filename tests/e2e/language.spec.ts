@@ -2,10 +2,12 @@
 // browser, or later host messages; the page marked with it; no English shown first; a live switch that
 // keeps everything; Vietnamese at 320 px; Vietnamese diacritics drawn with the bundled typefaces.
 // Standalone on `pnpm preview` of dist/; embedded on the multi-origin host harness (F-019).
-// Not covered yet (need later features): AC2's edited project, playback and history (F-001, F-002,
-// F-014); AC6 for panels that don't exist yet (inspector, export panel, pickers: re-run as they land);
+// Not covered yet (need later features): AC2's history half (F-014's Undo; its project and playback are
+// covered); AC6 for panels that don't exist yet (inspector, export panel, pickers: re-run as they land);
 // AC8's running export and text being edited (F-015, F-010). The unit side is tests/unit/copy.*.
 import { expect, test, type Frame, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { CATALOG, type Language, type MessageId } from '../../src/copy/messages.gen';
 import { HOST_ALLOWED, TOOL_ALLOWED, hostPageUrl } from './support/host-urls';
 
@@ -268,8 +270,40 @@ test.describe('embedded', () => {
     expect(received).toEqual([{ type: 'taro:ready' }]);
   });
 
-  test.fixme('F-022.AC2 an edited project in vi-VN keeps project, playback and history when the host sends en-US', () => {
-    // Needs adding media (F-001), playback (F-002) and history (F-014) in the UI; build-spec-questions Q68.
+  test('F-022.AC2 an edited project in vi-VN keeps its clips and its playback running when the host sends en-US', async ({
+    page,
+  }) => {
+    await page.goto(hostPageUrl(HOST_ALLOWED, TOOL_ALLOWED, { theme: 'dark', lang: 'vi-VN' }));
+    const frame = await toolFrame(page);
+    await expect(frame.locator(SHELL)).toHaveAttribute('data-device', 'supported');
+    const clip = readFileSync(fileURLToPath(new URL('../fixtures/media/mp4-faststart.mp4', import.meta.url)));
+    const chooser = page.waitForEvent('filechooser');
+    await frame
+      .getByRole('main')
+      .getByRole('button', { name: text('vi-VN', 'action.add_media') })
+      .click();
+    await (
+      await chooser
+    ).setFiles(['a.mp4', 'b.mp4', 'c.mp4'].map((name) => ({ name, mimeType: 'video/mp4', buffer: clip })));
+    const transport = frame.locator('.tk-transport');
+    await expect(transport).toContainText('/ 0:06');
+    await transport.getByRole('button', { name: text('vi-VN', 'action.play'), exact: true }).click();
+    await expect(transport.getByRole('button', { name: text('vi-VN', 'action.pause'), exact: true })).toBeVisible();
+    await expect(frame.locator(SHELL)).toHaveAttribute('data-state', 'playing');
+
+    await sendLanguage(page, 'en-US');
+    await expect(frame.locator('html')).toHaveAttribute('lang', 'en-US');
+    // Playback runs on (now labelled in English), the project keeps its three clips and its length.
+    await expect(transport.getByRole('button', { name: text('en-US', 'action.pause'), exact: true })).toBeVisible();
+    await expect(frame.locator(SHELL)).toHaveAttribute('data-state', 'playing');
+    await expect(transport).toContainText('/ 0:06');
+    for (const name of ['a.mp4', 'b.mp4', 'c.mp4'])
+      await expect(frame.getByRole('complementary').getByRole('listitem').filter({ hasText: name })).toBeVisible();
+    await transport.getByRole('button', { name: text('en-US', 'action.pause'), exact: true }).click();
+  });
+
+  test.fixme('F-022.AC2 … and its history (Undo) when the host sends en-US', () => {
+    // The history half needs F-014's Undo/Redo in the UI; build-spec-questions Q68.
   });
 
   test.fixme('F-022.AC8 a running export continues when the host switches language; only its progress text changes', () => {

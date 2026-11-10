@@ -4,6 +4,8 @@
 import type { JSX } from 'preact';
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   CircleCheck,
   CircleX,
   Code,
@@ -16,11 +18,17 @@ import {
   Info,
   Keyboard,
   LoaderCircle,
+  Maximize,
+  Minimize,
   MonitorX,
   Music,
+  Pause,
+  Play,
   Plus,
   Redo2,
   ShieldCheck,
+  SkipBack,
+  SkipForward,
   Trash2,
   TriangleAlert,
   Type,
@@ -63,6 +71,15 @@ const SOURCES = {
   warning: TriangleAlert,
   upload: Upload,
   muted: VolumeX,
+  // CMP-Preview transport and full-screen bar (F-002)
+  goStart: SkipBack,
+  prevFrame: ChevronLeft,
+  play: Play,
+  pause: Pause,
+  nextFrame: ChevronRight,
+  goEnd: SkipForward,
+  fullScreen: Maximize,
+  exitFullScreen: Minimize,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

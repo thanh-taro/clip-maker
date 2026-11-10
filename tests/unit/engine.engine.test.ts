@@ -127,6 +127,19 @@ describe('MOD-Engine ticks and seeks', () => {
     expect(r.comp.paints.at(-1)!.frameIndex).toBe(299);
   });
 
+  it('F-002.R1 a source whose media arrives after the project is drawn once it arrives (the app sends media later)', async () => {
+    const project = proj({ clips: [video('a', 5)] });
+    const r = rig(project, { media: [] });
+    await r.send({ type: 'engine:seek', t: ts30(10) });
+    expect(r.shown().at(-1)).toMatchObject({ frameIndex: 10, exact: false });
+    await r.send({
+      type: 'engine:media',
+      media: [{ id: 'src-a', kind: 'video', file: new Blob([new Uint8Array(1)]) }],
+    });
+    expect(r.comp.paints.at(-1)!.frames).toEqual([ts30(10)]);
+    expect(r.shown().at(-1)).toMatchObject({ frameIndex: 10, exact: true });
+  });
+
   it('F-002.R1 an empty project paints the background and reports the frame', async () => {
     const r = rig(proj({}));
     await r.send({ type: 'engine:seek', t: 0 });
