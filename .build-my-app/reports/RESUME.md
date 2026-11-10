@@ -1,57 +1,45 @@
-# Resume point — paused 2026-11-05 (owner request: token cost)
+# Resume point — paused 2026-11-10 (owner request: token cost)
 
-**State:** phase 4 (build). `main` at the commit holding this note is green: `pnpm check` 9/9 and
-`pnpm check:realtime` 7 passed + 1 skipped (by design).
+**State:** phase 4 (build), wave 3. `main` (commit holding this note) is green: `pnpm check` 9/9 (371 e2e).
 
 ## Done
-- Wave 0, engine (E1–E5): merged and owner-approved.
-- Wave 1:
-  - F-019 host, F-020 privacy and F-023 device support are merged and reviewed. Their spec status stays
-    `building` until the later features that their remaining ACs need are built (questions 50, 52, 62).
-  - The owner approved the wave 1 review.
+- Wave 0 (E1–E5), wave 1 (F-019, F-020, F-023), wave 2 (F-021, F-022, F-001): merged, owner-reviewed.
+- Wave 3 merged, each with one review + fixes + `pnpm check`:
+  F-002 preview, E6 source sound decoding, F-003 arrange/timeline, F-014 undo/redo, F-012 frame.
 
-## Next, in this order
-1. **Apply the wave 1 owner decisions** (2026-11-05, all accepted as recommended). Nothing has been
-   applied yet; the run was stopped before any commit.
-   - **Q47:** on the first focus, the empty project focuses Add media; a project with content focuses nothing.
-     Write this into F-019 (R6 area) / CMP-EmptyState / MOD-Host.
-   - **Q51:** a frame-rate change the last clip can't absorb is refused with COPY-notice.length_full.
-     Write this into RULE-03, including the case where a clip's source end is unknown. Check that tests
-     cite RULE-03.
-   - **Q60:** COPY-export.format_note uses technical names, the same in every language. When the container
-     changes, name the container: WebM vs MP4, Ogg vs M4A. When only the codec changes, name the container
-     with its codecs: "MP4 (H.264 + Opus)" vs "MP4 (H.264 + AAC)". WAV gets no note. Write this into
-     RULE-15/16 or CMP-ExportPanel.
-   - **Q54:** add these tokens to `specs/30-experience/tokens.json`, then run `pnpm gen` and use them in
-     the CSS:
-     - `size.dialog` = 800px;
-     - `font.letterSpacing.caps` = 0.06em;
-     - `size.messageColumn` = 480px (in device.css and layout.css).
+## In progress — F-011 music & sound (last unit of wave 3)
+- Paused mid-build on branch `worktree-agent-a59f0c10971e8322c`
+  (worktree `.claude/worktrees/agent-a59f0c10971e8322c`), WIP commit "F-011 WIP (paused): …".
+  Handoff note: `.build-my-app/reports/F-011-handoff.md` on that branch.
+- To resume: start one `feature-builder` in that worktree (it is kept) with the original F-011 brief
+  plus "continue from the WIP commit and F-011-handoff.md". Brief essentials: no internet downloads;
+  real music pack mechanism with 2–3 self-generated placeholder tracks marked
+  `placeholder — not for release` (DEP-14; real tracks = owner curation D-034); reuse E6 SoundBank,
+  F-003 timeline (audio lane), F-012 inspector (`frameSectionShown` must account for audio selection),
+  F-014 `beginGesture()` for the volume slider, Q104 default normalisation; questions from 112;
+  drag e2e measure after `settled()`; status `building`; don't merge.
+- If the worktree is missing, restart F-011 from main with the same brief.
 
-     The notices column split stays as component layout.
-2. **Wave 2:**
-   - F-021 (offline: service worker in MOD-Host; precache the hashed build assets, fonts, looks and workers).
-   - F-022 (language: live EN/VI switch, Intl formatting, a test that every string is translated).
-   - Then F-001 (add media). F-001 starts after step 1 merges, because both touch the empty-state styles.
-   - Question numbering continues: F-021 from 63, F-022 from 70.
-3. Then waves 3–5 as in `build-plan.md`.
+## Then
+1. F-011: one code-reviewer → fixes → merge → `pnpm check`.
+2. Wave 3 gate: `pnpm check:realtime` on a quiet machine (load < 12).
+3. Pause for the owner's wave 3 review. Open owner questions in
+   `.build-my-app/reports/build-spec-questions.md`: 83 (export-audio budget 12 KB), 84 (stereo
+   down-mix rules), 85 (sample timing; WebKit export packet stamps), 86a (WAV via `pcm-*` decoder vs
+   ADR-0008 §2), 88 (vi-VN short tile labels), 89 (notice placement with docked sheet), 93, 94
+   (ADR-0002 §1: DOM timeline), 98, 99 (undo past playhead during playback), 101 (history 200 vs
+   ADR-0011), 103 (RULE-13 multi-item selection), 105 (compact inspector resize/close), 111
+   (inspector hidden while drawer open < 1000 px), plus F-011's.
+4. Waves 4–5 per `build-plan.md` (F-007 must handle Q104).
 
 ## How to resume cheaply
-- Run `/build-my-app:start`. It reads `.build-my-app/state.json` and this note.
-- **Lower-cost options:**
-  - Run fewer builders in parallel: one at a time also avoids the load-induced e2e flakes.
-  - Do small spec/token edits directly, without a builder agent.
-  - Keep reviews to one reviewer per feature, and use the security audit only where the feature touches
-    files, network or the host.
-  - Run `pnpm check` only after merges.
-- Each unit: worktree builder → review → fixes → merge to main → `pnpm check`.
-- At each wave gate, run `pnpm check:realtime` on a quiet machine.
+- `/build-my-app:start` reads `.build-my-app/state.json` and this note.
+- One builder at a time; one reviewer per feature; small spec edits done directly; `pnpm check` only
+  after merges. If an e2e fails, re-run it alone with `--workers=1` before suspecting the code.
+- Each unit: worktree builder → review → fixes → merge → `pnpm check` → remove worktree.
 
 ## Housekeeping
-- **Spike worktrees** (`.claude/worktrees/agent-*` on `spike/*` branches) are kept on purpose as phase 3
-  evidence; some have leftover uncommitted spike files. The old `worktree-agent-*` branches are merged
-  and can be pruned.
-- Open technical items for QA: Q25 (decoder fallback, phone run), Q39 (colour range tag, player check),
-  Q45 (AAC estimate on real music).
-- Owner checks pending: the music shortlist (D-034), look sign-off, floor stills, the chart MP4 player
-  check, and Android.
+- Spike worktrees (`.claude/worktrees/agent-*` on `spike/*`) are kept as phase 3 evidence.
+- QA-open: Q25 (decoder fallback, phone), Q39 (colour range tag), Q45 (AAC estimate on real music).
+- Owner checks pending: music shortlist (D-034), look sign-off, floor stills, chart MP4 player
+  check, Android, iPhone device checks.
