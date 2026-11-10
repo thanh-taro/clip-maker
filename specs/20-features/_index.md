@@ -15,7 +15,7 @@
 | F-011 | Add music and set sound | M-1 | P0 | ready |
 | F-012 | Set the frame | M-1 | P0 | ready |
 | F-013 | Navigate the timeline | M-1 | P1 | ready |
-| F-014 | Undo and redo | M-1 | P0 | ready |
+| F-014 | Undo and redo | M-1 | P0 | building |
 | F-015 | Export video | M-1 | P0 | ready |
 | F-016 | Export an animated image or audio | M-1 | P2 | ready |
 | F-017 | Control by keyboard and touch | M-1 | P1 | ready |

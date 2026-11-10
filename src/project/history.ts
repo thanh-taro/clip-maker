@@ -10,6 +10,11 @@ export interface Step {
   readonly changed: readonly string[];
   /** Gesture token: steps recorded under the same open gesture merge into one. */
   readonly gesture: number | null;
+  /**
+   * A gesture's step: the redo steps there were when it began. A gesture that ends where it began
+   * leaves no step and gives them back (F-014.R4: only an edit discards redo).
+   */
+  readonly futureBefore?: readonly Step[];
 }
 
 export interface History {
@@ -35,10 +40,14 @@ export function record(h: History, step: Step): History {
       after: step.after,
       changed: [...new Set([...last.changed, ...step.changed])],
       gesture: step.gesture,
+      ...(last.futureBefore ? { futureBefore: last.futureBefore } : {}),
     };
     const past = h.past.slice(0, -1);
-    return { past: sameDocument(merged.before, merged.after) ? past : [...past, merged], future: [] };
+    return sameDocument(merged.before, merged.after)
+      ? { past, future: merged.futureBefore ?? [] }
+      : { past: [...past, merged], future: [] };
   }
+  if (step.gesture !== null && h.future.length) step = { ...step, futureBefore: h.future };
   const past = [...h.past, step];
   return { past: past.length > HISTORY_DEPTH ? past.slice(past.length - HISTORY_DEPTH) : past, future: [] };
 }

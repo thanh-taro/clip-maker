@@ -25,9 +25,15 @@ the model scales here because the project is small data: media stays in files.
    RULE-05 timing, RULE-06 speed steps, RULE-10 fade shrinking, RULE-12 audio placement and the
    D-021/D-027 move rule, RULE-04 re-timing on frame-rate change. Operations compose these; tests
    use property checks for INV-03, INV-04 and INV-06 after every operation.
-3. **History** = steps `{ before, after, selectionBefore, selectionAfter, coalesceKey }` and a cursor;
-   a new step discards redo steps (F-014.R4). Continuous gestures are coalesced by key (one drag =
-   one step; one slider movement = one step); a text editing session is one step (RULE-13).
+3. **History** = a list of past steps and a list of redo steps; a step is `{ before, after, changed,
+   gesture }` (`changed` = the items it changed, which RULE-13 selects after undo or redo); a new
+   step discards the redo steps (F-014.R4). Continuous gestures are coalesced through a gesture
+   handle (`beginGesture()` → `{ edit, end, active }`): one drag, one slider movement or one text
+   editing session is one step (RULE-13); edits made outside the handle meanwhile stay their own
+   steps; a gesture that ends where it began leaves no step and keeps the redo steps; undo, redo and
+   New project cut an open gesture and tell its owner. *(Amended 2026-11-10 by F-014, build
+   question 96: was "steps `{ before, after, selectionBefore, selectionAfter, coalesceKey }` and a
+   cursor … coalesced by key".)*
    **Depth**: at least 200 steps; up to 500 while the estimated retained size (new objects per
    step) stays under 32 MB, then the oldest beyond 200 are dropped. A worst-case step (Apply to all
    over ~300 clips) retains a few hundred KB, so 200 steps stay well inside the phone budget

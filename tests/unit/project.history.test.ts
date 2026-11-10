@@ -11,7 +11,6 @@ import {
   deleteItem,
   edit,
   editText,
-  endGesture,
   finishText,
   markExported,
   muteOriginal,
@@ -23,6 +22,7 @@ import {
   setAdjustments,
   setFrameRate,
   setLook,
+  removeSource,
   setAspect,
   splitAt,
   undo,
@@ -43,7 +43,7 @@ beforeEach(() => {
 });
 
 describe('F-014 undo and redo', () => {
-  it('F-014.AC1 undoing a split, a look change and an added text restores the project; redoing brings all three back', () => {
+  it('F-014.AC1 undoing a split, a look change and an added text restores the project; redoing brings all three back (their controls wait for F-004, F-008, F-010)', () => {
     load(proj({ clips: [video('A', 10)] }));
     const before = project.value;
     edit((p) => splitAt(p, 'A', 4 * S, nextId));
@@ -80,12 +80,12 @@ describe('F-014 undo and redo', () => {
     expect(canRedo.value).toBe(false);
   });
 
-  it('F-014.AC4 a slider dragged through many values is undone in one step', () => {
+  it('F-014.AC4 a slider dragged through many values is undone in one step (the sliders wait for F-005/F-006/F-007)', () => {
     load(proj({ clips: [video('A', 10)] }));
     const before = project.value;
-    beginGesture();
-    for (let v = 1; v <= 40; v++) edit((p) => setAdjustments(p, 'A', { brightness: v }));
-    endGesture();
+    const g = beginGesture();
+    for (let v = 1; v <= 40; v++) g.edit((p) => setAdjustments(p, 'A', { brightness: v }));
+    g.end();
     expect(project.value.clips[0]!.adjustments).toEqual({ brightness: 40 });
     undo();
     expect(project.value).toBe(before);
@@ -107,16 +107,16 @@ describe('F-014 undo and redo', () => {
     expect(playhead.value).toBe(10 * S);
   });
 
-  it('F-014.AC6 a new text layer typed in and finished is removed by one undo', () => {
+  it('F-014.AC6 a new text layer typed in and finished is removed by one undo (CMP-TextEditor waits for F-010)', () => {
     load(proj({ clips: [video('A', 10)] }));
     const before = project.value;
-    beginGesture();
-    edit((p) => addText(p, 0, nextId));
+    const g = beginGesture();
+    g.edit((p) => addText(p, 0, nextId));
     const id = project.value.textLayers[0]!.id;
-    edit((p) => editText(p, id, 'H'));
-    edit((p) => editText(p, id, 'Hi'));
-    edit((p) => finishText(p, id));
-    endGesture();
+    g.edit((p) => editText(p, id, 'H'));
+    g.edit((p) => editText(p, id, 'Hi'));
+    g.edit((p) => finishText(p, id));
+    g.end();
     expect(project.value.textLayers[0]!.content).toBe('Hi');
     undo();
     expect(project.value).toBe(before);
@@ -129,10 +129,10 @@ describe('F-014 undo and redo', () => {
     undo();
     expect(canUndo.value).toBe(false);
     expect(steps).toBe(true);
-    beginGesture();
-    edit((p) => addText(p, 0, nextId));
-    edit((p) => finishText(p, p.textLayers[0]!.id));
-    endGesture();
+    const g = beginGesture();
+    g.edit((p) => addText(p, 0, nextId));
+    g.edit((p) => finishText(p, p.textLayers[0]!.id));
+    g.end();
     expect(canUndo.value).toBe(false);
   });
 
@@ -159,6 +159,183 @@ describe('F-014 undo and redo', () => {
     undo();
     edit((p) => ({ project: p, notices: [], changed: [] }));
     expect(canUndo.value).toBe(false);
+  });
+});
+
+describe('RULE-13 gestures, selection and playhead after undo or redo', () => {
+  it('RULE-13 an edit made outside an open gesture (a batch finishing during a slider drag) stays its own step', () => {
+    load(proj({ clips: [video('A', 10), video('B', 4)] }));
+    const g = beginGesture();
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 10 }));
+    edit((p) => deleteItem(p, 'B'));
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 20 }));
+    g.end();
+    undo();
+    expect(project.value.clips[0]!.adjustments).toEqual({ brightness: 10 });
+    undo();
+    expect(project.value.clips.map((c) => c.id)).toEqual(['A', 'B']);
+    undo();
+    expect(project.value.clips[0]!.adjustments).toEqual({});
+  });
+
+  it('RULE-13 after an undo an open gesture starts a new step; an ended gesture records separate steps', () => {
+    load(proj({ clips: [video('A', 10)] }));
+    const g = beginGesture();
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 10 }));
+    undo();
+    redo();
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 20 }));
+    undo();
+    expect(project.value.clips[0]!.adjustments).toEqual({ brightness: 10 });
+    redo();
+    g.end();
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 30 }));
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 40 }));
+    undo();
+    expect(project.value.clips[0]!.adjustments).toEqual({ brightness: 30 });
+  });
+
+  it('RULE-13 two gestures never merge, even back to back', () => {
+    load(proj({ clips: [video('A', 10)] }));
+    const a = beginGesture();
+    a.edit((p) => setAdjustments(p, 'A', { brightness: 10 }));
+    a.end();
+    const b = beginGesture();
+    b.edit((p) => setAdjustments(p, 'A', { brightness: 20 }));
+    b.end();
+    undo();
+    expect(project.value.clips[0]!.adjustments).toEqual({ brightness: 10 });
+  });
+
+  it('RULE-13 after undo or redo the item the step changed is selected if it still exists, otherwise nothing', () => {
+    load(proj({ clips: [video('A', 10), video('B', 4)] }));
+    edit((p) => setLook(p, 'A', { id: 'film-warm', intensity: 100 }));
+    selection.value = ['B'];
+    undo();
+    expect(selection.value).toEqual(['A']);
+    selection.value = [];
+    redo();
+    expect(selection.value).toEqual(['A']);
+    // A redone delete: the clip no longer exists, so nothing is selected.
+    edit((p) => deleteItem(p, 'B'));
+    undo();
+    expect(selection.value).toEqual(['B']);
+    redo();
+    expect(selection.value).toEqual([]);
+    // A frame change changes no item: nothing is selected.
+    selection.value = ['A'];
+    edit((p) => setAspect(p, '9:16'));
+    undo();
+    expect(selection.value).toEqual([]);
+  });
+
+  it('RULE-13 a step that changed several items (a two-clip batch) selects nothing after undo or redo', () => {
+    newProject();
+    edit((p) => ({
+      project: { ...p, ...proj({ clips: [video('A', 4), video('B', 2)] }) },
+      notices: [],
+      changed: ['A', 'B'],
+    }));
+    undo();
+    expect(selection.value).toEqual([]);
+    redo();
+    expect(project.value.clips).toHaveLength(2);
+    expect(selection.value).toEqual([]);
+  });
+
+  it('F-001.AC6 RULE-13 undoing the removal of a source with two clips restores both and selects neither', () => {
+    load(proj({ clips: [video('A', 4), video('B', 2, { sourceId: 'src-A' })] }));
+    edit((p) => removeSource(p, 'src-A'));
+    expect(project.value.clips).toEqual([]);
+    undo();
+    expect(project.value.clips.map((c) => c.id)).toEqual(['A', 'B']);
+    expect(selection.value).toEqual([]);
+  });
+
+  it('F-014.R4 RULE-13 a gesture that leaves and returns to its start after an undo keeps redo available', () => {
+    load(proj({ clips: [video('A', 10, { adjustments: { brightness: 5 } })] }));
+    edit((p) => setAdjustments(p, 'A', { brightness: 10 }));
+    undo();
+    expect(canRedo.value).toBe(true);
+    const g = beginGesture();
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 30 }));
+    expect(canRedo.value).toBe(false);
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 5 }));
+    g.end();
+    expect(canRedo.value).toBe(true);
+    redo();
+    expect(project.value.clips[0]!.adjustments).toEqual({ brightness: 10 });
+    // A gesture that does end somewhere new still discards redo.
+    undo();
+    const h = beginGesture();
+    h.edit((p) => setAdjustments(p, 'A', { contrast: 5 }));
+    h.end();
+    expect(canRedo.value).toBe(false);
+  });
+
+  it('RULE-13 undo, redo and New project cut an open gesture: its owner is told and it is no longer active', () => {
+    load(proj({ clips: [video('A', 10)] }));
+    let cuts = 0;
+    const g = beginGesture(() => cuts++);
+    expect(g.active).toBe(true);
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 10 }));
+    undo();
+    expect(cuts).toBe(1);
+    expect(g.active).toBe(false);
+    // The owner may keep editing: that starts a new step, and the gesture is active again.
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 20 }));
+    expect(g.active).toBe(true);
+    redo();
+    newProject();
+    expect(cuts).toBe(3);
+    g.end();
+    expect(g.active).toBe(false);
+    undo();
+    expect(cuts).toBe(3);
+    // A gesture without an owner callback is simply cut.
+    const quiet = beginGesture();
+    undo();
+    expect(quiet.active).toBe(false);
+  });
+
+  it('RULE-13 after redo the playhead is limited to the project end; a playhead inside the project stays', () => {
+    load(proj({ clips: [video('A', 10), video('B', 5)] }));
+    edit((p) => deleteItem(p, 'B'));
+    undo();
+    playhead.value = 12 * S;
+    redo();
+    expect(playhead.value).toBe(10 * S);
+    playhead.value = 3 * S;
+    undo();
+    expect(playhead.value).toBe(3 * S);
+  });
+
+  it('RULE-13 F-014.R1 undo and redo with nothing to undo or redo change nothing', () => {
+    load(proj({ clips: [video('A', 10)] }));
+    markExported('video');
+    const p = project.value;
+    redo();
+    expect(project.value).toBe(p);
+    expect(unexported.value).toBe(false);
+    undo();
+    undo();
+    expect(canUndo.value).toBe(false);
+    const empty = project.value;
+    undo();
+    expect(project.value).toBe(empty);
+  });
+
+  it('F-014.R2 RULE-13 the history keeps the last 200 steps: the oldest are dropped first', () => {
+    load(proj({ clips: [video('A', 10)] }));
+    for (let i = 1; i <= 205; i++) edit((p) => setAdjustments(p, 'A', { brightness: i % 100 || 100 }));
+    let n = 0;
+    while (canUndo.value) {
+      undo();
+      n++;
+    }
+    expect(n).toBe(200);
+    // Six steps beyond the depth were dropped (the load step and edits 1–5): edit 5's result remains.
+    expect(project.value.clips[0]!.adjustments).toEqual({ brightness: 5 });
   });
 });
 
