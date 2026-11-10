@@ -70,7 +70,11 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'] },
     },
     ...(process.env['E2E_CHROME']
-      ? [{ name: 'chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' } }]
+      ? [
+          // F-021's offline servers are per engine (chromium, webkit): the chrome project would share
+          // Chromium's request log and published version, so the offline tests run on those two only.
+          { name: 'chrome', grepInvert: /F-021/, use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
+        ]
       : []),
   ],
 });

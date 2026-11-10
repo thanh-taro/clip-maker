@@ -9,11 +9,14 @@
 // the page network first (the version check while the tool is being opened), files cache first.
 // Implements: F-021.R3 — no `skipWaiting` and no `clients.claim`: a new version installs into its own
 // cache and waits until no open tab runs the old one; it takes over on the next open, and only then
-// are older versions' caches deleted. Nothing is ever reloaded. Cache Storage is the only storage used.
+// are older versions' caches deleted, and only once its own copy is complete (an older version
+// activating while a newer one installs deletes nothing; the install re-checks its copy at the end).
+// Nothing is ever reloaded. Cache Storage is the only storage used.
 import {
   cacheKey,
   cacheName,
   fileHash,
+  missingKeys,
   MANIFEST_PATH,
   readManifest,
   routeOf,
@@ -76,6 +79,10 @@ async function precache(): Promise<void> {
   }
   // The manifest last: MOD-Assets reads it through the worker, and its presence marks a full copy.
   await cache.put(ORIGIN + MANIFEST_PATH, res);
+  // An older version activating meanwhile could have deleted this cache: install only a full copy.
+  if (!(await caches.keys()).includes(CACHE)) throw new Error('offline: the cache was deleted');
+  const keys = (await (await caches.open(CACHE)).keys()).map((r) => r.url);
+  if (missingKeys(manifest, keys, ORIGIN).length) throw new Error('offline: the copy is incomplete');
 }
 
 scope.addEventListener('install', (event) => {
@@ -87,7 +94,8 @@ scope.addEventListener('install', (event) => {
 scope.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      for (const name of staleCaches(await caches.keys(), CACHE)) await caches.delete(name);
+      const complete = !!(await (await caches.open(CACHE)).match(ORIGIN + MANIFEST_PATH));
+      for (const name of staleCaches(await caches.keys(), CACHE, complete)) await caches.delete(name);
     })(),
   );
 });
@@ -112,7 +120,8 @@ scope.addEventListener('fetch', (event) => {
         } catch {
           return (await stored()) ?? Response.error();
         }
-        return res.ok ? res : ((await stored()) ?? res);
+        if (res.ok || res.type === 'opaqueredirect') return res;
+        return (await stored()) ?? res;
       })(),
     );
     return;

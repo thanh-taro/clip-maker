@@ -11,6 +11,7 @@ import {
   fileHash,
   isManifestPath,
   isVersion,
+  missingKeys,
   readManifest,
   routeOf,
   staleCaches,
@@ -44,6 +45,24 @@ describe('MOD-Host offline cache naming and versioning', () => {
     const names = [cacheName(V1), cacheName(V2), 'someone-else', 'clip-maker-other'];
     expect(staleCaches(names, cacheName(V2))).toEqual([cacheName(V1)]);
     expect(staleCaches([cacheName(V2)], cacheName(V2))).toEqual([]);
+  });
+
+  it('F-021.R3 a version activating without a complete copy of its own deletes no other cache', () => {
+    const names = [cacheName(V1), cacheName(V2)];
+    // Its own copy is missing or incomplete: the other caches are the only offline copy left. (When it
+    // does delete a newer version's cache mid-install, that install fails its final check and retries.)
+    expect(staleCaches(names, cacheName(V1), false)).toEqual([]);
+    expect(staleCaches([cacheName(V2)], cacheName(V1), true)).toEqual([]);
+    expect(staleCaches(names, cacheName(V1), true)).toEqual([cacheName(V2)]);
+  });
+
+  it('F-021.R1 F-021.R3 an install whose cache lost any file or the manifest is not complete, so it is retried', () => {
+    const m = { version: V1, files };
+    const all = [...Object.keys(files).map((p) => ORIGIN + storedPath(p)), `${ORIGIN}/asset-manifest.json`];
+    expect(missingKeys(m, all, ORIGIN)).toEqual([]);
+    expect(missingKeys(m, all.slice(1), ORIGIN)).toEqual([all[0]]);
+    expect(missingKeys(m, [], ORIGIN)).toEqual(all);
+    expect(all).toContain(`${ORIGIN}/`);
   });
 
   it('ADR-0015 MOD-Build the manifest version changes exactly when a file changes, is added or removed', () => {

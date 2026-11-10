@@ -119,6 +119,9 @@ async function runningWorkers(page: Page): Promise<string[]> {
 
 const controlled = (frame: Frame) => frame.evaluate(() => !!navigator.serviceWorker.controller);
 
+/** Log entries other than the open's version check (the page, network first, and /sw.js). */
+const onlyVersionCheck = (log: readonly Logged[]) => log.filter((r) => r.path !== '/' && r.path !== '/sw.js');
+
 const serverDown = (request: APIRequestContext, server: string, on: boolean) =>
   ctl(request, server, `__ctl/down?on=${on ? 1 : 0}`);
 
@@ -156,6 +159,7 @@ test.describe('F-021 offline', () => {
       for (const f of files) expect(keys).toContain(f === '/index.html' ? '/' : f);
       expect(files.length).toBeGreaterThan(10);
 
+      await resetLog(request, tool);
       await offline(context, request, tool, browserName);
       const frame = await reopen(page, way, tool);
       expect(await controlled(frame)).toBe(true);
@@ -167,6 +171,8 @@ test.describe('F-021 offline', () => {
         .poll(() => frame.evaluate(() => [...document.fonts].map((f) => f.status)), { timeout: 10_000 })
         .toEqual(expect.arrayContaining(['loaded']));
       expect(await frame.evaluate(() => [...document.fonts].every((f) => f.status === 'loaded'))).toBe(true);
+      // Only the open's version check tried the network (the page and /sw.js); every file came from the copy.
+      expect(onlyVersionCheck(await requestLog(request, tool))).toEqual([]);
     });
   }
 
@@ -182,6 +188,7 @@ test.describe('F-021 offline', () => {
     await expect(page.locator('#out')).toHaveText('ready');
     await offlineReady(page.mainFrame());
 
+    await resetLog(request, harness);
     await offline(context, request, harness, browserName);
     await page.reload();
     await expect(page.locator('#out')).toHaveText('ready');
@@ -194,6 +201,7 @@ test.describe('F-021 offline', () => {
       }),
     );
     expect(r.result.ok, JSON.stringify(r.result)).toBe(true);
+    expect(onlyVersionCheck(await requestLog(request, harness))).toEqual([]);
   });
 
   test('F-021.AC2 F-021.R1 F-021.R2 NFR-01 the first visit fetches every file the tool can need, only its own; a later session asks for nothing but the version check while opening', async ({
@@ -204,6 +212,10 @@ test.describe('F-021 offline', () => {
   }) => {
     test.setTimeout(120_000);
     const tool = offlineServer(browserName);
+    // The browser's own view as well as the server's: every request of the context, the service
+    // worker's included (Playwright reports those on Chromium), goes to the tool's own origin.
+    const seen: string[] = [];
+    context.on('request', (r) => seen.push(r.url()));
     await resetLog(request, tool);
     const first = await openTool(page, 'standalone', tool);
     const { files } = await offlineReady(first);
@@ -239,7 +251,9 @@ test.describe('F-021 offline', () => {
     });
     await later.waitForLoadState('networkidle');
     const session = await requestLog(request, tool);
-    expect(session.filter((r) => r.path !== '/' && r.path !== '/sw.js')).toEqual([]);
+    expect(onlyVersionCheck(session)).toEqual([]);
+    expect(seen.length).toBeGreaterThan(files.length);
+    expect(seen.filter((u) => !u.startsWith(`${tool}/`))).toEqual([]);
   });
 
   test('F-021.AC3 F-021.R3 a version published while the tool is open never reloads it; opened again online and once more, the new version is used, offline too', async ({

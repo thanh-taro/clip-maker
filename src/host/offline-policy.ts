@@ -29,8 +29,13 @@ export function cacheName(version: string): string {
   return CACHE_PREFIX + version;
 }
 
-/** The tool's caches other than `current`'s, deleted when `current` takes over (no other tab runs them). */
-export function staleCaches(names: readonly string[], current: string): string[] {
+/**
+ * The tool's caches other than `current`'s, deleted when `current` takes over (no other tab runs them).
+ * None while `current` holds no full copy (its manifest is stored last): an older version activating
+ * while a newer one is still installing must not delete the newer cache, nor leave no copy at all.
+ */
+export function staleCaches(names: readonly string[], current: string, currentComplete = true): string[] {
+  if (!currentComplete || !names.includes(current)) return [];
   return names.filter((n) => n.startsWith(CACHE_PREFIX) && n !== current);
 }
 
@@ -80,6 +85,17 @@ export function readManifest(data: unknown, version: string): AssetManifest | nu
 /** Where a manifest file is fetched and stored: the page under `/`, every other file at its path. */
 export function storedPath(path: string): string {
   return path === PAGE_PATH ? PAGE_KEY_PATH : path;
+}
+
+/**
+ * Cache keys (full URLs) a complete copy of `manifest` lacks: every file at its stored path, and the
+ * manifest itself. The install checks this at its end and fails when anything is missing (the cache
+ * was deleted or emptied meanwhile), so the browser retries it on the next online open.
+ */
+export function missingKeys(manifest: AssetManifest, cachedKeys: readonly string[], origin: string): string[] {
+  const have = new Set(cachedKeys);
+  const want = [...Object.keys(manifest.files).map((p) => origin + storedPath(p)), origin + MANIFEST_PATH];
+  return want.filter((k) => !have.has(k));
 }
 
 const ownHttp = (u: URL, origin: string) => (u.protocol === 'https:' || u.protocol === 'http:') && u.origin === origin;
