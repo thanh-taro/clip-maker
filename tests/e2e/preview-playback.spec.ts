@@ -292,7 +292,8 @@ test.describe('F-002 preview playback (app harness)', () => {
       Object.defineProperty(Document.prototype, 'fullscreenEnabled', { get: () => false });
     });
     await open(page);
-    await addClips(page, ['a.mp4', 'b.mp4', 'c.mp4']);
+    // Twice the clips: the axe pass and Tab walk below must finish before playback reaches the end.
+    await addClips(page, ['a.mp4', 'b.mp4', 'c.mp4', 'a.mp4', 'b.mp4', 'c.mp4']);
     await button(page, 'action.play').click();
     await button(page, 'action.full_screen').click();
     const bar = page.locator('.tk-fullscreen-bar');
