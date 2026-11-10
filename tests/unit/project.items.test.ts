@@ -305,6 +305,16 @@ describe('F-012 frame (domain)', () => {
     ok(r.project);
   });
 
+  it('RULE-03 a frame-rate change the last clip cannot absorb, even at its minimum length, is refused with COPY-notice.length_full', () => {
+    // At 60 fps: one 597.9 s photo and twenty 0.1 s photos = 599.9 s. At 24 fps each 0.1 s photo
+    // rounds up to the 0.125 s minimum (+0.5 s in all), more than the last 0.1 s photo can give up.
+    const shorts = Array.from({ length: 20 }, (_, i) => photo(`P${i}`, 0.1));
+    const p = proj({ clips: [photo('A', 597.9), ...shorts], rate: 60 });
+    const r = setFrameRate(p, 24);
+    expect(r.project).toBe(p);
+    expect(r.notices).toEqual(['notice.length_full']);
+  });
+
   it('RULE-11 a new text layer has its text fade off', () => {
     const r = addText(proj({ clips: [video('V', 10)] }), 0, counter());
     expect(r.project.textLayers[0]!.fade).toBe(false);

@@ -15,7 +15,7 @@
     flex-direction: column;
     align-items: center;
     gap: var(--tk-space-4);
-    max-inline-size: 480px; /* as CMP-EmptyState: the message column of the boards */
+    max-inline-size: var(--tk-size-message-column);
     text-align: center;
   }
 

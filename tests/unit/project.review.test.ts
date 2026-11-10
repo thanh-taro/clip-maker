@@ -96,7 +96,7 @@ describe('review E1 fixes', () => {
     expect(a.fadeIn).toBe(frameStart(4, 30));
   });
 
-  it('RULE-05 RULE-04 a 0.1 s music clip at 60 fps grows to the 0.125 s minimum at 24 fps, or the change is refused when its end is unknown', () => {
+  it('RULE-03 RULE-05 RULE-04 a 0.1 s music clip at 60 fps grows to the 0.125 s minimum at 24 fps, or the change is refused when its end is unknown', () => {
     // Property seed 1096329829: add music, 60 fps, trim the music clip's end to 6 frames (0.1 s, the
     // minimum at 60 fps), then 24 fps, whose minimum is 3 frames (0.125 s).
     let p = proj({ rate: 24, clips: [video('V', 3.4)] });

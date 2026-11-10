@@ -121,7 +121,7 @@
     flex-direction: column;
     align-items: center;
     gap: var(--tk-space-3);
-    max-inline-size: 480px;
+    max-inline-size: var(--tk-size-message-column);
     padding: var(--tk-space-6);
     border: var(--tk-border-width-hairline) dashed var(--tk-color-line-strong);
     border-radius: var(--tk-radius-md);

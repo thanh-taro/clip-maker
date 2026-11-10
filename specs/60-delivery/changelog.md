@@ -2,6 +2,12 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-10 — Wave 1 review decisions (owner, 2026-11-05)
+- F-019.R6 / MOD-Host: on the first focus, an empty project focuses Add media; with content no control is focused (build question 47).
+- RULE-03: a frame-rate change the last clip can't absorb, or that would take a clip with an unknown source end below the minimum, is refused with COPY-notice.length_full (build question 51).
+- RULE-15: format names in COPY-export.format_note are technical and the same in every language (build question 60).
+- Tokens: `size.dialog`, `size.messageColumn`, `font.letterSpacing.caps` (build question 54).
+
 ## 2026-11-05 — F-023 building
 - F-023 set to `building` (phase 4, wave 1). It stays `building` until F-015/F-016 show the export format note (R3/AC3) and F-002 wires the slow-source notice (AC7).
 - platform-mapping "Start-up check": the codec probe runs on the main thread with a 1 s bound per call; the engine's effects check answers "drawn" (decides the screen and media) before the timed result (slow notice only); engine timeouts count as slow (build questions 59, 62).

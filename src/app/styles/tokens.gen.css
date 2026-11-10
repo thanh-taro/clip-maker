@@ -22,6 +22,7 @@
     --tk-font-size-ruler: 10.5px; /** time ruler and clip duration labels (mono) */
     --tk-font-line-height-tight: 1.15;
     --tk-font-line-height-normal: 1.55;
+    --tk-font-letter-spacing-caps: 0.06em; /** uppercase section headings (notices dialog) */
     --tk-space-0: 0px;
     --tk-space-1: 4px;
     --tk-space-2: 8px;
@@ -67,6 +68,8 @@
     --tk-size-tab-bar: 56px; /** phone tool tab bar */
     --tk-size-handle-hit: 44px; /** trim/placement handle hit area on touch */
     --tk-size-audio-lane: 28px; /** audio lane height (waveform) */
+    --tk-size-dialog: 800px; /** modal dialog width on wide layouts (licence notices), clamped to the viewport */
+    --tk-size-message-column: 480px; /** message column of CMP-EmptyState and SCR-Unsupported */
     --tk-border-width-hairline: 1px;
     --tk-border-width-focus: 2px;
     --tk-motion-duration-fast: 120ms;
