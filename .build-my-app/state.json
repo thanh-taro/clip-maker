@@ -54,7 +54,7 @@
     "build": {
       "title": "4 Implementation",
       "status": "in_progress",
-      "step": "4 wave 2 COMPLETE and reviewed (F-021, F-022, F-001; owner decisions 66/71-74e applied; check 9/9; check:realtime 9 passed + 1 skip). Next: wave 3 (F-002, F-003, F-011, F-012, F-014)",
+      "step": "4 wave 3: F-002 merged (check 9/9); E6 MOD-Audio source sound decoding (Q33/Q76) running; then F-003, F-014, F-012, F-011",
       "gate": {
         "status": "pending",
         "at": null,
@@ -1502,9 +1502,13 @@
     {
       "at": "2026-11-10T08:41:40+00:00",
       "event": "build step: 4 wave 2 COMPLETE and reviewed (F-021, F-022, F-001; owner decisions 66/71-74e applied; check 9/9; check:realtime 9 passed + 1 skip). Next: wave 3 (F-002, F-003, F-011, F-012, F-014)"
+    },
+    {
+      "at": "2026-11-10T10:32:52+00:00",
+      "event": "build step: 4 wave 3: F-002 merged (check 9/9); E6 MOD-Audio source sound decoding (Q33/Q76) running; then F-003, F-014, F-012, F-011"
     }
   ],
-  "updated": "2026-11-10T08:41:40+00:00",
+  "updated": "2026-11-10T10:32:52+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
