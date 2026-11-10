@@ -54,7 +54,7 @@
     "build": {
       "title": "4 Implementation",
       "status": "in_progress",
-      "step": "4 wave 2: F-021, F-022 merged (check 9/9); F-001 add media running",
+      "step": "4 wave 2: F-021, F-022, F-001 merged (check 9/9 after one re-run); check:realtime waiting for a quiet machine; then owner review",
       "gate": {
         "status": "pending",
         "at": null,
@@ -1494,9 +1494,13 @@
     {
       "at": "2026-11-10T07:12:38+00:00",
       "event": "build step: 4 wave 2: F-021, F-022 merged (check 9/9); F-001 add media running"
+    },
+    {
+      "at": "2026-11-10T08:17:49+00:00",
+      "event": "build step: 4 wave 2: F-021, F-022, F-001 merged (check 9/9 after one re-run); check:realtime waiting for a quiet machine; then owner review"
     }
   ],
-  "updated": "2026-11-10T07:12:38+00:00",
+  "updated": "2026-11-10T08:17:49+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
