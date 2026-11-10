@@ -22,6 +22,7 @@ import {
   setAdjustments,
   setFrameRate,
   setLook,
+  removeSource,
   setAspect,
   splitAt,
   undo,
@@ -226,6 +227,75 @@ describe('RULE-13 gestures, selection and playhead after undo or redo', () => {
     edit((p) => setAspect(p, '9:16'));
     undo();
     expect(selection.value).toEqual([]);
+  });
+
+  it('RULE-13 a step that changed several items (a two-clip batch) selects nothing after undo or redo', () => {
+    newProject();
+    edit((p) => ({
+      project: { ...p, ...proj({ clips: [video('A', 4), video('B', 2)] }) },
+      notices: [],
+      changed: ['A', 'B'],
+    }));
+    undo();
+    expect(selection.value).toEqual([]);
+    redo();
+    expect(project.value.clips).toHaveLength(2);
+    expect(selection.value).toEqual([]);
+  });
+
+  it('F-001.AC6 RULE-13 undoing the removal of a source with two clips restores both and selects neither', () => {
+    load(proj({ clips: [video('A', 4), video('B', 2, { sourceId: 'src-A' })] }));
+    edit((p) => removeSource(p, 'src-A'));
+    expect(project.value.clips).toEqual([]);
+    undo();
+    expect(project.value.clips.map((c) => c.id)).toEqual(['A', 'B']);
+    expect(selection.value).toEqual([]);
+  });
+
+  it('F-014.R4 RULE-13 a gesture that leaves and returns to its start after an undo keeps redo available', () => {
+    load(proj({ clips: [video('A', 10, { adjustments: { brightness: 5 } })] }));
+    edit((p) => setAdjustments(p, 'A', { brightness: 10 }));
+    undo();
+    expect(canRedo.value).toBe(true);
+    const g = beginGesture();
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 30 }));
+    expect(canRedo.value).toBe(false);
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 5 }));
+    g.end();
+    expect(canRedo.value).toBe(true);
+    redo();
+    expect(project.value.clips[0]!.adjustments).toEqual({ brightness: 10 });
+    // A gesture that does end somewhere new still discards redo.
+    undo();
+    const h = beginGesture();
+    h.edit((p) => setAdjustments(p, 'A', { contrast: 5 }));
+    h.end();
+    expect(canRedo.value).toBe(false);
+  });
+
+  it('RULE-13 undo, redo and New project cut an open gesture: its owner is told and it is no longer active', () => {
+    load(proj({ clips: [video('A', 10)] }));
+    let cuts = 0;
+    const g = beginGesture(() => cuts++);
+    expect(g.active).toBe(true);
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 10 }));
+    undo();
+    expect(cuts).toBe(1);
+    expect(g.active).toBe(false);
+    // The owner may keep editing: that starts a new step, and the gesture is active again.
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 20 }));
+    expect(g.active).toBe(true);
+    redo();
+    newProject();
+    expect(cuts).toBe(3);
+    g.end();
+    expect(g.active).toBe(false);
+    undo();
+    expect(cuts).toBe(3);
+    // A gesture without an owner callback is simply cut.
+    const quiet = beginGesture();
+    undo();
+    expect(quiet.active).toBe(false);
   });
 
   it('RULE-13 after redo the playhead is limited to the project end; a playhead inside the project stays', () => {

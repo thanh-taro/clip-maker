@@ -247,24 +247,33 @@ test.describe('F-014 undo and redo (app harness)', () => {
 
   test('F-014.R3 undo during playback: playback continues with the restored project', async ({ page }) => {
     await open(page);
-    await add(page, [video('A.mp4'), video('B.mp4')]);
+    // A 10 s project (five 2 s clips), then a duplicate: playback is far from either end when Undo runs.
+    await add(
+      page,
+      ['A', 'B', 'C', 'D', 'E'].map((n) => video(`${n}.mp4`)),
+    );
     await clipButtons(page).first().click();
     await timelineTool(page, 'action.duplicate').click();
-    await expect(page.locator('.tk-transport')).toContainText('/ 0:06');
+    await expect(clipButtons(page)).toHaveCount(6);
     await page
       .locator('.tk-transport')
       .getByRole('button', { name: text('en-US', 'action.play'), exact: true })
       .click();
     const editor = page.locator('[data-screen="SCR-Editor"]');
     await expect(editor).toHaveAttribute('data-state', 'playing');
-    await undoButton(page).click();
-    await expect(clipButtons(page)).toHaveCount(2);
-    await expect(page.locator('.tk-transport')).toContainText('/ 0:04');
-    await expect(editor).toHaveAttribute('data-state', 'playing');
-    await page
-      .locator('.tk-transport')
-      .getByRole('button', { name: text('en-US', 'action.pause'), exact: true })
-      .click();
+    // Read the playback state just before and just after activating Undo, in one task, so a loaded
+    // machine can't let playback reach the end in between.
+    const r = await page.evaluate(() => {
+      const h = (window as unknown as Harness).appHarness;
+      const before = h.preview();
+      document.querySelector<HTMLButtonElement>('.tk-toolbar [data-action="undo"]')!.click();
+      return { before, after: h.preview(), clips: h.clips().length };
+    });
+    expect(r.before.state).toBe('playing');
+    expect(r.clips).toBe(5);
+    expect(r.after.state).toBe('playing');
+    expect(r.after.duration).toBeLessThan(r.before.duration);
+    expect(r.after.playhead).toBeLessThan(r.after.duration);
   });
 
   test('RULE-20 inside a text field Mod+Z is the field’s own undo; outside it the tool undoes', async ({

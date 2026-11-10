@@ -93,3 +93,5 @@ Owner decisions on `.build-my-app/reports/build-spec-questions.md` items 1–7, 
 
 ## 2026-11-10 — F-014 undo and redo
 - MOD-Project public surface: `beginGesture()` returns a `Gesture` handle (`edit`, `end`) instead of a global `beginGesture(key)` / `endGesture()`, so an edit made elsewhere during a drag (a batch finishing) never merges into it (build question 96).
+- ADR-0011 §3 amended to the gesture handle API (past/redo lists, `changed`, `beginGesture()` handle with `onCut`/`active`), replacing `coalesceKey`, `selectionBefore/After` and the cursor (build question 96).
+- MOD-Project: a gesture that ends where it began keeps the redo steps; `beginGesture(onCut?)` and `active` tell owners about a cut; after undo or redo a step that changed several items selects nothing (build question 103).

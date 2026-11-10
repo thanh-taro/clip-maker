@@ -12,6 +12,9 @@ import { focusInfo } from './playback';
 /** CMP-Toolbar: Undo and Redo are each unavailable when there is nothing to undo or redo (F-014 UX notes). */
 export const historyAvailable = computed(() => ({ undo: canUndo.value, redo: canRedo.value }));
 
+// TODO(F-015): while an export runs the editor is locked (SCR-Editor "exporting"); gate undoEdit, redoEdit
+// and the history keys on F-015's lock signal (build question 96). No such signal exists yet.
+
 /** F-014.R1: undo the last edit; false when there is nothing to undo. */
 export function undoEdit(): boolean {
   if (!canUndo.peek()) return false;

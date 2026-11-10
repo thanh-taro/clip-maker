@@ -44,6 +44,12 @@ let gestureCounter = 0;
 /** Bumped by undo, redo and New project: a gesture open across them starts a new step afterwards. */
 let historyCut = 0;
 
+/** Called when undo, redo or New project cut the open gestures (their owners close or refresh). */
+const cutListeners = new Set<() => void>();
+function cutGestures(): void {
+  for (const fn of [...cutListeners]) fn();
+}
+
 /** An open gesture's coalescing state. */
 interface GestureState {
   token: number;
@@ -62,16 +68,24 @@ export interface Gesture {
   edit(op: (p: Project) => EditResult): readonly Notice[];
   /** The gesture is over: later edits through it are separate steps, like plain `edit`. */
   end(): void;
+  /**
+   * False once the gesture has ended or been cut by undo, redo or New project. An owner that sees it
+   * false (or gets `onCut`) must close or refresh what it shows (a text editor, a slider's value).
+   */
+  readonly active: boolean;
 }
 
 /**
  * Implements: RULE-13 (one continuous drag or slider movement, or adding a text layer plus typing until
  * editing ends, is one step), F-014.AC4/AC6. Begin on pointer down (or when a text layer is added), end
  * on release (or when editing ends). Two gestures never merge. Undo, redo and New project cut an open
- * gesture: its next edit starts a new step.
+ * gesture: `onCut` is called (after the restored project is in place), `active` turns false, and an
+ * edit through it afterwards starts a new step.
  */
-export function beginGesture(): Gesture {
+export function beginGesture(onCut?: () => void): Gesture {
   let state: GestureState | null = { token: ++gestureCounter, cut: historyCut, startEpoch: null };
+  const listener = onCut ? () => onCut() : null;
+  if (listener) cutListeners.add(listener);
   return {
     edit(op) {
       if (state && state.cut !== historyCut) state = { token: ++gestureCounter, cut: historyCut, startEpoch: null };
@@ -81,6 +95,10 @@ export function beginGesture(): Gesture {
     },
     end() {
       state = null;
+      if (listener) cutListeners.delete(listener);
+    },
+    get active() {
+      return state !== null && state.cut === historyCut;
     },
   };
 }
@@ -116,18 +134,24 @@ function itemIds(p: Project): Set<string> {
   return new Set([...p.clips.map((c) => c.id), ...p.textLayers.map((t) => t.id), ...p.audioClips.map((a) => a.id)]);
 }
 
-/** RULE-13 after undo or redo: select what the step changed if it still exists; limit the playhead. */
+/**
+ * RULE-13 after undo or redo: select the item the step changed if it still exists, otherwise nothing; a
+ * step that changed several items that still exist (a batch, a removed source's clips) selects nothing
+ * (build question 103). The playhead is limited to the project end.
+ */
 function restore(p: Project, step: Step): void {
   project.value = p;
   const present = itemIds(p);
-  selection.value = step.changed.filter((id) => present.has(id));
+  const kept = step.changed.filter((id) => present.has(id));
+  selection.value = kept.length === 1 ? kept : [];
   playhead.value = Math.min(playhead.value, projectEnd(p));
   epoch.value++;
 }
 
 export function undo(): void {
   // One consistent update: watchers (MOD-App's registry sync) never see history and project apart.
-  return batch(() => undoNow());
+  batch(() => undoNow());
+  cutGestures();
 }
 function undoNow(): void {
   historyCut++;
@@ -139,7 +163,8 @@ function undoNow(): void {
 
 export function redo(): void {
   // One consistent update: watchers (MOD-App's registry sync) never see history and project apart.
-  return batch(() => redoNow());
+  batch(() => redoNow());
+  cutGestures();
 }
 function redoNow(): void {
   historyCut++;
@@ -152,7 +177,8 @@ function redoNow(): void {
 /** Implements: RULE-23 New project — empty document, empty history, copied adjustments cleared. */
 export function newProject(): void {
   // One consistent update: watchers (MOD-App's registry sync) never see history and project apart.
-  return batch(() => newProjectNow());
+  batch(() => newProjectNow());
+  cutGestures();
 }
 function newProjectNow(): void {
   historyCut++;
