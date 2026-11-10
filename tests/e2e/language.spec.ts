@@ -2,8 +2,8 @@
 // browser, or later host messages; the page marked with it; no English shown first; a live switch that
 // keeps everything; Vietnamese at 320 px; Vietnamese diacritics drawn with the bundled typefaces.
 // Standalone on `pnpm preview` of dist/; embedded on the multi-origin host harness (F-019).
-// Not covered yet (need later features): AC2's history half (F-014's Undo; its project and playback are
-// covered); AC6 for panels that don't exist yet (inspector, export panel, pickers: re-run as they land);
+// Not covered yet (need later features):
+// AC6 for panels that don't exist yet (inspector, export panel, pickers: re-run as they land);
 // AC8's running export and text being edited (F-015, F-010). The unit side is tests/unit/copy.*.
 import { expect, test, type Frame, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
@@ -302,8 +302,46 @@ test.describe('embedded', () => {
     await transport.getByRole('button', { name: text('en-US', 'action.pause'), exact: true }).click();
   });
 
-  test.fixme('F-022.AC2 … and its history (Undo) when the host sends en-US', () => {
-    // The history half needs F-014's Undo/Redo in the UI; build-spec-questions Q68.
+  test('F-022.AC2 F-014.R1 an edited project in vi-VN keeps its history when the host sends en-US: Undo and Redo go on', async ({
+    page,
+  }) => {
+    await page.goto(hostPageUrl(HOST_ALLOWED, TOOL_ALLOWED, { theme: 'dark', lang: 'vi-VN' }));
+    const frame = await toolFrame(page);
+    await expect(frame.locator(SHELL)).toHaveAttribute('data-device', 'supported');
+    const clip = readFileSync(fileURLToPath(new URL('../fixtures/media/mp4-faststart.mp4', import.meta.url)));
+    const chooser = page.waitForEvent('filechooser');
+    await frame
+      .getByRole('main')
+      .getByRole('button', { name: text('vi-VN', 'action.add_media') })
+      .click();
+    await (await chooser).setFiles(['a.mp4', 'b.mp4'].map((name) => ({ name, mimeType: 'video/mp4', buffer: clip })));
+    const clips = frame.locator('.tk-timeline .tk-clip');
+    await expect(clips).toHaveCount(2);
+    // Two steps in vi-VN: the batch, then deleting b.mp4 with the timeline's Delete.
+    const media = frame.locator('.tk-media');
+    await media.getByRole('button', { name: text('vi-VN', 'action.close') }).click();
+    await clips.nth(1).click();
+    await frame
+      .locator('.tk-tl-toolbar')
+      .getByRole('button', { name: text('vi-VN', 'action.delete') })
+      .click();
+    await expect(clips).toHaveCount(1);
+
+    await sendLanguage(page, 'en-US');
+    await expect(frame.locator('html')).toHaveAttribute('lang', 'en-US');
+    const bar = frame.getByRole('toolbar', { name: text('en-US', 'toolbar.label') });
+    const undo = bar.getByRole('button', { name: text('en-US', 'action.undo'), exact: true });
+    const redo = bar.getByRole('button', { name: text('en-US', 'action.redo'), exact: true });
+    // Both steps made before the switch are still there.
+    await undo.click();
+    await expect(clips).toHaveCount(2);
+    await undo.click();
+    await expect(clips).toHaveCount(0);
+    await expect(undo).toHaveAttribute('aria-disabled', 'true');
+    await redo.click();
+    await redo.click();
+    await expect(clips).toHaveCount(1);
+    await expect(redo).toHaveAttribute('aria-disabled', 'true');
   });
 
   test.fixme('F-022.AC8 a running export continues when the host switches language; only its progress text changes', () => {

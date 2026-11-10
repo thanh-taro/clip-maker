@@ -90,3 +90,6 @@ Owner decisions on `.build-my-app/reports/build-spec-questions.md` items 1–7, 
 
 ## 2026-11-10 — E6 source sound decoding
 - MOD-Audio public surface: the audio worker's `feed(port)` message, `SoundBank` and `soundDemand` (windowed decoding, ADR-0008 §2/§6; build questions 33, 76, 83–87).
+
+## 2026-11-10 — F-014 undo and redo
+- MOD-Project public surface: `beginGesture()` returns a `Gesture` handle (`edit`, `end`) instead of a global `beginGesture(key)` / `endGesture()`, so an edit made elsewhere during a drag (a batch finishing) never merges into it (build question 96).

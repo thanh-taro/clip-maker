@@ -40,41 +40,71 @@ export const canRedo = computed(() => history.value.future.length > 0);
 /** Implements: RULE-19 unexported changes. */
 export const unexported = computed(() => !isEmpty.value && epoch.value !== exportedEpoch.value);
 
-let gestureToken: number | null = null;
 let gestureCounter = 0;
-/** The change epoch before the open gesture's first step (RULE-19). */
-let gestureEpoch: number | null = null;
+/** Bumped by undo, redo and New project: a gesture open across them starts a new step afterwards. */
+let historyCut = 0;
+
+/** An open gesture's coalescing state. */
+interface GestureState {
+  token: number;
+  cut: number;
+  /** The change epoch before the gesture's current step (RULE-19). */
+  startEpoch: number | null;
+}
 
 /**
- * RULE-13: one continuous drag, slider movement or text editing session is one step. Every edit made
- * until `endGesture` coalesces into a single step.
+ * One continuous drag, slider movement or text editing session (RULE-13). Edits made through `edit`
+ * coalesce into a single undo step until `end`; edits made elsewhere meanwhile (a batch of media
+ * finishing, a key) stay their own steps, and the gesture's next edit then starts a new step.
  */
-export function beginGesture(): void {
-  gestureToken = ++gestureCounter;
-  gestureEpoch = null;
+export interface Gesture {
+  /** Applies an operation as part of this gesture's one step. */
+  edit(op: (p: Project) => EditResult): readonly Notice[];
+  /** The gesture is over: later edits through it are separate steps, like plain `edit`. */
+  end(): void;
 }
-export function endGesture(): void {
-  gestureToken = null;
-  gestureEpoch = null;
+
+/**
+ * Implements: RULE-13 (one continuous drag or slider movement, or adding a text layer plus typing until
+ * editing ends, is one step), F-014.AC4/AC6. Begin on pointer down (or when a text layer is added), end
+ * on release (or when editing ends). Two gestures never merge. Undo, redo and New project cut an open
+ * gesture: its next edit starts a new step.
+ */
+export function beginGesture(): Gesture {
+  let state: GestureState | null = { token: ++gestureCounter, cut: historyCut, startEpoch: null };
+  return {
+    edit(op) {
+      if (state && state.cut !== historyCut) state = { token: ++gestureCounter, cut: historyCut, startEpoch: null };
+      const g = state;
+      // One consistent update: watchers never see history and project apart.
+      return batch(() => editNow(op, g));
+    },
+    end() {
+      state = null;
+    },
+  };
 }
 
 /** Apply an operation to the session's project as one undo step (none when nothing changed). */
 export function edit(op: (p: Project) => EditResult): readonly Notice[] {
   // One consistent update: watchers (MOD-App's registry sync) never see history and project apart.
-  return batch(() => editNow(op));
+  return batch(() => editNow(op, null));
 }
-function editNow(op: (p: Project) => EditResult): readonly Notice[] {
+function editNow(op: (p: Project) => EditResult, gesture: GestureState | null): readonly Notice[] {
   const before = project.value;
   const r = op(before);
   if (r.project !== before) {
-    const step: Step = { before, after: r.project, changed: r.changed, gesture: gestureToken };
+    const token = gesture?.token ?? null;
+    const step: Step = { before, after: r.project, changed: r.changed, gesture: token };
     const old = history.value;
-    if (gestureToken !== null && gestureEpoch === null) gestureEpoch = epoch.value;
+    const last = old.past[old.past.length - 1];
+    const merging = gesture !== null && last !== undefined && last.gesture === token && last.after === before;
+    if (gesture && !merging) gesture.startEpoch = epoch.value;
     history.value = record(old, step);
     // A gesture that ended where it began leaves no step: keep the original document's identity, and
     // (RULE-19) the change epoch it had, since no undo step was made.
     const dropped = history.value.past.length < old.past.length;
-    const wasExported = exportedEpoch.value === gestureEpoch;
+    const wasExported = gesture !== null && exportedEpoch.value === gesture.startEpoch;
     project.value = dropped ? old.past[old.past.length - 1]!.before : r.project;
     epoch.value++;
     if (dropped && wasExported) exportedEpoch.value = epoch.value;
@@ -100,7 +130,7 @@ export function undo(): void {
   return batch(() => undoNow());
 }
 function undoNow(): void {
-  endGesture();
+  historyCut++;
   const r = undoStep(history.value);
   if (!r) return;
   history.value = r.history;
@@ -112,7 +142,7 @@ export function redo(): void {
   return batch(() => redoNow());
 }
 function redoNow(): void {
-  endGesture();
+  historyCut++;
   const r = redoStep(history.value);
   if (!r) return;
   history.value = r.history;
@@ -125,7 +155,7 @@ export function newProject(): void {
   return batch(() => newProjectNow());
 }
 function newProjectNow(): void {
-  endGesture();
+  historyCut++;
   project.value = EMPTY_PROJECT;
   history.value = EMPTY_HISTORY;
   selection.value = [];

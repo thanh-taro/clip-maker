@@ -1,10 +1,11 @@
 // MOD-Keys — the RULE-20 keyboard map with scopes (specs/40-technical/modules/MOD-Keys.md).
 // Pure core: `scopeOf` says where focus is for a key, `resolveKey` maps a key event in that scope to an
 // action. MOD-App's binder executes actions. Built so far: the playback keys (F-002: Space, Left/Right
-// with Shift, Home/End), Esc, and the arrange keys of F-003 (Delete/Backspace, Mod+D, Alt+Left/Right);
-// the other edit, history, view, file and help keys come with their features and F-017.
-// Implements: RULE-20 Scope, Playback and Edit (delete, duplicate, move), F-017.R5 (a focused control
-// that uses a key gets it), F-003.R6.
+// with Shift, Home/End), Esc, the arrange keys of F-003 (Delete/Backspace, Mod+D, Alt+Left/Right) and the
+// history keys of F-014 (Mod+Z, Mod+Shift+Z, Ctrl+Y); the other edit, view, file and help keys come with
+// their features and F-017.
+// Implements: RULE-20 Scope, Playback, Edit (delete, duplicate, move) and History, F-017.R5 (a focused
+// control that uses a key gets it), F-003.R6, F-014.R1.
 
 /** Where focus is when a key is pressed (MOD-Keys "Responsibility"). */
 export type KeyScope = 'none' | 'field' | 'dialog' | 'control';
@@ -26,7 +27,11 @@ export type Action =
   | 'duplicate'
   /** Alt+Left / Alt+Right: move the selected clip one place earlier / later (F-003.R2). */
   | 'move-earlier'
-  | 'move-later';
+  | 'move-later'
+  /** Mod+Z: undo (F-014.R1). */
+  | 'undo'
+  /** Mod+Shift+Z or Ctrl+Y: redo (F-014.R1). */
+  | 'redo';
 
 /** Mod = Cmd on macOS, else Ctrl (RULE-20). */
 export const isMac = (platform: string): boolean => /mac|iphone|ipad|ipod/i.test(platform);
@@ -114,8 +119,8 @@ export function resolveKey(
 }
 
 /**
- * RULE-20 *Edit* keys of F-003: Delete or Backspace (no modifier), Mod+D, Alt+Left / Alt+Right.
- * Undefined when the key is not one of them (the playback map then decides).
+ * RULE-20 *Edit* keys of F-003 (Delete or Backspace with no modifier, Mod+D, Alt+Left / Alt+Right) and
+ * *History* keys of F-014 (Mod+Z, Mod+Shift+Z, Ctrl+Y). Undefined when the key is not one of them (the playback map then decides).
  */
 function editKey(
   event: Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>,
@@ -125,6 +130,10 @@ function editKey(
   const mod = mac ? metaKey && !ctrlKey : ctrlKey && !metaKey;
   const plain = !metaKey && !ctrlKey && !altKey;
   if ((code === 'Delete' || code === 'Backspace') && plain && !shiftKey) return 'delete';
+  // RULE-20 *History*: Mod+Z undo; Mod+Shift+Z and Ctrl+Y redo. Ctrl+Y is Control on every platform as
+  // written (Cmd+Y keeps the browser's meaning on macOS). A held key repeats, one step per repeat.
+  if (code === 'KeyZ' && mod && !altKey) return shiftKey ? 'redo' : 'undo';
+  if (code === 'KeyY' && ctrlKey && !metaKey && !altKey && !shiftKey) return 'redo';
   if (code === 'KeyD' && mod && !altKey && !shiftKey) return 'duplicate';
   if ((code === 'ArrowLeft' || code === 'ArrowRight') && altKey && !metaKey && !ctrlKey) {
     // Shift+Alt moves a text layer or audio clip by 1 s (F-010, F-011); a clip moves one place only.

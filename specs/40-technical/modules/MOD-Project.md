@@ -18,7 +18,7 @@ New project (RULE-23). Exposes signals for the UI.
 ## Public surface
 - Signals: `project`, `history`, `selection`, `playhead`, `copiedGrade`, `unexported` (computed).
 - Operations: `addMedia(batch)`, `placeSource`, `removeSource`, `trim`, `split`, `move`, `delete`, `duplicate`, `setSpeed`, `setPlacement`, `setGrade`, `setLook`, `setFade`, `setCrossfade`, `crossFadeAvailability` (F-009.R7: available, or the reason), `addText`/`editText`/…, `addAudio`/`moveAudio`/…, `setFrame`, `applyToAll`, `muteOriginal`, `newProject`.
-- `beginGesture(key)` / `endGesture()` for coalescing; `undo()`, `redo()`; `markExported(kind)`.
+- `beginGesture()` → a `Gesture` handle `{ edit(op), end() }` for coalescing: edits through the handle are one step until `end()`; plain `edit(op)` calls meanwhile stay their own steps; undo, redo and New project cut an open gesture (its next edit starts a new step). `undo()`, `redo()`; `markExported(kind)`.
 
 ## Implements
 F-001.R4/R6 (batch step), F-003, F-004, F-005, F-006, F-007.R3/R4, F-008.R2/R5, F-009, F-010.R1–R4/R7, F-011.R2–R4, F-012, F-014, F-018.R2/R3; RULE-13, RULE-19, RULE-23; INV-03, INV-04, INV-06. Decided by ADR-0011.

@@ -1,8 +1,9 @@
 // MOD-App — CMP-Toolbar, empty-project state (specs/30-experience/components/CMP-Toolbar.md).
-// Phase 3.3 skeleton: the buttons and their labels in both languages, with the empty project's
-// unavailable Undo, Redo and Export; the actions are wired in phase 4 (F-001, F-010, F-011, F-014,
-// F-015, F-017, F-018). Labels collapse to icons (compact) and the narrow top bar of D-038 is CSS
-// on the tool's width (layout.css).
+// The buttons and their labels in both languages. Wired so far: Add media (F-001), Undo and Redo
+// (F-014: unavailable when there is nothing to undo or redo, and the RULE-20 history keys); the other
+// actions come with F-010, F-011, F-015, F-017 and F-018. Labels collapse to icons (compact) and the
+// narrow top bar of D-038 is CSS on the tool's width (layout.css).
+import { useEffect } from 'preact/hooks';
 import { t, type MessageId, type MessageParams } from '../copy';
 
 /** COPY action labels that take no parameters. */
@@ -10,6 +11,7 @@ type ActionLabel = {
   [K in MessageId]: K extends `action.${string}` ? (MessageParams[K] extends undefined ? K : never) : never;
 }[MessageId];
 import { needsClip } from './adding';
+import { bindHistoryKeys, historyAvailable, redoEdit, undoEdit } from './history';
 import { Icon, type IconName } from './icons';
 import { addMedia } from './MediaInput';
 
@@ -21,23 +23,34 @@ interface Item {
   readonly labelled?: boolean;
   /** Visible on the narrow top bar (D-038); the rest move into More. */
   readonly narrow?: boolean;
-  /** Unavailable in the empty project (SCR-Editor "Unavailable controls"). */
-  readonly disabled?: boolean;
   readonly primary?: boolean;
 }
+
+/**
+ * Implements: F-014.R1, CMP-Toolbar — Undo and Redo, each unavailable when there is nothing to undo or
+ * redo. Unavailable is `aria-disabled` (announced, legible, and still focusable), so keyboard focus
+ * stays on the button when its last step is used.
+ */
+const HISTORY: Partial<Record<string, { readonly available: () => boolean; readonly run: () => boolean }>> = {
+  undo: { available: () => historyAvailable.value.undo, run: undoEdit },
+  redo: { available: () => historyAvailable.value.redo, run: redoEdit },
+};
 
 const ITEMS: readonly Item[] = [
   { id: 'add-media', label: 'action.add_media', icon: 'addMedia', labelled: true },
   { id: 'music', label: 'action.music', icon: 'music', labelled: true },
   { id: 'add-text', label: 'action.add_text', icon: 'text', labelled: true },
-  { id: 'undo', label: 'action.undo', icon: 'undo', narrow: true, disabled: true },
-  { id: 'redo', label: 'action.redo', icon: 'redo', narrow: true, disabled: true },
+  { id: 'undo', label: 'action.undo', icon: 'undo', narrow: true },
+  { id: 'redo', label: 'action.redo', icon: 'redo', narrow: true },
   { id: 'shortcuts', label: 'action.shortcuts', icon: 'shortcuts' },
   { id: 'new-project', label: 'action.new_project', icon: 'newProject', labelled: true },
 ];
 
 function ToolButton({ item }: { item: Item }) {
   const name = t(item.label);
+  const history = HISTORY[item.id];
+  const unavailable = history ? !history.available() : false;
+  const onClick = history ? () => void history.run() : item.id === 'add-media' ? addMedia : undefined;
   return (
     <button
       type="button"
@@ -50,8 +63,8 @@ function ToolButton({ item }: { item: Item }) {
       data-action={item.id}
       aria-label={item.labelled ? undefined : name}
       title={item.labelled ? undefined : name}
-      disabled={item.disabled}
-      onClick={item.id === 'add-media' ? addMedia : undefined}
+      aria-disabled={unavailable ? 'true' : undefined}
+      onClick={onClick}
     >
       <Icon name={item.icon} size={20} />
       {item.labelled ? <span class="tk-tool__label">{name}</span> : null}
@@ -60,6 +73,7 @@ function ToolButton({ item }: { item: Item }) {
 }
 
 export function Toolbar() {
+  useEffect(() => bindHistoryKeys(), []);
   return (
     <header class="tk-toolbar-region">
       <div class="tk-toolbar" role="toolbar" aria-label={t('toolbar.label')}>

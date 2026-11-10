@@ -55,11 +55,12 @@
     transition: background var(--tk-motion-duration-fast);
   }
 
-  .tk-tool:hover:not(:disabled) {
+  .tk-tool:hover:not(:disabled, [aria-disabled='true']) {
     background: var(--tk-color-surface2);
   }
 
-  .tk-tool:disabled {
+  .tk-tool:disabled,
+  .tk-tool[aria-disabled='true'] {
     color: var(--tk-color-muted);
     cursor: default;
   }

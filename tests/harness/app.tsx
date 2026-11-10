@@ -9,7 +9,11 @@
 //                     until `window.appHarness.release()`, so a test can watch a file being checked
 // `window.appHarness.project()` reads the session's project, `clips()` the main track and the selection
 // (F-003), `setClip()` sets what has no control yet (photo length, speed, look, cross-fade), and `undo()`
-// takes one RULE-13 step back (the Undo button is F-014). `preview()` reads the playback state (F-002),
+// takes one RULE-13 step back (the Undo button is F-014). For F-014's criteria whose controls come later:
+// `split()` splits a clip (F-004), `typeText()` adds a text layer and types it in one editing session
+// (F-010's CMP-TextEditor), `slide()` drags a clip's brightness through values in one movement (F-007's
+// sliders), each through the same MOD-Project operations and gesture API those features use; `state()`
+// is the whole project as JSON (to compare a restored project). `preview()` reads the playback state (F-002),
 // `setPlayhead()` moves MOD-Project's playhead as F-003's timeline will (the playhead binding),
 // `scrub()` measures how soon the preview shows each playhead time (NFR-03), and `feedTone()` gives the
 // audio worker a 440 Hz tone as a source's 48 kHz sound (the clock and worklet path without decoding).
@@ -19,22 +23,28 @@
 // The codec interfaces and WebGL2 are tested on the production build instead, by changing them on the
 // page before it loads (the presence check and the codec probe run on the main thread).
 import '../../src/app/styles/index.css';
-import { queued } from '../../src/app/adding';
+import { nextItemId, queued } from '../../src/app/adding';
 import { main } from '../../src/app/app';
 import { browserDevice, type DeviceDeps, type EffectsRun } from '../../src/app/device';
 import { playback } from '../../src/app/playback';
 import { workers } from '../../src/app/workers';
 import { frameStart, layoutOf, type FromEngine } from '../../src/core';
 import {
+  addText,
+  beginGesture,
   edit,
+  editText,
+  finishText,
   history,
   playhead,
   project,
   selection,
   setCrossFade,
   setLook,
+  setAdjustments,
   setPhotoDuration,
   setSpeed,
+  splitAt,
   undo,
 } from '../../src/project';
 import { analyseTone, makeToneClip, type ToneReport, type ToneSpec } from './sound';
@@ -45,6 +55,7 @@ export interface ProjectSummary {
   readonly clips: readonly { readonly source: string; readonly start: number }[];
   readonly audio: readonly { readonly source: string; readonly start: number; readonly end: number }[];
   readonly steps: number;
+  readonly texts: readonly string[];
 }
 
 /** F-003: the main track as a test reads it (times in seconds). */
@@ -77,6 +88,10 @@ declare global {
       clips(): ClipSummary[];
       setClip(index: number, setup: ClipSetup): void;
       undo(): void;
+      split(index: number, seconds: number): void;
+      typeText(seconds: number, content: string): void;
+      slide(index: number, values: number[]): void;
+      state(): string;
       setPlayhead(seconds: number): void;
       release(): void;
       queued(): number;
@@ -202,6 +217,7 @@ function summary(): ProjectSummary {
       end: (a.start + a.out - a.in) / S,
     })),
     steps: history.value.past.length,
+    texts: p.textLayers.map((t) => t.content),
   };
 }
 
@@ -228,6 +244,32 @@ function setClip(index: number, setup: ClipSetup): void {
   if (setup.speedPct !== undefined) edit((p) => setSpeed(p, id, setup.speedPct!));
   if (setup.look !== undefined) edit((p) => setLook(p, id, { id: setup.look!, intensity: 100 }));
   if (setup.crossFadeTenths !== undefined) edit((p) => setCrossFade(p, id, setup.crossFadeTenths!));
+}
+
+/** F-004's split at a project time inside clip `index` (its control is not built yet). */
+function split(index: number, seconds: number): void {
+  const id = project.peek().clips[index]?.id;
+  if (!id) throw new Error(`no clip ${index}`);
+  edit((p) => splitAt(p, id, Math.round(seconds * S), nextItemId));
+}
+
+/** F-010: Add text at a time, typed character by character, then finished: one editing session. */
+function typeText(seconds: number, content: string): void {
+  const g = beginGesture();
+  g.edit((p) => addText(p, Math.round(seconds * S), nextItemId));
+  const id = project.peek().textLayers.at(-1)!.id;
+  for (let i = 1; i <= content.length; i++) g.edit((p) => editText(p, id, content.slice(0, i)));
+  g.edit((p) => finishText(p, id));
+  g.end();
+}
+
+/** F-007: one brightness slider movement through `values`. */
+function slide(index: number, values: number[]): void {
+  const id = project.peek().clips[index]?.id;
+  if (!id) throw new Error(`no clip ${index}`);
+  const g = beginGesture();
+  for (const v of values) g.edit((p) => setAdjustments(p, id, { brightness: v }));
+  g.end();
 }
 
 function previewSummary(): PreviewSummary {
@@ -286,6 +328,10 @@ window.appHarness = {
   clips: clipsSummary,
   setClip,
   undo,
+  split,
+  typeText,
+  slide,
+  state: () => JSON.stringify(project.peek()),
   setPlayhead: (seconds) => (playhead.value = Math.round(seconds * S)),
   release: () => held.splice(0).forEach((f) => f()),
   queued: () => queued.value,

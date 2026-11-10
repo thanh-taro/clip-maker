@@ -15,7 +15,6 @@ import {
   beginGesture,
   canUndo,
   edit,
-  endGesture,
   finishText,
   markExported,
   newProject,
@@ -72,20 +71,20 @@ describe('review E1 fixes', () => {
   it('RULE-19 an editing session that leaves no undo step does not mark the project unexported', () => {
     load(proj({ clips: [video('A', 10)] }));
     markExported('video');
-    beginGesture();
-    edit((p) => addText(p, 0, nextId));
-    edit((p) => finishText(p, p.textLayers[0]!.id));
-    endGesture();
+    const g = beginGesture();
+    g.edit((p) => addText(p, 0, nextId));
+    g.edit((p) => finishText(p, p.textLayers[0]!.id));
+    g.end();
     expect(unexported.value).toBe(false);
   });
 
   it('RULE-13 a slider dragged away and back to its start value records no step', () => {
     load(proj({ clips: [video('A', 10, { adjustments: { brightness: 10 } })] }));
     const before = project.value;
-    beginGesture();
-    edit((p) => setAdjustments(p, 'A', { brightness: 30 }));
-    edit((p) => setAdjustments(p, 'A', { brightness: 10 }));
-    endGesture();
+    const g = beginGesture();
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 30 }));
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 10 }));
+    g.end();
     expect(project.value).toBe(before);
     expect(canUndo.value).toBe(true); // only the load step
   });
