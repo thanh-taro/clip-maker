@@ -1,6 +1,7 @@
 // INV-05 / F-022.R4 — the UI language never reaches an export. Every module on the export path (the
 // export workers and what MOD-App hands them) is walked through its relative imports; none may reach
 // MOD-Copy or read the page language, so the bytes and the file name can't depend on it.
+// A structural guard only: F-022 criterion 4 (two real exports compared) stays open until F-015 (build Q68).
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { language } from '../../src/copy';
@@ -20,8 +21,9 @@ function resolve(from: URL, spec: string): URL | null {
   return null;
 }
 
+/** Static imports and re-exports, side-effect imports, dynamic `import('./x')`, and worker URLs. */
 const IMPORT =
-  /(?:import|export)[^'"]*?from\s*['"](\.{1,2}\/[^'"]+)['"]|import\s*['"](\.{1,2}\/[^'"]+)['"]|new URL\(\s*['"](\.{1,2}\/[^'"]+)['"]/g;
+  /(?:import|export)[^'"]*?from\s*['"](\.{1,2}\/[^'"]+)['"]|import\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]|new URL\(\s*['"](\.{1,2}\/[^'"]+)['"]/g;
 
 /** Every source file reachable from `entries` through relative imports, relative to src/. */
 function reachable(entries: readonly string[]): Map<string, string> {
@@ -42,21 +44,28 @@ function reachable(entries: readonly string[]): Map<string, string> {
 }
 
 const LANGUAGE_READS =
-  /navigator\.languages?\b|documentElement\.lang\b|Intl\.(?:NumberFormat|DateTimeFormat|PluralRules|DurationFormat)|toLocale(?:String|DateString|TimeString)\(/;
+  /navigator\.languages?\b|documentElement\.lang\b|Intl\.(?:NumberFormat|DateTimeFormat|PluralRules|DurationFormat|Collator|ListFormat|RelativeTimeFormat|Segmenter|DisplayNames)|toLocale(?:String|DateString|TimeString)\(/;
+/**
+ * The one allowed use: grapheme segmentation (MOD-Core's text character count, RULE-11). Unicode's
+ * extended grapheme clusters are not tailored by language, and MOD-Core never passes the UI language.
+ */
+const LANGUAGE_NEUTRAL = /new Intl\.Segmenter\(\s*undefined\s*,\s*\{\s*granularity:\s*'grapheme'\s*\}\s*\)/g;
 
 afterEach(() => {
   language.value = 'en-US';
 });
 
 describe('INV-05 the language never changes an export', () => {
-  it('F-022.AC4 no module on the export path imports MOD-Copy or reads the page language', () => {
+  it('F-022.R4 INV-05 no module on the export path imports MOD-Copy or reads the page language', () => {
     const files = reachable(ENTRIES);
     expect(files.has('export/pipeline.ts')).toBe(true);
-    const offending = [...files].filter(([rel, src]) => rel.startsWith('copy/') || LANGUAGE_READS.test(src));
+    const offending = [...files].filter(
+      ([rel, src]) => rel.startsWith('copy/') || LANGUAGE_READS.test(src.replace(LANGUAGE_NEUTRAL, '')),
+    );
     expect(offending.map(([rel]) => rel)).toEqual([]);
   });
 
-  it('F-022.AC4 the export file name is the same in every language', () => {
+  it('F-022.R4 INV-05 the export file name is the same in every language', () => {
     const at = new Date(2026, 10, 10, 9, 5, 7);
     const names = () => ['mp4', 'webm', 'gif', 'm4a', 'wav'].map((ext) => exportFileName(at, ext));
     language.value = 'en-US';

@@ -53,6 +53,12 @@ export function translate<K extends MessageId>(lang: Language, id: K, ...args: A
  * One catalog text in `lang` with its placeholders filled. Plural forms (`one: … · other: …` in
  * copy.md) are chosen by `{count}` with Intl.PluralRules, so vi-VN, which has one form, never changes;
  * number values are written the language's way (F-022.R5, AC7).
+ *
+ * Only quantities (counts, sizes, rates, percentages) are passed as numbers, because every number is
+ * grouped and given the language's decimal mark. Labels that look numeric but are technical names stay
+ * strings: resolution labels (`1080p`), aspect ratios (`9:16`), durations from `formatDuration` and
+ * sizes already written by `formatMB` are passed as strings so they are never regrouped (vi-VN would
+ * turn a number 1080 into `1.080`).
  */
 export function formatText(
   lang: Language,
@@ -83,11 +89,14 @@ type DurationFormatCtor = new (lang: string, options: Record<string, string>) =>
 
 /**
  * A duration or time position as `m:ss` (`h:mm:ss` from an hour, never reached under RULE-03's
- * 10 minutes), in whole seconds rounded down, written for `lang` (F-022.AC7 `1:05`). Uses
+ * 10 minutes), in whole seconds rounded down, written for `lang` (F-022.AC7 `1:05`). A negative or
+ * non-finite value (NaN, Infinity) reads `0:00`. Uses
  * Intl.DurationFormat where present, else the same digits through Intl.NumberFormat (ADR-0002 §3).
  */
 export function formatDuration(micros: number, lang: Language = language.value): string {
-  const total = Math.max(0, Math.floor(micros / SECOND_US + 1e-9));
+  // Some recordings (WebM from MediaRecorder) report an unknown length as Infinity, or NaN.
+  if (!Number.isFinite(micros) || micros < 0) micros = 0;
+  const total = Math.floor(micros / SECOND_US + 1e-9);
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;

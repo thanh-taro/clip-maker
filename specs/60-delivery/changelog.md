@@ -2,6 +2,10 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-10 — F-022 building
+- F-022 set to `building` (phase 4, wave 2); it stays `building` until F-001, F-002, F-010, F-014 and F-015 let AC2, AC4's export comparison, AC6's later panels and AC8 run (build question 68).
+- copy.md: COPY-notice.added and COPY-notice.applied_all gain en-US plural forms (`one: … · other: …`; vi-VN unchanged), and F-022.AC7's count example now uses COPY-notice.added (`Added 1 file` / `Added 3 files`) instead of a bare clip count (build question 67, decided).
+
 ## 2026-11-10 — F-021 building
 - F-021 set to `building` (phase 4, wave 2); it stays `building` until F-001, F-008, F-010, F-011 and F-015 let AC1/AC2 run through the editor (build question 63).
 - MOD-Host gains "Offline cache": one cache per version, hash-checked precache, prune on activate only with a complete copy; refines ADR-0015's "prune old assets on navigation" (build question 65).

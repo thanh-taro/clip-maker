@@ -61,16 +61,28 @@ describe('MOD-Copy formatting', () => {
     }
   });
 
-  it('F-022.AC7 a clip count reads 1 clip and 3 clips in en-US, with no plural change in vi-VN', () => {
-    // No COPY string shows a bare clip count yet (build-spec-questions Q67); this checks the plural
-    // mechanism every `one: … · other: …` COPY text goes through.
-    const en = { one: '{count} clip', other: '{count} clips' };
-    const vi = { other: '{count} clip' };
-    expect(formatText('en-US', en, { count: 1 })).toBe('1 clip');
-    expect(formatText('en-US', en, { count: 3 })).toBe('3 clips');
-    expect(formatText('vi-VN', vi, { count: 1 })).toBe('1 clip');
-    expect(formatText('vi-VN', vi, { count: 3 })).toBe('3 clip');
-    expect(formatText('en-US', en, { count: 1234 })).toBe('1,234 clips');
-    expect(formatText('vi-VN', vi, { count: 1234 })).toBe('1.234 clip');
+  it('F-022.R5 an unknown, infinite or negative duration reads 0:00', () => {
+    // WebM recordings can report their length as Infinity.
+    for (const v of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1])
+      for (const lang of ['en-US', 'vi-VN'] as const) expect(formatDuration(v, lang)).toBe('0:00');
+  });
+
+  it('F-022.AC7 COPY-notice.added reads Added 1 file and Added 3 files in en-US, with no plural change in vi-VN', () => {
+    expect(translate('en-US', 'notice.added', { count: 1 })).toBe('Added 1 file');
+    expect(translate('en-US', 'notice.added', { count: 3 })).toBe('Added 3 files');
+    expect(translate('vi-VN', 'notice.added', { count: 1 })).toBe('Đã thêm 1 tệp');
+    expect(translate('vi-VN', 'notice.added', { count: 3 })).toBe('Đã thêm 3 tệp');
+    expect(translate('en-US', 'notice.applied_all', { count: 1 })).toBe('Applied to 1 clip');
+    expect(translate('en-US', 'notice.applied_all', { count: 3 })).toBe('Applied to all 3 clips');
+    expect(translate('vi-VN', 'notice.applied_all', { count: 1 })).toBe('Đã áp dụng cho cả 1 clip');
+    // Counts are numbers, grouped the language's way.
+    expect(translate('en-US', 'notice.added', { count: 1234 })).toBe('Added 1,234 files');
+    expect(translate('vi-VN', 'notice.added', { count: 1234 })).toBe('Đã thêm 1.234 tệp');
+  });
+
+  it('F-022.R5 formatText picks a plural form by {count}; technical labels stay strings', () => {
+    expect(formatText('en-US', { one: '{count} clip', other: '{count} clips' }, { count: 1 })).toBe('1 clip');
+    expect(formatText('vi-VN', { other: '{count} clip' }, { count: 1 })).toBe('1 clip');
+    expect(formatText('vi-VN', '{res} · {rate} fps', { res: '1080p', rate: 30 })).toBe('1080p · 30 fps');
   });
 });

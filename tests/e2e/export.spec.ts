@@ -319,31 +319,32 @@ test.describe('MOD-Scratch and cancel', () => {
     await close();
   });
 
-  test('F-015.AC7 ADR-0010 outcome item 6 after a successful export the scratch file is kept 10 s after the hand-over, then deleted', async ({
-    page: first,
-    browserName,
-    playwright,
-  }) => {
-    test.setTimeout(120_000);
-    const { page, close } = await storagePage(browserName, playwright.webkit, first);
-    const r = await exportVideo(page, 30, false);
-    expect(r.result.ok).toBe(true);
-    const sink = r.result.ok ? r.result.stats.sink : null;
-    if (sink !== 'scratch') {
+  // Wall-clock (8 s / 10.8 s windows): it flaked under parallel load, so it runs in check:realtime.
+  test(
+    'F-015.AC7 ADR-0010 outcome item 6 after a successful export the scratch file is kept 10 s after the hand-over, then deleted',
+    { tag: '@realtime' },
+    async ({ page: first, browserName, playwright }) => {
+      test.setTimeout(120_000);
+      const { page, close } = await storagePage(browserName, playwright.webkit, first);
+      const r = await exportVideo(page, 30, false);
+      expect(r.result.ok).toBe(true);
+      const sink = r.result.ok ? r.result.stats.sink : null;
+      if (sink !== 'scratch') {
+        await close();
+        test.skip(
+          true,
+          'no synchronous access handle in this Playwright engine (memory fallback, ADR-0010 outcome item 5)',
+        );
+      }
+      expect(r.namesAfter).toContain(r.scratchFile);
+      await page.waitForTimeout(8_000);
+      expect(await page.evaluate(() => window.harness.export.scratchNames())).toContain(r.scratchFile);
+      await page.waitForTimeout(2_800);
+      expect(await page.evaluate(() => window.harness.export.scratchNames())).not.toContain(r.scratchFile);
+      expect(await page.evaluate(() => window.harness.export.pending())).toEqual([]);
       await close();
-      test.skip(
-        true,
-        'no synchronous access handle in this Playwright engine (memory fallback, ADR-0010 outcome item 5)',
-      );
-    }
-    expect(r.namesAfter).toContain(r.scratchFile);
-    await page.waitForTimeout(8_000);
-    expect(await page.evaluate(() => window.harness.export.scratchNames())).toContain(r.scratchFile);
-    await page.waitForTimeout(2_800);
-    expect(await page.evaluate(() => window.harness.export.scratchNames())).not.toContain(r.scratchFile);
-    expect(await page.evaluate(() => window.harness.export.pending())).toEqual([]);
-    await close();
-  });
+    },
+  );
 
   test('F-015.AC14 the start-up sweep removes an abandoned session’s files and keeps a live tab’s', async ({
     page: first,

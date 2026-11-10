@@ -36,7 +36,7 @@ The portal speaks English and Vietnamese, and many short-form creators work in V
 - **AC4** Given the same project, when exported in each language, then both files use the same format, settings, metadata and name pattern, contain no language-dependent text, and their decoded frames and sound match within NFR-08. (R4)
 - **AC5** Given vi-VN, when an estimated size of 1234.5 MB shows, then it reads `1.234,5 MB`. (R5)
 - **AC6** Given vi-VN at 320 px, when every panel is shown, then no label is clipped and there is no horizontal scrolling. (R6)
-- **AC7** Given en-US, when a 1-minute-5-second duration and one clip count show, then they read `1:05` and `1 clip`; with 3 clips, `3 clips`; in vi-VN the count has no plural change. (R5)
+- **AC7** Given en-US, when a 1-minute-5-second duration and COPY-notice.added for one file show, then they read `1:05` and `Added 1 file`; for 3 files, `Added 3 files`; in vi-VN the count has no plural change (`Đã thêm 1 tệp`, `Đã thêm 3 tệp`). (R5)
 - **AC8** Given an export running in vi-VN, when the host switches to en-US, then only the progress text changes language and the export continues unchanged; an open dialog or a text being edited keeps its state. (R2)
 
 ## UX notes
