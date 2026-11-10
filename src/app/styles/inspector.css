@@ -201,7 +201,7 @@
   }
 
   .tk-frame-fields--touch .tk-options--swatches {
-    grid-template-columns: repeat(6, var(--tk-size-touch-target));
+    grid-template-columns: repeat(auto-fill, var(--tk-size-touch-target));
   }
 
   .tk-frame-fields--touch .tk-swatch {
@@ -215,7 +215,7 @@
       block-size: var(--tk-size-touch-target);
     }
     .tk-options--swatches {
-      grid-template-columns: repeat(6, var(--tk-size-touch-target));
+      grid-template-columns: repeat(auto-fill, var(--tk-size-touch-target));
     }
     .tk-swatch {
       inline-size: var(--tk-size-touch-target);
@@ -234,6 +234,14 @@
     margin: 0;
     font-size: var(--tk-font-size-sm);
     font-weight: var(--tk-font-weight-bold);
+  }
+
+  /* Compact layouts with the media drawer open: the drawer and the docked inspector together would leave
+     the preview too narrow, so the inspector steps aside until the drawer closes (build question 111). */
+  @container tk-editor (width < 1000px) {
+    .tk-editor[data-panel='open'] > .tk-inspector {
+      display: none;
+    }
   }
 
   @container tk-editor (width < 700px) {

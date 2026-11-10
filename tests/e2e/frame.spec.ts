@@ -22,6 +22,7 @@ type Point = readonly [number, number];
 interface Harness {
   appHarness: {
     frame(): { aspect: string; frameRate: number; background: string; frameRateChosen?: boolean };
+    project(): { steps: number };
     load(json: string): void;
     frames(): number[];
     clips(): ClipSummary[];
@@ -230,18 +231,23 @@ test.describe('F-012 set the frame (app harness)', () => {
   }) => {
     await open(page);
     await add(page, [await widePhoto(page)]);
+    const steps = async () => (await page.evaluate(() => (window as unknown as Harness).appHarness.project())).steps;
+    const added = await steps();
     await radio(page, 'frame.aspect', '9:16').click();
+    expect(await steps()).toBe(added + 1);
     const state = () =>
       page.evaluate(() => (window as unknown as { appHarness: { state(): string } }).appHarness.state());
     const before = await state();
     await radio(page, 'frame.aspect', '1:1').click();
     expect((await frameOf(page)).aspect).toBe('1:1');
+    expect(await steps()).toBe(added + 2);
     await expect.poll(() => shape(page)).toBeCloseTo(1, 1);
     await page
       .getByRole('toolbar', { name: text('en-US', 'toolbar.label') })
       .getByRole('button', { name: text('en-US', 'action.undo'), exact: true })
       .click();
     expect(await state()).toBe(before);
+    expect(await steps()).toBe(added + 1);
     await expect(radio(page, 'frame.aspect', '9:16')).toHaveAttribute('aria-checked', 'true');
     await expect.poll(() => shape(page)).toBeCloseTo(9 / 16, 1);
   });
@@ -335,6 +341,76 @@ test.describe('F-012 set the frame (app harness)', () => {
     await expect(page.getByRole('radiogroup', { name: text('en-US', 'frame.aspect') })).toHaveCount(0);
   });
 
+  test('RULE-04 F-012.R2 clicking the rate already shown chooses it: a 60 fps video added later keeps 30 fps', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await open(page);
+    const thirty = radio(page, 'frame.rate', '30');
+    await expect(thirty).toHaveAttribute('aria-checked', 'true');
+    await thirty.click();
+    expect(await frameOf(page)).toMatchObject({ frameRate: 30, frameRateChosen: true });
+    const bytes = await page.evaluate(() => (window as unknown as Harness).appHarness.codedClip(60, 60));
+    await add(page, [{ name: 'sixty.mp4', mimeType: 'video/mp4', buffer: Buffer.from(bytes) }]);
+    expect((await frameOf(page)).frameRate).toBe(30);
+  });
+
+  test('CMP-Inspector focus moves to the panel heading when the frame section holding it goes (redo selects a clip)', async ({
+    page,
+    browserName,
+  }) => {
+    await open(page);
+    await add(page, [await widePhoto(page)]);
+    const tl = page.getByRole('region', { name: text('en-US', 'timeline.label') });
+    await tl
+      .getByRole('button', { name: /^wide\.png / })
+      .first()
+      .click();
+    await tl
+      .getByRole('toolbar')
+      .getByRole('button', { name: text('en-US', 'action.duplicate') })
+      .click();
+    const undoRedo = page.getByRole('toolbar', { name: text('en-US', 'toolbar.label') });
+    // Undo the duplicate: its copy is gone, so nothing is selected and the frame section shows.
+    await undoRedo.getByRole('button', { name: text('en-US', 'action.undo'), exact: true }).click();
+    const one = radio(page, 'frame.aspect', '1:1');
+    await one.focus();
+    // Redo from the keyboard while a frame radio has focus: RULE-13 selects the copy.
+    await page.keyboard.press(browserName === 'webkit' ? 'Meta+Shift+KeyZ' : 'ControlOrMeta+Shift+KeyZ');
+    const heading = page
+      .getByRole('complementary', { name: text('en-US', 'inspector.label') })
+      .getByRole('heading', { name: text('en-US', 'inspector.label') });
+    await expect(heading).toBeFocused();
+  });
+
+  test('SCR-Editor compact with the media drawer open: the inspector steps aside and the preview and transport stay in the preview area', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 700, height: 500 });
+    await open(page, 'vi-VN');
+    const chooser = page.waitForEvent('filechooser');
+    await page
+      .locator('.tk-empty')
+      .getByRole('button', { name: text('vi-VN', 'action.add_media') })
+      .click();
+    await (await chooser).setFiles([await widePhoto(page)]);
+    await expect.poll(async () => (await clipsOf(page)).length, { timeout: 20_000 }).toBe(1);
+    await expect(page.locator('.tk-media')).toBeVisible();
+    await expect(page.locator('.tk-inspector')).toBeHidden();
+    const area = (await page.locator('.tk-preview-area').boundingBox())!;
+    for (const sel of ['.tk-frame canvas', '.tk-transport']) {
+      const b = (await page.locator(sel).boundingBox())!;
+      expect(b.x, sel).toBeGreaterThanOrEqual(area.x - 0.5);
+      expect(b.x + b.width, sel).toBeLessThanOrEqual(area.x + area.width + 0.5);
+    }
+    // Closing the drawer brings the inspector back.
+    await page
+      .locator('.tk-media')
+      .getByRole('button', { name: text('vi-VN', 'action.close') })
+      .click();
+    await expect(page.locator('.tk-inspector')).toBeVisible();
+  });
+
   for (const lang of ['en-US', 'vi-VN'] as const) {
     test(`NFR-06 the frame section passes axe at 1280 px (${lang})`, async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 800 });
@@ -424,5 +500,27 @@ test.describe('F-012 the frame in export (media harness)', () => {
       expect(near(r.painted[i]!, YELLOW, 4), `paint ${points[i]} ${r.painted[i]}`).toBe(true);
     }
     expect(near(r.exported[4]!, YELLOW, 40)).toBe(false);
+  });
+});
+
+test.describe('F-012 the frame section with a coarse pointer (compact)', () => {
+  test.use({ hasTouch: true, viewport: { width: 800, height: 700 } });
+
+  test('RULE-21 touch-size options and swatches fit the docked inspector without overflow', async ({ page }) => {
+    await open(page);
+    const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+    test.skip(!coarse, 'this engine does not report a coarse pointer with touch emulation');
+    for (const g of await inspector(page).getByRole('radiogroup').all()) {
+      const { scroll, client } = await g.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+      expect(scroll, (await g.getAttribute('aria-labelledby')) ?? '').toBeLessThanOrEqual(client);
+      const box = (await g.boundingBox())!;
+      const body = (await page.locator('.tk-inspector__body').boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(body.x + body.width);
+      for (const r of await g.getByRole('radio').all()) {
+        const b = (await r.boundingBox())!;
+        expect(b.height).toBeGreaterThanOrEqual(44);
+        expect(b.x + b.width).toBeLessThanOrEqual(body.x + body.width);
+      }
+    }
   });
 });

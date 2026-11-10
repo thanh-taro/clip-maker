@@ -8,13 +8,14 @@ import {
   chooseAspect,
   chooseBackground,
   chooseRate,
+  frameSectionShown,
   frameSettings,
   RATE_CHOICES,
 } from '../../src/app/frame';
 import { notices, resetNotices } from '../../src/app/notice-stack';
 import { DEFAULT_PLACEMENT, layoutOf, PALETTE, projectEnd, snapToFrame, type Project } from '../../src/core';
-import { canUndo, edit, history, newProject, project, undo } from '../../src/project';
-import { S, audio, photo, proj, text, video } from '../support/project';
+import { addMedia, canUndo, edit, history, newProject, project, selection, undo } from '../../src/project';
+import { S, audio, photo, proj, text, video, videoSource } from '../support/project';
 
 const load = (p: Project) => {
   newProject();
@@ -132,5 +133,30 @@ describe('F-012 the frame section (MOD-App)', () => {
     expect(project.value).toBe(before);
     expect(steps()).toBe(n);
     expect(notices.value.map((x) => x.tag)).toEqual(['length_full']);
+  });
+
+  it('RULE-04 F-012.R2 picking the rate already shown, before any rate was chosen, is a choice: a later 60 fps video keeps it', () => {
+    const n = steps();
+    expect(project.value.frame.frameRateChosen).toBeFalsy();
+    expect(chooseRate(30)).toBe(true);
+    expect(project.value.frame).toMatchObject({ frameRate: 30, frameRateChosen: true });
+    expect(steps()).toBe(n + 1);
+    // Picking it again changes nothing more.
+    expect(chooseRate(30)).toBe(false);
+    edit((p) => addMedia(p, [videoSource('v', 4, { frameRate: 60 })], 0, () => 'c1'));
+    expect(project.value.frame.frameRate).toBe(30);
+  });
+
+  it('CMP-Inspector the frame section shows unless a main-track clip is selected (a selected audio clip or text layer has no section yet)', () => {
+    load(proj({ clips: [video('A', 4)], textLayers: [text('T', 0, 1)], audioClips: [audio('M', 0, 2)] }));
+    expect(frameSectionShown.value).toBe(true);
+    selection.value = ['M'];
+    expect(frameSectionShown.value).toBe(true);
+    selection.value = ['T'];
+    expect(frameSectionShown.value).toBe(true);
+    selection.value = ['A'];
+    expect(frameSectionShown.value).toBe(false);
+    selection.value = [];
+    expect(frameSectionShown.value).toBe(true);
   });
 });

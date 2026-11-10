@@ -18,7 +18,8 @@ import { layoutOf, frameStart } from '../core';
 import { project } from '../project';
 import { selectedClip } from './arrange';
 import { Icon } from './icons';
-import { FrameSection } from './Inspector';
+import { frameSectionShown } from './frame';
+import { FrameSection, useKeepFocus } from './Inspector';
 import { addMedia } from './MediaInput';
 import { ARRANGE_ITEMS } from './Timeline';
 
@@ -73,6 +74,9 @@ function SelectionMeta() {
 export function EditSheet() {
   const open = openSheet.value === 'edit';
   const ref = useRef<HTMLElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
+  const frame = frameSectionShown.value;
+  useKeepFocus(ref, title, frame);
   // Esc in the sheet closes it and returns focus to its tab.
   useEffect(() => {
     if (!open) return undefined;
@@ -96,7 +100,9 @@ export function EditSheet() {
       <span class="tk-sheet__grabber" aria-hidden="true" />
       <div class="tk-sheet__body">
         <header class="tk-sheet__head">
-          <h2 class="tk-sheet__title">{clip ? t('inspector.label') : t('inspector.edit')}</h2>
+          <h2 ref={title} class="tk-sheet__title" tabIndex={-1}>
+            {clip ? t('inspector.label') : t('inspector.edit')}
+          </h2>
           <SelectionMeta />
         </header>
         <button
@@ -108,14 +114,14 @@ export function EditSheet() {
           <Icon name="addMedia" size={16} />
           {t('action.add_media')}
         </button>
-        {clip ? null : (
+        {frame ? (
           <section class="tk-sheet__section" aria-labelledby={FRAME_HEAD_ID}>
             <h3 class="tk-sheet__section-title" id={FRAME_HEAD_ID}>
               {t('inspector.frame')}
             </h3>
             <FrameSection id="tk-sheet-frame" touch />
           </section>
-        )}
+        ) : null}
         <div class="tk-sheet__grid">
           {tiles.map((item) => {
             const available = item.available();

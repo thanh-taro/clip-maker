@@ -14,13 +14,15 @@
 // colour names).
 import { t } from '../copy';
 import type { Frame, FrameRate } from '../core';
-import { selection } from '../project';
+import type { RefObject } from 'preact';
+import { useEffect, useRef } from 'preact/hooks';
 import {
   ASPECT_CHOICES,
   BACKGROUND_CHOICES,
   chooseAspect,
   chooseBackground,
   chooseRate,
+  frameSectionShown,
   frameSettings,
   RATE_CHOICES,
 } from './frame';
@@ -76,17 +78,35 @@ export function FrameSection({ id, touch = false }: { readonly id: string; reado
 
 const HEAD_ID = 'tk-inspector-title';
 
+/**
+ * CMP-Inspector "Accessibility": when the section holding focus goes away (the frame section when an
+ * undo or redo selects a clip), focus moves to `fallback` (the panel's heading) instead of the page.
+ * Whether focus was inside is noted while rendering, before the DOM changes.
+ */
+export function useKeepFocus(container: RefObject<HTMLElement>, fallback: RefObject<HTMLElement>, key: unknown): void {
+  const had = useRef(false);
+  had.current = container.current?.contains(document.activeElement) ?? false;
+  useEffect(() => {
+    if (!had.current) return;
+    if (!container.current?.contains(document.activeElement)) fallback.current?.focus();
+    // Runs when the shown section changes.
+  }, [key]);
+}
+
 /** CMP-Inspector on wide and compact layouts (hidden on narrow layouts by CSS). */
 export function Inspector() {
-  const selected = selection.value.length > 0;
+  const frame = frameSectionShown.value;
+  const panel = useRef<HTMLElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useKeepFocus(panel, heading, frame);
   return (
-    <aside class="tk-inspector" aria-labelledby={HEAD_ID} data-section={selected ? 'selection' : 'frame'}>
+    <aside ref={panel} class="tk-inspector" aria-labelledby={HEAD_ID} data-section={frame ? 'frame' : 'selection'}>
       <header class="tk-inspector__head">
-        <h2 class="tk-inspector__title" id={HEAD_ID}>
-          {selected ? t('inspector.label') : t('inspector.frame')}
+        <h2 ref={heading} class="tk-inspector__title" id={HEAD_ID} tabIndex={-1}>
+          {frame ? t('inspector.frame') : t('inspector.label')}
         </h2>
       </header>
-      <div class="tk-inspector__body">{selected ? null : <FrameSection id="tk-inspector" />}</div>
+      <div class="tk-inspector__body">{frame ? <FrameSection id="tk-inspector" /> : null}</div>
     </aside>
   );
 }

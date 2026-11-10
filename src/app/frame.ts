@@ -8,6 +8,7 @@ import { computed } from '@preact/signals';
 import { PALETTE, RULE_04, type Frame, type FrameRate } from '../core';
 import { edit, project, setAspect, setBackground, setFrameRate, type EditResult } from '../project';
 import { showResultNotices } from './adding';
+import { selectedClip } from './arrange';
 
 /** F-012.R1: 9:16, 1:1, 4:5, 16:9, then Original (CMP-Inspector "Frame"). */
 export const ASPECT_CHOICES: readonly Frame['aspect'][] = RULE_04.aspects;
@@ -18,6 +19,14 @@ export const BACKGROUND_CHOICES: readonly Frame['background'][] = [...PALETTE, '
 
 /** The session's frame settings. */
 export const frameSettings = computed(() => project.value.frame);
+
+/**
+ * CMP-Inspector and the narrow Edit sheet show the frame section when nothing selected has an inspector
+ * section yet. Only main-track clips will have one first (F-005–F-008), so a selected audio clip or
+ * text layer (e.g. after RULE-13 undo or redo) still shows the frame. Widen this as the text layer's
+ * and audio clip's sections arrive (build question 106).
+ */
+export const frameSectionShown = computed(() => selectedClip.value === null);
 
 /** One edit with its notices; true when the project changed. */
 function commit(op: (p: typeof project.value) => EditResult): boolean {
@@ -31,7 +40,11 @@ export function chooseAspect(aspect: Frame['aspect']): boolean {
   return commit((p) => setAspect(p, aspect));
 }
 
-/** F-012.R2: the frame rate; times move to frame starts, RULE-03 may shorten the last clip or refuse. */
+/**
+ * F-012.R2: the frame rate; times move to frame starts, RULE-03 may shorten the last clip or refuse.
+ * Picking the rate already shown is still a choice (RULE-04 "until the user chooses a rate"): while no
+ * rate was chosen it is one step that only marks the rate chosen (build question 110).
+ */
 export function chooseRate(rate: FrameRate): boolean {
   return commit((p) => setFrameRate(p, rate));
 }

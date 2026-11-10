@@ -2,7 +2,8 @@
 // segments (aspect, frame rate; later Fit/Fill, text style, alignment) or colour swatches with a chip
 // (background; later text colour). One radio is in the tab order (the chosen one); the arrows move the
 // choice and focus along the group, wrapping, as the ARIA radio group pattern does (MOD-Keys leaves a
-// focused radio its arrows, RULE-20). Picking the chosen option again does nothing.
+// focused radio its arrows, RULE-20). A click always reports the pick, even of the chosen option (the
+// action decides whether that changes anything: a frame rate not yet chosen becomes chosen, F-012).
 // Implements: CMP-Inspector "Accessibility" (radio groups; swatches named by colour).
 import { useRef } from 'preact/hooks';
 
@@ -73,9 +74,7 @@ export function OptionGroup<T>({
               class={o.swatch ? 'tk-swatch' : 'tk-option'}
               data-value={o.key}
               aria-label={o.swatch ? o.label : undefined}
-              onClick={() => {
-                if (o.value !== value) onChoose(o.value);
-              }}
+              onClick={() => onChoose(o.value)}
               onKeyDown={(e) => onKey(e, i)}
             >
               {o.swatch ? <span class="tk-swatch__dot" aria-hidden="true" /> : o.label}
