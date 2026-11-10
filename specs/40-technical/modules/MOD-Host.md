@@ -19,6 +19,20 @@ Evidence: SP-frame, SP-ios (ADR-0014 outcome).
   grants `share` to Clip Maker (taro-kit `content/tools/clip-maker.yaml`, commit 4c4ae94); another host
   frame may not, and then Share is hidden.
 
+### Offline cache (F-021; refines ADR-0015, decided 2026-11-10)
+ADR-0015's design, with these details (they refine its "prune old assets on navigation"):
+- **One cache per version**, `clip-maker-offline-<version>`. The build sets the asset manifest's
+  `version` to a hash of its file list and stamps it into `/sw.js`, so any changed file gives the
+  browser a new worker.
+- **Hash check.** The install stores each manifest file only if its bytes match the manifest hash
+  (files unchanged since an older version are reused from that version's cache); the manifest is stored
+  last and marks a complete copy. At the end the install re-checks that its cache still exists and is
+  complete, or fails and is retried on the next online open. The tool's host must not rewrite HTML or
+  scripts (docs/deploy/offline-checks.md).
+- **Prune on activate.** Older versions' caches are deleted when a new version activates (after every
+  tab of the old one has closed, so at a navigation), and only if the new version's own copy is
+  complete.
+
 ## Not responsible for
 - Strings (MOD-Copy), assets (MOD-Assets).
 

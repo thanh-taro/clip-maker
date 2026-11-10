@@ -2,6 +2,10 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-10 — F-021 building
+- F-021 set to `building` (phase 4, wave 2); it stays `building` until F-001, F-008, F-010, F-011 and F-015 let AC1/AC2 run through the editor (build question 63).
+- MOD-Host gains "Offline cache": one cache per version, hash-checked precache, prune on activate only with a complete copy; refines ADR-0015's "prune old assets on navigation" (build question 65).
+
 ## 2026-11-10 — Wave 1 review decisions (owner, 2026-11-05)
 - F-019.R6 / MOD-Host: on the first focus, an empty project focuses Add media; with content no control is focused (build question 47).
 - RULE-03: a frame-rate change the last clip can't absorb, or that would take a clip with an unknown source end below the minimum, is refused with COPY-notice.length_full (build question 51).

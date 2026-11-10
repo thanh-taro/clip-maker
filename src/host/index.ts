@@ -12,6 +12,7 @@ export { matchLanguage, resolveLanguage } from './language';
 export { acceptSettings, READY_MESSAGE, readyTarget } from './messages';
 export type { Settings, Theme } from './messages';
 export { canShareFile, type ShareNavigator } from './share';
+export { registerOffline, SW_URL, type OfflineDeps } from './offline';
 
 /** The compiled-in allow-list of host origins (HOST_ORIGINS, vite.config.ts; RULE-17, NFR-09). */
 export const HOST_ORIGINS: readonly string[] = __HOST_ORIGINS__;
@@ -96,9 +97,4 @@ export function initHost(focusFirst?: () => HTMLElement | null): void {
   // Implements: RULE-17 / INV-08 — one ready signal, no content, to the parent's origin only.
   const target = readyTarget(location.ancestorOrigins?.[0], document.referrer, HOST_ORIGINS);
   if (target) window.parent.postMessage(READY_MESSAGE, target);
-}
-
-/** Registers the offline service worker after first render (ADR-0015) — built with F-021. */
-export function registerOffline(): void {
-  // Phase 3.3: deliberately a no-op so the shell runs; F-021 registers /sw.js here.
 }
