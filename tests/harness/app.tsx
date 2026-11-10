@@ -7,7 +7,8 @@
 //   ?effects=pending  no answer (and no timeout) until the test calls `window.appHarness.draw()`
 //   ?gate=N           (F-001.R6) the analysis worker gets the first N probe requests; later ones are held
 //                     until `window.appHarness.release()`, so a test can watch a file being checked
-// `window.appHarness.project()` reads the session's project (the timeline view is F-003) and `undo()`
+// `window.appHarness.project()` reads the session's project, `clips()` the main track and the selection
+// (F-003), `setClip()` sets what has no control yet (photo length, speed, look, cross-fade), and `undo()`
 // takes one RULE-13 step back (the Undo button is F-014). `preview()` reads the playback state (F-002),
 // `setPlayhead()` moves MOD-Project's playhead as F-003's timeline will (the playhead binding),
 // `scrub()` measures how soon the preview shows each playhead time (NFR-03), and `feedTone()` gives the
@@ -24,7 +25,18 @@ import { browserDevice, type DeviceDeps, type EffectsRun } from '../../src/app/d
 import { playback } from '../../src/app/playback';
 import { workers } from '../../src/app/workers';
 import { frameStart, layoutOf, type FromEngine } from '../../src/core';
-import { history, playhead, project, undo } from '../../src/project';
+import {
+  edit,
+  history,
+  playhead,
+  project,
+  selection,
+  setCrossFade,
+  setLook,
+  setPhotoDuration,
+  setSpeed,
+  undo,
+} from '../../src/project';
 import { analyseTone, makeToneClip, type ToneReport, type ToneSpec } from './sound';
 
 /** The session's project as a test reads it (times in seconds). */
@@ -35,12 +47,35 @@ export interface ProjectSummary {
   readonly steps: number;
 }
 
+/** F-003: the main track as a test reads it (times in seconds). */
+export interface ClipSummary {
+  readonly source: string;
+  readonly start: number;
+  readonly end: number;
+  /** The cross-fade into the next clip. */
+  readonly crossFade: number;
+  readonly speed: number;
+  readonly look: string | null;
+  readonly selected: boolean;
+}
+
+/** Settings the editor has no control for yet (F-004 photo length, F-005 speed, F-008 look, F-009 cross-fade). */
+export interface ClipSetup {
+  readonly seconds?: number;
+  readonly speedPct?: number;
+  readonly look?: string;
+  /** Tenths of a second. */
+  readonly crossFadeTenths?: number;
+}
+
 declare global {
   interface Window {
     appHarness: {
       draw(): void;
       workers(): number;
       project(): ProjectSummary;
+      clips(): ClipSummary[];
+      setClip(index: number, setup: ClipSetup): void;
       undo(): void;
       setPlayhead(seconds: number): void;
       release(): void;
@@ -170,6 +205,31 @@ function summary(): ProjectSummary {
   };
 }
 
+const round = (us: number): number => Math.round(us / 1000) / 1000;
+function clipsSummary(): ClipSummary[] {
+  const p = project.value;
+  const rate = p.frame.frameRate;
+  const spans = layoutOf(p).spans;
+  return p.clips.map((c, i) => ({
+    source: p.sources.find((s) => s.id === c.sourceId)?.name ?? c.sourceId,
+    start: round(frameStart(spans[i]!.startFrame, rate)),
+    end: round(frameStart(spans[i]!.endFrame, rate)),
+    crossFade: round(c.crossFadeNext),
+    speed: c.speedPct ?? 100,
+    look: c.look?.id ?? null,
+    selected: selection.value.includes(c.id),
+  }));
+}
+
+function setClip(index: number, setup: ClipSetup): void {
+  const id = project.peek().clips[index]?.id;
+  if (!id) throw new Error(`no clip ${index}`);
+  if (setup.seconds !== undefined) edit((p) => setPhotoDuration(p, id, Math.round(setup.seconds! * S)));
+  if (setup.speedPct !== undefined) edit((p) => setSpeed(p, id, setup.speedPct!));
+  if (setup.look !== undefined) edit((p) => setLook(p, id, { id: setup.look!, intensity: 100 }));
+  if (setup.crossFadeTenths !== undefined) edit((p) => setCrossFade(p, id, setup.crossFadeTenths!));
+}
+
 function previewSummary(): PreviewSummary {
   const p = playback.peek();
   const shown = p?.ctl.shown.peek() ?? null;
@@ -223,6 +283,8 @@ window.appHarness = {
   draw: () => draw(),
   workers: () => workers.size,
   project: summary,
+  clips: clipsSummary,
+  setClip,
   undo,
   setPlayhead: (seconds) => (playhead.value = Math.round(seconds * S)),
   release: () => held.splice(0).forEach((f) => f()),

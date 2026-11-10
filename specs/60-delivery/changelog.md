@@ -2,6 +2,10 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-10 — F-003 building
+- F-003 set to `building` (phase 4, wave 3); it stays `building` until the owner answers build questions 88–89 and the other Edit-sheet tiles and timeline tools join (F-004, F-009, F-013).
+- MOD-Timeline "Public surface": `mountTimeline(element, signals, deps)` — the words, pictures and edit actions come from MOD-App, since MOD-Timeline may import only MOD-Core, MOD-Project and MOD-Media.
+
 ## 2026-11-10 — F-002 building
 - F-002 set to `building` (phase 4, wave 3); it stays `building` until source sound decoding (ADR-0008 §6) exists for AC2 and F-003/F-008/F-009/F-010/F-013/F-015 let AC1, AC6 and AC8 run (build questions 76, 82).
 - F-002.AC5: the time reads `0:02 ·01` (D-039 format) instead of `00:02:01` (build question 78, decided).

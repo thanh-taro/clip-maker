@@ -49,8 +49,8 @@ export const panelOpen = signal(false);
 export const needsClip = computed(() => project.value.clips.length === 0);
 
 let itemCounter = 0;
-/** IDs of new clips and audio clips for the session. */
-const nextItemId = (): string => `item-${++itemCounter}`;
+/** IDs of new clips and audio clips for the session (also F-003's duplicates). */
+export const nextItemId = (): string => `item-${++itemCounter}`;
 
 /** Batches waiting for the one being checked, or for the device check (build-spec-questions 59). */
 export const queued = signal(0);

@@ -35,9 +35,9 @@ describe('MOD-Keys playback keys (RULE-20)', () => {
     expect(resolveKey(key('Escape'), 'none')).toBe('escape');
   });
 
-  it('RULE-20 keys with Mod or Alt are not playback keys (Alt+Left moves an item, F-017)', () => {
+  it('RULE-20 keys with Mod or Alt are not playback keys (Alt+Left moves an item, keys.edit.test.ts)', () => {
     expect(resolveKey(key('Space', { ctrlKey: true }), 'none')).toBeNull();
-    expect(resolveKey(key('ArrowLeft', { altKey: true }), 'none')).toBeNull();
+    expect(resolveKey(key('ArrowLeft', { altKey: true }), 'none')).not.toBe('frame-back');
     expect(resolveKey(key('ArrowRight', { metaKey: true }), 'none')).toBeNull();
     expect(resolveKey(key('Home', { shiftKey: true }), 'none')).toBeNull();
     expect(resolveKey(key('KeyQ'), 'none')).toBeNull();

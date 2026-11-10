@@ -4,11 +4,13 @@
 import type { JSX } from 'preact';
 import {
   ArrowLeft,
+  ArrowRight,
   ChevronLeft,
   ChevronRight,
   CircleCheck,
   CircleX,
   Code,
+  Copy,
   Download,
   EllipsisVertical,
   ExternalLink,
@@ -26,6 +28,7 @@ import {
   Play,
   Plus,
   Redo2,
+  Scissors,
   ShieldCheck,
   SkipBack,
   SkipForward,
@@ -80,6 +83,10 @@ const SOURCES = {
   goEnd: SkipForward,
   fullScreen: Maximize,
   exitFullScreen: Minimize,
+  moveEarlier: ArrowLeft,
+  moveLater: ArrowRight,
+  duplicate: Copy,
+  edit: Scissors,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

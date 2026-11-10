@@ -21,7 +21,11 @@ visible equivalents of every gesture (NFR-06).
 - Rule maths (MOD-Core), frame rendering (MOD-Engine), keyboard mapping (MOD-Keys).
 
 ## Public surface
-- `mountTimeline(element, signals)`; commands `zoomIn/zoomOut/fit`, `scrollToPlayhead`.
+- `mountTimeline(element, signals, deps)`: `signals` are MOD-Project's project, selection and playhead;
+  `deps` are what MOD-Timeline may not import itself — the words (MOD-Copy formats times and labels),
+  the pictures (a source's poster from MOD-Media's registry) and the edit actions (MOD-App commits them
+  and shows their notices). Returns `focusClip(index)` and `dispose()`.
+- Commands `zoomIn/zoomOut/fit`, `scrollToPlayhead`.
 
 ## Implements
 F-002.R3 (scrubbing), F-003, F-004, F-009 controls, F-010.R4, F-011.R2, F-013, F-017 (touch); RULE-14, RULE-21; NFR-06, NFR-07. Decided by ADR-0002.
