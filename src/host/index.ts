@@ -4,7 +4,7 @@
 // Portal tool contract: one `taro:ready`; settings only from an allowed origin and the parent; never
 // `autofocus` — a control is focused only on the window's first `focus` event while the body has it.
 import { signal } from '@preact/signals';
-import { language, type Language } from '../copy';
+import { DIRECTION, language, type Language } from '../copy';
 import { acceptSettings, READY_MESSAGE, readyTarget, type Settings, type Theme } from './messages';
 
 export { loadFonts } from './fonts';
@@ -42,10 +42,17 @@ function setTheme(next: Theme): void {
   if (document.documentElement.dataset['theme'] !== next) document.documentElement.dataset['theme'] = next;
 }
 
-// Implements: F-022.R2 (switch live; nothing reloads).
-function setLanguage(next: Language): void {
+/**
+ * Makes `next` the active language: every `t()` re-renders in place and the page is marked with it.
+ * Implements: F-022.R1 (page language and direction), F-022.R2 (switch live; nothing reloads, no
+ * component remounts, so the project, playback, history, open dialogs and text being edited keep their
+ * state). RULE-18: never stored.
+ */
+export function setLanguage(next: Language): void {
+  const root = document.documentElement;
+  if (root.lang !== next) root.lang = next;
+  if (root.dir !== DIRECTION[next]) root.dir = DIRECTION[next];
   language.value = next;
-  document.documentElement.lang = next;
 }
 
 function apply(settings: Settings): void {

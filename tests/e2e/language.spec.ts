@@ -1,0 +1,278 @@
+// F-022 Use the portal's language (RULE-18, MOD-Copy, MOD-Host): the language from the address, the
+// browser, or later host messages; the page marked with it; no English shown first; a live switch that
+// keeps everything; Vietnamese at 320 px; Vietnamese diacritics drawn with the bundled typefaces.
+// Standalone on `pnpm preview` of dist/; embedded on the multi-origin host harness (F-019).
+// Not covered yet (need later features): AC2's edited project, playback and history (F-001, F-002,
+// F-014); AC6 for panels that don't exist yet (inspector, export panel, pickers: re-run as they land);
+// AC8's running export and text being edited (F-015, F-010). The unit side is tests/unit/copy.*.
+import { expect, test, type Frame, type Page } from '@playwright/test';
+import { CATALOG, type Language, type MessageId } from '../../src/copy/messages.gen';
+import { HOST_ALLOWED, TOOL_ALLOWED, hostPageUrl } from './support/host-urls';
+
+const SHELL = '[data-screen="SCR-Editor"]';
+const text = (lang: Language, id: MessageId): string => CATALOG[lang][id] as string;
+
+/** Plain catalog texts that differ between the languages: seeing one proves which language shows. */
+function onlyIn(lang: Language): Set<string> {
+  const other: Language = lang === 'en-US' ? 'vi-VN' : 'en-US';
+  const out = new Set<string>();
+  for (const id of Object.keys(CATALOG[lang]) as MessageId[]) {
+    const mine = CATALOG[lang][id];
+    const theirs = CATALOG[other][id];
+    if (typeof mine !== 'string' || mine === theirs || /\{/.test(mine)) continue;
+    out.add(mine.trim());
+  }
+  return out;
+}
+
+type Recorder = Window & { __texts: string[] };
+
+/**
+ * Records every text the page ever shows or announces (text nodes, labels, titles), from before the
+ * first script runs, so a string shown for a moment and replaced is still caught.
+ */
+async function recordTexts(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const seen = new Set<string>();
+    (window as unknown as Recorder).__texts = [];
+    const add = (s: string | null | undefined) => {
+      const v = s?.trim();
+      if (!v || seen.has(v)) return;
+      seen.add(v);
+      (window as unknown as Recorder).__texts.push(v);
+    };
+    const scan = (node: Node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (node.parentElement?.closest('script, style')) return;
+        add(node.textContent);
+      } else if (node instanceof Element) {
+        for (const a of ['aria-label', 'title', 'alt', 'placeholder']) add(node.getAttribute(a));
+        node.childNodes.forEach(scan);
+      }
+    };
+    new MutationObserver((records) => {
+      for (const r of records) {
+        if (r.type === 'childList') r.addedNodes.forEach(scan);
+        else if (r.type === 'characterData') add(r.target.textContent);
+        else if (r.target instanceof Element && r.attributeName) add(r.target.getAttribute(r.attributeName));
+      }
+    }).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['aria-label', 'title', 'alt', 'placeholder'],
+    });
+  });
+}
+
+/** Overrides the browser's preferred languages before any page script (RULE-18's browser step). */
+async function preferLanguages(page: Page, languages: readonly string[]): Promise<void> {
+  await page.addInitScript((langs) => {
+    Object.defineProperty(Navigator.prototype, 'languages', { get: () => langs, configurable: true });
+    Object.defineProperty(Navigator.prototype, 'language', { get: () => langs[0], configurable: true });
+  }, languages);
+}
+
+const badge = (root: Page | Frame, lang: Language) =>
+  root.locator('footer').getByRole('button', { name: text(lang, 'privacy.badge') });
+
+test.describe('standalone', () => {
+  test('F-022.AC1 with vi-VN in the address every string is vi-VN from first display, never English first', async ({
+    page,
+  }) => {
+    await preferLanguages(page, ['en-US']);
+    await recordTexts(page);
+    await page.goto('/?lang=vi-VN');
+    await expect(page.locator(SHELL)).toBeVisible();
+    await expect(badge(page, 'vi-VN')).toBeVisible();
+    const html = page.locator('html');
+    await expect(html).toHaveAttribute('lang', 'vi-VN');
+    await expect(html).toHaveAttribute('dir', 'ltr');
+    expect(await page.title()).toBe('Clip Maker');
+
+    // Open the privacy details and the notices too, so their strings are recorded.
+    await badge(page, 'vi-VN').click();
+    await page.getByRole('button', { name: text('vi-VN', 'privacy.notices') }).click();
+    await expect(page.getByRole('dialog', { name: text('vi-VN', 'privacy.notices_title') })).toBeVisible();
+
+    const texts = await page.evaluate(() => (window as unknown as Recorder).__texts);
+    const english = onlyIn('en-US');
+    expect(texts.filter((s) => english.has(s))).toEqual([]);
+    const vietnamese = onlyIn('vi-VN');
+    for (const id of ['empty.title', 'action.add_media', 'privacy.badge', 'privacy.details'] as const)
+      expect(vietnamese.has(text('vi-VN', id)) && texts.includes(text('vi-VN', id))).toBe(true);
+  });
+
+  test('F-022.AC3 with no language and browser preferences [fr-FR, vi] it opens in vi-VN', async ({ page }) => {
+    await preferLanguages(page, ['fr-FR', 'vi']);
+    await page.goto('/');
+    await expect(badge(page, 'vi-VN')).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'vi-VN');
+  });
+
+  test('F-022.R3 the language is chosen per RULE-18: address, then browser, then en-US', async ({ page }) => {
+    await preferLanguages(page, ['vi-VN']);
+    // Edge cases: `vi-vn` → vi-VN; `en-GB` → en-US (the address wins over the browser).
+    await page.goto('/?lang=vi-vn');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'vi-VN');
+    await page.goto('/?lang=en-GB');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
+    await expect(badge(page, 'en-US')).toBeVisible();
+    // An unsupported address value falls through to the browser preference.
+    await page.goto('/?lang=fr');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'vi-VN');
+
+    const other = await page.context().newPage();
+    await preferLanguages(other, ['fr-FR', 'de']);
+    await other.goto('/');
+    await expect(other.locator('html')).toHaveAttribute('lang', 'en-US');
+    await expect(badge(other, 'en-US')).toBeVisible();
+    await other.close();
+  });
+
+  test('F-022.AC6 in vi-VN at 320 px every shown panel fits: no clipped label, no horizontal scrolling', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/?lang=vi-VN');
+    await expect(page.locator(SHELL)).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+
+    /** Elements whose own text overflows their box, or that stick out of the viewport. */
+    const clipped = () =>
+      page.evaluate(() => {
+        const out: string[] = [];
+        const vw = document.documentElement.clientWidth;
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+          const own = Array.from(el.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim());
+          if (!own || !el.getClientRects().length) continue;
+          const style = getComputedStyle(el);
+          if (style.visibility === 'hidden') continue;
+          // Visually hidden on purpose (the accessible name of an icon-only control).
+          const box = el.getBoundingClientRect();
+          if (box.width <= 1 && box.height <= 1 && style.clipPath !== 'none') continue;
+          const name = `${el.tagName.toLowerCase()}.${el.className} "${el.textContent?.trim().slice(0, 30)}"`;
+          if (style.display !== 'inline' && el.scrollWidth > el.clientWidth + 1) out.push(`overflows: ${name}`);
+          const r = el.getBoundingClientRect();
+          if (r.left < -0.5 || r.right > vw + 0.5) out.push(`outside the viewport: ${name}`);
+        }
+        return out;
+      });
+    const scrolls = () =>
+      page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+
+    expect(await clipped()).toEqual([]);
+    expect(await scrolls()).toBe(false);
+
+    await badge(page, 'vi-VN').click();
+    await expect(page.getByRole('dialog', { name: text('vi-VN', 'privacy.badge') })).toBeVisible();
+    expect(await clipped()).toEqual([]);
+    expect(await scrolls()).toBe(false);
+
+    await page.getByRole('button', { name: text('vi-VN', 'privacy.notices') }).click();
+    await expect(page.getByRole('dialog', { name: text('vi-VN', 'privacy.notices_title') })).toBeVisible();
+    expect(await clipped()).toEqual([]);
+    expect(await scrolls()).toBe(false);
+  });
+
+  test('F-022.R1 Vietnamese diacritics are drawn with the bundled typefaces', async ({ page }) => {
+    await page.goto('/?lang=vi-VN');
+    await expect(badge(page, 'vi-VN')).toBeVisible();
+    await page.waitForFunction(() => document.readyState === 'complete');
+    const fonts = await page.evaluate(async () => {
+      await document.fonts.ready;
+      const sample = 'Tệp của bạn không bao giờ rời khỏi máy này. Thêm chữ, Huỷ, Đặt lại, Ưu';
+      const faces = Array.from(document.fonts as unknown as Iterable<FontFace>);
+      // The faces whose range covers Vietnamese letters (ơ U+01A1, ư U+01B0, ệ U+1EC7).
+      const vietnamese = faces.filter((f) => /U\+1EA0-1EF9|U\+01AF-01B0/i.test(f.unicodeRange));
+      const body = getComputedStyle(document.body).fontFamily;
+      return {
+        body,
+        families: [...new Set(vietnamese.map((f) => f.family.replace(/["']/g, '')))].sort(),
+        unloaded: vietnamese.filter((f) => f.status !== 'loaded').map((f) => `${f.family} ${f.status}`),
+        manrope: document.fonts.check('16px Manrope', sample),
+        mono: document.fonts.check('16px "JetBrains Mono"', sample),
+      };
+    });
+    expect(fonts.body.replace(/["']/g, '').split(',')[0]?.trim()).toBe('Manrope');
+    expect(fonts.families).toEqual(['Anton', 'JetBrains Mono', 'Manrope', 'Nunito', 'Playfair Display']);
+    expect(fonts.unloaded).toEqual([]);
+    expect(fonts.manrope).toBe(true);
+    expect(fonts.mono).toBe(true);
+  });
+});
+
+test.describe('embedded', () => {
+  type HostWindow = Window & { __sendLanguage: (v: unknown) => void; __received: { data: unknown }[] };
+  const sendLanguage = (page: Page, v: unknown) =>
+    page.evaluate((value) => (window as unknown as HostWindow).__sendLanguage(value), v);
+
+  async function toolFrame(page: Page): Promise<Frame> {
+    await expect(page.frameLocator('#tool').locator(SHELL)).toBeVisible();
+    const frame = page.frames().find((f) => f.url().startsWith(TOOL_ALLOWED));
+    if (!frame) throw new Error('tool frame not found');
+    return frame;
+  }
+
+  test('F-022.AC1 embedded with vi-VN from the host, every string is vi-VN from first display', async ({ page }) => {
+    await preferLanguages(page, ['en-US']);
+    await recordTexts(page);
+    await page.goto(hostPageUrl(HOST_ALLOWED, TOOL_ALLOWED, { theme: 'dark', lang: 'vi-VN' }));
+    const frame = await toolFrame(page);
+    await expect(badge(frame, 'vi-VN')).toBeVisible();
+    await expect(frame.locator('html')).toHaveAttribute('lang', 'vi-VN');
+    const texts = await frame.evaluate(() => (window as unknown as Recorder).__texts);
+    const english = onlyIn('en-US');
+    expect(texts.filter((s) => english.has(s))).toEqual([]);
+  });
+
+  test('F-022.R2 host language messages switch the tool live, keeping the session, an open dialog and focus', async ({
+    page,
+  }) => {
+    await page.goto(hostPageUrl(HOST_ALLOWED, TOOL_ALLOWED, { theme: 'dark', lang: 'vi-VN' }));
+    const frame = await toolFrame(page);
+    const editor = frame.locator(SHELL);
+    await expect(editor).toHaveAttribute('data-workers', '5');
+    await frame.evaluate(() => ((window as unknown as { __mark: number }).__mark = 42));
+
+    // An open dialog with focus inside it.
+    await badge(frame, 'vi-VN').click();
+    const details = frame.locator('.tk-privacy-details');
+    await expect(details).toBeVisible();
+    await expect(details).toBeFocused();
+    await expect(details).toContainText(text('vi-VN', 'privacy.details'));
+
+    await sendLanguage(page, 'en-US');
+    const html = frame.locator('html');
+    await expect(html).toHaveAttribute('lang', 'en-US');
+    await expect(html).toHaveAttribute('dir', 'ltr');
+    await expect(details).toContainText(text('en-US', 'privacy.details'));
+    await expect(frame.getByRole('button', { name: text('en-US', 'action.add_media') }).first()).toBeVisible();
+    await expect(details).toBeFocused();
+    await expect(badge(frame, 'en-US')).toHaveAttribute('aria-expanded', 'true');
+
+    // An unsupported value is ignored; `vi` matches vi-VN (RULE-18).
+    await sendLanguage(page, 'fr-FR');
+    await sendLanguage(page, 'vi');
+    await expect(html).toHaveAttribute('lang', 'vi-VN');
+    await expect(details).toContainText(text('vi-VN', 'privacy.details'));
+    await expect(details).toBeFocused();
+
+    // Nothing reloaded: same window, workers still running, the details still open.
+    expect(await frame.evaluate(() => (window as unknown as { __mark?: number }).__mark)).toBe(42);
+    await expect(editor).toHaveAttribute('data-workers', '5');
+    await expect(details).toBeVisible();
+    // The only message to the host is still the single ready signal (INV-08).
+    const received = await page.evaluate(() => (window as unknown as HostWindow).__received.map((m) => m.data));
+    expect(received).toEqual([{ type: 'taro:ready' }]);
+  });
+
+  test.fixme('F-022.AC2 an edited project in vi-VN keeps project, playback and history when the host sends en-US', () => {
+    // Needs adding media (F-001), playback (F-002) and history (F-014) in the UI; build-spec-questions Q68.
+  });
+
+  test.fixme('F-022.AC8 a running export continues when the host switches language; only its progress text changes', () => {
+    // Needs CMP-ExportProgress (F-015) and CMP-TextEditor (F-010); the open-dialog half is F-022.R2 above.
+  });
+});
