@@ -388,3 +388,31 @@ test.describe('MOD-Export speed', () => {
     },
   );
 });
+
+test.describe('MOD-Export clip sound decoded from the source file (ADR-0008 §6, question 33)', () => {
+  const tone = { seconds: 3, onset: 1, freq: 440, amp: 0.25, codec: 'aac', sampleRate: 48_000 } as const;
+  /** Half the tone's amplitude is reached 1/12 of a period after the onset. */
+  const HALF = 1 / 12 / 440;
+  const level = 20 * Math.log10(0.25 / Math.SQRT2);
+
+  for (const settings of [
+    { kind: 'video', resolution: 480, quality: 'balanced' },
+    { kind: 'audio', format: 'wav' },
+  ] as const) {
+    test(`INV-02 ADR-0008 §6 an export decodes the clip’s sound from its file: the tone at its time and level (${settings.kind})`, async ({
+      page,
+    }) => {
+      test.setTimeout(120_000);
+      const r = await page.evaluate(([s, t]) => window.harness.export.runTone(s, t), [settings, tone] as const);
+      expect(r.result.ok).toBe(true);
+      expect(r.tone).not.toBeNull();
+      expect(r.decodedSeconds).toBeGreaterThanOrEqual(2.99);
+      // On time (± 1 ms: the source's priming removed, the export's own priming in its edit list),
+      // at its level (no limiting at −12 dBFS; the trim leaves it within 0.5 dB) and pitch.
+      expect(Math.abs(r.tone!.onset - (1 + HALF))).toBeLessThan(0.001);
+      expect(r.tone!.beforeDb).toBeLessThan(-50);
+      expect(Math.abs(r.tone!.toneDb - level)).toBeLessThan(0.5);
+      expect(Math.abs(r.tone!.freq - 440)).toBeLessThan(1);
+    });
+  }
+});

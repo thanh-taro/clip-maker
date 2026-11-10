@@ -12,7 +12,7 @@ export type Notice =
   | 'reason.too_many'
   | 'reason.too_short';
 
-export const NOTICES: readonly Notice[] = Object.freeze([
+export const NOTICES: readonly Notice[] = /* @__PURE__ */ Object.freeze([
   'notice.length_limited',
   'notice.length_full',
   'notice.split_too_close',

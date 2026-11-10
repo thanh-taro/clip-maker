@@ -5,7 +5,7 @@ import { RULE_10, RULE_11 } from './limits';
 import { halfFrames, minFrames, pickedFrames, secondsToFrames, type FrameRate } from './time';
 
 /** RULE-11 defaults for a new layer (content and times are set by the caller). */
-export const TEXT_DEFAULTS = Object.freeze({
+export const TEXT_DEFAULTS = /* @__PURE__ */ Object.freeze({
   typeface: 'sans',
   size: RULE_11.defaultSize,
   colour: 'white',

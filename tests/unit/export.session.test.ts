@@ -2,7 +2,7 @@
 // COPY-error.no_space, the hand-over and file name, error vs interruption, cancel, the shared gain.
 import { describe, expect, it } from 'vitest';
 import type { FromExport, ToExport, ToExportAudio } from '../../src/core';
-import { hasSound, missingSound, planOutput, start } from '../../src/export';
+import { hasSound, planOutput, start } from '../../src/export';
 import { balanced, CAPS, harness, lastPair } from '../support/export-session';
 import { proj, video } from '../support/project';
 
@@ -114,14 +114,11 @@ describe('MOD-Export output planning', () => {
     expect(p.ext).toBe('mp4');
   });
 
-  it('RULE-15 sound is included only when an unmuted voice has decoded sound', () => {
+  it('RULE-15 sound is included only when an unmuted voice has sound', () => {
     const muted = proj({ clips: [video('a', 2, { muted: true })] });
     const loud = proj({ clips: [video('a', 2)] });
-    const pcm = [{ sourceId: 'src-a', L: new Float32Array(1), R: new Float32Array(1) }];
     expect(hasSound(muted)).toBe(false);
     expect(hasSound(loud)).toBe(true);
-    expect(missingSound(loud, pcm)).toEqual([]);
-    expect(missingSound(loud, [])).toEqual(['src-a']);
   });
 
   it('RULE-16 audio-only is AAC in M4A at 192 kbps, or WAV; a GIF covers at most 15 s at its own size', () => {

@@ -81,3 +81,6 @@ Owner decisions on `.build-my-app/reports/build-spec-questions.md` items 1–7, 
 - ADR-0010 outcome item 9: square frames are an exception to "long side a multiple of 16" (1080 × 1080) (item 34).
 - RULE-22, F-023.R5 and AC8: the encode check needs a video encoder only; without a sound encoder only the exports that need one are left out; F-023 frontmatter gains RULE-16 (item 18).
 - MOD-Engine public surface lists every worker message and event (item 19); MOD-Compositor no longer mentions an own HDR shader (item 20); MOD-Preview's `mountPreview` takes the engine and clock, and lists what is deferred to F-002/F-008/F-010 (items 21, 26); MOD-Codec lists `deviceCheck` and `soundExportAvailable` (item 18).
+
+## 2026-11-10 — E6 source sound decoding
+- MOD-Audio public surface: the audio worker's `feed(port)` message, `SoundBank` and `soundDemand` (windowed decoding, ADR-0008 §2/§6; build questions 33, 76, 83–87).

@@ -10,7 +10,7 @@ export type VideoResolution = 480 | 720 | 1080 | 1440 | 2160;
 /** architecture.md "Export tables": kbps at 30 fps (floor = the size-target minimum). */
 export const EXPORT_TABLE: Readonly<
   Record<VideoResolution, Readonly<{ floor: number } & Record<ExportQuality, number>>>
-> = Object.freeze({
+> = /* @__PURE__ */ Object.freeze({
   480: { floor: 300, smaller: 900, balanced: 1500, best: 2500 },
   720: { floor: 600, smaller: 1800, balanced: 3000, best: 5000 },
   1080: { floor: 1000, smaller: 3500, balanced: 6000, best: 10000 },

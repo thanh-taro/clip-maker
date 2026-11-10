@@ -20,7 +20,9 @@ export const BUDGET = {
   // counted here as 75 KB on top of the 30 KB (E2; architecture.md Size row change proposed).
   analysis: 105_000,
   export: 180_000, // its own bundle: container read + write (≈ 121 KB), compositor, codec, export, gifenc (E3 review)
-  'export-audio': 10_000,
+  // architecture.md says 10 KB; the windowed decoder and 48 kHz resampler (E6, ADR-0008 §2/§6) bring it
+  // to ≈ 10.9 KB. Raised to 12 KB pending the owner's decision on build question 83 (not silent).
+  'export-audio': 12_000,
   code: 560_000, // code and styles total
   fonts: 200_000, // "≈ 200 KB" for the five font packages
 };

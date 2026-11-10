@@ -152,12 +152,12 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
       ? { id: s.id, kind: 'video', file }
       : s.kind === 'photo'
         ? { id: s.id, kind: 'photo', bitmap }
-        : null;
+        : { id: s.id, kind: 'audio', file };
 
   const changes = (msgs: ToEngine[]) =>
     msgs.filter((m): m is Extract<ToEngine, { type: 'engine:mediaChanges' }> => m.type === 'engine:mediaChanges');
 
-  it('ADR-0009 §7 the engine gets only new sources and the ids of removed ones, never the whole list again', async () => {
+  it('ADR-0009 §7 the engine gets only new sources (audio sources too, for the sound feed) and the ids of removed ones, never the whole list again', async () => {
     const project = signal(proj({ clips: [video('a', 4), photo('p', 3)], audioClips: [audio('m', 0, 5)] }));
     const engine: ToEngine[] = [];
     const looked: string[] = [];
@@ -178,6 +178,7 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
         add: [
           { id: 'src-a', kind: 'video', file },
           { id: 'src-p', kind: 'photo', bitmap },
+          { id: 'src-m', kind: 'audio', file },
         ],
         remove: [],
       },
@@ -189,7 +190,7 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
     expect(changes(engine)).toHaveLength(1);
 
     // A new source: only it travels.
-    project.value = proj({ clips: [video('a', 4), photo('p', 3), video('b', 2)] });
+    project.value = proj({ clips: [video('a', 4), photo('p', 3), video('b', 2)], audioClips: [audio('m', 0, 5)] });
     await flush();
     expect(changes(engine).at(-1)).toEqual({
       type: 'engine:mediaChanges',
@@ -200,8 +201,12 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
     // Sources leaving the project leave the engine by id (ADR-0009 §7).
     project.value = proj({ clips: [video('a', 4)] });
     await flush();
-    expect(changes(engine).at(-1)).toEqual({ type: 'engine:mediaChanges', add: [], remove: ['src-p', 'src-b'] });
-    expect(looked).toEqual(['src-a', 'src-p', 'src-b']);
+    expect(changes(engine).at(-1)).toEqual({
+      type: 'engine:mediaChanges',
+      add: [],
+      remove: ['src-p', 'src-m', 'src-b'],
+    });
+    expect(looked).toEqual(['src-a', 'src-p', 'src-m', 'src-b']);
     stop();
   });
 

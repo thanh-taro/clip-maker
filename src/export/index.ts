@@ -184,8 +184,11 @@ export interface ExportContext {
   readonly scratch: Scratch;
   readonly caps: ExportCaps;
   readonly media: readonly EngineMedia[];
-  /** Decoded 48 kHz stereo sound per source (see build-spec-questions Q33). */
-  readonly pcm: readonly PcmSource[];
+  /**
+   * Sound given whole as 48 kHz stereo per source (tests); it takes the place of decoding that source.
+   * Every other source with sound is decoded from its file in `media` (the sound feed, ADR-0008 §6).
+   */
+  readonly pcm?: readonly PcmSource[];
   readonly looks: Readonly<Record<string, Uint8Array>>;
   /** Text layers rasterised for an output size (MOD-Preview's rasteriser, ADR-0012). */
   readonly texts: (width: number, height: number) => Readonly<Record<string, TextBitmap>>;
@@ -243,15 +246,6 @@ function soundingSources(project: Project): Set<string> {
 /** RULE-15 "Sound": included when any unmuted voice has sound. */
 export function hasSound(project: Project): boolean {
   return soundingSources(project).size > 0;
-}
-
-/**
- * Sources heard in the mix whose decoded sound was not given. An export never drops sound silently:
- * it fails with COPY-error.export_failed instead (build-spec-questions Q33).
- */
-export function missingSound(project: Project, pcm: readonly PcmSource[]): string[] {
-  const have = new Set(pcm.map((p) => p.sourceId));
-  return [...soundingSources(project)].filter((id) => !have.has(id));
 }
 
 /** The mix's identity: the shared final gain applies to exports of the same mix (ADR-0008 outcome item 2). */
@@ -510,13 +504,9 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
     return failedHandle({ ok: false, error: 'error.export_failed', detail: String(e) });
   }
   const out = planned.output;
-  const missing = out.kind === 'gif' || (out.kind === 'video' && !out.audio) ? [] : missingSound(project, ctx.pcm);
-  if (missing.length)
-    return failedHandle({
-      ok: false,
-      error: 'error.export_failed',
-      detail: `NotFoundError: no sound for ${missing.join(', ')}`,
-    });
+  // The sources' sound is decoded from their files by the export-audio worker (Q33, resolved by E6); a
+  // decode or read error fails the export there (COPY-error.export_failed), never dropping the sound.
+  const pcm = ctx.pcm ?? [];
   // Scratch only while this session holds its Web Lock, so no sweep can take its files (MOD-Scratch).
   const locked = ctx.scratch.available && (await ctx.scratch.holdSessionLock());
   // Room for the file × 1.3 and, in the worst case, the spill file (all the video) — build-spec Q32.
@@ -530,6 +520,8 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
   const pair = ctx.workers.take();
   const needsAudio = out.kind === 'audio' || (out.kind === 'video' && out.audio !== null);
   const channel = needsAudio ? new MessageChannel() : null;
+  // The sound feed: the export worker reads the sources' sound, the export-audio worker decodes it.
+  const feed = needsAudio ? new MessageChannel() : null;
   const { width, height } = out.kind === 'video' ? out.video : out.kind === 'gif' ? out : { width: 0, height: 0 };
   const audioCodec =
     out.kind === 'audio' && out.container === 'wav' ? 'pcm16' : out.kind !== 'gif' ? out.audio?.codec : undefined;
@@ -661,7 +653,8 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
       {
         type: 'exportAudio:start',
         project,
-        pcm: ctx.pcm,
+        pcm,
+        feed: feed ? feed.port2 : null,
         codec: audioCodec,
         bitrate: out.kind !== 'gif' ? (out.audio?.bitrate ?? 0) : 0,
         encoderDelay: out.kind !== 'gif' ? (out.audio?.encoderDelay ?? 0) : 0,
@@ -669,7 +662,7 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
         gainDb: ctx.gains.get(key) ?? null,
         port: channel.port2,
       } satisfies ToExportAudio,
-      [channel.port2],
+      feed ? [channel.port2, feed.port2] : [channel.port2],
     );
   }
   pair.video.postMessage(
@@ -685,9 +678,10 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
           ? { kind: 'scratch', name: file.name, spill: file.spill, memoryFallback: memoryAllowed }
           : { kind: 'memory' },
         audio: channel ? channel.port1 : null,
+        soundFeed: feed && audioCodec ? feed.port1 : null,
       },
     } satisfies ToExport,
-    channel ? [channel.port1] : [],
+    [...(channel ? [channel.port1] : []), ...(feed && audioCodec ? [feed.port1] : [])],
   );
 
   return {

@@ -18,7 +18,9 @@ export type ToAudioWorker =
   | { readonly type: 'hello' }
   /** The worker's end of the channel to the worklet. */
   | { readonly type: 'audio:port'; readonly port: MessagePort }
-  /** Decoded 48 kHz stereo sound of a source (until windowed decoding, ADR-0008 §6, feeds the worker). */
+  /** The audio worker's end of the sound feed from the engine worker (ADR-0008 §6, MOD-Core `FeedRequest`). */
+  | { readonly type: 'audio:feed'; readonly port: MessagePort }
+  /** A source's sound given whole as 48 kHz stereo (tests); it takes the place of decoding that source. */
   | { readonly type: 'audio:pcm'; readonly sourceId: string; readonly L: Float32Array; readonly R: Float32Array }
   | { readonly type: 'audio:setProject'; readonly project: Project }
   | { readonly type: 'audio:play'; readonly from: Micros; readonly gen: number }

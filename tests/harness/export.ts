@@ -31,6 +31,7 @@ import { FrameSource } from '../../src/export/pipeline';
 import { framePlan, voices } from '../../src/plan';
 import { browserScratchEnv, browserStorage, lockName, Scratch, SCRATCH_DIR } from '../../src/scratch';
 import { de00, lab, type Rgb } from '../support/colour';
+import { analyseTone, decodeWindow, makeToneClip, type ToneReport, type ToneSpec } from './sound';
 import { CLIP_H, CLIP_W, codedProject, makeClip, readCode } from './video';
 
 let capsCache: Promise<ExportCaps> | null = null;
@@ -367,7 +368,7 @@ async function run(o: Options): Promise<RunReport> {
     metadata: saved ? await metadataCheck(saved) : null,
     wavMatchesMix:
       saved && o.settings.kind === 'audio' && o.settings.format === 'wav'
-        ? await wavMatches(saved, project, ctx.pcm)
+        ? await wavMatches(saved, project, ctx.pcm ?? [])
         : null,
     progress,
     remaining,
@@ -580,9 +581,72 @@ async function encodedParts(frames: number, seconds: number) {
   return { video, audio, aconfig: withNormalisedDescription(aconfig!) };
 }
 
+/**
+ * ADR-0008 §6 / build question 33: an export of a clip whose sound is decoded from its file (no PCM given):
+ * the tone clip of tests/harness/sound.ts exported as it is, and the file read back (MOD-Audio's decoder,
+ * or the WAV samples).
+ */
+async function runTone(
+  settings: ExportSettings,
+  spec: ToneSpec,
+): Promise<{
+  result: ExportResult | { ok: false; error: string };
+  tone: ToneReport | null;
+  container: string | null;
+  decodedSeconds: number;
+}> {
+  const file = await makeToneClip(spec);
+  const coded = codedProject({ rate: 30, frames: Math.round(spec.seconds * 30), gop: 30 });
+  const project: Project = {
+    ...coded,
+    sources: coded.sources.map((s) => ({ ...s, hasSound: true, duration: Math.round(spec.seconds * 1e6) })),
+  };
+  workers ??= new ExportWorkers();
+  let saved: Blob | null = null;
+  const handle = await start(project, settings, {
+    workers,
+    scratch,
+    caps: await caps(),
+    media: [{ id: 'src-a', kind: 'video', file }],
+    looks: {},
+    texts: () => ({}),
+    phone: false,
+    gains: new Map(),
+    save: (blob) => {
+      saved = blob;
+      return URL.createObjectURL(blob);
+    },
+  });
+  const result = await handle.result;
+  await handle.cleaned;
+  const blob = saved as Blob | null;
+  if (!blob) return { result, tone: null, container: null, decodedSeconds: 0 };
+  let L: Float32Array;
+  let R: Float32Array;
+  let container: string;
+  if (settings.kind === 'audio' && settings.format === 'wav') {
+    const v = new DataView(await blob.arrayBuffer());
+    const n = (v.byteLength - 44) / 4;
+    L = new Float32Array(n);
+    R = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      L[i] = v.getInt16(44 + i * 4, true) / 32768;
+      R[i] = v.getInt16(46 + i * 4, true) / 32768;
+    }
+    container = 'WAV';
+  } else {
+    const input = await openInput(blob);
+    container = input.format;
+    input.close();
+    [L, R] = await decodeWindow(blob, 0, spec.seconds);
+  }
+  return { result, tone: analyseTone(L, R, 0, spec), container, decodedSeconds: L.length / 48_000 };
+}
+
 export const exportHarness = {
   caps,
   run,
+  runTone,
   /** The last export's file as bytes (Playwright saves it for manual checks). */
   async lastFile(): Promise<number[]> {
     return lastBlob ? Array.from(new Uint8Array(await lastBlob.arrayBuffer()).subarray(0, 16)) : [];

@@ -78,6 +78,8 @@ export interface ExportJob {
   readonly sink: SinkChoice;
   /** The channel from the export-audio worker (null when the export has no sound). */
   readonly audio: MessagePort | null;
+  /** The sound feed to the export-audio worker: this worker reads the sources' sound (null without sound). */
+  readonly soundFeed?: MessagePort | null;
 }
 
 /** Why an export stopped. `kind` decides the message: interrupted/failed/no_space (main side). */
@@ -140,7 +142,7 @@ export type FromExport =
   | { readonly type: 'export:calibration'; readonly id: number; readonly cal: Calibration }
   | { readonly type: 'export:calibrationFailed'; readonly id: number; readonly message: string };
 
-/** A decoded 48 kHz stereo source for the mix (until windowed decoding, as `audio:pcm`). */
+/** A source's sound given whole as 48 kHz stereo (tests); it takes the place of decoding that source. */
 export interface PcmSource {
   readonly sourceId: string;
   readonly L: Float32Array;
@@ -153,7 +155,10 @@ export type ToExportAudio =
   | {
       readonly type: 'exportAudio:start';
       readonly project: Project;
+      /** Sound given whole; every other source with sound is decoded from the feed. */
       readonly pcm: readonly PcmSource[];
+      /** The sound feed from the export worker (MOD-Core `FeedRequest`); null when no source is decoded. */
+      readonly feed: MessagePort | null;
       /** `pcm16` = the WAV writer (RULE-16). */
       readonly codec: 'aac' | 'opus' | 'pcm16';
       readonly bitrate: number;

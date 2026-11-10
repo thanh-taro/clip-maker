@@ -261,3 +261,4 @@ export async function openInput(file: Blob): Promise<OpenedInput> {
 }
 
 export * from './write';
+export * from './serve';

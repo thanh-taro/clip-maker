@@ -3,7 +3,7 @@ import type { Adjustments, Clip, Look, Placement, Project, Source } from './proj
 import { RULE_07, RULE_08, RULE_09 } from './limits';
 
 /** Implements: RULE-07 defaults (Reset returns here). */
-export const DEFAULT_PLACEMENT: Placement = Object.freeze({
+export const DEFAULT_PLACEMENT: Placement = /* @__PURE__ */ Object.freeze({
   mode: 'fit',
   scale: RULE_07.defaultScale,
   offsetX: 0,
@@ -14,7 +14,7 @@ export const DEFAULT_PLACEMENT: Placement = Object.freeze({
 });
 
 /** Implements: RULE-08 defaults (every adjustment at 0). */
-export const DEFAULT_ADJUSTMENTS: Adjustments = Object.freeze({});
+export const DEFAULT_ADJUSTMENTS: Adjustments = /* @__PURE__ */ Object.freeze({});
 
 export type AdjustmentName = keyof Adjustments;
 

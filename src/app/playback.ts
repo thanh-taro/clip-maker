@@ -106,10 +106,11 @@ export interface WorkerFeed {
 
 /**
  * Feeds the workers: every project change to the audio worker (its mix is what the preview plays,
- * INV-02), and the engine the changes of the project's video and photo sources by id (ADR-0009 §7): a
- * new source's file or bitmap once, a removed source's id. Sources that stay are never sent again, so
- * the engine keeps their decoders (a source id's file never changes within a session). The project
- * itself reaches the engine through MOD-Preview.
+ * INV-02), and the engine the changes of the project's sources by id (ADR-0009 §7): a new source's file
+ * or bitmap once, a removed source's id. Sources that stay are never sent again, so the engine keeps
+ * their decoders (a source id's file never changes within a session). Audio sources go to the engine
+ * too: it serves every source's encoded sound to the audio worker (the sound feed, ADR-0008 §6). The
+ * project itself reaches the engine through MOD-Preview.
  */
 export function feedWorkers(feed: WorkerFeed): () => void {
   /** Ids the engine has. */
@@ -124,12 +125,11 @@ export function feedWorkers(feed: WorkerFeed): () => void {
   const stop = effect(() => {
     const p = feed.project.value;
     feed.audio.postMessage({ type: 'audio:setProject', project: p });
-    const visual = p.sources.filter((s) => s.kind === 'video' || s.kind === 'photo');
-    wanted = new Set(visual.map((s) => s.id));
+    wanted = new Set(p.sources.map((s) => s.id));
     const removed = [...sent].filter((id) => !wanted.has(id));
     for (const id of removed) sent.delete(id);
     post([], removed);
-    const fresh = visual.filter((s) => !sent.has(s.id) && !looking.has(s.id));
+    const fresh = p.sources.filter((s) => !sent.has(s.id) && !looking.has(s.id));
     if (!fresh.length) return;
     for (const s of fresh) looking.add(s.id);
     void Promise.all(fresh.map((s) => feed.media(s).catch(() => null))).then((list) => {
@@ -151,6 +151,7 @@ async function registryMedia(source: Source): Promise<EngineMedia | null> {
   if (!entry) return null;
   if (source.kind === 'video') return { id: source.id, kind: 'video', file: entry.file };
   if (source.kind === 'photo' && entry.bitmap) return { id: source.id, kind: 'photo', bitmap: entry.bitmap };
+  if (source.kind === 'audio') return { id: source.id, kind: 'audio', file: entry.file };
   return null;
 }
 
@@ -163,6 +164,10 @@ export function mountPlayback(frame: HTMLElement, stage: HTMLElement): () => voi
   const audio = workers.get('audio');
   if (!engine || !audio) return () => undefined;
   const clock = new Playback(audio, WORKLET_URL);
+  // The sound feed: the engine worker reads the sources' encoded sound, the audio worker decodes it.
+  const feed = new MessageChannel();
+  engine.postMessage({ type: 'engine:soundFeed', port: feed.port1 } satisfies ToEngine, [feed.port1]);
+  audio.postMessage({ type: 'audio:feed', port: feed.port2 } satisfies ToAudioWorker, [feed.port2]);
   const ctl = mountPreview(frame, { project }, { engine, clock });
   const fs = fullscreen(stage);
   const stops = [connectPreview(ctl, { playhead }), feedWorkers({ project, engine, audio, media: registryMedia })];
