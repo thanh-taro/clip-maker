@@ -1,7 +1,7 @@
 ---
 id: F-012
 title: Set the frame
-status: ready
+status: building
 milestone: M-1
 priority: P0
 personas: [PER-02, PER-04]

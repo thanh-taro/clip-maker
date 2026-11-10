@@ -1,8 +1,9 @@
 // MOD-App — SCR-Editor (specs/30-experience/screens/SCR-Editor.md): regions in reading order toolbar,
 // media panel (left drawer, F-001), preview (CMP-Preview with its transport, F-002; CMP-EmptyState in
-// the frame's place while empty), timeline (CMP-Timeline, F-003), on narrow layouts the open tab sheet
-// and the tab bar (D-038), status bar; then the overlays: CMP-Notice stack (in the preview area) and
-// CMP-DropOverlay. The inspector and the other overlays arrive with their features (phase 4). Layout
+// the frame's place while empty), inspector (CMP-Inspector, F-012; wide and compact only), timeline
+// (CMP-Timeline, F-003), on narrow layouts the open tab sheet and the tab bar (D-038), status bar; then
+// the overlays: CMP-Notice stack (in the preview area) and CMP-DropOverlay. The other overlays arrive
+// with their features (phase 4). Layout
 // widths (style.md "Layouts": wide ≥ 1000, compact 700–999, narrow < 700) are container queries on the
 // tool root (NFR-07). `data-device` shows the RULE-22 check (F-023): media is accepted only once it
 // reads "supported". `data-state` follows SCR-Editor's states: empty, default, selected, playing,
@@ -13,6 +14,7 @@ import { panelOpen, progress } from './adding';
 import { selectedClip } from './arrange';
 import { device } from './device';
 import { EditSheet, openSheet, TabBar } from './EditSheet';
+import { Inspector } from './Inspector';
 import { DropOverlay, dragging, FilePicker, useMediaInput } from './MediaInput';
 import { MediaPanel } from './MediaPanel';
 import { playback } from './playback';
@@ -85,6 +87,7 @@ export function Shell({ addRef }: { addRef: (el: HTMLButtonElement | null) => vo
       <Toolbar />
       <MediaPanel />
       <PreviewArea addRef={addRef} />
+      <Inspector />
       <Timeline />
       <EditSheet />
       <TabBar />

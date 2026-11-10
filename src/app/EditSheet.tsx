@@ -4,9 +4,11 @@
 // bar, under the transport and a timeline peek (ruler and main track), at most 40 % of the height (60 %
 // under 640 px tall), its body scrolling. No sheet is open by default.
 // Built with F-003: the Edit tab, and in its sheet the header (COPY-inspector.label with the selection's
-// name and length), Add media, and the arrange tiles Move earlier, Move later, Duplicate and Delete. The
-// Audio, Text, Looks and Adjust tabs, the Split / Start here / End here / Cross-fade tiles and the
-// setting rows join with their features (F-004, F-005, F-006, F-007, F-008, F-009, F-010, F-011, F-012).
+// name and length), Add media, and the arrange tiles Move earlier, Move later, Duplicate and Delete.
+// F-012: with nothing selected, the frame section (COPY-inspector.frame) follows Add media, at touch
+// size (style.md "Layouts" narrow: Edit holds Add media, Frame when nothing is selected, then the
+// selection's actions). The Audio, Text, Looks and Adjust tabs, the Split / Start here / End here /
+// Cross-fade tiles and the setting rows join with their features (F-004 to F-011).
 // Implements: F-003.R6 (visible controls on touch), F-003.AC5, RULE-21 (move-earlier/later stand in for
 // hold-and-drag; touch-size targets).
 import { signal } from '@preact/signals';
@@ -16,6 +18,8 @@ import { layoutOf, frameStart } from '../core';
 import { project } from '../project';
 import { selectedClip } from './arrange';
 import { Icon } from './icons';
+import { frameSectionShown } from './frame';
+import { FrameSection, useKeepFocus } from './Inspector';
 import { addMedia } from './MediaInput';
 import { ARRANGE_ITEMS } from './Timeline';
 
@@ -24,6 +28,7 @@ export const openSheet = signal<'edit' | null>(null);
 
 const TAB_ID = 'tk-tab-edit';
 const SHEET_ID = 'tk-sheet-edit';
+const FRAME_HEAD_ID = 'tk-sheet-frame-title';
 
 /** The phone tab bar (D-038). Hidden on wide and compact layouts (CSS). */
 export function TabBar() {
@@ -69,6 +74,9 @@ function SelectionMeta() {
 export function EditSheet() {
   const open = openSheet.value === 'edit';
   const ref = useRef<HTMLElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
+  const frame = frameSectionShown.value;
+  useKeepFocus(ref, title, frame);
   // Esc in the sheet closes it and returns focus to its tab.
   useEffect(() => {
     if (!open) return undefined;
@@ -92,7 +100,9 @@ export function EditSheet() {
       <span class="tk-sheet__grabber" aria-hidden="true" />
       <div class="tk-sheet__body">
         <header class="tk-sheet__head">
-          <h2 class="tk-sheet__title">{clip ? t('inspector.label') : t('inspector.edit')}</h2>
+          <h2 ref={title} class="tk-sheet__title" tabIndex={-1}>
+            {clip ? t('inspector.label') : t('inspector.edit')}
+          </h2>
           <SelectionMeta />
         </header>
         <button
@@ -104,6 +114,14 @@ export function EditSheet() {
           <Icon name="addMedia" size={16} />
           {t('action.add_media')}
         </button>
+        {frame ? (
+          <section class="tk-sheet__section" aria-labelledby={FRAME_HEAD_ID}>
+            <h3 class="tk-sheet__section-title" id={FRAME_HEAD_ID}>
+              {t('inspector.frame')}
+            </h3>
+            <FrameSection id="tk-sheet-frame" touch />
+          </section>
+        ) : null}
         <div class="tk-sheet__grid">
           {tiles.map((item) => {
             const available = item.available();

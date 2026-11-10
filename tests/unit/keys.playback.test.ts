@@ -68,6 +68,15 @@ describe('MOD-Keys playback keys (RULE-20)', () => {
     expect(scopeOf(focus({ tag: 'main' }), 'Space')).toBe('none');
   });
 
+  it('RULE-20 a focused radio (CMP-Inspector option groups: aspect, rate, background) keeps the arrows, Space and Enter', () => {
+    const radio = focus({ tag: 'button', role: 'radio' });
+    for (const code of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'Enter'])
+      expect(scopeOf(radio, code)).toBe('control');
+    // Home and End still go to the project start and end (a radio group has no use for them).
+    expect(scopeOf(radio, 'Home')).toBe('none');
+    expect(scopeOf(focus({ tag: 'input', type: 'radio' }), 'ArrowDown')).toBe('control');
+  });
+
   it('RULE-20 a text or number field being edited, and an open dialog, are their own scopes', () => {
     expect(scopeOf(focus({ tag: 'input', type: 'text', editable: true }), 'Space')).toBe('field');
     expect(scopeOf(focus({ tag: 'textarea', editable: true }), 'Home')).toBe('field');

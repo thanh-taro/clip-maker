@@ -873,7 +873,8 @@ function retime(p: Project, rate: FrameRate, chosen: boolean, tracks: readonly M
   const last = clips.length - 1;
   if (last >= 0 && layoutClips(clips, rate).frames > maxProjectFrames(rate)) {
     const wanted = clipFrames(clips[last]!, rate);
-    // Spec gap (review E1 #6): when the last clip can't absorb the overflow, the change is refused.
+    // RULE-03 (build question 51, decided): when the last clip can't absorb the overflow, the change is
+    // refused with COPY-notice.length_full.
     const fit = fitClipFrames(clips, last, wanted - 1, min, rate);
     if (!fit) return same(p, ['notice.length_full']);
     clips = fit.clips;
@@ -885,7 +886,8 @@ function retime(p: Project, rate: FrameRate, chosen: boolean, tracks: readonly M
     return { ...t, start: frameStart(s, rate), end: frameStart(e, rate) };
   });
   const audioClips = retimeAudio(p.audioClips, rate, (id) => sourceEnd(p, id, tracks));
-  // RULE-05: an audio clip that can't reach its minimum at the new rate refuses the change.
-  if (!audioClips) return same(p);
+  // RULE-05 / RULE-03: an audio clip that can't reach its minimum at the new rate because its source's
+  // end is unknown refuses the change, with COPY-notice.length_full (F-012.R4).
+  if (!audioClips) return same(p, ['notice.length_full']);
   return result(p, { ...p, frame, clips, textLayers, audioClips }, [], notices);
 }

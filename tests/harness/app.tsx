@@ -20,6 +20,9 @@
 //   ?tap=1            the blocks the audio worker sends the worklet are relayed through this page and
 //                     recorded (`heard()`), so a test can check the sound the preview plays, sample-exact
 //                     with its project position; `toneClip()` makes a clip with a tone in its sound track.
+// F-012: `frame()` reads the frame settings, `frames()` each clip's length in frames, `load()` puts a
+// project in place as one step (AC5's 10-minute project), `halves()` makes a 16:9 test photo,
+// `codedClip()` a frame-coded clip at a given rate (AC2), and `pixels()` reads a screenshot's colours.
 // The codec interfaces and WebGL2 are tested on the production build instead, by changing them on the
 // page before it loads (the presence check and the codec probe run on the main thread).
 import '../../src/app/styles/index.css';
@@ -28,7 +31,7 @@ import { main } from '../../src/app/app';
 import { browserDevice, type DeviceDeps, type EffectsRun } from '../../src/app/device';
 import { playback } from '../../src/app/playback';
 import { workers } from '../../src/app/workers';
-import { frameStart, layoutOf, type FromEngine } from '../../src/core';
+import { frameStart, layoutOf, type Frame, type FromEngine, type Project } from '../../src/core';
 import {
   addText,
   beginGesture,
@@ -48,6 +51,7 @@ import {
   undo,
 } from '../../src/project';
 import { analyseTone, makeToneClip, type ToneReport, type ToneSpec } from './sound';
+import { makeClip } from './video';
 
 /** The session's project as a test reads it (times in seconds). */
 export interface ProjectSummary {
@@ -83,6 +87,21 @@ declare global {
   interface Window {
     appHarness: {
       draw(): void;
+      /** F-012: the session's frame settings. */
+      frame(): Frame;
+      /** Replaces the session's project with `json` as one undo step (settings with no control yet). */
+      load(json: string): void;
+      /** Each main-track clip's length in frames at the project's rate. */
+      frames(): number[];
+      /** A W × H PNG, left half red and right half blue. */
+      halves(width: number, height: number): Promise<number[]>;
+      /** A frame-coded H.264 (or VP8) clip at `rate` fps (tests/harness/video.ts). */
+      codedClip(rate: number, frames: number): Promise<number[]>;
+      /** RGB of a PNG screenshot (base64) at fractional points. */
+      pixels(
+        png: string,
+        points: readonly (readonly [number, number])[],
+      ): Promise<{ width: number; height: number; at: number[][] }>;
       workers(): number;
       project(): ProjectSummary;
       clips(): ClipSummary[];
@@ -321,8 +340,47 @@ function watchSync(): void {
   });
 }
 
+/** F-012: a W × H PNG, its left half red and its right half blue (a photo the frame tests add). */
+async function halves(width: number, height: number): Promise<number[]> {
+  const c = new OffscreenCanvas(width, height);
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#ff0000';
+  g.fillRect(0, 0, width / 2, height);
+  g.fillStyle = '#0000ff';
+  g.fillRect(width / 2, 0, width - width / 2, height);
+  return Array.from(new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer()));
+}
+
+/** RGB (0–255) of a PNG (a Playwright screenshot, base64) at points given as fractions of its size. */
+async function pixels(
+  png: string,
+  points: readonly (readonly [number, number])[],
+): Promise<{ width: number; height: number; at: number[][] }> {
+  const bytes = Uint8Array.from(atob(png), (ch) => ch.charCodeAt(0));
+  const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+  const c = new OffscreenCanvas(bmp.width, bmp.height);
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  g.drawImage(bmp, 0, 0);
+  const at = points.map(([fx, fy]) => {
+    const x = Math.min(bmp.width - 1, Math.floor(fx * bmp.width));
+    const y = Math.min(bmp.height - 1, Math.floor(fy * bmp.height));
+    return Array.from(g.getImageData(x, y, 1, 1).data.subarray(0, 3));
+  });
+  return { width: bmp.width, height: bmp.height, at };
+}
+
 window.appHarness = {
   draw: () => draw(),
+  frame: () => ({ ...project.peek().frame }),
+  load(json) {
+    edit(() => ({ project: JSON.parse(json) as Project, notices: [], changed: [] }));
+  },
+  frames: () => layoutOf(project.peek()).spans.map((s) => s.frames),
+  halves,
+  async codedClip(rate, frames) {
+    return Array.from(new Uint8Array(await (await makeClip({ rate, frames, gop: rate })).arrayBuffer()));
+  },
+  pixels,
   workers: () => workers.size,
   project: summary,
   clips: clipsSummary,

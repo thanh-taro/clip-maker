@@ -14,7 +14,14 @@ import {
 } from '../../src/codec';
 import { createCompositor } from '../../src/compositor';
 import { createOutput, openInput, type OutPacket } from '../../src/container';
-import { frameStart, projectFrames, type ExportSettings, type PcmSource, type Project } from '../../src/core';
+import {
+  frameStart,
+  projectFrames,
+  type ExportSettings,
+  type Frame,
+  type PcmSource,
+  type Project,
+} from '../../src/core';
 import {
   estimate,
   ExportWorkers,
@@ -643,10 +650,105 @@ async function runTone(
   return { result, tone: analyseTone(L, R, 0, spec), container, decodedSeconds: L.length / 48_000 };
 }
 
+/** A picture sample: RGB 0–255. */
+export type Sample = readonly [number, number, number];
+
+/** F-012.AC6: the frame-fill export's picture and the preview's paint at the same points. */
+export interface FrameFillReport {
+  readonly ok: boolean;
+  readonly width: number;
+  readonly height: number;
+  /** The exported file's frame `k`, decoded, at each point. */
+  readonly exported: Sample[];
+  /** The compositor's paint of the same plan at the same size (what the preview shows, INV-02). */
+  readonly painted: Sample[];
+}
+
+/**
+ * F-012.AC6 (export half): the frame-coded 4:3 clip, fitted (RULE-07 Fit) in a frame with the given
+ * aspect and background, exported at 480p Balanced through the real export workers; frame `k` of the
+ * file is decoded and sampled at `points` (fractions of the width and height), next to the
+ * compositor's paint of the same plan.
+ */
+async function frameFill(
+  frame: Partial<Frame>,
+  points: readonly (readonly [number, number])[],
+  k = 15,
+): Promise<FrameFillReport> {
+  const frames = 30;
+  const clip = await makeClip({ rate: 30, frames, gop: 30 });
+  const coded = codedProject({ rate: 30, frames, gop: 30 });
+  const project: Project = { ...coded, frame: { ...coded.frame, ...frame } };
+  workers ??= new ExportWorkers();
+  let saved: Blob | null = null;
+  const handle = await start(
+    project,
+    { kind: 'video', resolution: 480, quality: 'balanced' },
+    {
+      workers,
+      scratch,
+      caps: await caps(),
+      media: [{ id: 'src-a', kind: 'video', file: clip }],
+      pcm: [],
+      looks: {},
+      texts: () => ({}),
+      phone: false,
+      gains: new Map(),
+      save: (blob) => {
+        saved = blob;
+        return URL.createObjectURL(blob);
+      },
+    },
+  );
+  const result = await handle.result;
+  await handle.cleaned;
+  const blob = saved as Blob | null;
+  if (!result.ok || !blob) return { ok: false, width: 0, height: 0, exported: [], painted: [] };
+  const input = await openInput(blob);
+  const v = input.video!;
+  const W = v.displayWidth;
+  const H = v.displayHeight;
+  const at = (px: ArrayLike<number>): Sample[] =>
+    points.map(([fx, fy]) => {
+      const i = (Math.min(H - 1, Math.floor(fy * H)) * W + Math.min(W - 1, Math.floor(fx * W))) * 4;
+      return [px[i]!, px[i + 1]!, px[i + 2]!];
+    });
+  const canvas = new OffscreenCanvas(W, H);
+  const g = canvas.getContext('2d', { willReadFrequently: true })!;
+  let exported: Sample[] = [];
+  const dec = new VideoDecoder({
+    output: (f) => {
+      if (Math.round((f.timestamp * 30) / 1e6) === k) {
+        g.drawImage(f, 0, 0, W, H);
+        exported = at(g.getImageData(0, 0, W, H).data);
+      }
+      f.close();
+    },
+    error: () => undefined,
+  });
+  dec.configure(v.decoderConfig);
+  for await (const p of input.packets('video'))
+    dec.decode(
+      new EncodedVideoChunk({ type: p.key ? 'key' : 'delta', timestamp: Math.round(p.timestamp * 1e6), data: p.data }),
+    );
+  await dec.flush();
+  dec.close();
+  input.close();
+  const comp = createCompositor(new OffscreenCanvas(W, H), new Map(), { preserve: true });
+  const source = new FrameSource([{ id: 'src-a', kind: 'video', file: clip }]);
+  const plan = framePlan(project, k);
+  comp.paint(plan, await source.frames(plan));
+  const painted = at(comp.readPixels());
+  await source.close();
+  comp.dispose();
+  return { ok: true, width: W, height: H, exported, painted };
+}
+
 export const exportHarness = {
   caps,
   run,
   runTone,
+  frameFill,
   /** The last export's file as bytes (Playwright saves it for manual checks). */
   async lastFile(): Promise<number[]> {
     return lastBlob ? Array.from(new Uint8Array(await lastBlob.arrayBuffer()).subarray(0, 16)) : [];
