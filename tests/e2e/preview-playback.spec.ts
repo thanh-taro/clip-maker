@@ -3,7 +3,8 @@
 // server). The harness reads the playback state, moves MOD-Project's playhead as F-003's timeline will
 // (the playhead binding), and gives the audio worker a tone for a source, standing in for the source
 // sound decoder that is not built yet (ADR-0008 §6, build question 76).
-// Not covered here: AC1 (looks, cross-fades and text: F-008, F-009, F-010), AC4/AC8's ruler drag and touch
+// Not covered here: AC2 (needs the source sound decoder, question 76: the tone tests the clock and worklet
+// path, R2), AC1 (looks, cross-fades and text: F-008, F-009, F-010), AC4/AC8's ruler drag and touch
 // scroll (the timeline view, F-003/F-013; the binding they use is tested below), AC6 (export, F-015).
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
@@ -142,27 +143,31 @@ test.describe('F-002 preview playback (app harness)', () => {
     expect((await previewOf(page)).time).toBe(0);
   });
 
-  test('F-002.AC2 play runs from the playhead and stops at the project end; Play at the end starts from 0', async ({
+  test('F-002.R2 play runs from the playhead (picture; sound waits for the decoder, question 76) and stops at the project end; Play at the end starts from 0', async ({
     page,
   }) => {
     await open(page);
-    await addClips(page);
-    await setPlayhead(page, 1.5);
+    await addClips(page, ['a.mp4', 'b.mp4', 'c.mp4']);
+    // From the playhead, with 6 s ahead, so the playing checks never race the end.
     await button(page, 'action.play').click();
     const started = await previewOf(page);
     expect(started.state).toBe('playing');
-    expect(started.time).toBeGreaterThanOrEqual(1.5);
+    expect(started.time).toBeLessThan(0.5);
     await expect(button(page, 'action.pause')).toBeVisible();
     await expect(page.locator('[data-screen="SCR-Editor"]')).toHaveAttribute('data-state', 'playing');
+    await button(page, 'action.pause').click();
 
-    // F-002.R2: stops at the project end, on the end.
+    // Near the end: play stops at the project end, on the end.
+    await setPlayhead(page, 3 * END - 0.3);
+    await button(page, 'action.play').click();
+    expect((await previewOf(page)).time).toBeGreaterThanOrEqual(3 * END - 0.3 - 1e-6);
     await expect(button(page, 'action.play')).toBeVisible({ timeout: 5000 });
     const ended = await previewOf(page);
     expect(ended.state).toBe('paused');
-    expect(ended.time).toBeCloseTo(END, 5);
-    await expect(transport(page)).toContainText('0:02·02 / 0:02');
+    expect(ended.time).toBeCloseTo(3 * END, 5);
+    await expect(transport(page)).toContainText('0:06·06 / 0:06');
     // The time is announced politely when playback stops (CMP-Preview accessibility).
-    await expect(page.locator('.tk-preview-status')).toHaveText('0:02 / 0:02');
+    await expect(page.locator('.tk-preview-status')).toHaveText('0:06 / 0:06');
 
     // Edge case: Play at the project end starts from 0.
     await button(page, 'action.play').click();
@@ -257,6 +262,12 @@ test.describe('F-002 preview playback (app harness)', () => {
     const viewport = page.viewportSize()!;
     expect(box).toMatchObject({ x: 0, y: 0, width: viewport.width, height: viewport.height });
     await axe(page);
+    // Everything outside the stage is inert: Tab stays on the chrome bar (and the stage's notices).
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => document.activeElement?.closest('.tk-stage') !== null)).toBe(true);
+    }
+    expect(await page.locator('.tk-transport').evaluate((el) => (el as HTMLElement).inert)).toBe(true);
     const inside = await previewOf(page);
     await page.keyboard.press('Escape');
     await expect(bar).toBeHidden();
@@ -264,6 +275,10 @@ test.describe('F-002 preview playback (app harness)', () => {
     expect(after.fullscreen).toBe('off');
     expect(after.state).toBe('playing');
     expect(after.time).toBeGreaterThanOrEqual(inside.time);
+    // Focus returns to Full screen and the rest of the editor is reachable again.
+    await expect(button(page, 'action.full_screen')).toBeFocused();
+    expect(await page.locator('.tk-transport').evaluate((el) => (el as HTMLElement).inert)).toBe(false);
+    await button(page, 'action.pause').click();
   });
 
   test('F-002.R2 in vi-VN the transport reads in Vietnamese', async ({ page }) => {
@@ -293,7 +308,7 @@ test.describe('F-002 timing (app harness)', () => {
   );
 
   test(
-    'F-002.AC2 picture and sound start together from the playhead and stay together to the end',
+    'F-002.R2 the clock and worklet path: picture and an injected tone start together from the playhead and stay together to the end',
     { tag: '@realtime' },
     async ({ page }) => {
       await open(page);

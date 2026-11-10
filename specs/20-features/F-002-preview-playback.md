@@ -35,7 +35,7 @@ People judge an edit by watching it. The preview must play smoothly and show exa
 - **AC2** Given a paused project with sound, when the user plays, then picture and sound start together from the playhead and stop at the project end. (R2)
 - **AC3** Given playing, when the user pauses, then the playhead stays on the paused frame. (R2)
 - **AC4** Given a paused project, when the user drags the playhead across a clip, then the preview follows within the NFR-03 latency. (R3)
-- **AC5** Given the playhead at 2.000 s at 30 fps, when the user steps forward, then it is at 2 s + 1 frame and the time shows `00:02:01`. (R4, R5)
+- **AC5** Given the playhead at 2.000 s at 30 fps, when the user steps forward, then it is at 2 s + 1 frame and the time shows `0:02 ·01` (D-039). (R4, R5)
 - **AC6** Given any project, when it is exported as video, then the frame at time t matches the preview frame at t within NFR-08. (R6)
 - **AC7** Given playback, when the user enters and leaves full screen, then playback continues and the playhead is unchanged. (R7)
 - **AC8** Given a phone and a paused project, when the user swipes the timeline left by one second's width, then the playhead stays centred, the time advances by 1 s and the preview follows. (R3)

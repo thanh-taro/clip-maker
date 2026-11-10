@@ -107,7 +107,7 @@
   }
 
   /* Narrow (D-038): a touch-size row under the stage; Full screen at the end. Go to start / Go to end
-     stay on the keyboard (Home/End) so the frame-step controls fit at 320 px (RULE-21; question 76). */
+     stay on the keyboard (Home/End) so the frame-step controls fit at 320 px (RULE-21; CMP-Preview Behavior, build question 77). */
   @container tk-editor (width < 700px) {
     .tk-stage {
       padding: var(--tk-space-2);

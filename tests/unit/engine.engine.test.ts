@@ -140,6 +140,55 @@ describe('MOD-Engine ticks and seeks', () => {
     expect(r.shown().at(-1)).toMatchObject({ frameIndex: 10, exact: true });
   });
 
+  it('ADR-0009 §7 media changes posted through structuredClone keep the decoders and slots of sources that stay', async () => {
+    const track = { rate: 30, frames: 300, gop: 30 };
+    const opened: string[] = [];
+    const closedA = { n: 0 };
+    const slot = (id: string) => () => {
+      const s = fakeSlot(track) as unknown as SlotLike;
+      const close = s.close.bind(s);
+      s.close = () => {
+        if (id === 'src-a') closedA.n++;
+        close();
+      };
+      return s;
+    };
+    const opensOfA = () => opened.filter((id) => id === 'src-a').length;
+    const fileA = new Blob([new Uint8Array(1)]);
+    const r = rig(proj({ clips: [video('a', 5)] }), {
+      media: [],
+      open: async (id) => {
+        opened.push(id);
+        return source(track, slot(id));
+      },
+    });
+    // What the main thread posts arrives structured-cloned (new Blob and bitmap objects every time).
+    const post = (m: ToEngine) => r.send(structuredClone(m));
+    await post({ type: 'engine:mediaChanges', add: [{ id: 'src-a', kind: 'video', file: fileA }], remove: [] });
+    await r.send({ type: 'engine:seek', t: ts30(10) });
+    expect(opened).toEqual(['src-a']);
+    expect(r.shown().at(-1)).toMatchObject({ frameIndex: 10, exact: true });
+
+    // Another source arrives, then leaves: src-a is never reopened and its slot never closed.
+    const two = proj({ clips: [video('a', 5), video('b', 5)] });
+    await r.send({ type: 'engine:setProject', project: two });
+    await post({ type: 'engine:mediaChanges', add: [{ id: 'src-b', kind: 'video', file: fileA }], remove: [] });
+    await r.send({ type: 'engine:seek', t: ts30(5 * 30 + 20) });
+    expect(r.shown().at(-1)).toMatchObject({ exact: true });
+    await r.send({ type: 'engine:setProject', project: proj({ clips: [video('a', 5)] }) });
+    await post({ type: 'engine:mediaChanges', add: [], remove: ['src-b'] });
+    await r.send({ type: 'engine:seek', t: ts30(12) });
+    expect(opened).toEqual(['src-a', 'src-b']);
+    expect(closedA.n).toBe(0);
+    expect(r.shown().at(-1)).toMatchObject({ frameIndex: 12, exact: true });
+
+    // A full list re-posted through structuredClone keeps the same sources too (a source id's file never changes).
+    await post({ type: 'engine:media', media: [{ id: 'src-a', kind: 'video', file: fileA }] });
+    await r.send({ type: 'engine:seek', t: ts30(14) });
+    expect(opensOfA()).toBe(1);
+    expect(closedA.n).toBe(0);
+  });
+
   it('F-002.R1 an empty project paints the background and reports the frame', async () => {
     const r = rig(proj({}));
     await r.send({ type: 'engine:seek', t: 0 });

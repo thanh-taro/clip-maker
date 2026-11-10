@@ -19,6 +19,7 @@ const focus = (f: Partial<FocusInfo>): FocusInfo => ({
   type: null,
   editable: false,
   inDialog: false,
+  scrollable: false,
   ...f,
 });
 
@@ -72,5 +73,24 @@ describe('MOD-Keys playback keys (RULE-20)', () => {
     expect(scopeOf(focus({ tag: 'textarea', editable: true }), 'Home')).toBe('field');
     expect(scopeOf(focus({ tag: 'div', editable: true }), 'Space')).toBe('field');
     expect(scopeOf(focus({ tag: 'button', inDialog: true }), 'ArrowRight')).toBe('dialog');
+  });
+
+  it('RULE-20 a held key repeats frame steps but never toggles play or Esc again', () => {
+    expect(resolveKey(key('Space', { repeat: true }), 'none')).toBeNull();
+    expect(resolveKey(key('Escape', { repeat: true }), 'none')).toBeNull();
+    expect(resolveKey(key('ArrowRight', { repeat: true }), 'none')).toBe('frame-forward');
+    expect(resolveKey(key('ArrowLeft', { repeat: true, shiftKey: true }), 'none')).toBe('second-back');
+  });
+
+  it('RULE-20 a focused scrollable region or list, grid or tree keeps the arrow, Space and Page keys', () => {
+    const region = focus({ tag: 'section', scrollable: true });
+    for (const code of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'PageUp', 'PageDown'])
+      expect(scopeOf(region, code)).toBe('control');
+    expect(scopeOf(region, 'Escape')).toBe('none');
+    for (const role of ['listbox', 'grid', 'tree', 'treegrid', 'option', 'gridcell', 'treeitem', 'row']) {
+      for (const code of ['ArrowLeft', 'ArrowRight', 'Space', 'PageDown', 'Home', 'End'])
+        expect(scopeOf(focus({ role }), code)).toBe('control');
+      expect(scopeOf(focus({ role }), 'Escape')).toBe('none');
+    }
   });
 });

@@ -33,15 +33,22 @@ export interface FocusInfo {
   readonly editable: boolean;
   /** Inside an open dialog or menu. */
   readonly inDialog: boolean;
+  /** A region that scrolls (its arrow, Space and Page keys scroll it). */
+  readonly scrollable: boolean;
 }
 
 const BUTTON_ROLES = new Set(['button', 'switch', 'checkbox', 'radio', 'tab', 'menuitem', 'menuitemradio', 'option']);
 const BUTTON_INPUTS = new Set(['button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'color']);
 const SLIDER_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
+const SCROLL_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'PageUp', 'PageDown']);
+/** Composite widgets that move their own selection or focus with the arrows, Space, Page, Home and End. */
+const COMPOSITE_ROLES = new Set(['listbox', 'grid', 'tree', 'treegrid', 'option', 'gridcell', 'treeitem', 'row']);
+const COMPOSITE_KEYS = new Set([...SLIDER_KEYS, 'Space']);
 
 /**
  * RULE-20 *Scope*: a field being edited, an open dialog or menu, or a focused control that uses this
- * key itself (buttons and toggles get Space and Enter; sliders get the arrows, Home, End and Page keys).
+ * key itself (buttons and toggles get Space and Enter; sliders get the arrows, Home, End and Page keys;
+ * lists, grids and trees those and Space; a scrolling region the arrows, Space and Page keys).
  */
 export function scopeOf(focus: FocusInfo | null, code: string): KeyScope {
   if (!focus) return 'none';
@@ -49,6 +56,8 @@ export function scopeOf(focus: FocusInfo | null, code: string): KeyScope {
   if (focus.inDialog) return 'dialog';
   const slider = focus.role === 'slider' || (focus.tag === 'input' && focus.type === 'range');
   if (slider) return SLIDER_KEYS.has(code) ? 'control' : 'none';
+  if (focus.role !== null && COMPOSITE_ROLES.has(focus.role)) return COMPOSITE_KEYS.has(code) ? 'control' : 'none';
+  if (focus.scrollable && SCROLL_KEYS.has(code)) return 'control';
   const button =
     focus.tag === 'button' ||
     focus.tag === 'summary' ||
@@ -63,11 +72,15 @@ export function scopeOf(focus: FocusInfo | null, code: string): KeyScope {
  * position (`code`), so a non-Latin layout acts the same (F-017 edge case).
  */
 export function resolveKey(
-  event: Pick<KeyboardEvent, 'code' | 'key' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>,
+  event: Pick<KeyboardEvent, 'code' | 'key' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'> & {
+    readonly repeat?: boolean;
+  },
   scope: KeyScope,
 ): Action | null {
   if (scope === 'field' || scope === 'dialog' || scope === 'control') return null;
   if (event.metaKey || event.ctrlKey || event.altKey) return null;
+  // A held Space or Esc acts once; held arrows keep stepping.
+  if (event.repeat && (event.code === 'Space' || event.code === 'Escape')) return null;
   const shift = event.shiftKey;
   switch (event.code) {
     case 'Space':

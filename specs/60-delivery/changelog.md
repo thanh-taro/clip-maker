@@ -2,6 +2,11 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-10 — F-002 building
+- F-002 set to `building` (phase 4, wave 3); it stays `building` until source sound decoding (ADR-0008 §6) exists for AC2 and F-003/F-008/F-009/F-010/F-013/F-015 let AC1, AC6 and AC8 run (build questions 76, 82).
+- F-002.AC5: the time reads `0:02 ·01` (D-039 format) instead of `00:02:01` (build question 78, decided).
+- CMP-Preview Behavior: the narrow transport keeps Previous frame, Play/Pause, Next frame, the time and Full screen; the narrow boards are outdated on this point (build question 77, decided).
+
 ## 2026-11-10 — F-022 building
 - F-022 set to `building` (phase 4, wave 2); it stays `building` until F-001, F-002, F-010, F-014 and F-015 let AC2, AC4's export comparison, AC6's later panels and AC8 run (build question 68).
 - copy.md: COPY-notice.added and COPY-notice.applied_all gain en-US plural forms (`one: … · other: …`; vi-VN unchanged), and F-022.AC7's count example now uses COPY-notice.added (`Added 1 file` / `Added 3 files`) instead of a bare clip count (build question 67, decided).

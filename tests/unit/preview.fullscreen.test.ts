@@ -2,18 +2,20 @@
 // where the page may use it, else maximised within the page (iPhone Safari, a host frame without the
 // fullscreen permission). Playback and the playhead are never touched.
 import { describe, expect, it } from 'vitest';
-import { fullscreen, type FullscreenDoc } from '../../src/preview';
+import { enterFullscreen, fullscreen, type FullscreenDoc } from '../../src/preview';
 
 function fakeDoc(enabled: boolean, { reject = false } = {}) {
   const listeners = new Set<() => void>();
   const doc: Omit<FullscreenDoc, 'fullscreenElement'> & {
     fullscreenElement: Element | null;
+    listeners: Set<() => void>;
     fire(): void;
     requested: number;
     exited: number;
   } = {
     fullscreenEnabled: enabled,
     fullscreenElement: null,
+    listeners,
     requested: 0,
     exited: 0,
     async exitFullscreen() {
@@ -87,5 +89,15 @@ describe('MOD-Preview full screen (F-002.R7)', () => {
     doc.fullscreenElement = element as unknown as Element;
     doc.fire();
     expect(fs.mode.value).toBe('off');
+  });
+
+  it('F-002.R7 enterFullscreen returns the handle, so its listener is removed again', async () => {
+    const { doc, element } = fakeDoc(true);
+    const fs = await enterFullscreen(element, doc);
+    expect(fs.mode.value).toBe('fullscreen');
+    expect(doc.listeners.size).toBe(1);
+    await fs.exit();
+    fs.dispose();
+    expect(doc.listeners.size).toBe(0);
   });
 });

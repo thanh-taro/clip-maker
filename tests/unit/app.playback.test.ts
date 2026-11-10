@@ -4,7 +4,8 @@
 // session notice (F-023.AC7, build question 62).
 import { computed, signal, type ReadonlySignal } from '@preact/signals';
 import { afterEach, describe, expect, it } from 'vitest';
-import { connectPreview, feedWorkers, runAction } from '../../src/app/playback';
+import { connectPreview, feedWorkers, overlayOpen, runAction } from '../../src/app/playback';
+import { dragging } from '../../src/app/MediaInput';
 import { resetDeviceSession, slowNotice } from '../../src/app/device';
 import type { ToAudioWorker } from '../../src/audio';
 import {
@@ -128,6 +129,20 @@ describe('MOD-App playback keys (RULE-20)', () => {
   });
 });
 
+describe('MOD-App Esc (RULE-20, CMP-Preview)', () => {
+  it('RULE-20 Esc does one thing: an open drop overlay, dialog, popover or menu takes it before the maximised preview', () => {
+    const doc = (open: string | null) =>
+      ({ querySelector: (sel: string) => (open && sel.includes(open) ? {} : null) }) as unknown as Document;
+    expect(overlayOpen(doc(null))).toBe(false);
+    expect(overlayOpen(doc('[role="dialog"]'))).toBe(true);
+    expect(overlayOpen(doc('dialog[open]'))).toBe(true);
+    expect(overlayOpen(doc('[role="menu"]'))).toBe(true);
+    dragging.value = true;
+    expect(overlayOpen(doc(null))).toBe(true);
+    dragging.value = false;
+  });
+});
+
 describe('MOD-App worker feed (F-002.R1/R2)', () => {
   const flush = () => new Promise((r) => setTimeout(r, 0));
   const bitmap = { photo: true } as unknown as ImageBitmap;
@@ -139,37 +154,54 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
         ? { id: s.id, kind: 'photo', bitmap }
         : null;
 
-  it('F-002.R1 the engine gets the project’s video files and photo bitmaps, once per change of the source set', async () => {
+  const changes = (msgs: ToEngine[]) =>
+    msgs.filter((m): m is Extract<ToEngine, { type: 'engine:mediaChanges' }> => m.type === 'engine:mediaChanges');
+
+  it('ADR-0009 §7 the engine gets only new sources and the ids of removed ones, never the whole list again', async () => {
     const project = signal(proj({ clips: [video('a', 4), photo('p', 3)], audioClips: [audio('m', 0, 5)] }));
     const engine: ToEngine[] = [];
-    const audioMsgs: ToAudioWorker[] = [];
+    const looked: string[] = [];
     const stop = feedWorkers({
       project,
       engine: { postMessage: (m) => engine.push(m) },
-      audio: { postMessage: (m) => audioMsgs.push(m) },
-      media,
+      audio: { postMessage: () => undefined },
+      media: (s) => {
+        looked.push(s.id);
+        return media(s);
+      },
     });
     await flush();
-    const sent = engine.filter((m) => m.type === 'engine:media');
-    expect(sent).toHaveLength(1);
-    expect(sent[0]).toEqual({
-      type: 'engine:media',
-      media: [
-        { id: 'src-a', kind: 'video', file },
-        { id: 'src-p', kind: 'photo', bitmap },
-      ],
+    expect(engine.filter((m) => m.type === 'engine:media')).toEqual([]);
+    expect(changes(engine)).toEqual([
+      {
+        type: 'engine:mediaChanges',
+        add: [
+          { id: 'src-a', kind: 'video', file },
+          { id: 'src-p', kind: 'photo', bitmap },
+        ],
+        remove: [],
+      },
+    ]);
+
+    // An edit that keeps the sources sends nothing.
+    project.value = { ...project.value, clips: [...project.value.clips] };
+    await flush();
+    expect(changes(engine)).toHaveLength(1);
+
+    // A new source: only it travels.
+    project.value = proj({ clips: [video('a', 4), photo('p', 3), video('b', 2)] });
+    await flush();
+    expect(changes(engine).at(-1)).toEqual({
+      type: 'engine:mediaChanges',
+      add: [{ id: 'src-b', kind: 'video', file }],
+      remove: [],
     });
 
-    // An edit that keeps the sources sends no new media (the engine keeps its decoders).
-    project.value = { ...project.value, clips: project.value.clips.slice(0, 1).concat(project.value.clips.slice(1)) };
-    await flush();
-    expect(engine.filter((m) => m.type === 'engine:media')).toHaveLength(1);
-
-    // A source leaving the project leaves the engine's media too (ADR-0009 §7).
+    // Sources leaving the project leave the engine by id (ADR-0009 §7).
     project.value = proj({ clips: [video('a', 4)] });
     await flush();
-    const last = engine.filter((m) => m.type === 'engine:media').at(-1);
-    expect(last).toEqual({ type: 'engine:media', media: [{ id: 'src-a', kind: 'video', file }] });
+    expect(changes(engine).at(-1)).toEqual({ type: 'engine:mediaChanges', add: [], remove: ['src-p', 'src-b'] });
+    expect(looked).toEqual(['src-a', 'src-p', 'src-b']);
     stop();
   });
 
@@ -191,7 +223,7 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
     expect(audioMsgs).toHaveLength(2);
   });
 
-  it('F-002.R1 a slower lookup that finishes after a newer change never overwrites the newer media', async () => {
+  it('F-002.R1 a slow lookup for a source removed meanwhile is never sent; one re-added meanwhile is sent once', async () => {
     const project = signal(proj({ clips: [video('a', 4)] }));
     const engine: ToEngine[] = [];
     let release: () => void = () => undefined;
@@ -209,8 +241,18 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
     await flush();
     release();
     await flush();
-    const sent = engine.filter((m) => m.type === 'engine:media');
-    expect(sent).toEqual([{ type: 'engine:media', media: [{ id: 'src-p', kind: 'photo', bitmap }] }]);
+    expect(changes(engine)).toEqual([
+      { type: 'engine:mediaChanges', add: [{ id: 'src-p', kind: 'photo', bitmap }], remove: [] },
+    ]);
+
+    // Removed and back again (undo) while its lookup runs: added once.
+    project.value = proj({ clips: [photo('p', 3), video('a', 4)] });
+    project.value = proj({ clips: [photo('p', 3)] });
+    project.value = proj({ clips: [photo('p', 3), video('a', 4)] });
+    release();
+    await flush();
+    const adds = changes(engine).flatMap((m) => m.add.map((x) => x.id));
+    expect(adds).toEqual(['src-p', 'src-a']);
     stop();
   });
 });

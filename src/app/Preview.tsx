@@ -196,16 +196,55 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
     });
   }, []);
 
-  // Focus follows full screen: into the chrome bar on entering, back to Full screen on leaving.
+  const mainRef = useRef<HTMLElement>(null);
+  // (Before the focus effect: leaving must lift `inert` before focus returns.)
+  // While full screen or maximised, everything outside the stage is inert, so Tab stays on the frame's
+  // chrome bar (and the stage's notices) and never reaches hidden controls; Tab wraps within the stage.
+  useEffect(() => {
+    const stage = stageRef.current;
+    const main = mainRef.current;
+    const editor = main?.parentElement;
+    if (mode === 'off' || !stage || !main || !editor) return undefined;
+    const outside = [
+      ...Array.from(editor.children).filter((el) => el !== main),
+      ...Array.from(main.children).filter((el) => el !== stage),
+    ] as HTMLElement[];
+    const was = outside.map((el) => el.inert);
+    for (const el of outside) el.inert = true;
+    // Tab wraps inside the stage instead of leaving the page for the browser's own controls.
+    const onTab = (e: KeyboardEvent): void => {
+      if (e.key !== 'Tab') return;
+      const items = Array.from(stage.querySelectorAll<HTMLElement>('button:not(:disabled), [href], [tabindex="0"]'));
+      if (!items.length) return;
+      // Moved here for every engine alike (WebKit's Tab skips buttons by default).
+      e.preventDefault();
+      const at = items.indexOf(document.activeElement as HTMLElement);
+      const n = items.length;
+      const next = at < 0 ? (e.shiftKey ? n - 1 : 0) : (at + (e.shiftKey ? n - 1 : 1)) % n;
+      items[next]?.focus();
+    };
+    document.addEventListener('keydown', onTab);
+    return () => {
+      document.removeEventListener('keydown', onTab);
+      outside.forEach((el, i) => (el.inert = was[i] ?? false));
+    };
+  }, [mode]);
+
+  // Focus follows full screen: into the chrome bar on entering, back to Full screen on leaving (or to the
+  // preview region when Full screen is unavailable by then).
   const previous = useRef(mode);
   useEffect(() => {
     if (mode !== 'off' && previous.current === 'off') exitRef.current?.focus();
-    if (mode === 'off' && previous.current !== 'off') fullRef.current?.focus();
+    if (mode === 'off' && previous.current !== 'off') {
+      const full = fullRef.current;
+      if (full && !full.disabled) full.focus();
+      else mainRef.current?.focus();
+    }
     previous.current = mode;
   }, [mode]);
 
   return (
-    <main class="tk-preview-area" tabIndex={-1} data-fullscreen={mode === 'off' ? undefined : mode}>
+    <main ref={mainRef} class="tk-preview-area" tabIndex={-1} data-fullscreen={mode === 'off' ? undefined : mode}>
       <div class="tk-stage" ref={stageRef}>
         <div class="tk-frame" ref={frameRef} role="img" aria-label={frameLabel} data-empty={empty ? '' : undefined} />
         {empty ? <EmptyState addRef={addRef} /> : null}

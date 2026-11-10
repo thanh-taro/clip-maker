@@ -65,6 +65,12 @@ export function fullscreen(element: HTMLElement, doc: FullscreenDoc = document):
   return api;
 }
 
-/** MOD-Preview `enterFullscreen()`: full screen for an element, maximised where it is not allowed. */
-export const enterFullscreen = (element: HTMLElement, doc: FullscreenDoc = document): Promise<FullscreenMode> =>
-  fullscreen(element, doc).enter();
+/**
+ * MOD-Preview `enterFullscreen()`: full screen for an element, maximised where it is not allowed. Returns
+ * the handle, whose `exit()` leaves and `dispose()` stops listening (nothing is left behind).
+ */
+export async function enterFullscreen(element: HTMLElement, doc: FullscreenDoc = document): Promise<Fullscreen> {
+  const fs = fullscreen(element, doc);
+  await fs.enter();
+  return fs;
+}

@@ -16,6 +16,7 @@ import { registry } from '../media';
 import { fullscreen, mountPreview, type Fullscreen, type PreviewController } from '../preview';
 import { playhead, project } from '../project';
 import { watchSlow } from './device';
+import { dragging } from './MediaInput';
 import { workers } from './workers';
 
 /** The mounted preview of the session (null until the workers run, and on SCR-Unsupported). */
@@ -105,28 +106,41 @@ export interface WorkerFeed {
 
 /**
  * Feeds the workers: every project change to the audio worker (its mix is what the preview plays,
- * INV-02), and the project's video and photo sources to the engine whenever that set changes (ADR-0009
- * §7: a source that left the project leaves the engine, which frees its decoders). The project itself
- * reaches the engine through MOD-Preview.
+ * INV-02), and the engine the changes of the project's video and photo sources by id (ADR-0009 §7): a
+ * new source's file or bitmap once, a removed source's id. Sources that stay are never sent again, so
+ * the engine keeps their decoders (a source id's file never changes within a session). The project
+ * itself reaches the engine through MOD-Preview.
  */
 export function feedWorkers(feed: WorkerFeed): () => void {
-  let key = '';
-  let generation = 0;
+  /** Ids the engine has. */
+  const sent = new Set<string>();
+  /** Ids whose lookup is running. */
+  const looking = new Set<string>();
+  let wanted = new Set<string>();
+  let live = true;
+  const post = (add: EngineMedia[], remove: string[]): void => {
+    if (live && (add.length || remove.length)) feed.engine.postMessage({ type: 'engine:mediaChanges', add, remove });
+  };
   const stop = effect(() => {
     const p = feed.project.value;
     feed.audio.postMessage({ type: 'audio:setProject', project: p });
     const visual = p.sources.filter((s) => s.kind === 'video' || s.kind === 'photo');
-    const next = visual.map((s) => s.id).join('\n');
-    if (next === key) return;
-    key = next;
-    const gen = ++generation;
-    void Promise.all(visual.map((s) => feed.media(s).catch(() => null))).then((list) => {
-      if (gen !== generation) return; // a newer source set was sent meanwhile
-      feed.engine.postMessage({ type: 'engine:media', media: list.filter((m): m is EngineMedia => m !== null) });
+    wanted = new Set(visual.map((s) => s.id));
+    const removed = [...sent].filter((id) => !wanted.has(id));
+    for (const id of removed) sent.delete(id);
+    post([], removed);
+    const fresh = visual.filter((s) => !sent.has(s.id) && !looking.has(s.id));
+    if (!fresh.length) return;
+    for (const s of fresh) looking.add(s.id);
+    void Promise.all(fresh.map((s) => feed.media(s).catch(() => null))).then((list) => {
+      for (const s of fresh) looking.delete(s.id);
+      const add = list.filter((m): m is EngineMedia => m !== null && wanted.has(m.id) && !sent.has(m.id));
+      for (const m of add) sent.add(m.id);
+      post(add, []);
     });
   });
   return () => {
-    generation++;
+    live = false;
     stop();
   };
 }
@@ -175,13 +189,27 @@ export function focusInfo(el: Element | null): FocusInfo | null {
     tag === 'textarea' ||
     tag === 'select' ||
     (tag === 'input' && TEXT_INPUTS.has(type ?? ''));
+  const style = getComputedStyle(el);
+  const scrolls = (overflow: string, size: number, client: number) => /auto|scroll/.test(overflow) && size > client;
   return {
     tag,
     role: el.getAttribute('role'),
     type,
     editable,
+    scrollable:
+      scrolls(style.overflowY, el.scrollHeight, el.clientHeight) ||
+      scrolls(style.overflowX, el.scrollWidth, el.clientWidth),
     inDialog: el.closest('dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"]') !== null,
   };
+}
+
+/** An overlay that Esc closes is open: the drop overlay, a dialog or modal sheet, a popover or a menu. */
+export function overlayOpen(doc: Document = document): boolean {
+  return (
+    dragging.peek() ||
+    doc.querySelector('dialog[open], [role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"]') !==
+      null
+  );
 }
 
 /**
@@ -197,6 +225,8 @@ export function bindPlaybackKeys(doc: Document = document): () => void {
     const action = resolveKey(e, scopeOf(focusInfo(doc.activeElement), e.code));
     if (!action) return;
     if (action === 'escape') {
+      // One Esc does one thing: an open overlay (drop overlay, dialog, sheet, popover, menu) takes it.
+      if (overlayOpen(doc)) return;
       if (p.fs.mode.peek() === 'maximised') {
         e.preventDefault();
         void p.fs.exit();
