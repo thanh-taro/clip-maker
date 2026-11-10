@@ -6,8 +6,9 @@ depends_on: [MOD-Core, MOD-Project, MOD-Media]
 ---
 
 ## Responsibility
-Draws CMP-Timeline imperatively on a canvas (ruler, playhead, clip thumbnails, text lane, audio
-waveforms, trim handles, cross-fade controls) and turns pointer and touch input into MOD-Project
+Draws CMP-Timeline as an imperative DOM view that never re-renders Preact (ruler, playhead, text lane,
+trim handles, cross-fade controls; canvas strips for clip thumbnails and audio waveforms), so each item
+is a real focusable, named control (NFR-06; build question 94), and turns pointer and touch input into MOD-Project
 operations with coalesced gestures: trim, move (hold 0.4 s then drag on touch), split targets,
 snapping within 8 screen pixels, zoom to the RULE-14 limits. **Touch (D-013, RULE-14, RULE-21)**:
 the playhead is fixed at the horizontal centre and a one-finger scroll moves the project under it,

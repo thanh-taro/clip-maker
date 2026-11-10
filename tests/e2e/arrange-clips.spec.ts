@@ -114,12 +114,86 @@ test.describe('F-003 arrange clips (app harness)', () => {
     for (const id of ['action.delete', 'action.duplicate', 'action.move_left', 'action.move_right'] as const)
       await expect(tool(page, id)).not.toHaveAttribute('aria-disabled', 'true');
     expect((await clipsOf(page)).map((c) => c.selected)).toEqual([false, true, false]);
-    // A click on empty track space clears the selection (RULE-21); selecting is not an undo step.
-    const track = timeline(page).locator('.tk-track');
-    const box = (await track.boundingBox())!;
-    await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
-    await expect(clip(page, 'B.png')).toHaveAttribute('aria-pressed', 'false');
+    // A click on empty timeline space — the lanes after the project end — clears the selection (RULE-21);
+    // selecting is not an undo step.
+    const track = (await timeline(page).locator('.tk-track').boundingBox())!;
+    const lanes = (await timeline(page).locator('.tk-lanes').boundingBox())!;
+    expect(lanes.x + lanes.width - (track.x + track.width)).toBeGreaterThan(16);
+    await page.mouse.click(track.x + track.width + 12, track.y + track.height / 2);
+    await expect(timeline(page).locator('.tk-clip[aria-pressed="true"]')).toHaveCount(0);
+    // Activating the selected clip again clears the selection too (a toggle).
+    await clip(page, 'C.mp4').click();
+    await expect(clip(page, 'C.mp4')).toHaveAttribute('aria-pressed', 'true');
+    await clip(page, 'C.mp4').click();
+    await expect(timeline(page).locator('.tk-clip[aria-pressed="true"]')).toHaveCount(0);
+    // The clips form a named group (focus lands there after the last clip is deleted).
+    await expect(timeline(page).getByRole('group', { name: text('en-US', 'timeline.main_track') })).toBeVisible();
     expect(await stepsOf(page)).toBe(1);
+  });
+
+  test('F-003.R2 a drag released outside the timeline leaves no ghost drag; a project change mid-drag ends it without a move', async ({
+    page,
+  }) => {
+    await open(page);
+    await add(page, ABC());
+    const dragging = timeline(page).locator('.tk-clip--dragging');
+    const c = (await clip(page, 'C.mp4').boundingBox())!;
+    const a = (await clip(page, 'A.mp4').boundingBox())!;
+    // Released over the preview, far above the track.
+    await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(c.x + c.width / 2 - 40, c.y + c.height / 2, { steps: 4 });
+    await expect(dragging).toHaveCount(1);
+    await page.mouse.move(c.x, 100, { steps: 4 });
+    await page.mouse.up();
+    await expect(dragging).toHaveCount(0);
+    // Moving over the track afterwards with no button down drags nothing.
+    await page.mouse.move(a.x + 4, a.y + a.height / 2, { steps: 6 });
+    await expect(dragging).toHaveCount(0);
+    await expect(timeline(page).locator('.tk-track__drop')).toBeHidden();
+    const before = await order(page);
+    // The project changes under a drag: it ends, and the release moves nothing.
+    await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(c.x + c.width / 2 - 40, c.y + c.height / 2, { steps: 4 });
+    await expect(dragging).toHaveCount(1);
+    await setClip(page, 0, { crossFadeTenths: 5 });
+    await expect(dragging).toHaveCount(0);
+    await page.mouse.move(a.x + 4, a.y + a.height / 2, { steps: 6 });
+    await page.mouse.up();
+    expect(await order(page)).toEqual(before);
+  });
+
+  test('F-003.R1 a clip’s thumbnail is drawn again after its source is removed and the removal undone', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await open(page);
+    const chooser = page.waitForEvent('filechooser');
+    await page
+      .locator('.tk-empty')
+      .getByRole('button', { name: text('en-US', 'action.add_media') })
+      .click();
+    await (await chooser).setFiles(ABC());
+    await expect.poll(async () => (await clipsOf(page)).length, { timeout: 20_000 }).toBe(3);
+    const painted = () =>
+      page.evaluate(() => {
+        const strip = document.querySelector<HTMLCanvasElement>('.tk-clip .tk-clip__strip');
+        if (!strip || strip.width < 2) return false;
+        const px = strip
+          .getContext('2d')!
+          .getImageData(Math.floor(strip.width / 2), Math.floor(strip.height / 2), 1, 1);
+        return px.data[3]! > 0;
+      });
+    await expect.poll(painted).toBe(true);
+    const row = page.locator('.tk-media').getByRole('listitem').filter({ hasText: 'A.mp4' });
+    await row.getByRole('button', { name: text('en-US', 'action.delete') }).click();
+    await expect.poll(async () => (await clipsOf(page)).length).toBe(2);
+    await page.evaluate(() => (window as unknown as Harness).appHarness.undo());
+    await expect.poll(async () => (await order(page))[0]).toBe('A.mp4');
+    await expect.poll(painted, { timeout: 10_000 }).toBe(true);
+    expect(errors).toEqual([]);
   });
 
   test('F-003.AC1 dragging C to the start gives C, A, B with no gaps, as one undo step', async ({ page }) => {
@@ -329,8 +403,45 @@ test.describe('F-003 arrange clips (app harness)', () => {
   });
 
   test('RULE-21 on touch a clip moves after a 0.4 s hold and drag; a quick swipe does not move it', async ({
-    page,
+    browser,
+    browserName,
+    page: plain,
   }) => {
+    if (browserName === 'chromium') {
+      // Real touch input (CDP Input.dispatchTouchEvent) on a touch page: the browser's own pan and
+      // pointercancel behaviour applies, as on a phone.
+      const context = await browser.newContext({ hasTouch: true, viewport: { width: 1000, height: 700 } });
+      const page = await context.newPage();
+      await open(page);
+      await add(page, ABC());
+      const cdp = await context.newCDPSession(page);
+      const touch = async (name: string, toX: number, holdMs: number) => {
+        const b = (await clip(page, name).boundingBox())!;
+        const x = b.x + b.width / 2;
+        const y = b.y + b.height / 2;
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
+        await page.waitForTimeout(holdMs);
+        for (let i = 1; i <= 8; i++) {
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [{ x: x + ((toX - x) * i) / 8, y, id: 1 }],
+          });
+          await page.waitForTimeout(16);
+        }
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      };
+      const a = (await clip(page, 'A.mp4').boundingBox())!;
+      await touch('C.mp4', a.x + 4, 0);
+      await page.waitForTimeout(100);
+      expect(await order(page)).toEqual(['A.mp4', 'B.png', 'C.mp4']);
+      await touch('C.mp4', a.x + 4, 500);
+      await expect.poll(() => order(page)).toEqual(['C.mp4', 'A.mp4', 'B.png']);
+      await context.close();
+      return;
+    }
+    // WebKit: Playwright has no touch input for desktop WebKit, so the pointer events are synthetic here
+    // (the hold timing and the move logic; the browser's pan is covered on Chromium above).
+    const page = plain;
     await open(page);
     await add(page, ABC());
     const touch = async (name: string, toX: number, holdMs: number) => {

@@ -81,18 +81,18 @@ export function duplicateSelected(): boolean {
 }
 
 /** RULE-20 Edit keys of F-003: true when the action applied (the key is then taken from the browser). */
-export function runArrangeAction(action: Action): boolean {
+export function runArrangeAction(action: Action, repeat = false): boolean {
+  // RULE-20: within its scope (MOD-Keys checked it) the tool takes Alt+Left/Right and Mod+D even with
+  // nothing selected (a no-op), so they never fall through to the browser's Back or Bookmark. Delete or
+  // Backspace is taken only when it deletes. A held (repeating) Delete or Mod+D acts once.
   switch (action) {
     case 'delete':
-      return deleteSelected();
+      return repeat ? selectedClip.peek() !== null : deleteSelected();
     case 'duplicate':
-      // Mod+D is taken while a clip is selected even when the copy is refused (its notice says why).
-      if (!selectedClip.peek()) return false;
-      duplicateSelected();
+      if (!repeat) duplicateSelected();
       return true;
     case 'move-earlier':
     case 'move-later':
-      if (!selectedClip.peek()) return false;
       moveSelected(action === 'move-earlier' ? 'earlier' : 'later');
       return true;
     default:
@@ -115,7 +115,7 @@ export function bindArrangeKeys(doc: Document = document): () => void {
   const onKey = (e: KeyboardEvent): void => {
     if (e.defaultPrevented || e.isComposing) return;
     const action = resolveKey(e, scopeOf(focusInfo(doc.activeElement), e.code), mac);
-    if (action && runArrangeAction(action)) e.preventDefault();
+    if (action && runArrangeAction(action, e.repeat)) e.preventDefault();
   };
   doc.addEventListener('keydown', onKey);
   return () => doc.removeEventListener('keydown', onKey);

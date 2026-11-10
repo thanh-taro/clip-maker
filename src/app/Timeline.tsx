@@ -111,6 +111,7 @@ export function Timeline() {
         time: (us) => formatDuration(us),
         endLabel: () => t('timeline.project_end'),
         emptyHint: () => t('drop.hint'),
+        trackLabel: () => t('timeline.main_track'),
         picture: async (sourceId) => {
           const entry = await registry.load(sourceId);
           return entry?.thumbnail ?? entry?.bitmap ?? null;

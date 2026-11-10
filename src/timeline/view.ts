@@ -38,6 +38,8 @@ export interface TimelineDeps {
   endLabel(): string;
   /** COPY-drop.hint, in the empty main track. */
   emptyHint(): string;
+  /** COPY-timeline.main_track: the name of the main track's group of clips. */
+  trackLabel(): string;
   /** The picture drawn along a clip: a video's first frame, a photo; null when there is none. */
   picture(sourceId: string): Promise<CanvasImageSource | null>;
   select(id: string | null): void;
@@ -130,6 +132,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   decorative(ruler);
   const track = el('div', 'tk-track', host);
   track.tabIndex = -1;
+  // A group of the clips, named, so focus that lands here after the last clip was deleted is announced.
+  track.setAttribute('role', 'group');
   const hint = el('span', 'tk-track__hint', track);
   const drop = el('span', 'tk-track__drop', track);
   decorative(drop);
@@ -148,7 +152,6 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   resize.observe(host);
 
   const clips = new Map<string, ClipEls>();
-  const pictures = new Map<string, Promise<CanvasImageSource | null>>();
   let boxes: ClipBox[] = [];
   let scale = 0;
   let labels: { at: Micros; node: HTMLElement }[] = [];
@@ -161,24 +164,36 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const key = `${clip.sourceId}:${Math.round(w)}`;
     if (c.drawn === key) return;
     c.drawn = key;
-    let pending = pictures.get(clip.sourceId);
-    if (!pending) pictures.set(clip.sourceId, (pending = deps.picture(clip.sourceId).catch(() => null)));
-    void pending.then((img) => {
-      if (c.drawn !== key || !img) return;
-      const ratio = devicePixelRatio || 1;
-      const cssW = Math.max(1, Math.round(w));
-      const cssH = c.strip.clientHeight || 1;
-      c.strip.width = Math.round(cssW * ratio);
-      c.strip.height = Math.round(cssH * ratio);
-      const ctx = c.strip.getContext('2d');
-      if (!ctx) return;
-      const iw = (img as { width: number }).width || 1;
-      const ih = (img as { height: number }).height || 1;
-      const tileH = c.strip.height;
-      const tileW = Math.max(1, Math.round((tileH * iw) / ih));
+    // Asked on every draw: MOD-Media's registry keeps the picture, frees it while its source is out of the
+    // project and rebuilds it when the source comes back (ADR-0009 §7), so a kept one could be closed.
+    void deps
+      .picture(clip.sourceId)
+      .catch(() => null)
+      .then((img) => paint(c, key, w, img));
+  }
+
+  function paint(c: ClipEls, key: string, w: number, img: CanvasImageSource | null): void {
+    const iw = (img as { width: number } | null)?.width ?? 0;
+    const ih = (img as { height: number } | null)?.height ?? 0;
+    // A closed bitmap has no size: nothing to draw (the next layout asks again).
+    if (c.drawn !== key || !img || !iw || !ih) {
+      if (c.drawn === key) c.drawn = '';
+      return;
+    }
+    const ratio = devicePixelRatio || 1;
+    c.strip.width = Math.round(Math.max(1, Math.round(w)) * ratio);
+    c.strip.height = Math.round((c.strip.clientHeight || 1) * ratio);
+    const ctx = c.strip.getContext('2d');
+    if (!ctx) return;
+    const tileH = c.strip.height;
+    const tileW = Math.max(1, Math.round((tileH * iw) / ih));
+    try {
       // The picture repeats along the clip, each tile cropped to fill it (cover).
       for (let x = 0; x < c.strip.width; x += tileW) ctx.drawImage(img, x, 0, tileW, tileH);
-    });
+    } catch {
+      // Closed between the size check and the draw: the next layout draws it again.
+      c.drawn = '';
+    }
   }
 
   function clipEls(id: string): ClipEls {
@@ -216,8 +231,13 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   }
 
   // Project, selection, size or language changed: lay the track out again (never on playhead moves).
+  let laidOut: Project | null = null;
   const stopLayout = effect(() => {
     const p = project.value;
+    // The project changed under a drag: its clip indexes are stale, so the drag ends without a move.
+    if (drag && laidOut && p !== laidOut) endDrag(false);
+    laidOut = p;
+    track.setAttribute('aria-label', deps.trackLabel());
     const selected = new Set(selection.value);
     const w = width.value;
     const projEnd = projectEnd(p);
@@ -350,13 +370,16 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     track.classList.add('tk-track--dragging');
     capture(track, d.pointerId);
   }
+  // RULE-21: a tap on empty space clears the selection — the lanes outside the clips: after the project
+  // end (the lanes' end padding) and below the track; the ruler scrubs instead.
+  const onLanesDown = (e: PointerEvent): void => {
+    const target = e.target as Element;
+    if (e.button !== 0 || target.closest('.tk-clip, .tk-ruler')) return;
+    deps.select(null);
+  };
   const onTrackDown = (e: PointerEvent): void => {
     const button = (e.target as Element).closest<HTMLButtonElement>('.tk-clip');
-    if (!button) {
-      // RULE-21: a tap on empty space clears the selection.
-      if (e.button === 0) deps.select(null);
-      return;
-    }
+    if (!button) return;
     if (e.button !== 0 || drag) return;
     const id = button.dataset['clipId'] ?? '';
     const index = project.peek().clips.findIndex((c) => c.id === id);
@@ -379,6 +402,11 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const onTrackMove = (e: PointerEvent): void => {
     const d = drag;
     if (!d || d.pointerId !== e.pointerId) return;
+    // The button was released where the track never heard it (a lost pointerup): no ghost drag.
+    if (!d.touch && e.buttons === 0) {
+      endDrag(false);
+      return;
+    }
     const dx = e.clientX - d.startX;
     if (!d.active) {
       if (Math.abs(dx) < DRAG_SLOP_PX) return;
@@ -401,8 +429,13 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     drop.hidden = moveTarget(d.index, b) === null;
     drop.style.left = `${edge}px`;
   };
-  const onTrackUp = (e: PointerEvent): void => {
+  // Also on the window: a release outside the track (or outside the page) ends the drag there.
+  const onUp = (e: PointerEvent): void => {
     if (drag?.pointerId === e.pointerId) endDrag(e.type === 'pointerup');
+  };
+  // RULE-21: once a held touch drags, the browser must not pan (it would cancel the pointer).
+  const onTouchMove = (e: TouchEvent): void => {
+    if (drag?.active && drag.touch && e.cancelable) e.preventDefault();
   };
   const onClick = (e: MouseEvent): void => {
     const button = (e.target as Element).closest<HTMLButtonElement>('.tk-clip');
@@ -411,7 +444,9 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       suppressClick = false;
       return;
     }
-    deps.select(button.dataset['clipId'] ?? null);
+    // Activating the selected clip again clears the selection (a toggle, as a tap on empty space).
+    const id = button.dataset['clipId'] ?? null;
+    deps.select(button.getAttribute('aria-pressed') === String(true) ? null : id);
   };
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape' && drag?.active) {
@@ -423,10 +458,12 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const onContext = (e: Event): void => {
     if (drag?.touch) e.preventDefault();
   };
+  host.addEventListener('pointerdown', onLanesDown);
   track.addEventListener('pointerdown', onTrackDown);
   track.addEventListener('pointermove', onTrackMove);
-  track.addEventListener('pointerup', onTrackUp);
-  track.addEventListener('pointercancel', onTrackUp);
+  track.addEventListener('touchmove', onTouchMove, { passive: false });
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
   track.addEventListener('click', onClick);
   track.addEventListener('contextmenu', onContext);
   document.addEventListener('keydown', onKey, true);
@@ -445,6 +482,9 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       resize.disconnect();
       if (drag?.timer) clearTimeout(drag.timer);
       document.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      host.removeEventListener('pointerdown', onLanesDown);
       host.replaceChildren();
       host.classList.remove('tk-lanes');
     },

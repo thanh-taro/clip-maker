@@ -152,6 +152,30 @@ describe('F-003 arranging clips in the editor', () => {
     expect(runArrangeAction('play-pause')).toBe(false);
   });
 
+  it('RULE-20 in scope, Alt+Left/Right and Mod+D are taken from the browser even with nothing selected (no Back, no Bookmark)', () => {
+    expect(runArrangeAction('move-earlier')).toBe(true);
+    expect(runArrangeAction('move-later')).toBe(true);
+    expect(runArrangeAction('duplicate')).toBe(true);
+    // Delete/Backspace with nothing selected keeps the browser's default.
+    expect(runArrangeAction('delete')).toBe(false);
+    expect(ids(project.value)).toEqual(['A', 'B', 'C']);
+    expect(steps()).toBe(0);
+  });
+
+  it('RULE-20 a held Mod+D or Delete acts once: the repeats are taken and do nothing', () => {
+    selectClip('A');
+    expect(runArrangeAction('duplicate')).toBe(true);
+    expect(runArrangeAction('duplicate', true)).toBe(true);
+    expect(runArrangeAction('duplicate', true)).toBe(true);
+    expect(project.value.clips).toHaveLength(4);
+    expect(runArrangeAction('delete')).toBe(true);
+    expect(selection.value).toEqual([]);
+    selectClip('B');
+    expect(runArrangeAction('delete', true)).toBe(true);
+    expect(project.value.clips).toHaveLength(3);
+    expect(steps()).toBe(2);
+  });
+
   it('RULE-13 after undo of a delete the deleted clip is selected again', () => {
     selectClip('B');
     deleteSelected();

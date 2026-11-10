@@ -225,6 +225,7 @@ Rules for every string:
 |---|---|---|---|
 | **COPY-timeline.length** | Length {length} | Độ dài {length} | |
 | **COPY-timeline.project_end** | End | Cuối dự án | |
+| **COPY-timeline.main_track** | Main track | Rãnh chính | Names the group of clips (screen readers) |
 | **COPY-timeline.zoom_frames** | 1 frame = {px} px | 1 khung = {px} px | |
 | **COPY-crossfade.length** | Cross-fade length | Độ dài chuyển mờ | |
 | **COPY-crossfade.shorter** | Shorter | Ngắn hơn | |
