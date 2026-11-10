@@ -50,6 +50,22 @@ const order = async (page: Page) => (await clipsOf(page)).map((c) => c.source);
 const setClip = (page: Page, index: number, setup: ClipSetup) =>
   page.evaluate(([i, s]) => (window as unknown as Harness).appHarness.setClip(i, s), [index, setup] as const);
 
+/** Waits until a clip's box stops moving (the track's layout has settled). */
+async function settled(page: Page, name: string): Promise<void> {
+  let last = '';
+  await expect
+    .poll(
+      async () => {
+        const now = JSON.stringify(await clip(page, name).boundingBox());
+        const same = now === last;
+        last = now;
+        return same;
+      },
+      { intervals: [100, 100, 100, 200] },
+    )
+    .toBe(true);
+}
+
 async function open(page: Page, lang: Language = 'en-US'): Promise<void> {
   await page.goto(`${APP}?effects=fast&lang=${lang}`);
   await expect(page.locator('[data-screen="SCR-Editor"]')).toHaveAttribute('data-device', 'supported');
@@ -199,6 +215,8 @@ test.describe('F-003 arrange clips (app harness)', () => {
   test('F-003.AC1 dragging C to the start gives C, A, B with no gaps, as one undo step', async ({ page }) => {
     await open(page);
     await add(page, ABC());
+    // The track is laid out again once the media panel has closed and the inspector settled: measure after.
+    await settled(page, 'C.mp4');
     const c = (await clip(page, 'C.mp4').boundingBox())!;
     const a = (await clip(page, 'A.mp4').boundingBox())!;
     await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
