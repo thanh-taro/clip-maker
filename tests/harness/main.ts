@@ -14,6 +14,7 @@ import {
   type AudioCodecId,
   type VideoCodecId,
 } from '../../src/codec';
+import { registerOffline } from '../../src/host';
 import { intake, startAnalysisWorker, type IntakeItem } from '../../src/media';
 import { exportHarness } from './export';
 import { videoHarness } from './video';
@@ -151,3 +152,6 @@ declare global {
 }
 window.harness = harness;
 document.getElementById('out')!.textContent = 'ready';
+// The offline worker, as the app registers it (F-021): only in the production build of this page that
+// the offline harness serves (TK_HARNESS_BUILD=offline); a no-op on the dev server.
+registerOffline();

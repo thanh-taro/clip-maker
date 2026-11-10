@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { headersRules } from '../../../scripts/gen-headers.mjs';
 import { headersFor, parseHeaders } from '../../../scripts/lib/preview-headers.mjs';
+import { startOfflineServers } from './offline-servers.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const OUT = path.join(ROOT, 'dist-e2e', 'host');
@@ -179,6 +180,10 @@ async function listen(handler, port, hosts) {
 }
 
 build();
+const OFFLINE_BASE = Number(process.env.E2E_OFFLINE_PORT_BASE);
+if (!Number.isInteger(OFFLINE_BASE) || OFFLINE_BASE <= 0)
+  throw new Error('host-harness: E2E_OFFLINE_PORT_BASE is not set');
+await startOfflineServers({ root: ROOT, built: OUT, base: OFFLINE_BASE, hostAllowed: HOST_ALLOWED });
 await listen(toolHandler([HOST_ALLOWED], TOOL_ALLOWED), PORTS.toolAllowed, IPV4);
 await listen(toolHandler([], `http://127.0.0.1:${PORTS.toolEmpty}`), PORTS.toolEmpty, IPV4);
 await listen(toolHandler([HOST_ALLOWED, HOST_OTHER], `http://127.0.0.1:${PORTS.toolBoth}`), PORTS.toolBoth, IPV4);

@@ -3,7 +3,7 @@
 // `127.0.0.1` and from distinct ports (HOST_PORT_BASE, per worktree; tests/e2e/support/ports.ts). The
 // harness (host-harness.mjs) builds the tool with HOST_ORIGINS = HOST_ALLOWED and serves it with its
 // real `_headers`, so frame-ancestors and the compiled-in allow-list are both exercised.
-import { HOST_PORT_BASE } from './ports';
+import { HOST_PORT_BASE, OFFLINE_PORT_BASE } from './ports';
 
 export const HOST_PORTS = {
   hostAllowed: HOST_PORT_BASE,
@@ -56,4 +56,16 @@ export function hostPageUrl(host: string, tool: string, o: HostOptions = {}): st
   if (o.share === false) page.set('share', '0');
   if (o.focus === false) page.set('focus', '0');
   return `${host}/host.html?${page.toString()}`;
+}
+
+/**
+ * The offline harness (F-021, tests/e2e/support/offline-servers.mjs), one set of servers per engine so
+ * request logs, the "server down" switch and published versions never mix: `tool` — the tool built for
+ * HOST_ALLOWED; `update` — the same, for the test that publishes version 2; `harness` — the export
+ * harness page built for production with the offline worker.
+ */
+export function offlineServer(browserName: string, which: 'tool' | 'update' | 'harness' = 'tool'): string {
+  const engine = browserName === 'webkit' ? 3 : 0;
+  const offset = { tool: 0, update: 1, harness: 2 }[which];
+  return `http://127.0.0.1:${OFFLINE_PORT_BASE + engine + offset}`;
 }
