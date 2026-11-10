@@ -1,9 +1,11 @@
 // MOD-Engine — the engine worker (ADR-0003 §2): MOD-Container reads, MOD-Codec decoders, the engine's
 // scheduling and frame caches, and MOD-Compositor drawing into the preview canvas the main thread hands
 // over once. Decoded frames never cross a thread. Answers the start-up handshake and the
-// MOD-Core `ToEngine` messages with `FromEngine` events.
-import { helloFrom, type FromEngine, type ToEngine, type WorkerScope } from '../core';
+// MOD-Core `ToEngine` messages with `FromEngine` events. It also serves the sources' encoded sound to the
+// audio worker (the sound feed, ADR-0008 §6), since this worker holds the files and the reader.
+import { helloFrom, type EngineMedia, type FromEngine, type ToEngine, type WorkerScope } from '../core';
 import { createCompositor, effectsCheck } from '../compositor';
+import { serveSound } from '../container';
 import { BUDGETS, deviceClass, platformHints } from './budget';
 import { Engine, type EngineDeps, type EngineFrame } from './engine';
 import { openVideoSource } from './video';
@@ -38,11 +40,43 @@ const engine = new Engine({
   now: () => performance.now(),
 });
 
+/** The sources' files for the sound feed (video and audio sources), by id. */
+const files = new Map<string, Blob>();
+let sound: ReturnType<typeof serveSound> | null = null;
+const fileOf = (m: EngineMedia): Blob | null => (m.kind === 'photo' ? null : m.file);
+
+function trackFiles(add: readonly EngineMedia[], remove: readonly string[]): void {
+  for (const id of remove) {
+    files.delete(id);
+    sound?.forget(id);
+  }
+  for (const m of add) {
+    const f = fileOf(m);
+    if (f && !files.has(m.id)) {
+      files.set(m.id, f);
+      sound?.added(m.id);
+    }
+  }
+}
+
 scope.onmessage = (e: MessageEvent<ToEngine>) => {
   const m = e.data;
   if (m?.type === 'hello') {
     scope.postMessage(helloFrom('engine') as FromEngine);
     return;
   }
+  if (m.type === 'engine:soundFeed') {
+    sound?.close();
+    // The project reaches the audio worker before this worker gets a new source's file: wait for it.
+    sound = serveSound(m.port, (id) => files.get(id), { wait: true });
+    return;
+  }
+  if (m.type === 'engine:media') {
+    const next = new Set(m.media.map((x) => x.id));
+    trackFiles(
+      m.media,
+      [...files.keys()].filter((id) => !next.has(id)),
+    );
+  } else if (m.type === 'engine:mediaChanges') trackFiles(m.add, m.remove);
   engine.handle(m);
 };

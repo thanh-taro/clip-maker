@@ -17,7 +17,7 @@ export type RefusalReason =
   | 'reason.codec'
   | 'reason.folder';
 
-export const REFUSAL_REASONS: readonly RefusalReason[] = Object.freeze([
+export const REFUSAL_REASONS: readonly RefusalReason[] = /* @__PURE__ */ Object.freeze([
   'reason.unsupported',
   'reason.too_large',
   'reason.too_long',

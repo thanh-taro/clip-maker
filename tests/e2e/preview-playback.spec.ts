@@ -1,17 +1,18 @@
 // F-002 play and scrub the preview through the real UI (CMP-Preview's transport, RULE-20 keys, full
 // screen) on the app harness (tests/harness/app.html: the real `main()` and workers under the dev
 // server). The harness reads the playback state, moves MOD-Project's playhead as F-003's timeline will
-// (the playhead binding), and gives the audio worker a tone for a source, standing in for the source
-// sound decoder that is not built yet (ADR-0008 §6, build question 76).
-// Not covered here: AC2 (needs the source sound decoder, question 76: the tone tests the clock and worklet
-// path, R2), AC1 (looks, cross-fades and text: F-008, F-009, F-010), AC4/AC8's ruler drag and touch
+// (the playhead binding), and with ?tap=1 records the blocks the audio worker sends the worklet, so the
+// sound the preview plays is checked sample-exact: a clip made in the page with a tone in its sound track
+// is decoded by MOD-Audio (ADR-0008 §6, build questions 33 and 76, resolved by E6).
+// Not covered here: AC1 (looks, cross-fades and text: F-008, F-009, F-010), AC4/AC8's ruler drag and touch
 // scroll (the timeline view, F-003/F-013; the binding they use is tested below), AC6 (export, F-015).
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
-import type { PreviewSummary, SyncSummary } from '../harness/app';
+import type { HeardSummary, PreviewSummary, SyncSummary } from '../harness/app';
+import type { ToneSpec } from '../harness/sound';
 import { MEDIA_HARNESS_PORT } from './support/ports';
 
 const APP = `http://localhost:${MEDIA_HARNESS_PORT}/app.html`;
@@ -25,7 +26,47 @@ interface Harness {
     scrub(frames: number[]): Promise<number[]>;
     feedTone(sourceName: string, seconds: number): void;
     sync(): Promise<SyncSummary>;
+    toneClip(spec: ToneSpec): Promise<number[]>;
+    heard(spec: ToneSpec, hashed: number): HeardSummary;
   };
+}
+
+/** A 3 s clip whose sound is silence, then a 440 Hz tone from 1.000 s (AAC in MP4, priming in an edit list). */
+const TONE: ToneSpec = { seconds: 3, onset: 1, freq: 440, amp: 0.25, codec: 'aac', sampleRate: 48_000 };
+/** Half the tone's amplitude is reached 1/12 of a period after the onset. */
+const HALF = 1 / 12 / 440;
+
+/** Makes the tone clip in the page and adds it through Add media; returns the project length (s). */
+async function addToneClip(page: Page): Promise<number> {
+  const bytes = await page.evaluate((s) => (window as unknown as Harness).appHarness.toneClip(s), TONE);
+  const chooser = page.waitForEvent('filechooser');
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: text('en-US', 'action.add_media') })
+    .click();
+  await (await chooser).setFiles({ name: 'tone.mp4', mimeType: 'video/mp4', buffer: Buffer.from(bytes) });
+  await expect.poll(async () => (await previewOf(page)).duration).toBeGreaterThan(2.9);
+  await page
+    .getByRole('complementary')
+    .getByRole('button', { name: text('en-US', 'action.close') })
+    .click();
+  await expect.poll(async () => (await previewOf(page)).shown?.exact).toBe(true);
+  return (await previewOf(page)).duration;
+}
+
+/**
+ * While playing: the worklet's stats once it has played over 1 s (its hash restarts at the flush that
+ * ends playback, so it is read before the end).
+ */
+async function playedStats(page: Page): Promise<SyncSummary> {
+  let s: SyncSummary | null = null;
+  await expect
+    .poll(async () => {
+      s = await page.evaluate(() => (window as unknown as Harness).appHarness.sync());
+      return s.hashed;
+    })
+    .toBeGreaterThan(48_000);
+  return s!;
 }
 const previewOf = (page: Page) => page.evaluate(() => (window as unknown as Harness).appHarness.preview());
 const setPlayhead = (page: Page, s: number) =>
@@ -143,7 +184,7 @@ test.describe('F-002 preview playback (app harness)', () => {
     expect((await previewOf(page)).time).toBe(0);
   });
 
-  test('F-002.R2 play runs from the playhead (picture; sound waits for the decoder, question 76) and stops at the project end; Play at the end starts from 0', async ({
+  test('F-002.R2 play runs from the playhead and stops at the project end; Play at the end starts from 0', async ({
     page,
   }) => {
     await open(page);
@@ -289,7 +330,72 @@ test.describe('F-002 preview playback (app harness)', () => {
   });
 });
 
+test.describe('F-002 sound (app harness, decoded source sound)', () => {
+  test('ADR-0008 §6 the preview plays a clip’s decoded sound from the playhead: the worklet gets the tone at its project time', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await open(page, 'effects=fast&lang=en-US&tap=1');
+    const end = await addToneClip(page);
+    await setPlayhead(page, 0.5);
+    await button(page, 'action.play').click();
+    const played = await playedStats(page);
+    await expect(button(page, 'action.play')).toBeVisible({ timeout: 10_000 });
+    const heard = await page.evaluate(([s, n]) => (window as unknown as Harness).appHarness.heard(s, n), [
+      TONE,
+      played.hashed,
+    ] as const);
+    // The sound starts at the playhead and runs to the project end.
+    expect(heard.from).toBeCloseTo(0.5, 6);
+    expect(heard.to).toBeCloseTo(end, 6);
+    // The tone is heard at its own time in the clip (the AAC priming is removed: INV-02), at its level.
+    expect(Math.abs(heard.onset - (1 + HALF))).toBeLessThan(0.001);
+    expect(heard.beforeDb).toBeLessThan(-50);
+    expect(Math.abs(heard.toneDb - 20 * Math.log10(0.25 / Math.SQRT2))).toBeLessThan(0.5);
+    expect(Math.abs(heard.freq - 440)).toBeLessThan(1);
+    // What the worklet played is exactly what it was sent.
+    expect(heard.hashL).toBe(played.hashL);
+  });
+});
+
 test.describe('F-002 timing (app harness)', () => {
+  test(
+    'F-002.AC2 picture and decoded sound start together from the playhead and stop at the project end',
+    { tag: '@realtime' },
+    async ({ page }) => {
+      test.setTimeout(60_000);
+      await open(page, 'effects=fast&lang=en-US&tap=1');
+      const end = await addToneClip(page);
+      await setPlayhead(page, 0.5);
+      await button(page, 'action.play').click();
+      const played = await playedStats(page);
+      await expect(button(page, 'action.play')).toBeVisible({ timeout: 10_000 });
+      const sync = await page.evaluate(() => (window as unknown as Harness).appHarness.sync());
+      const heard = await page.evaluate(([s, n]) => (window as unknown as Harness).appHarness.heard(s, n), [
+        TONE,
+        played.hashed,
+      ] as const);
+      // Sound: from the playhead's sample, with the clip's tone at its time, to the project end.
+      expect(heard.from).toBeCloseTo(0.5, 6);
+      expect(Math.abs(heard.onset - (1 + HALF))).toBeLessThan(0.001);
+      expect(heard.to).toBeCloseTo(end, 6);
+      expect(heard.hashL).toBe(played.hashL);
+      expect(sync.underruns).toBe(0);
+      // Picture: starts at the playhead and follows the sound clock (each frame within a frame + 40 ms).
+      expect(sync.shown.length).toBeGreaterThan(30);
+      expect(sync.shown[0]!.t).toBeGreaterThanOrEqual(0.5 - 1e-6);
+      expect(sync.shown[0]!.t).toBeLessThan(0.5 + 0.2);
+      const offsets = sync.shown.map((f) => f.heard - f.t);
+      const mean = offsets.reduce((a, b) => a + b, 0) / offsets.length;
+      test.info().annotations.push({
+        type: 'A/V offset (heard − shown)',
+        description: `mean ${(mean * 1000).toFixed(1)} ms, max ${(Math.max(...offsets.map(Math.abs)) * 1000).toFixed(1)} ms over ${offsets.length} frames`,
+      });
+      for (const f of sync.shown) expect(Math.abs(f.heard - f.t)).toBeLessThan(FRAME + 0.04);
+      expect((await previewOf(page)).time).toBeCloseTo(end, 5);
+    },
+  );
+
   test(
     'F-002.AC4 the preview follows the playhead moved across a clip within the NFR-03 150 ms (95th percentile)',
     { tag: '@realtime' },

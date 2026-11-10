@@ -39,7 +39,12 @@ Evidence: SP-audio, SP-timestretch, SP-speed, SP-frame, SP-ios (ADR-0008 outcome
   windows). It takes every voice up to `endSample`, not only those sounding in the block, because
   the limiter's 1 s pre-roll needs earlier voices. A streaming `Mixer` serves playback and
   `renderOffline` serves exports.
-- Audio worker messages: `setProject`, `play(fromT)`, `pause`, `seek(t)`, `audition(trackId)`.
+- Audio worker messages: `setProject`, `play(fromT)`, `pause`, `seek(t)`, `audition(trackId)`, and `feed(port)`: the
+  sound feed from the worker that reads the files (MOD-Container `serveSound`; build question 83).
+- `SoundBank(feed)`: windowed decoding of the sources' sound (`AudioDecoder`, stereo by fixed rules, 48 kHz
+  resampling): `setSources(ids)`, `want(demand)` keeps exactly the demanded source ranges decoded,
+  `ready`/`until(demand)`, `failureOf(demand)`; `get` is the mixer's source bank. `soundDemand(voices, from, to)`
+  says which source ranges a range of the mix reads (after a seek: the previous sync point − 32 ms).
 - Main thread: `clock.now()` → project time; `onEnded`.
 
 ## Implements

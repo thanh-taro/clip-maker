@@ -17,6 +17,7 @@ import {
 import { registerOffline } from '../../src/host';
 import { intake, startAnalysisWorker, type IntakeItem } from '../../src/media';
 import { exportHarness } from './export';
+import { soundHarness } from './sound';
 import { videoHarness } from './video';
 
 const worker = startAnalysisWorker();
@@ -141,6 +142,8 @@ const harness = {
   video: videoHarness,
   /** MOD-Export and MOD-Scratch (tests/harness/export.ts). */
   export: exportHarness,
+  /** MOD-Audio's windowed decoder on generated tone clips (tests/harness/sound.ts). */
+  sound: soundHarness,
   supportsDecode: async (codec: string) =>
     (await VideoDecoder.isConfigSupported({ codec, codedWidth: 1920, codedHeight: 1080 })).supported === true,
 };

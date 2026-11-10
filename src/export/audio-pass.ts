@@ -52,6 +52,11 @@ export interface MixJob {
   readonly voices: readonly Voice[];
   readonly bank: SourceBank;
   readonly endSample: number;
+  /**
+   * Called before mixing project samples [from, to): resolves once the sound they read is decoded
+   * (windowed decoding, ADR-0008 §6); rejects on a decode error. None when every source is given whole.
+   */
+  readonly prepare?: (from: number, to: number) => Promise<void>;
 }
 
 /** The project's limited mix in 100 ms blocks, scaled by `gain` (linear). Same samples as the preview. */
@@ -60,10 +65,12 @@ export async function* mixBlocks(
   gain = 1,
   onProgress?: (done: number) => void,
 ): AsyncGenerator<[Float32Array, Float32Array]> {
+  await job.prepare?.(0, Math.min(MIX_BLOCK, job.endSample));
   const mixer = new Mixer(job.voices, job.bank, job.endSample);
   mixer.seek(0, 0);
   for (let at = 0; at < job.endSample;) {
     const n = Math.min(MIX_BLOCK, job.endSample - at);
+    await job.prepare?.(at, at + n);
     const L = new Float32Array(n);
     const R = new Float32Array(n);
     mixer.process(L, R);

@@ -8,7 +8,7 @@
 // INV-02, NFR-04, NFR-05, NFR-08, NFR-11.
 import { wavHeader } from '../audio';
 import { createCompositor, type Compositor, type LookTable, type PaintFrame } from '../compositor';
-import { createOutput, type MediaWriter, type OutPacket, type Sink } from '../container';
+import { createOutput, serveSound, type MediaWriter, type OutPacket, type Sink } from '../container';
 import {
   frameStart,
   gifDelays,
@@ -54,7 +54,7 @@ export class FrameSource {
   constructor(media: readonly EngineMedia[]) {
     for (const m of media) {
       if (m.kind === 'video') this.files.set(m.id, m.file);
-      else this.photos.set(m.id, m.bitmap);
+      else if (m.kind === 'photo') this.photos.set(m.id, m.bitmap);
     }
   }
 
@@ -621,8 +621,14 @@ async function audioExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
   }
 }
 
-/** Runs one export job; posts `export:done` or `export:failed`. */
+/**
+ * Runs one export job; posts `export:done` or `export:failed`. Meanwhile it serves the sources' encoded
+ * sound to the export-audio worker, which decodes and mixes it (the sound feed, ADR-0008 §6, Q33).
+ */
 export async function runExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
+  const files = new Map<string, Blob>();
+  for (const m of job.media) if (m.kind !== 'photo') files.set(m.id, m.file);
+  const feed = job.soundFeed ? serveSound(job.soundFeed, (id) => files.get(id)) : null;
   try {
     if (job.output.kind === 'video') await videoExport(job, deps);
     else if (job.output.kind === 'audio') await audioExport(job, deps);
@@ -630,6 +636,8 @@ export async function runExport(job: ExportJob, deps: PipelineDeps): Promise<voi
   } catch (e) {
     const err = e instanceof StageError ? e : new StageError('internal', errorText(e));
     deps.post({ type: 'export:failed', error: { kind: err.kind, message: err.message } });
+  } finally {
+    feed?.close();
   }
 }
 

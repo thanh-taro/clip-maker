@@ -2,7 +2,7 @@
 // Times in seconds unless the name says otherwise; tenths are 0.1 s steps.
 
 /** Implements: RULE-02 input limits. */
-export const RULE_02 = Object.freeze({
+export const RULE_02 = /* @__PURE__ */ Object.freeze({
   maxBytes: 4_000_000_000,
   maxMediaSeconds: 3 * 60 * 60,
   maxVideoSide: 5120,
@@ -19,10 +19,10 @@ export const RULE_02 = Object.freeze({
 });
 
 /** Implements: RULE-03 project length. */
-export const RULE_03 = Object.freeze({ maxProjectSeconds: 600 });
+export const RULE_03 = /* @__PURE__ */ Object.freeze({ maxProjectSeconds: 600 });
 
 /** Implements: RULE-04 frame settings. */
-export const RULE_04 = Object.freeze({
+export const RULE_04 = /* @__PURE__ */ Object.freeze({
   aspects: Object.freeze(['9:16', '1:1', '4:5', '16:9', 'original'] as const),
   frameRates: Object.freeze([24, 25, 30, 60] as const),
   defaultFrameRate: 30 as const,
@@ -33,7 +33,7 @@ export const RULE_04 = Object.freeze({
 });
 
 /** Implements: RULE-05 clip timing. */
-export const RULE_05 = Object.freeze({
+export const RULE_05 = /* @__PURE__ */ Object.freeze({
   minLengthTenths: 1,
   photoDefaultSeconds: 3,
   photoMinTenths: 1,
@@ -41,7 +41,7 @@ export const RULE_05 = Object.freeze({
 });
 
 /** Implements: RULE-06 speed, as speed × 100. */
-export const RULE_06 = Object.freeze({
+export const RULE_06 = /* @__PURE__ */ Object.freeze({
   minPct: 25,
   maxPct: 400,
   stepPct: 5,
@@ -50,7 +50,7 @@ export const RULE_06 = Object.freeze({
 });
 
 /** Implements: RULE-07 placement. */
-export const RULE_07 = Object.freeze({
+export const RULE_07 = /* @__PURE__ */ Object.freeze({
   minScale: 50,
   maxScale: 400,
   defaultScale: 100,
@@ -60,7 +60,7 @@ export const RULE_07 = Object.freeze({
 });
 
 /** Implements: RULE-08 adjustments. */
-export const RULE_08 = Object.freeze({
+export const RULE_08 = /* @__PURE__ */ Object.freeze({
   bipolar: Object.freeze([
     'brightness',
     'contrast',
@@ -79,10 +79,10 @@ export const RULE_08 = Object.freeze({
 });
 
 /** Implements: RULE-09 looks. */
-export const RULE_09 = Object.freeze({ minIntensity: 0, maxIntensity: 100, defaultIntensity: 100 });
+export const RULE_09 = /* @__PURE__ */ Object.freeze({ minIntensity: 0, maxIntensity: 100, defaultIntensity: 100 });
 
 /** Implements: RULE-10 fades. */
-export const RULE_10 = Object.freeze({
+export const RULE_10 = /* @__PURE__ */ Object.freeze({
   clipFadeMaxSeconds: 3,
   quickFadeTenths: 5,
   crossFadeMinTenths: 1,
@@ -93,7 +93,7 @@ export const RULE_10 = Object.freeze({
 });
 
 /** Implements: RULE-11 text. */
-export const RULE_11 = Object.freeze({
+export const RULE_11 = /* @__PURE__ */ Object.freeze({
   maxLayers: 50,
   maxCharacters: 500,
   wrapWidth: 0.9,
@@ -110,10 +110,15 @@ export const RULE_11 = Object.freeze({
 });
 
 /** Implements: RULE-12 sound. */
-export const RULE_12 = Object.freeze({ minVolume: 0, maxVolume: 200, defaultVolume: 100, limiterDbtp: -1 });
+export const RULE_12 = /* @__PURE__ */ Object.freeze({
+  minVolume: 0,
+  maxVolume: 200,
+  defaultVolume: 100,
+  limiterDbtp: -1,
+});
 
 /** Implements: RULE-15 video export choices (the bitrate tables live with F-015). */
-export const RULE_15 = Object.freeze({
+export const RULE_15 = /* @__PURE__ */ Object.freeze({
   resolutions: Object.freeze([480, 720, 1080, 1440, 2160] as const),
   defaultResolution: 1080,
   qualities: Object.freeze(['smaller', 'balanced', 'best'] as const),
@@ -124,7 +129,7 @@ export const RULE_15 = Object.freeze({
 });
 
 /** Implements: RULE-16 other exports. */
-export const RULE_16 = Object.freeze({
+export const RULE_16 = /* @__PURE__ */ Object.freeze({
   gifMaxSeconds: 15,
   gifSizes: Object.freeze([320, 480, 640] as const),
   gifDefaultSize: 480,

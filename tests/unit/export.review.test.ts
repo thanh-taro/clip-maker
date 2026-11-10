@@ -164,11 +164,14 @@ describe('MOD-Export session — review fixes (E5)', () => {
     expect(a).toMatchObject({ codec: 'pcm16', gainDb: -2.5 });
   });
 
-  it('build-spec Q33 a sounding source without decoded sound fails the export instead of dropping its sound', async () => {
+  it('ADR-0008 §6 a sounding source given no PCM is decoded: the export-audio worker gets the sound feed from the export worker', async () => {
     const h = harness();
-    const r = await (await start(h.project, balanced, { ...h.ctx, pcm: [] })).result;
-    expect(r).toMatchObject({ ok: false, error: 'error.export_failed' });
-    expect(lastPair(h).video.posted).toEqual([]);
+    await start(h.project, balanced, { ...h.ctx, pcm: [] });
+    const a = lastPair(h).audio.posted[0] as Extract<ToExportAudio, { type: 'exportAudio:start' }>;
+    const v = lastPair(h).video.posted[0] as Extract<ToExport, { type: 'export:start' }>;
+    expect(a.pcm).toEqual([]);
+    expect(a.feed).toBeTruthy();
+    expect(v.job.soundFeed).toBeTruthy();
   });
 });
 

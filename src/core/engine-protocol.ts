@@ -8,7 +8,9 @@ import type { Project } from './project.gen';
 /** A source the engine can draw: a video file read in pieces, or a decoded photo (ADR-0009 §1–2). */
 export type EngineMedia =
   | { readonly id: string; readonly kind: 'video'; readonly file: Blob }
-  | { readonly id: string; readonly kind: 'photo'; readonly bitmap: ImageBitmap };
+  | { readonly id: string; readonly kind: 'photo'; readonly bitmap: ImageBitmap }
+  /** An audio source's file: read only for its sound (the sound feed, ADR-0008 §6), never drawn. */
+  | { readonly id: string; readonly kind: 'audio'; readonly file: Blob };
 
 /** A rasterised text layer (ADR-0012): premultiplied pixels made for an output whose shorter side is `s`. */
 export interface TextBitmap {
@@ -33,6 +35,8 @@ export interface Overlay {
 /** Main thread → engine worker. */
 export type ToEngine =
   | { readonly type: 'hello' }
+  /** The engine worker's end of the sound feed to the audio worker (ADR-0008 §6; MOD-Container serves it). */
+  | { readonly type: 'engine:soundFeed'; readonly port: MessagePort }
   /** Once: the preview canvas (transferred) and its first size in device pixels. */
   | {
       readonly type: 'engine:canvas';

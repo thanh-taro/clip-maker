@@ -10,9 +10,11 @@
 // `window.appHarness.project()` reads the session's project (the timeline view is F-003) and `undo()`
 // takes one RULE-13 step back (the Undo button is F-014). `preview()` reads the playback state (F-002),
 // `setPlayhead()` moves MOD-Project's playhead as F-003's timeline will (the playhead binding),
-// `scrub()` measures how soon the preview shows each playhead time (NFR-03), and `feedTone()` stands in
-// for the source sound decoder that is not built yet (ADR-0008 §6, build question 76): it gives the audio
-// worker a 440 Hz tone as a source's 48 kHz sound so picture and sound can be checked together.
+// `scrub()` measures how soon the preview shows each playhead time (NFR-03), and `feedTone()` gives the
+// audio worker a 440 Hz tone as a source's 48 kHz sound (the clock and worklet path without decoding).
+//   ?tap=1            the blocks the audio worker sends the worklet are relayed through this page and
+//                     recorded (`heard()`), so a test can check the sound the preview plays, sample-exact
+//                     with its project position; `toneClip()` makes a clip with a tone in its sound track.
 // The codec interfaces and WebGL2 are tested on the production build instead, by changing them on the
 // page before it loads (the presence check and the codec probe run on the main thread).
 import '../../src/app/styles/index.css';
@@ -23,10 +25,11 @@ import { playback } from '../../src/app/playback';
 import { workers } from '../../src/app/workers';
 import { frameStart, layoutOf, type FromEngine } from '../../src/core';
 import { history, playhead, project, undo } from '../../src/project';
+import { analyseTone, makeToneClip, type ToneReport, type ToneSpec } from './sound';
 
 /** The session's project as a test reads it (times in seconds). */
 export interface ProjectSummary {
-  readonly sources: readonly { readonly name: string; readonly kind: string }[];
+  readonly sources: readonly { readonly name: string; readonly kind: string; readonly hasSound: boolean }[];
   readonly clips: readonly { readonly source: string; readonly start: number }[];
   readonly audio: readonly { readonly source: string; readonly start: number; readonly end: number }[];
   readonly steps: number;
@@ -46,6 +49,8 @@ declare global {
       scrub(frames: number[]): Promise<number[]>;
       feedTone(sourceName: string, seconds: number): void;
       sync(): Promise<SyncSummary>;
+      toneClip(spec: ToneSpec): Promise<number[]>;
+      heard(spec: ToneSpec, hashed: number): HeardSummary;
     };
   }
 }
@@ -67,16 +72,72 @@ export interface SyncSummary {
   readonly shown: { readonly t: number; readonly heard: number }[];
   readonly played: number;
   readonly underruns: number;
+  /** The worklet's FNV-1a of the samples it played since the last flush (L), and how many. */
+  readonly hashL: string;
+  readonly hashed: number;
 }
 
-const params = new URLSearchParams(location.search);
-const effects = params.get('effects');
+/** The sound the worklet was sent in the last generation (?tap=1), analysed as a tone. */
+export interface HeardSummary extends ToneReport {
+  /** Project time of the first block (s), and of the end of the last. */
+  readonly from: number;
+  readonly to: number;
+  /** FNV-1a of the first `n` samples of L sent (to compare with the worklet's hash of what it played). */
+  readonly hashL: string;
+  readonly blocks: number;
+}
+
+// ?tap=1: relay the worker → worklet channel through this page and record the blocks.
+const tapped: { gen: number; from: number; L: Float32Array; R: Float32Array }[] = [];
+if (params().get('tap')) {
+  const post = MessagePort.prototype.postMessage as (this: MessagePort, m: unknown, t?: Transferable[]) => void;
+  MessagePort.prototype.postMessage = function (this: MessagePort, m: unknown, t?: Transferable[]) {
+    const msg = m as { type?: string; port?: MessagePort } | null;
+    if (msg?.type !== 'connect' || !(msg.port instanceof MessagePort)) return post.call(this, m, t);
+    const fromWorker = msg.port;
+    const relay = new MessageChannel();
+    fromWorker.onmessage = (e: MessageEvent) => {
+      const d = e.data as { type: string; gen: number; from: number; L: Float32Array; R: Float32Array };
+      if (d.type === 'block') tapped.push({ gen: d.gen, from: d.from, L: d.L.slice(), R: d.R.slice() });
+      post.call(relay.port1, d, d.type === 'block' ? [d.L.buffer, d.R.buffer] : []);
+    };
+    relay.port1.onmessage = (e: MessageEvent) => post.call(fromWorker, e.data);
+    return post.call(this, { ...msg, port: relay.port2 }, [relay.port2]);
+  } as MessagePort['postMessage'];
+}
+
+function fnv(a: Float32Array, n: number): string {
+  const u = new Uint8Array(a.buffer, a.byteOffset, Math.min(n, a.length) * 4);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < u.length; i++) h = Math.imul(h ^ u[i]!, 0x01000193);
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+function heard(spec: ToneSpec, n: number): HeardSummary {
+  const gen = Math.max(...tapped.map((b) => b.gen));
+  const blocks = tapped.filter((b) => b.gen === gen).sort((a, b) => a.from - b.from);
+  const from = blocks[0]?.from ?? 0;
+  const to = blocks.reduce((m, b) => Math.max(m, b.from + b.L.length), from);
+  const L = new Float32Array(to - from);
+  const R = new Float32Array(to - from);
+  for (const b of blocks) {
+    L.set(b.L, b.from - from);
+    R.set(b.R, b.from - from);
+  }
+  const hashL = fnv(L, n);
+  return { ...analyseTone(L, R, from, spec), from: from / 48_000, to: to / 48_000, blocks: blocks.length, hashL };
+}
+
+function params(): URLSearchParams {
+  return new URLSearchParams(location.search);
+}
+const effects = params().get('effects');
 const real = browserDevice(() => workers.get('engine'));
 let draw: () => void = () => undefined;
 
 // ?gate=N — hold probe requests after the first N (F-001.AC8: the second file stays "being checked").
 const held: (() => void)[] = [];
-const gate = Number(params.get('gate') ?? NaN);
+const gate = Number(params().get('gate') ?? NaN);
 if (Number.isInteger(gate)) {
   const post = Worker.prototype.postMessage as (this: Worker, ...args: unknown[]) => void;
   let probes = 0;
@@ -95,7 +156,7 @@ function summary(): ProjectSummary {
   const name = (id: string) => p.sources.find((s) => s.id === id)?.name ?? id;
   const spans = layoutOf(p).spans;
   return {
-    sources: p.sources.map((s) => ({ name: s.name, kind: s.kind })),
+    sources: p.sources.map((s) => ({ name: s.name, kind: s.kind, hasSound: s.hasSound === true })),
     clips: p.clips.map((c, i) => ({
       source: name(c.sourceId),
       start: Math.round((spans[i]!.startFrame / p.frame.frameRate) * 1000) / 1000,
@@ -184,8 +245,19 @@ window.appHarness = {
     p?.clock.requestStats();
     await new Promise((r) => setTimeout(r, 100));
     const stats = p?.clock.stats;
-    return { shown: synced.slice(), played: stats?.played ?? 0, underruns: stats?.underrunEvents ?? 0 };
+    return {
+      shown: synced.slice(),
+      played: stats?.played ?? 0,
+      underruns: stats?.underrunEvents ?? 0,
+      hashL: stats?.hashL ?? '',
+      hashed: stats?.hashed ?? 0,
+    };
   },
+  async toneClip(spec) {
+    watchSync();
+    return Array.from(new Uint8Array(await (await makeToneClip(spec)).arrayBuffer()));
+  },
+  heard,
 };
 
 const fixed = (ok: boolean, slow: boolean): EffectsRun => ({

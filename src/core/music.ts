@@ -16,7 +16,7 @@ export interface MusicTrack {
  * The bundled tracks. Empty until the music pack and its generated manifest land with F-011
  * (adapters/codegen.md "gen-music-manifest"); operations take this as their default catalog.
  */
-export const MUSIC_TRACKS: readonly MusicTrack[] = Object.freeze([]);
+export const MUSIC_TRACKS: readonly MusicTrack[] = /* @__PURE__ */ Object.freeze([]);
 
 /**
  * The end (duration) of a source or bundled track, or undefined when unknown. Callers treat an

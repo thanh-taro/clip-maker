@@ -183,6 +183,8 @@ export class Engine {
       case 'engine:release':
         this.release();
         return;
+      case 'engine:soundFeed':
+        return; // served by the worker scope (MOD-Container), not drawn
     }
   }
 

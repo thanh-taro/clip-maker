@@ -7,6 +7,7 @@ export { PALETTE, PALETTE_HEX, type PaletteName } from './palette.gen';
 export { LOOK_GROUPS, LOOK_IDS, LOOKS, type LookGroup, type LookId } from './looks.gen';
 export * from './messages';
 export type * from './engine-protocol';
+export type * from './sound-feed';
 export { NotImplementedError, notImplemented } from './stub';
 export * from './time';
 export * from './limits';
