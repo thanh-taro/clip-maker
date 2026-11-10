@@ -54,7 +54,7 @@
     "build": {
       "title": "4 Implementation",
       "status": "in_progress",
-      "step": "4 wave 3: F-002, E6, F-003 merged (check 9/9); next F-014, then F-012, F-011",
+      "step": "4 wave 3: F-002, E6, F-003, F-014 merged (check 9/9); next F-012, then F-011",
       "gate": {
         "status": "pending",
         "at": null,
@@ -1518,9 +1518,13 @@
     {
       "at": "2026-11-10T14:41:40+00:00",
       "event": "build step: 4 wave 3: F-002, E6, F-003 merged (check 9/9); next F-014, then F-012, F-011"
+    },
+    {
+      "at": "2026-11-10T15:28:52+00:00",
+      "event": "build step: 4 wave 3: F-002, E6, F-003, F-014 merged (check 9/9); next F-012, then F-011"
     }
   ],
-  "updated": "2026-11-10T14:41:40+00:00",
+  "updated": "2026-11-10T15:28:52+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
