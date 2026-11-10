@@ -112,6 +112,8 @@ describe('review E1 fixes', () => {
     // Without it the track's end is unknown, so the clip may not grow: the change is refused.
     const unknown = setFrameRate(p, 24);
     expect(unknown.project).toBe(p);
+    // RULE-03: refused with COPY-notice.length_full, and nothing changes.
+    expect(unknown.notices).toEqual(['notice.length_full']);
   });
 
   it('RULE-04 a clip that cannot reach its minimum within its source at the new rate slows to the fastest step that does', () => {

@@ -4,6 +4,7 @@ import {
   DEFAULT_PLACEMENT,
   frameStart,
   invariantViolations,
+  layoutOf,
   projectEnd,
   projectFrames,
   type Project,
@@ -283,6 +284,12 @@ describe('F-012 frame (domain)', () => {
     const r = setFrameRate(p, 24);
     expect(r.project.frame).toMatchObject({ frameRate: 24, frameRateChosen: true });
     expect(r.project.clips[0]!.duration).toBe(125_000);
+    // The photo stays 3 frames; the video, which would be round(599.897 × 24) = 14,398 frames, is cut at
+    // its end to 14,397 so the project is 14,400 frames (600.000 s).
+    expect(layoutOf(p).spans.map((s) => s.frames)).toEqual([3, 14_997]);
+    expect(Math.round(599.897 * 24)).toBe(14_398);
+    expect(layoutOf(r.project).spans.map((s) => s.frames)).toEqual([3, 14_397]);
+    expect(r.project.clips[1]!.in).toBe(0);
     expect(projectFrames(r.project)).toBe(14_400);
     expect(projectEnd(r.project)).toBe(600 * S);
     expect(r.notices).toEqual(['notice.length_limited']);

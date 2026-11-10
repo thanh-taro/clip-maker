@@ -53,6 +53,7 @@ export interface FocusInfo {
 
 const BUTTON_ROLES = new Set(['button', 'switch', 'checkbox', 'radio', 'tab', 'menuitem', 'menuitemradio', 'option']);
 const BUTTON_INPUTS = new Set(['button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'color']);
+const ARROW_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 const SLIDER_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
 const SCROLL_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'PageUp', 'PageDown']);
 /** Composite widgets that move their own selection or focus with the arrows, Space, Page, Home and End. */
@@ -61,8 +62,9 @@ const COMPOSITE_KEYS = new Set([...SLIDER_KEYS, 'Space']);
 
 /**
  * RULE-20 *Scope*: a field being edited, an open dialog or menu, or a focused control that uses this
- * key itself (buttons and toggles get Space and Enter; sliders get the arrows, Home, End and Page keys;
- * lists, grids and trees those and Space; a scrolling region the arrows, Space and Page keys).
+ * key itself (buttons and toggles get Space and Enter; radios the arrows too; sliders get the arrows,
+ * Home, End and Page keys; lists, grids and trees those and Space; a scrolling region the arrows, Space
+ * and Page keys).
  */
 export function scopeOf(focus: FocusInfo | null, code: string): KeyScope {
   if (!focus) return 'none';
@@ -71,6 +73,9 @@ export function scopeOf(focus: FocusInfo | null, code: string): KeyScope {
   const slider = focus.role === 'slider' || (focus.tag === 'input' && focus.type === 'range');
   if (slider) return SLIDER_KEYS.has(code) ? 'control' : 'none';
   if (focus.role !== null && COMPOSITE_ROLES.has(focus.role)) return COMPOSITE_KEYS.has(code) ? 'control' : 'none';
+  // A radio of an option group (CMP-Inspector: aspect, rate, background) moves its choice with the arrows.
+  const radio = focus.role === 'radio' || (focus.tag === 'input' && focus.type === 'radio');
+  if (radio && ARROW_KEYS.has(code)) return 'control';
   if (focus.scrollable && SCROLL_KEYS.has(code)) return 'control';
   const button =
     focus.tag === 'button' ||

@@ -1,0 +1,257 @@
+/* MOD-App — CMP-Inspector (board CMP-Inspector "Frame"; SCR-Editor default/empty wide and compact),
+   tokens only: docked right of the preview at `size.inspector` on wide and compact layouts, the
+   timeline spanning under both; hidden on narrow layouts, where the Edit sheet holds the frame section
+   at touch size (CMP-Inspector "narrow sheets", D-038). Option groups: equal segments, swatches and a
+   chip (F-012). Swatch colours are the picture palette (`text.color.*`, INV-05), never theme colours. */
+@layer layout {
+  .tk-editor[data-screen='SCR-Editor'] {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .tk-editor[data-screen='SCR-Editor'] > .tk-timeline {
+    grid-column: 2 / -1;
+  }
+
+  .tk-inspector {
+    display: flex;
+    flex-direction: column;
+    grid-column: 3;
+    grid-row: 2;
+    inline-size: var(--tk-size-inspector);
+    min-block-size: 0;
+    border-inline-start: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  .tk-inspector__head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--tk-space-2);
+    block-size: var(--tk-size-toolbar);
+    padding-inline: var(--tk-space-3-5) var(--tk-space-1);
+    border-block-end: var(--tk-border-width-hairline) solid var(--tk-color-line);
+  }
+
+  .tk-inspector__title {
+    flex: 1;
+    min-inline-size: 0;
+    margin: 0;
+    overflow: hidden;
+    font-size: var(--tk-font-size-md);
+    font-weight: var(--tk-font-weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The body scrolls with a fade at the cut (style.md "Inspector body"). */
+  .tk-inspector__body {
+    flex: 1;
+    min-block-size: 0;
+    padding: var(--tk-space-3);
+    overflow-y: auto;
+    mask-image: linear-gradient(to bottom, black calc(100% - var(--tk-space-3)), transparent);
+  }
+
+  /* ── The frame section (F-012) and option groups ── */
+  .tk-frame-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-3);
+  }
+
+  .tk-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1-5);
+  }
+
+  .tk-field__label {
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+    letter-spacing: var(--tk-font-letter-spacing-caps);
+    line-height: var(--tk-font-line-height-tight);
+    text-transform: uppercase;
+  }
+
+  .tk-options {
+    display: grid;
+    gap: var(--tk-space-1);
+  }
+
+  /* Equal segments; a fifth option (Original) takes its own width after four equal ones. */
+  .tk-options--segments {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .tk-options--segments[data-count='5'] {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  }
+
+  .tk-options--swatches {
+    grid-template-columns: repeat(6, var(--tk-size-tool-button));
+    align-items: center;
+  }
+
+  .tk-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 0;
+    block-size: var(--tk-size-tool-button);
+    padding-inline: var(--tk-space-1);
+    overflow: hidden;
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-medium);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--tk-motion-duration-fast);
+  }
+
+  /* Worded options (Original, Blur) read in the body face. */
+  .tk-option[data-value='original'],
+  .tk-option[data-value='blur'] {
+    padding-inline: var(--tk-space-2);
+    font-family: var(--tk-font-family-body);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  /* The Blur chip spans two swatch columns. */
+  .tk-options--swatches .tk-option {
+    grid-column: span 2;
+  }
+
+  .tk-option:hover:not([aria-checked='true']) {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-option[aria-checked='true'] {
+    border-color: var(--tk-color-accent);
+    background: var(--tk-color-selection);
+  }
+
+  .tk-swatch {
+    display: grid;
+    place-items: center;
+    inline-size: var(--tk-size-tool-button);
+    block-size: var(--tk-size-tool-button);
+    padding: 0;
+    border: 0;
+    border-radius: var(--tk-radius-pill);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .tk-swatch__dot {
+    display: block;
+    inline-size: var(--tk-size-swatch);
+    block-size: var(--tk-size-swatch);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-pill);
+  }
+
+  .tk-swatch[aria-checked='true'] .tk-swatch__dot {
+    outline: var(--tk-border-width-focus) solid var(--tk-color-accent);
+    outline-offset: var(--tk-space-0-5);
+  }
+
+  .tk-swatch[data-value='white'] .tk-swatch__dot {
+    background: var(--tk-text-color-white);
+  }
+  .tk-swatch[data-value='black'] .tk-swatch__dot {
+    background: var(--tk-text-color-black);
+  }
+  .tk-swatch[data-value='red'] .tk-swatch__dot {
+    background: var(--tk-text-color-red);
+  }
+  .tk-swatch[data-value='orange'] .tk-swatch__dot {
+    background: var(--tk-text-color-orange);
+  }
+  .tk-swatch[data-value='yellow'] .tk-swatch__dot {
+    background: var(--tk-text-color-yellow);
+  }
+  .tk-swatch[data-value='green'] .tk-swatch__dot {
+    background: var(--tk-text-color-green);
+  }
+  .tk-swatch[data-value='cyan'] .tk-swatch__dot {
+    background: var(--tk-text-color-cyan);
+  }
+  .tk-swatch[data-value='blue'] .tk-swatch__dot {
+    background: var(--tk-text-color-blue);
+  }
+  .tk-swatch[data-value='purple'] .tk-swatch__dot {
+    background: var(--tk-text-color-purple);
+  }
+  .tk-swatch[data-value='pink'] .tk-swatch__dot {
+    background: var(--tk-text-color-pink);
+  }
+
+  /* Touch size: the narrow sheet's rows, and any coarse pointer (RULE-21). */
+  .tk-frame-fields--touch .tk-option {
+    min-inline-size: var(--tk-size-touch-target);
+    block-size: var(--tk-size-touch-target);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  .tk-frame-fields--touch .tk-options--swatches {
+    grid-template-columns: repeat(6, var(--tk-size-touch-target));
+  }
+
+  .tk-frame-fields--touch .tk-swatch {
+    inline-size: var(--tk-size-touch-target);
+    block-size: var(--tk-size-touch-target);
+  }
+
+  @media (pointer: coarse) {
+    .tk-option {
+      min-inline-size: var(--tk-size-touch-target);
+      block-size: var(--tk-size-touch-target);
+    }
+    .tk-options--swatches {
+      grid-template-columns: repeat(6, var(--tk-size-touch-target));
+    }
+    .tk-swatch {
+      inline-size: var(--tk-size-touch-target);
+      block-size: var(--tk-size-touch-target);
+    }
+  }
+
+  /* The frame section in the narrow Edit sheet. */
+  .tk-sheet__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-sheet__section-title {
+    margin: 0;
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-bold);
+  }
+
+  @container tk-editor (width < 700px) {
+    .tk-inspector {
+      display: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .tk-inspector {
+      border-color: CanvasText;
+    }
+    .tk-option[aria-checked='true'],
+    .tk-swatch[aria-checked='true'] .tk-swatch__dot {
+      outline: var(--tk-border-width-focus) solid Highlight;
+    }
+    .tk-swatch__dot {
+      forced-color-adjust: none;
+    }
+  }
+}
