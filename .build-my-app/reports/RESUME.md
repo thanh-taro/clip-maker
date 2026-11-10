@@ -9,7 +9,7 @@
 
 ## In progress — F-011 music & sound (last unit of wave 3)
 - Paused mid-build on branch `worktree-agent-a59f0c10971e8322c`
-  (worktree `.claude/worktrees/agent-a59f0c10971e8322c`), WIP commit "F-011 WIP (paused): …".
+  (worktree `.claude/worktrees/agent-a59f0c10971e8322c`), WIP commit e5a6f76 (does not build yet; stream.ts audition export missing — see handoff).
   Handoff note: `.build-my-app/reports/F-011-handoff.md` on that branch.
 - To resume: start one `feature-builder` in that worktree (it is kept) with the original F-011 brief
   plus "continue from the WIP commit and F-011-handoff.md". Brief essentials: no internet downloads;
