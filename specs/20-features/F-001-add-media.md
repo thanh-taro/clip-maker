@@ -1,7 +1,7 @@
 ---
 id: F-001
 title: Add media
-status: ready
+status: building
 milestone: M-1
 priority: P0
 personas: [PER-01, PER-02, PER-03, PER-04]

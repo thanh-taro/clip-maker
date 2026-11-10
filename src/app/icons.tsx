@@ -4,22 +4,30 @@
 import type { JSX } from 'preact';
 import {
   ArrowLeft,
+  CircleCheck,
+  CircleX,
   Code,
   Download,
   EllipsisVertical,
   ExternalLink,
   FilePlus2,
+  Film,
   Image,
   Info,
   Keyboard,
+  LoaderCircle,
   MonitorX,
   Music,
   Plus,
   Redo2,
   ShieldCheck,
+  Trash2,
+  TriangleAlert,
   Type,
   Undo2,
+  Upload,
   Video,
+  VolumeX,
   X,
 } from 'lucide-static';
 
@@ -46,6 +54,15 @@ const SOURCES = {
   // SCR-Unsupported and CMP-Notice (F-023)
   monitorX: MonitorX,
   info: Info,
+  // CMP-MediaPanel, CMP-DropOverlay and the CMP-Notice recipes (F-001)
+  film: Film,
+  trash: Trash2,
+  loader: LoaderCircle,
+  error: CircleX,
+  success: CircleCheck,
+  warning: TriangleAlert,
+  upload: Upload,
+  muted: VolumeX,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

@@ -14,6 +14,26 @@ export type IntakeItem = File | FolderItem;
 
 const isFolder = (item: IntakeItem): item is FolderItem => (item as FolderItem).folder === true;
 
+/** A notice about an accepted file (COPY-notice.no_sound), with the source it is about. */
+export interface IntakeNotice {
+  readonly id: 'notice.no_sound';
+  readonly name: string;
+  readonly sourceId: string;
+}
+
+/** Frees what a probe decoded (a photo's bitmap, a video's thumbnail) when it will not be used. */
+export function closeProbed(outcome: ProbeOutcome | null | undefined): void {
+  if (!outcome?.ok) return;
+  outcome.probed.bitmap?.close();
+  outcome.probed.thumbnail?.close();
+}
+
+/**
+ * RULE-01: a file whose check failed unexpectedly (the analysis worker stopped, an internal error) has
+ * no usable picture or sound as far as the tool can tell; the files after it are refused the same way.
+ */
+export const FAILED_REASON: RefusalReason = 'reason.no_media';
+
 export interface Refusal {
   readonly name: string;
   readonly reason: RefusalReason;
@@ -30,7 +50,7 @@ export interface IntakeResult {
   /** For COPY-error.refused_list. */
   readonly refused: readonly Refusal[];
   /** Notices per accepted file (COPY-notice.no_sound with the file name). */
-  readonly notices: readonly { readonly id: 'notice.no_sound'; readonly name: string }[];
+  readonly notices: readonly IntakeNotice[];
   /** True when cancel stopped the batch: the file being checked and the rest were dropped. */
   readonly cancelled: boolean;
 }
@@ -66,7 +86,7 @@ const aborted = (signal?: AbortSignal): boolean => signal?.aborted === true;
 export async function intakeBatch(items: readonly IntakeItem[], o: IntakeOptions): Promise<IntakeResult> {
   const accepted: AcceptedSource[] = [];
   const refused: Refusal[] = [];
-  const notices: { id: 'notice.no_sound'; name: string }[] = [];
+  const notices: IntakeNotice[] = [];
   const signal = o.signal ?? new AbortController().signal;
   let done = 0;
   for (const [i, item] of items.entries()) {
@@ -85,17 +105,24 @@ export async function intakeBatch(items: readonly IntakeItem[], o: IntakeOptions
       outcome = await o.probe(item, o.rate, signal);
     } catch (e) {
       if (aborted(signal)) return { accepted, refused, notices, cancelled: true };
-      throw e;
+      // An unexpected failure refuses this file and the rest with a reason; finished ones are kept.
+      console.error('intake: check failed', e);
+      for (const rest of items.slice(i)) refused.push({ name: rest.name, reason: FAILED_REASON });
+      return { accepted, refused, notices, cancelled: false };
     }
-    if (aborted(signal)) return { accepted, refused, notices, cancelled: true };
+    if (aborted(signal)) {
+      closeProbed(outcome);
+      return { accepted, refused, notices, cancelled: true };
+    }
     done++;
     if (!outcome.ok) {
       refused.push({ name: item.name, reason: outcome.reason });
       continue;
     }
     const { probed } = outcome;
-    accepted.push({ ...probed, source: { ...probed.source, id: o.nextId() }, file: item });
-    for (const id of probed.notices) notices.push({ id, name: item.name });
+    const sourceId = o.nextId();
+    accepted.push({ ...probed, source: { ...probed.source, id: sourceId }, file: item });
+    for (const id of probed.notices) notices.push({ id, name: item.name, sourceId });
   }
   o.onProgress?.({ position: items.length, total: items.length, name: '', done });
   return { accepted, refused, notices, cancelled: false };

@@ -1,5 +1,6 @@
 // MOD-Media — the analysis worker (ADR-0003 §4): probes new files off the main thread so the editor
-// stays usable while sources are checked (F-001.R6). Thumbnails and waveforms come with F-001's UI.
+// stays usable while sources are checked (F-001.R6). A video's first frame comes back as the media panel's thumbnail (F-001);
+// timeline thumbnails and waveforms come with F-003.
 import { helloFrom, type FromWorker, type WorkerScope } from '../core';
 import { probeFile } from './probe';
 import type { FromAnalysis, ToAnalysis } from './types';
@@ -13,12 +14,15 @@ async function probe(id: number, file: File, rate: Parameters<typeof probeFile>[
   try {
     const outcome = await probeFile(file, rate, ctl.signal);
     if (ctl.signal.aborted) {
-      if (outcome.ok) outcome.probed.bitmap?.close();
+      if (outcome.ok) {
+        outcome.probed.bitmap?.close();
+        outcome.probed.thumbnail?.close();
+      }
       scope.postMessage({ type: 'cancelled', id });
       return;
     }
-    const bitmap = outcome.ok ? outcome.probed.bitmap : undefined;
-    scope.postMessage({ type: 'probed', id, outcome }, bitmap ? [bitmap] : []);
+    const bitmaps = outcome.ok ? [outcome.probed.bitmap, outcome.probed.thumbnail].filter((b) => !!b) : [];
+    scope.postMessage({ type: 'probed', id, outcome }, bitmaps);
   } catch (e) {
     if (ctl.signal.aborted) scope.postMessage({ type: 'cancelled', id });
     // An unexpected failure is still a refusal, never a hang: nothing usable was read.

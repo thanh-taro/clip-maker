@@ -77,6 +77,25 @@ async function probePhoto(file: File, format: Sniffed, signal?: AbortSignal): Pr
   };
 }
 
+/** CMP-MediaPanel thumbnails are drawn at 48 CSS px; this height covers 2× screens. */
+export const THUMBNAIL_HEIGHT = 96;
+
+/**
+ * The media panel's thumbnail of a video (CMP-MediaPanel "sources"): its first decoded frame, scaled
+ * to THUMBNAIL_HEIGHT (a few tens of kilobytes, ADR-0009 bounded caches). None when the device can't
+ * scale a frame; the row then shows the kind icon alone.
+ */
+async function posterOf(frame: VideoFrame | null): Promise<ImageBitmap | undefined> {
+  if (!frame || typeof createImageBitmap !== 'function') return undefined;
+  try {
+    const h = Math.min(THUMBNAIL_HEIGHT, frame.displayHeight);
+    const w = Math.max(1, Math.round((frame.displayWidth * h) / frame.displayHeight));
+    return await createImageBitmap(frame, { resizeWidth: w, resizeHeight: h, resizeQuality: 'medium' });
+  } catch {
+    return undefined;
+  }
+}
+
 /** Video and audio containers: tracks → RULE-02 → real decode of the first packets. */
 async function probeContainer(file: File, rate: FrameRate, signal?: AbortSignal): Promise<ProbeOutcome> {
   let input: OpenedInput;
@@ -97,8 +116,20 @@ async function probeContainer(file: File, rate: FrameRate, signal?: AbortSignal)
         rate,
       );
       if (limit) return refuse(limit);
-      if (await checkVideoDecodes(video.decoderConfig, input.packets('video'), { signal }))
-        return refuse('reason.codec');
+      let first: VideoFrame | null = null;
+      const keep = (f: VideoFrame) => {
+        first?.close();
+        first = f;
+      };
+      let failed: Awaited<ReturnType<typeof checkVideoDecodes>>;
+      let thumbnail: ImageBitmap | undefined;
+      try {
+        failed = await checkVideoDecodes(video.decoderConfig, input.packets('video'), { signal, onFirstFrame: keep });
+        thumbnail = failed ? undefined : await posterOf(first);
+      } finally {
+        (first as VideoFrame | null)?.close();
+      }
+      if (failed) return refuse('reason.codec');
       const hasSound =
         audio !== null && (await checkAudioDecodes(audio.decoderConfig, input.packets('audio'), { signal })) === null;
       const used = videoUseSize(video.displayWidth, video.displayHeight);
@@ -128,6 +159,7 @@ async function probeContainer(file: File, rate: FrameRate, signal?: AbortSignal)
             firstTimestamp: video.firstTimestamp,
           },
           notices: audio !== null && !hasSound ? ['notice.no_sound'] : [],
+          ...(thumbnail ? { thumbnail } : {}),
         },
       };
     }

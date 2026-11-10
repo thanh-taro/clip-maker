@@ -9,8 +9,9 @@ import { t, type MessageId, type MessageParams } from '../copy';
 type ActionLabel = {
   [K in MessageId]: K extends `action.${string}` ? (MessageParams[K] extends undefined ? K : never) : never;
 }[MessageId];
-import { acceptsMedia } from './device';
+import { needsClip } from './adding';
 import { Icon, type IconName } from './icons';
+import { addMedia } from './MediaInput';
 
 interface Item {
   readonly id: string;
@@ -50,7 +51,7 @@ function ToolButton({ item }: { item: Item }) {
       aria-label={item.labelled ? undefined : name}
       title={item.labelled ? undefined : name}
       disabled={item.disabled}
-      aria-disabled={item.id === 'add-media' && !acceptsMedia.value ? 'true' : undefined}
+      onClick={item.id === 'add-media' ? addMedia : undefined}
     >
       <Icon name={item.icon} size={20} />
       {item.labelled ? <span class="tk-tool__label">{name}</span> : null}
@@ -80,11 +81,26 @@ export function Toolbar() {
         {ITEMS.slice(5).map((item) => (
           <ToolButton key={item.id} item={item} />
         ))}
+        {needsClip.value ? <NeedsClip /> : null}
         <button type="button" class="tk-tool tk-tool--export" data-action="export" disabled>
           <Icon name="export" size={20} />
           <span class="tk-tool__label">{t('action.export')}</span>
         </button>
       </div>
+      {needsClip.value ? <NeedsClip narrow /> : null}
     </header>
+  );
+}
+
+/**
+ * Implements: F-001.AC11, RULE-03, CMP-Toolbar — why Export is unavailable: COPY-notice.needs_clip next
+ * to Export on wide layouts, under the bar on narrow ones (only one of the two is displayed).
+ */
+function NeedsClip({ narrow = false }: { narrow?: boolean }) {
+  return (
+    <p class={narrow ? 'tk-needs-clip tk-needs-clip--narrow' : 'tk-needs-clip'} data-notice="needs_clip">
+      <Icon name="info" size={16} />
+      {t('notice.needs_clip')}
+    </p>
   );
 }

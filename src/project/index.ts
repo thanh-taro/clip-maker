@@ -2,7 +2,7 @@
 // (specs/40-technical/modules/MOD-Project.md, ADR-0011). Imports only MOD-Core (and signals).
 // The session's project lives in signals; every edit is a pure operation (ops.ts) committed here as
 // one RULE-13 step (coalesced inside a gesture).
-import { computed, signal } from '@preact/signals';
+import { batch, computed, signal } from '@preact/signals';
 import { projectEnd, type Micros, type Notice, type Project } from '../core';
 import { EMPTY_HISTORY, record, redoStep, undoStep, type History, type Step } from './history';
 import type { EditResult, Grade } from './ops';
@@ -60,6 +60,10 @@ export function endGesture(): void {
 
 /** Apply an operation to the session's project as one undo step (none when nothing changed). */
 export function edit(op: (p: Project) => EditResult): readonly Notice[] {
+  // One consistent update: watchers (MOD-App's registry sync) never see history and project apart.
+  return batch(() => editNow(op));
+}
+function editNow(op: (p: Project) => EditResult): readonly Notice[] {
   const before = project.value;
   const r = op(before);
   if (r.project !== before) {
@@ -92,6 +96,10 @@ function restore(p: Project, step: Step): void {
 }
 
 export function undo(): void {
+  // One consistent update: watchers (MOD-App's registry sync) never see history and project apart.
+  return batch(() => undoNow());
+}
+function undoNow(): void {
   endGesture();
   const r = undoStep(history.value);
   if (!r) return;
@@ -100,6 +108,10 @@ export function undo(): void {
 }
 
 export function redo(): void {
+  // One consistent update: watchers (MOD-App's registry sync) never see history and project apart.
+  return batch(() => redoNow());
+}
+function redoNow(): void {
   endGesture();
   const r = redoStep(history.value);
   if (!r) return;
@@ -109,6 +121,10 @@ export function redo(): void {
 
 /** Implements: RULE-23 New project — empty document, empty history, copied adjustments cleared. */
 export function newProject(): void {
+  // One consistent update: watchers (MOD-App's registry sync) never see history and project apart.
+  return batch(() => newProjectNow());
+}
+function newProjectNow(): void {
   endGesture();
   project.value = EMPTY_PROJECT;
   history.value = EMPTY_HISTORY;

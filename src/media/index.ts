@@ -2,16 +2,24 @@
 // (specs/40-technical/modules/MOD-Media.md, ADR-0009). Intake, probing and the registry are built
 // (E2); thumbnails and waveforms come with F-001's media panel and F-003's timeline.
 import { notImplemented, type FrameRate } from '../core';
-import { intakeBatch, type IntakeItem, type IntakeProgress, type IntakeResult } from './intake';
+import { closeProbed, intakeBatch, type IntakeItem, type IntakeProgress, type IntakeResult } from './intake';
 import { SourceRegistry } from './registry';
 import type { FromAnalysis, ProbeOutcome, ToAnalysis } from './types';
 
-export { intakeBatch } from './intake';
-export type { AcceptedSource, FolderItem, IntakeItem, IntakeProgress, IntakeResult, Refusal } from './intake';
+export { closeProbed, FAILED_REASON, intakeBatch } from './intake';
+export type {
+  AcceptedSource,
+  FolderItem,
+  IntakeItem,
+  IntakeNotice,
+  IntakeProgress,
+  IntakeResult,
+  Refusal,
+} from './intake';
 // The probe (and with it the container reader) is imported by the analysis worker only, never by
 // the page (MOD-Container runs in workers only).
 export { photoHeaderSize } from './photo-header';
-export { SourceRegistry, type RegistryEntry } from './registry';
+export { SourceRegistry, type Decoded, type Redecode, type RegistryEntry } from './registry';
 export type * from './types';
 
 export function startAnalysisWorker(): Worker {
@@ -36,9 +44,16 @@ export function workerProbe(
         if (e.data.type === 'probed') resolve(e.data.outcome);
         else reject(signal.reason);
       };
-      // Cancel answers at once; the worker drops the file it was checking (F-001.R6).
+      // Cancel answers at once; the worker drops the file it was checking (F-001.R6). A reply that was
+      // already on its way is caught once and its decoded pictures are freed.
       const onAbort = () => {
         cleanup();
+        const late = (e: MessageEvent<FromAnalysis>) => {
+          if (e.data?.id !== id) return;
+          worker.removeEventListener('message', late);
+          if (e.data.type === 'probed') closeProbed(e.data.outcome);
+        };
+        worker.addEventListener('message', late);
         worker.postMessage({ type: 'cancel', id } satisfies ToAnalysis);
         reject(signal.reason);
       };
