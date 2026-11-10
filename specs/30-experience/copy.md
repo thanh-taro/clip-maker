@@ -149,7 +149,7 @@ Rules for every string:
 | **COPY-notice.length_limited** | Shortened to keep the project within 10 minutes. | Đã rút ngắn để dự án không quá 10 phút. | |
 | **COPY-notice.length_full** | That would make the project longer than 10 minutes. | Thao tác này sẽ khiến dự án dài quá 10 phút. | |
 | **COPY-notice.needs_clip** | Add a video or photo to export. | Hãy thêm video hoặc ảnh để xuất. | |
-| **COPY-notice.no_sound** | {name} was added without sound. This browser can't play its audio. | Đã thêm {name} nhưng không có tiếng. Trình duyệt này không phát được âm thanh của tệp. | |
+| **COPY-notice.no_sound** | one: {name} was added without sound. This browser can't play its audio. · other: {name} were added without sound. This browser can't play their audio. | Đã thêm {name} nhưng không có tiếng. Trình duyệt này không phát được âm thanh của tệp. | |
 | **COPY-notice.split_too_close** | Move the playhead further from the clip's edge to split. | Hãy dời vị trí phát xa mép clip hơn để tách. | |
 | **COPY-notice.text_limit** | You've reached 50 text layers. | Đã đạt tối đa 50 lớp chữ. | |
 | **COPY-notice.no_audio_room** | No free room on the audio track here. | Không còn chỗ trống trên rãnh âm thanh tại đây. | |

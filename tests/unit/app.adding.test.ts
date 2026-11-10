@@ -267,12 +267,19 @@ describe('F-001 adding media (MOD-App controller)', () => {
       [
         'info',
         'no_sound',
-        "a.video.3.mute and c.video.3.mute was added without sound. This browser can't play its audio.",
+        "a.video.3.mute and c.video.3.mute were added without sound. This browser can't play their audio.",
       ],
     ]);
     language.value = 'vi-VN';
     expect(notices.value.find((n) => n.tag === 'no_sound')!.text()).toBe(
       'Đã thêm a.video.3.mute và c.video.3.mute nhưng không có tiếng. Trình duyệt này không phát được âm thanh của tệp.',
+    );
+  });
+
+  it('F-001 edge case one silent file reads "was added without sound" (COPY-notice.no_sound, one form)', async () => {
+    await addFiles([file('a.video.3.mute')]);
+    expect(notices.value.find((n) => n.tag === 'no_sound')!.text()).toBe(
+      "a.video.3.mute was added without sound. This browser can't play its audio.",
     );
   });
 

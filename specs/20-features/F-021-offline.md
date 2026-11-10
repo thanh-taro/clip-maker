@@ -23,7 +23,7 @@ The tool needs nothing from a server once loaded, so it should work without a co
 
 ## Requirements
 - **R1** During the first online visit the tool fetches every file it can need, including looks, typefaces and bundled music (NFR-01). After one visit long enough to cache them, made the same way (embedded or standalone), the tool opens and every M-1 feature works with no connection.
-- **R2** The tool makes no network requests of its own. It only checks for a new version while the page is being opened.
+- **R2** The tool makes no network requests of its own while open; it checks for a new version only while the page is being opened. The browser may re-check for an update by itself in a long session, and nothing ever reloads.
 - **R3** A new version is used from the next open. An open session is never reloaded.
 
 ## Acceptance criteria

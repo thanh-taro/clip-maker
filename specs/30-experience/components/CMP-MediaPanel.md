@@ -22,7 +22,9 @@ Header with COPY-media.title, Add media (COPY-action.add_media) and Close (COPY-
 | narrow / empty · vi-VN | The empty sheet in Vietnamese: COPY-media.empty and the outlined Add media fit without truncation. |
 
 ## Behavior
-- Opens from Add media's drawer on wide layouts and from Add media in the Edit tab on narrow layouts (SCR-Editor, D-038).
+- Opens from Add media's drawer on wide layouts and from Add media in the Edit tab on narrow layouts (SCR-Editor, D-038). Add media outside the panel (toolbar, empty state) opens the panel and the file picker together; the panel's own Add media opens only the picker.
+- During a batch only the checking row shows; the files whose check finished appear together when the batch ends or is cancelled, as one undo step (RULE-13).
+- Thumbnails come from each video's first decoded frame and from each photo; audio rows show the kind icon. A photo row shows the 3 s it gets when placed (RULE-05) as its duration.
 - Add to timeline adds a new clip of the whole source at the end of the main track, or audio per RULE-12, as one undo step (F-001 AC14).
 - Delete removes the source and all its clips as one undo step; the main track closes its gaps (F-001 AC6).
 - Cancel keeps finished files and drops the one being checked and the rest (F-001 R6).

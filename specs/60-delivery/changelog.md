@@ -10,6 +10,11 @@ Entries are needed only for items that are `building` or `shipped`.
 - F-021 set to `building` (phase 4, wave 2); it stays `building` until F-001, F-008, F-010, F-011 and F-015 let AC1/AC2 run through the editor (build question 63).
 - MOD-Host gains "Offline cache": one cache per version, hash-checked precache, prune on activate only with a complete copy; refines ADR-0015's "prune old assets on navigation" (build question 65).
 
+## 2026-11-10 — Wave 2 review decisions (owner)
+- F-021.R2: the tool makes no request of its own while open; the browser may re-check for an update by itself (build question 66).
+- CMP-Toolbar / CMP-MediaPanel: Add media opens the panel and the picker; finished files of a batch appear together when it ends; first-frame thumbnails, photos show 3 s (build questions 71–73). MOD-Media names the panel thumbnail.
+- CMP-Notice narrow: notices sit just above an open sheet. COPY-notice.no_sound gets one/other forms (build question 74e).
+
 ## 2026-11-10 — Wave 1 review decisions (owner, 2026-11-05)
 - F-019.R6 / MOD-Host: on the first focus, an empty project focuses Add media; with content no control is focused (build question 47).
 - RULE-03: a frame-rate change the last clip can't absorb, or that would take a clip with an unknown source end below the minimum, is refused with COPY-notice.length_full (build question 51).

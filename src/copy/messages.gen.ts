@@ -122,7 +122,7 @@ export const CATALOG: { readonly [L in Language]: { readonly [K in MessageId]: s
     "notice.length_limited": "Shortened to keep the project within 10 minutes.",
     "notice.length_full": "That would make the project longer than 10 minutes.",
     "notice.needs_clip": "Add a video or photo to export.",
-    "notice.no_sound": "{name} was added without sound. This browser can't play its audio.",
+    "notice.no_sound": {"one":"{name} was added without sound. This browser can't play its audio.","other":"{name} were added without sound. This browser can't play their audio."},
     "notice.split_too_close": "Move the playhead further from the clip's edge to split.",
     "notice.text_limit": "You've reached 50 text layers.",
     "notice.no_audio_room": "No free room on the audio track here.",
@@ -426,7 +426,7 @@ export const CATALOG: { readonly [L in Language]: { readonly [K in MessageId]: s
     "notice.length_limited": "Đã rút ngắn để dự án không quá 10 phút.",
     "notice.length_full": "Thao tác này sẽ khiến dự án dài quá 10 phút.",
     "notice.needs_clip": "Hãy thêm video hoặc ảnh để xuất.",
-    "notice.no_sound": "Đã thêm {name} nhưng không có tiếng. Trình duyệt này không phát được âm thanh của tệp.",
+    "notice.no_sound": {"other":"Đã thêm {name} nhưng không có tiếng. Trình duyệt này không phát được âm thanh của tệp."},
     "notice.split_too_close": "Hãy dời vị trí phát xa mép clip hơn để tách.",
     "notice.text_limit": "Đã đạt tối đa 50 lớp chữ.",
     "notice.no_audio_room": "Không còn chỗ trống trên rãnh âm thanh tại đây.",
@@ -622,7 +622,7 @@ export const CATALOG: { readonly [L in Language]: { readonly [K in MessageId]: s
 };
 
 /** IDs whose text has plural forms, selected by `{count}`. */
-export const PLURAL_IDS: ReadonlySet<MessageId> = new Set<MessageId>(["notice.added","notice.applied_all"]);
+export const PLURAL_IDS: ReadonlySet<MessageId> = new Set<MessageId>(["notice.no_sound","notice.added","notice.applied_all"]);
 
 export type MessageId =
   | "action.add_media"
@@ -1040,7 +1040,7 @@ export interface MessageParams {
   "notice.length_limited": undefined;
   "notice.length_full": undefined;
   "notice.needs_clip": undefined;
-  "notice.no_sound": { name: string | number };
+  "notice.no_sound": { name: string | number; count: number };
   "notice.split_too_close": undefined;
   "notice.text_limit": undefined;
   "notice.no_audio_room": undefined;

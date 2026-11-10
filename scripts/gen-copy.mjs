@@ -107,8 +107,10 @@ export function parseCopy(md) {
         throw new Error(`${SOURCE}: COPY-${id} placeholders differ between ${columns[0]} and ${lang}`);
       }
     }
-    if (plural && !params.includes(COUNT)) throw new Error(`${SOURCE}: COPY-${id} has plural forms but no {count}`);
-    rows.push({ id, texts, params, plural });
+    // A plural row is chosen by {count}; the text may leave the number out ("{name} were added …"),
+    // so {count} becomes a parameter either way.
+    const rowParams = plural && !params.includes(COUNT) ? [...params, COUNT] : params;
+    rows.push({ id, texts, params: rowParams, plural });
   }
   if (rows.length === 0 || languages === null) throw new Error(`${SOURCE}: no COPY rows found`);
   return { languages, rows };

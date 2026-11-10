@@ -29,6 +29,7 @@ Evidence: SP-license, SP-codec, SP-mem-phone.
 ## Public surface
 - `intake(files, onProgress, signal)` → accepted sources and refusals with COPY- reason ids.
 - `registry.get(id)`, `registry.retain/release(id)`.
+- The registry entry's `thumbnail` (through `registry.load(sourceId)`): the media-panel picture (≤ 96 px tall), from the probe's first decoded frame or the photo; freed when the source leaves the project and rebuilt lazily on undo (ADR-0009 §7).
 - `thumbnails(sourceId, timeRange, height)`, `waveform(sourceId, range)` (async, cached).
 
 ## Implements

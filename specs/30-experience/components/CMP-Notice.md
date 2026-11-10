@@ -23,7 +23,7 @@ One recipe for every notice: a floating card on the surface with a strong border
 | progress · wide | Upload icon in the accent colour; COPY-notice.adding, an accent progress bar, the current file as COPY-media.checking in muted text, and a quiet COPY-action.cancel (SCR-Editor adding). The same layout is used on every screen. |
 | progress · narrow | The same content full width with touch-size Cancel. |
 | placement · wide | Bottom-centre of the preview area, just above the transport and timeline, at most the popover width; the stack (see stack) grows upward. Never over the toolbar, inspector or timeline. |
-| placement · narrow | Full width with side margins, anchored to the bottom of the preview just above the transport, so it never covers the timeline lanes, an open sheet or the tab bar. |
+| placement · narrow | Full width with side margins, anchored to the bottom of the preview just above the transport, so it never covers the timeline lanes, an open sheet or the tab bar; while a sheet is open the stack sits just above the sheet. |
 | stack | At most 2 notices show at once (newest at the bottom); any more fold into a chip COPY-notice.more (surface, strong border, pill, small text) under them. Activating the chip shows the hidden notices. |
 
 ## Behavior

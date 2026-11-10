@@ -23,7 +23,7 @@ Add media (COPY-action.add_media); Music (COPY-action.music); Add text (COPY-act
 | narrow / empty · vi-VN | Undo, Redo and Export unavailable (readable, as on wide); COPY-notice.needs_clip explains why under the bar. |
 
 ## Behavior
-- Add media opens the file picker (F-001) or, on narrow layouts, the full-width Add media row at the top of the Edit sheet, shown whether or not something is selected; Music opens CMP-MusicPicker; Add text adds a layer at the playhead (F-010).
+- Add media opens the media panel (CMP-MediaPanel) and the file picker together (F-001); cancelling the picker leaves the panel open to browse. On narrow layouts it is the full-width Add media row at the top of the Edit sheet, shown whether or not something is selected; Music opens CMP-MusicPicker; Add text adds a layer at the playhead (F-010).
 - Undo and Redo follow RULE-13 and become unavailable when there is nothing to undo or redo (F-014).
 - New project asks first through CMP-ConfirmDialog (F-018).
 - Export opens CMP-ExportPanel and is unavailable until the project has a video or photo clip; activated from the keyboard while unavailable it shows COPY-notice.needs_clip.

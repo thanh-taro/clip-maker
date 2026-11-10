@@ -148,7 +148,12 @@ function apply(result: IntakeResult): void {
   // One COPY-notice.no_sound per batch, naming every silent file that was kept.
   const silent = result.notices.filter((n) => n.id === 'notice.no_sound' && present.has(n.sourceId)).map((n) => n.name);
   if (silent.length)
-    showNotice({ kind: 'info', tag: 'no_sound', batch, text: () => t('notice.no_sound', { name: nameList(silent) }) });
+    showNotice({
+      kind: 'info',
+      tag: 'no_sound',
+      batch,
+      text: () => t('notice.no_sound', { name: nameList(silent), count: silent.length }),
+    });
   showResultNotices(placed, batch);
   // The panel's refused group: added to while the panel is open, else only this batch's refusals.
   refusedFiles.value = panelOpen.peek() ? [...refusedFiles.value, ...refused] : refused;
