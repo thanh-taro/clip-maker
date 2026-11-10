@@ -8,15 +8,20 @@
 //   ?gate=N           (F-001.R6) the analysis worker gets the first N probe requests; later ones are held
 //                     until `window.appHarness.release()`, so a test can watch a file being checked
 // `window.appHarness.project()` reads the session's project (the timeline view is F-003) and `undo()`
-// takes one RULE-13 step back (the Undo button is F-014).
+// takes one RULE-13 step back (the Undo button is F-014). `preview()` reads the playback state (F-002),
+// `setPlayhead()` moves MOD-Project's playhead as F-003's timeline will (the playhead binding),
+// `scrub()` measures how soon the preview shows each playhead time (NFR-03), and `feedTone()` stands in
+// for the source sound decoder that is not built yet (ADR-0008 §6, build question 76): it gives the audio
+// worker a 440 Hz tone as a source's 48 kHz sound so picture and sound can be checked together.
 // The codec interfaces and WebGL2 are tested on the production build instead, by changing them on the
 // page before it loads (the presence check and the codec probe run on the main thread).
 import '../../src/app/styles/index.css';
 import { queued } from '../../src/app/adding';
 import { main } from '../../src/app/app';
 import { browserDevice, type DeviceDeps, type EffectsRun } from '../../src/app/device';
+import { playback } from '../../src/app/playback';
 import { workers } from '../../src/app/workers';
-import { layoutOf } from '../../src/core';
+import { frameStart, layoutOf, type FromEngine } from '../../src/core';
 import { history, playhead, project, undo } from '../../src/project';
 
 /** The session's project as a test reads it (times in seconds). */
@@ -37,8 +42,31 @@ declare global {
       setPlayhead(seconds: number): void;
       release(): void;
       queued(): number;
+      preview(): PreviewSummary;
+      scrub(frames: number[]): Promise<number[]>;
+      feedTone(sourceName: string, seconds: number): void;
+      sync(): Promise<SyncSummary>;
     };
   }
+}
+
+/** The preview's playback state as a test reads it (times in seconds). */
+export interface PreviewSummary {
+  readonly mounted: boolean;
+  readonly state: string;
+  readonly time: number;
+  readonly playhead: number;
+  readonly duration: number;
+  /** The last frame on screen. */
+  readonly shown: { readonly t: number; readonly frameIndex: number; readonly exact: boolean } | null;
+  readonly fullscreen: string;
+}
+
+/** Frames shown while playing, each with the sound clock's time when it arrived (seconds). */
+export interface SyncSummary {
+  readonly shown: { readonly t: number; readonly heard: number }[];
+  readonly played: number;
+  readonly underruns: number;
 }
 
 const params = new URLSearchParams(location.search);
@@ -81,6 +109,55 @@ function summary(): ProjectSummary {
   };
 }
 
+function previewSummary(): PreviewSummary {
+  const p = playback.peek();
+  const shown = p?.ctl.shown.peek() ?? null;
+  return {
+    mounted: p !== null,
+    state: p?.ctl.state.peek() ?? 'none',
+    time: (p?.ctl.time.peek() ?? 0) / S,
+    playhead: playhead.peek() / S,
+    duration: (p?.ctl.duration.peek() ?? 0) / S,
+    shown: shown ? { t: shown.t / S, frameIndex: shown.frameIndex, exact: shown.exact } : null,
+    fullscreen: p?.fs.mode.peek() ?? 'off',
+  };
+}
+
+/** For each project frame: set the playhead to its start, then the milliseconds until the engine shows it. */
+async function scrub(frames: number[]): Promise<number[]> {
+  const engine = workers.get('engine');
+  if (!engine) throw new Error('engine not running');
+  const rate = project.peek().frame.frameRate;
+  const out: number[] = [];
+  for (const k of frames) {
+    const t0 = performance.now();
+    const shown = new Promise<void>((resolve) => {
+      const on = (e: MessageEvent<FromEngine>) => {
+        if (e.data.type !== 'engine:frameShown' || e.data.frameIndex !== k) return;
+        engine.removeEventListener('message', on);
+        resolve();
+      };
+      engine.addEventListener('message', on);
+    });
+    playhead.value = frameStart(k, rate);
+    await shown;
+    out.push(performance.now() - t0);
+  }
+  return out;
+}
+
+const synced: { t: number; heard: number }[] = [];
+let syncing = false;
+function watchSync(): void {
+  if (syncing) return;
+  syncing = true;
+  workers.get('engine')?.addEventListener('message', (e: MessageEvent<FromEngine>) => {
+    const p = playback.peek();
+    if (e.data.type === 'engine:frameShown' && p?.ctl.state.peek() === 'playing')
+      synced.push({ t: e.data.t / S, heard: p.clock.now() / S });
+  });
+}
+
 window.appHarness = {
   draw: () => draw(),
   workers: () => workers.size,
@@ -89,6 +166,26 @@ window.appHarness = {
   setPlayhead: (seconds) => (playhead.value = Math.round(seconds * S)),
   release: () => held.splice(0).forEach((f) => f()),
   queued: () => queued.value,
+  preview: previewSummary,
+  scrub,
+  feedTone(sourceName, seconds) {
+    const source = project.peek().sources.find((x) => x.name === sourceName);
+    const audio = workers.get('audio');
+    if (!source || !audio) throw new Error(`no source ${sourceName} or no audio worker`);
+    const n = Math.ceil(seconds * 48_000);
+    const L = new Float32Array(n);
+    for (let i = 0; i < n; i++) L[i] = 0.1 * Math.sin((2 * Math.PI * 440 * i) / 48_000);
+    const R = L.slice();
+    audio.postMessage({ type: 'audio:pcm', sourceId: source.id, L, R }, [L.buffer, R.buffer]);
+    watchSync();
+  },
+  async sync() {
+    const p = playback.peek();
+    p?.clock.requestStats();
+    await new Promise((r) => setTimeout(r, 100));
+    const stats = p?.clock.stats;
+    return { shown: synced.slice(), played: stats?.played ?? 0, underruns: stats?.underrunEvents ?? 0 };
+  },
 };
 
 const fixed = (ok: boolean, slow: boolean): EffectsRun => ({

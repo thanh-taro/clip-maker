@@ -122,7 +122,23 @@ export function formatMB(bytes: number, lang: Language = language.value): string
   return new Intl.NumberFormat(lang, { maximumFractionDigits: 1 }).format(bytes / MB);
 }
 
-// The preview's time code (m:ss plus a separate frame number, COPY-time.position notes) comes with F-002.
-export const formatTimecode = (_micros: number, _rate: number): string => {
-  throw new Error('not implemented yet: MOD-Copy formatTimecode (F-002)');
-};
+/**
+ * Implements: F-002.R5, COPY-time.position notes, CMP-Preview "default" (D-039) — the transport's
+ * current time: `m:ss` of the frame's whole second and, as a separate suffix the UI shows muted, the
+ * frame number inside that second (`·12`, two digits; rates go up to 60). The frame is the one whose
+ * interval holds the time (frame k starts at floor(k × 1,000,000 ÷ rate) µs, rules.md "Frame times").
+ */
+export function formatTimecode(
+  micros: number,
+  rate: number,
+  lang: Language = language.value,
+): { readonly time: string; readonly frame: string } {
+  const t = Number.isFinite(micros) && micros > 0 ? micros : 0;
+  const start = (k: number) => Math.floor((k * SECOND_US) / rate);
+  let k = Math.floor((t * rate) / SECOND_US);
+  while (start(k + 1) <= t) k++;
+  while (k > 0 && start(k) > t) k--;
+  const second = Math.floor(k / rate);
+  const two = new Intl.NumberFormat(lang, { minimumIntegerDigits: 2, useGrouping: false });
+  return { time: formatDuration(second * SECOND_US, lang), frame: `·${two.format(k - second * rate)}` };
+}

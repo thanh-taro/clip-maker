@@ -5,6 +5,8 @@
 // tool requests only its own files and keeps nothing in the browser's storage (PRN-01, NFR-01, INV-01).
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { NOTICE_CODE, NOTICE_FONTS, NOTICE_TEXTS } from '../../src/app/notices.gen';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
 import { HOST_ALLOWED, TOOL_ALLOWED, hostPageUrl } from './support/host-urls';
@@ -219,9 +221,48 @@ test('F-020.AC3 the source link opens the repository in a new tab with no referr
   expect(requests.filter((r) => !r.includes(` ${origin}/`))).toEqual([`GET ${REPO}`]);
 });
 
-// TODO(F-001): "Given an edited project" — once media can be added through the UI, add a clip first and
-// check the project (clips, history) is unchanged after the source link opens (spec question 52).
-test.fixme('F-020.AC3 with an edited project, opening the source link leaves the project unchanged (needs F-001)', async () => {});
+// "Given an edited project" (spec question 52): a clip added through the UI (F-001) and the playhead moved
+// with the transport (F-002); the timeline view (F-003) and the Undo button (F-014) are not built yet, so
+// the project is read through the transport (its length and the playhead) and the editor state.
+test('F-020.AC3 with an edited project, opening the source link leaves the project and the playhead unchanged', async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const origin = new URL(baseURL ?? '').origin;
+  await guard(context, origin);
+  await page.goto('/?lang=en-US');
+  const editor = page.locator('[data-screen="SCR-Editor"]');
+  await expect(editor).toHaveAttribute('data-device', 'supported');
+  const chooser = page.waitForEvent('filechooser');
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: text('en-US', 'action.add_media') })
+    .click();
+  await (
+    await chooser
+  ).setFiles({
+    name: 'clip.mp4',
+    mimeType: 'video/mp4',
+    buffer: readFileSync(fileURLToPath(new URL('../fixtures/media/mp4-faststart.mp4', import.meta.url))),
+  });
+  const transport = page.locator('.tk-transport');
+  const next = transport.getByRole('button', { name: text('en-US', 'action.next_frame'), exact: true });
+  await expect(next).toBeEnabled();
+  await next.click();
+  await next.click();
+  await expect(transport).toContainText('0:00·02 / 0:02');
+  await expect(editor).toHaveAttribute('data-state', 'default');
+
+  const link = page.locator('footer').getByRole('link', { name: text('en-US', 'privacy.source_label') });
+  const [popup] = await Promise.all([page.waitForEvent('popup'), link.click()]);
+  await popup.close();
+
+  expect(page.url()).toBe(`${origin}/?lang=en-US`);
+  await expect(transport).toContainText('0:00·02 / 0:02');
+  await expect(editor).toHaveAttribute('data-state', 'default');
+  await expect(page.getByRole('complementary').getByRole('listitem').filter({ hasText: 'clip.mp4' })).toBeVisible();
+});
 
 test('F-020.AC4 in a host frame that blocks new tabs and offline, COPY-privacy.notices opens COPY-privacy.notices_title inside the tool, listing every typeface, dependency, asset and music track', async ({
   browser,

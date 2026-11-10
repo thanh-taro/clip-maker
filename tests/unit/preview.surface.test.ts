@@ -6,6 +6,5 @@ it('MOD-Preview exposes mountPreview, rasteriseText and enterFullscreen', () => 
   expect(typeof preview.mountPreview).toBe('function');
   expect(typeof preview.rasteriseText).toBe('function');
   expect(typeof preview.enterFullscreen).toBe('function');
-  // Built with F-002.R7.
-  expect(() => preview.enterFullscreen()).toThrow(/not implemented/);
+  expect(typeof preview.fullscreen).toBe('function');
 });

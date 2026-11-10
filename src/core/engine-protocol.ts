@@ -43,7 +43,14 @@ export type ToEngine =
   | { readonly type: 'engine:resize'; readonly width: number; readonly height: number }
   /** Look tables: 33³ RGBA bytes indexed ((b·33 + g)·33 + r)·4 (ADR-0007 §3). */
   | { readonly type: 'engine:looks'; readonly tables: Readonly<Record<string, Uint8Array>> }
+  /** The whole media list (tests, harness). A source id keeps its file for the session, so ids that stay keep their decoders. */
   | { readonly type: 'engine:media'; readonly media: readonly EngineMedia[] }
+  /** Media changes by source id (MOD-App): only new sources travel, so nothing that stays is cloned or reopened. */
+  | {
+      readonly type: 'engine:mediaChanges';
+      readonly add: readonly EngineMedia[];
+      readonly remove: readonly string[];
+    }
   | { readonly type: 'engine:setProject'; readonly project: Project }
   /** A wanted project time: the audio clock while playing, the playhead while paused. */
   | { readonly type: 'engine:tick'; readonly t: Micros; readonly playing: boolean }

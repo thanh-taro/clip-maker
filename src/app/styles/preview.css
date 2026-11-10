@@ -1,0 +1,209 @@
+/* MOD-App — CMP-Preview (F-002), tokens only: the stage with the frame (the engine's canvas, centred at
+   the frame's aspect by MOD-Preview), the transport row (boards SCR-Editor default/playing wide: a 48 px
+   surface row, centred, round Play; narrow: a 44 px row on the background with touch-size buttons), the
+   full-screen / maximised stage on black with the translucent chrome bar (board CMP-Preview "full
+   screen (maximised)"), and the polite time announcement (visually hidden). */
+@layer layout {
+  .tk-preview-area {
+    grid-template-rows: minmax(0, 1fr) auto;
+    place-items: stretch;
+    padding: 0;
+  }
+
+  .tk-stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-block-size: 0;
+    padding: var(--tk-space-4) var(--tk-space-4) var(--tk-space-2);
+    overflow: hidden;
+    background: var(--tk-color-work-area);
+  }
+
+  .tk-frame {
+    grid-area: 1 / 1;
+    display: grid;
+    place-items: center;
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: 0;
+    overflow: hidden;
+  }
+
+  .tk-frame[data-empty] {
+    display: none;
+  }
+
+  .tk-frame canvas {
+    display: block;
+  }
+
+  .tk-stage > .tk-empty {
+    grid-area: 1 / 1;
+  }
+
+  /* ── Transport ── */
+  .tk-transport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--tk-space-1);
+    min-block-size: var(--tk-space-12);
+    padding-inline: var(--tk-space-2);
+    border-block-start: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-muted);
+  }
+
+  .tk-transport__button {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    inline-size: var(--tk-size-tool-button);
+    block-size: var(--tk-size-tool-button);
+    padding: 0;
+    border: 0;
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    color: var(--tk-color-muted);
+    cursor: pointer;
+    transition: background var(--tk-motion-duration-fast);
+  }
+
+  .tk-transport__button:hover:not(:disabled) {
+    background: var(--tk-color-surface2);
+    color: var(--tk-color-fg);
+  }
+
+  .tk-transport__button:disabled {
+    color: var(--tk-color-line-strong);
+    cursor: default;
+  }
+
+  .tk-transport__button--play {
+    margin-inline: var(--tk-space-0-5);
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-surface2);
+    color: var(--tk-color-fg);
+  }
+
+  .tk-time {
+    margin-inline: var(--tk-space-3);
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-medium);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .tk-time__now {
+    color: var(--tk-color-fg);
+  }
+
+  .tk-time__frame {
+    margin-inline-start: var(--tk-space-0-5);
+    font-size: var(--tk-font-size-xs);
+  }
+
+  /* Narrow (D-038): a touch-size row under the stage; Full screen at the end. Go to start / Go to end
+     stay on the keyboard (Home/End) so the frame-step controls fit at 320 px (RULE-21; CMP-Preview Behavior, build question 77). */
+  @container tk-editor (width < 700px) {
+    .tk-stage {
+      padding: var(--tk-space-2);
+    }
+    .tk-transport {
+      justify-content: flex-start;
+      gap: 0;
+      min-block-size: var(--tk-size-touch-target);
+      padding-inline: var(--tk-space-1);
+      border-block-end: var(--tk-border-width-hairline) solid var(--tk-color-line);
+      background: var(--tk-color-bg);
+    }
+    .tk-transport__button {
+      inline-size: var(--tk-size-touch-target);
+      block-size: var(--tk-size-touch-target);
+      border-radius: var(--tk-radius-md);
+    }
+    .tk-transport__button--play {
+      margin-inline: 0;
+      background: transparent;
+    }
+    .tk-transport__button[data-action='go-start'],
+    .tk-transport__button[data-action='go-end'] {
+      display: none;
+    }
+    .tk-transport .tk-time {
+      margin-inline: var(--tk-space-1) auto;
+    }
+  }
+
+  /* RULE-21: touch-size transport buttons on a coarse pointer at every width. */
+  @media (pointer: coarse) {
+    .tk-transport__button {
+      inline-size: var(--tk-size-touch-target);
+      block-size: var(--tk-size-touch-target);
+    }
+  }
+
+  /* ── Full screen (browser) and maximised in the page (F-002.R7) ── */
+  .tk-stage:fullscreen {
+    padding: 0;
+    background: var(--tk-text-color-black);
+  }
+
+  .tk-preview-area[data-fullscreen='maximised'] > .tk-stage {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    padding: 0;
+    background: var(--tk-text-color-black);
+  }
+
+  .tk-fullscreen-bar {
+    position: absolute;
+    inset-inline-start: 50%;
+    inset-block-end: var(--tk-space-2);
+    translate: -50% 0;
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-1);
+    min-block-size: var(--tk-space-10);
+    padding-inline: var(--tk-space-1);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-chrome);
+    white-space: nowrap;
+  }
+
+  .tk-fullscreen-bar .tk-transport__button {
+    color: var(--tk-color-fg);
+  }
+
+  .tk-fullscreen-bar .tk-time {
+    margin-inline: var(--tk-space-2);
+  }
+
+  /* The notices sit above the chrome bar in full screen. */
+  .tk-preview-area[data-fullscreen] .tk-notice-stack {
+    inset-block-end: calc(var(--tk-space-10) + var(--tk-space-4));
+  }
+
+  /* Visually hidden live region: the time when playback stops (CMP-Preview accessibility). */
+  .tk-preview-status {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  @media (forced-colors: active) {
+    .tk-transport,
+    .tk-fullscreen-bar {
+      border-color: CanvasText;
+    }
+  }
+}

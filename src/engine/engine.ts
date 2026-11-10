@@ -147,6 +147,9 @@ export class Engine {
       case 'engine:media':
         this.setMedia(m.media);
         return this.repaint();
+      case 'engine:mediaChanges':
+        this.changeMedia(m.add, m.remove);
+        return this.repaint();
       case 'engine:setProject':
         this.project = m.project;
         return this.repaint();
@@ -216,16 +219,39 @@ export class Engine {
     );
   }
 
+  /**
+   * The whole list. A source id's file never changes within a session (MOD-Media ids are never reused),
+   * so a source that stays is kept as it is, whatever object arrived for it (messages are cloned):
+   * its decoders and slots survive. Duplicate photo bitmaps that arrived are closed.
+   */
   private setMedia(media: readonly EngineMedia[]): void {
-    const next = new Map(media.map((m) => [m.id, m]));
-    for (const [id, old] of this.media) {
-      const now = next.get(id);
-      if (now === undefined || (old.kind === 'video' && (now.kind !== 'video' || now.file !== old.file))) {
-        this.dropSource(id);
-      }
-      if (old.kind === 'photo' && (now?.kind !== 'photo' || now.bitmap !== old.bitmap)) old.bitmap.close();
+    const next = new Set(media.map((m) => m.id));
+    this.changeMedia(
+      media,
+      [...this.media.keys()].filter((id) => !next.has(id)),
+    );
+  }
+
+  /** Implements: ADR-0009 §7 — sources added and removed by id; the others keep their decoders. */
+  private changeMedia(add: readonly EngineMedia[], remove: readonly string[]): void {
+    for (const id of remove) {
+      const old = this.media.get(id);
+      if (!old) continue;
+      this.dropSource(id);
+      if (old.kind === 'photo') old.bitmap.close();
+      this.media.delete(id);
     }
-    this.media = next;
+    for (const m of add) {
+      if (this.media.has(m.id)) {
+        if (m.kind === 'photo' && m.bitmap !== (this.media.get(m.id) as { bitmap?: ImageBitmap }).bitmap)
+          m.bitmap.close();
+        continue;
+      }
+      // A source asked for before its media arrived was remembered as missing: open it now (F-002.R1).
+      this.videos.delete(m.id);
+      this.failed.delete(m.id);
+      this.media.set(m.id, m);
+    }
   }
 
   /** ADR-0009 §7: removing a source releases its decoders, frames and coarse copies. */

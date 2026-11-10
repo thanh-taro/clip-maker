@@ -31,6 +31,7 @@ Frame area on the work area; transport with Previous frame (COPY-action.prev_fra
 - Previous/Next frame step one frame; Play starts from the playhead and stops at the project end. Home/End go to the start/end (RULE-20, COPY-action.go_start, COPY-action.go_end).
 - Full screen uses the browser's full screen, or maximises within the page when that is unavailable, without changing playhead or play state (F-002 R7). Esc leaves it.
 - The slow-device notice can be closed and does not return in the session.
+- Narrow widths keep Previous frame, Play/Pause, Next frame, the time and Full screen (the frame-step controls are RULE-21's equivalent of scrubbing); Go to start and Go to end stay on Home/End. The SCR-Editor narrow boards, which show Go to start/Go to end instead of frame step, are outdated on this point (build question 77).
 
 ## Accessibility
 - The frame is an image named COPY-preview.label with the current time.
