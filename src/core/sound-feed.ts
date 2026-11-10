@@ -29,6 +29,8 @@ export type FeedReply =
       readonly config?: AudioDecoderConfig | null;
       /** On the first batch: the stream starts at the track's first packet (no codec pre-roll needed). */
       readonly first?: boolean;
+      /** On the first batch: the track's first packet time (s); negative when an edit list trims priming. */
+      readonly start?: number;
       readonly packets: readonly FeedPacket[];
       /** No packet follows. */
       readonly done: boolean;

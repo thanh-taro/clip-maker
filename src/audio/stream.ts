@@ -6,17 +6,17 @@
 // behind, the queued lead and ≈ 2 s ahead) and renders a block only once the sound it reads is decoded
 // (`ready`), so play starts when picture and sound can start together (F-002.R2): until the first block
 // arrives the worklet's clock does not move. A source whose decode stalls is not waited for longer than
-// STALL_MS (it is heard as silence for that block).
+// STALL_MS: then the decoder is told to give up on it (`giveUp`), and it is heard as silence until it
+// decodes again, or until the next play or seek.
 import { layoutOf, type Micros, type Project } from '../core';
 import { SAMPLE_RATE, voices, type Voice } from '../plan';
 import { DECODE_AHEAD } from './decode';
-import { soundDemand, type Demand } from './demand';
+import { MIX_LATENCY_MARGIN, soundDemand, type Demand } from './demand';
+export { MIX_LATENCY_MARGIN };
 import { LIMITER_PREROLL, Mixer } from './mixer';
 import { PLAYBACK_BLOCK, PLAYBACK_LEAD, type FromWorkletToWorker, type ToWorklet } from './protocol';
 import type { SourceBank } from './source';
 
-/** More than the limiter's latency: the raw mix runs this far ahead of the output. */
-export const MIX_LATENCY_MARGIN = 1024;
 /** The longest a block waits for its sound to be decoded. */
 export const STALL_MS = 1500;
 
@@ -24,6 +24,10 @@ export const STALL_MS = 1500;
 export interface StreamSound {
   want(demand: readonly Demand[]): void;
   ready(demand: readonly Demand[]): boolean;
+  /** The sources of `demand` that are not ready are heard as silence until they make progress. */
+  giveUp?(demand: readonly Demand[]): void;
+  /** Play or seek: sources given up on are waited for again. */
+  retry?(): void;
 }
 
 export interface StreamTimers {
@@ -60,6 +64,8 @@ export class Streamer {
   private endSent = false;
   private stall: unknown = null;
   private forced = false;
+  /** The mix range a block waits for. */
+  private waitingFor: [number, number] = [0, 0];
   /** Blocks rendered (instrumentation). */
   blocks = 0;
   /** Times a block waited for decoding, and blocks rendered after STALL_MS without it (instrumentation). */
@@ -106,6 +112,8 @@ export class Streamer {
   }
 
   play(t: Micros, gen: number): void {
+    this.unstall();
+    this.sound?.retry?.();
     this.gen = gen;
     this.playing = true;
     this.from = sampleAt(t);
@@ -153,11 +161,18 @@ export class Streamer {
       this.unstall();
       return true;
     }
+    this.waitingFor = [from, to];
     if (this.stall === null) {
       this.waits++;
       this.stall = this.timers.setTimeout(() => {
         this.stall = null;
         this.stalls++;
+        const sound = this.sound;
+        if (sound?.giveUp) {
+          sound.giveUp(this.demand(...this.waitingFor));
+          this.fill();
+          return;
+        }
         this.forced = true;
         this.fill();
         this.forced = false;

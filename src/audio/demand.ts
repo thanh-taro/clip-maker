@@ -17,6 +17,9 @@ export interface Demand {
 
 const MARGIN = 4 * WSOLA_DECIMATION;
 
+/** More than the limiter's latency: the raw mix runs this far ahead of the output. */
+export const MIX_LATENCY_MARGIN = 1024;
+
 /** What rendering project samples [from, to) (raw mix, before the limiter) reads from each source. */
 export function soundDemand(voices: readonly Voice[], from: number, to: number): Demand[] {
   const out: Demand[] = [];

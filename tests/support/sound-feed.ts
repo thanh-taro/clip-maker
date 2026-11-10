@@ -17,6 +17,24 @@ export interface FakeTrack {
   readonly channels: number;
   /** The decoded sample of channel c at native index n (n < 0: priming). */
   sample(n: number, c: number): number;
+  /**
+   * false: the container does not put the priming before time 0 (WebM, Ogg): packet times start at 0
+   * and the codec's own header says how much to skip (Opus pre-skip). Default true (an edit list).
+   */
+  readonly edit?: boolean;
+  /** An Opus track with an OpusHead description carrying `priming` as its pre-skip. */
+  readonly opus?: boolean;
+}
+
+/** An OpusHead with the given pre-skip. */
+export function opusHead(preSkip: number, channels = 2): Uint8Array {
+  const b = new Uint8Array(19);
+  b.set([...'OpusHead'].map((c) => c.charCodeAt(0)));
+  b[8] = 1;
+  b[9] = channels;
+  b[10] = preSkip & 255;
+  b[11] = preSkip >> 8;
+  return b;
 }
 
 export interface FeedLog {
@@ -46,13 +64,14 @@ export function fakeFeed(tracks: Record<string, FakeTrack | null>, batchSeconds 
           if (closed) throw new Error('AbortError: closed');
           if (!t) return { config: null, packets: [], done: true };
           const head = next < 0;
-          if (head) next = Math.max(0, Math.min(total - 1, Math.floor((from * t.rate + t.priming) / t.frames)));
+          const shift = t.edit === false ? t.priming : 0; // container time of index n is (n + shift) / rate
+          if (head) next = Math.max(0, Math.min(total - 1, Math.floor((from * t.rate + t.priming - shift) / t.frames)));
           const packets: FeedPacket[] = [];
           const per = Math.max(1, Math.round((batchSeconds * t.rate) / t.frames));
           while (packets.length < per && next < total) {
             const n0 = next * t.frames - t.priming;
             const data = new Uint8Array(new Int32Array([n0]).buffer);
-            packets.push({ t: n0 / t.rate, d: t.frames / t.rate, data });
+            packets.push({ t: (n0 + shift) / t.rate, d: t.frames / t.rate, data });
             next++;
           }
           log.packets += packets.length;
@@ -61,8 +80,14 @@ export function fakeFeed(tracks: Record<string, FakeTrack | null>, batchSeconds 
           return head
             ? {
                 ...base,
-                config: { codec: 'fake', sampleRate: t.rate, numberOfChannels: t.channels },
+                config: {
+                  codec: t.opus ? 'opus' : 'fake',
+                  sampleRate: t.rate,
+                  numberOfChannels: t.channels,
+                  ...(t.opus ? { description: opusHead(t.priming, t.channels) } : {}),
+                },
                 first: next - packets.length === 0,
+                start: (shift - t.priming) / t.rate,
               }
             : base;
         },
@@ -78,7 +103,14 @@ export function fakeFeed(tracks: Record<string, FakeTrack | null>, batchSeconds 
 /** The fake decoder: outputs each packet's samples on a later microtask; `fail` after N packets. */
 export function fakeDecoders(
   tracks: Record<string, FakeTrack | null>,
-  opts: { failAfter?: number; unsupported?: boolean } = {},
+  opts: {
+    failAfter?: number;
+    unsupported?: boolean;
+    /** Never outputs anything (a hung decoder). */
+    hang?: boolean;
+    /** Outputs after this many ms (a slow decoder). */
+    delayMs?: number;
+  } = {},
 ): DecoderFactory & { live: number } {
   const factory = (async (config, output, error) => {
     if (opts.unsupported) return null;
@@ -91,9 +123,11 @@ export function fakeDecoders(
     factory.live++;
     const dec: PcmDecoder = {
       decode(p: FeedPacket) {
+        if (opts.hang) return; // accepted, never output (its queue looks empty, as a stuck codec's may)
         queue++;
         const n0 = new Int32Array(p.data.slice().buffer)[0]!;
-        pending = pending.then(() => {
+        pending = pending.then(async () => {
+          if (opts.delayMs) await new Promise((r) => setTimeout(r, opts.delayMs));
           queue--;
           if (opts.failAfter !== undefined && ++decoded > opts.failAfter) return error('EncodingError: bad packet');
           const n = Math.min(t.frames, t.length - n0);

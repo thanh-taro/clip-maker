@@ -113,4 +113,20 @@ describe('MOD-Container sound feed (ADR-0008 §6)', () => {
     await send({ type: 'more', id: 99 });
     expect(replies).toHaveLength(1);
   });
+
+  it('NFR-05 a file with an open stream is never closed to make room: the 7th source does not end the music', async () => {
+    const files = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`src-${i}`, new Blob([])]));
+    const { replies, send, opened } = rig(2000, false, files);
+    await send({ type: 'open', id: 100, sourceId: 'src-0', from: 0 }); // the music, still playing
+    for (let i = 1; i <= 7; i++) {
+      await send({ type: 'open', id: i, sourceId: `src-${i}`, from: 0 });
+      await send({ type: 'close', id: i });
+    }
+    expect(opened.count).toBe(8);
+    expect(opened.closed).toBe(2); // two closed sources made room, never src-0
+    await send({ type: 'more', id: 100 });
+    const last = replies.at(-1)!;
+    expect(last).toMatchObject({ type: 'batch', id: 100 });
+    expect(batch(last).packets.length).toBeGreaterThan(0);
+  });
 });

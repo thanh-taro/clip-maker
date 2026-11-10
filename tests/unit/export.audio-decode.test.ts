@@ -2,8 +2,15 @@
 // outcome item 9; build question 33): `prepare` runs before each 100 ms block in mix order, a decode
 // error fails the export, and the samples equal the same sound given whole.
 import { describe, expect, it } from 'vitest';
-import { endSampleOf, MIX_LATENCY_MARGIN, pcmSource, soundDemand, SoundBank } from '../../src/audio';
-import { MIX_BLOCK, wavAudio, type MixJob } from '../../src/export/audio-pass';
+import { endSampleOf, offlinePrepare, pcmSource, SoundBank } from '../../src/audio';
+import {
+  lossyAudio,
+  MIX_BLOCK,
+  wavAudio,
+  type AudioCodecs,
+  type EncodedOut,
+  type MixJob,
+} from '../../src/export/audio-pass';
 import { voices } from '../../src/plan';
 import { proj, video } from '../support/project';
 import { fakeDecoders, fakeFeed, type FakeTrack } from '../support/sound-feed';
@@ -25,19 +32,16 @@ function decodedJob(opts: Parameters<typeof fakeDecoders>[1] = {}): { job: MixJo
   bank.setSources(['src-a']);
   const vs = voices(project);
   const calls: [number, number][] = [];
+  const prepare = offlinePrepare(bank, vs, (m) => new Error(m));
   return {
     calls,
     job: {
       voices: vs,
       bank: bank.get,
       endSample: endSampleOf(project),
-      prepare: async (from, to) => {
+      prepare: (from, to) => {
         calls.push([from, to]);
-        bank.want(soundDemand(vs, from - MIX_LATENCY_MARGIN, to + MIX_LATENCY_MARGIN + 2 * SR));
-        const need = soundDemand(vs, from - MIX_LATENCY_MARGIN, to + MIX_LATENCY_MARGIN);
-        await bank.until(need);
-        const f = bank.failureOf(need);
-        if (f) throw new Error(f);
+        return prepare(from, to);
       },
     },
   };
@@ -69,5 +73,37 @@ describe('MOD-Export sound decoded for the mix (ADR-0008 §6)', () => {
   it('ADR-0008 §6 a decode error stops the mix with the error (the export fails, sound is never dropped)', async () => {
     const { job } = decodedJob({ failAfter: 30 });
     await expect(wavAudio(job, () => undefined)).rejects.toThrow(/src-a: .*EncodingError/);
+  });
+
+  it('ADR-0008 outcome item 2 every verify-and-trim pass mixes the decoded sound from the start (pass 2 is not silent)', async () => {
+    const { job } = decodedJob();
+    const passes: Float32Array[] = [];
+    // A fake codec: "encodes" the mix as it is; the first decode measures loud, so the trim runs again.
+    const codecs: AudioCodecs = {
+      async encode(_config, blocks) {
+        const parts: Float32Array[] = [];
+        for await (const [L] of blocks) parts.push(L);
+        const all = new Float32Array(parts.reduce((n, p) => n + p.length, 0));
+        let at = 0;
+        for (const p of parts) {
+          all.set(p, at);
+          at += p.length;
+        }
+        passes.push(all);
+        const packet: EncodedOut = { data: new Uint8Array(1), timestamp: 0, duration: 0, key: true };
+        return { packets: [packet], config: { codec: 'fake', sampleRate: SR, numberOfChannels: 2 } };
+      },
+      async decode(_config, _packets, onBlock) {
+        const loud = passes.length === 1 ? 1.2 : 0.5;
+        onBlock([new Float32Array([loud]), new Float32Array([loud])]);
+      },
+    };
+    const r = await lossyAudio(job, { codec: 'fake', sampleRate: SR, numberOfChannels: 2 }, 0, codecs, null);
+    expect(r.trim.passes).toBeGreaterThanOrEqual(2);
+    expect(passes.length).toBeGreaterThanOrEqual(2);
+    const ratio = 10 ** (r.trim.gainDb / 20);
+    const [first, last] = [passes[0]!, passes.at(-1)!];
+    expect(Math.max(...last.map(Math.abs))).toBeGreaterThan(0.05);
+    for (const i of [SR / 4, SR / 2, SR]) expect(last[i]).toBeCloseTo(first[i]! * ratio, 5);
   });
 });

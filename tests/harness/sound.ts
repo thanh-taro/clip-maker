@@ -27,6 +27,8 @@ export interface ToneSpec {
   readonly sampleRate: 44_100 | 48_000;
   /** Mono instead of stereo. */
   readonly mono?: boolean;
+  /** Default: MP4 for AAC, WebM for Opus. Opus in MP4 has its pre-skip in an edit list too. */
+  readonly container?: 'mp4' | 'webm';
 }
 
 const W = 320;
@@ -45,7 +47,7 @@ function encoderDelay(codec: 'aac' | 'opus'): Promise<number> {
 
 /** A 30 fps frame-coded clip with the tone; MP4 (H.264 + AAC) or WebM (VP8 + Opus). */
 export async function makeToneClip(spec: ToneSpec): Promise<File> {
-  const mp4 = spec.codec === 'aac';
+  const mp4 = spec.container ? spec.container === 'mp4' : spec.codec === 'aac';
   const sr = spec.codec === 'opus' ? 48_000 : spec.sampleRate;
   const channels = spec.mono ? 1 : 2;
   const target = new BufferTarget();
@@ -78,7 +80,12 @@ export async function makeToneClip(spec: ToneSpec): Promise<File> {
     },
     error: (e) => (aFail = e),
   });
-  aenc.configure({ codec: mp4 ? 'mp4a.40.2' : 'opus', sampleRate: sr, numberOfChannels: channels, bitrate: 128_000 });
+  aenc.configure({
+    codec: spec.codec === 'aac' ? 'mp4a.40.2' : 'opus',
+    sampleRate: sr,
+    numberOfChannels: channels,
+    bitrate: 128_000,
+  });
   const total = Math.round(spec.seconds * sr);
   const block = 4800;
   for (let at = 0; at < total; at += block) {

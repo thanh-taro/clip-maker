@@ -157,4 +157,38 @@ describe('MOD-Audio streamer over windowed decoding', () => {
     expect(blocks(sent).length).toBeGreaterThan(0);
     expect(s.stalls).toBe(1);
   });
+
+  it('MOD-Audio a source that never decodes is given up on once: playback keeps streaming (no 0.4 s on / 1.1 s frozen cycle)', async () => {
+    const tracks = { 'src-a': t44 };
+    const timers: (() => void)[] = [];
+    let streamer: Streamer | null = null;
+    const bank = new SoundBank(fakeFeed(tracks), fakeDecoders(tracks, { hang: true }), () => streamer?.decoded());
+    bank.setSources(['src-a']);
+    const { port, sent } = fakePort();
+    streamer = new Streamer(bank.get, undefined, undefined, bank, {
+      setTimeout: (f) => timers.push(f),
+      clearTimeout: () => undefined,
+    });
+    streamer.connect(port);
+    streamer.setProject(proj({ clips: [video('a', 5)] }));
+    streamer.play(0, 1);
+    await settle();
+    expect(blocks(sent)).toHaveLength(0);
+    expect(timers).toHaveLength(1);
+    timers.shift()!();
+    let played = 0;
+    for (let k = 0; k < 10; k++) {
+      played += 4096;
+      port.played(1, played);
+      await settle(2);
+    }
+    const queued = blocks(sent).reduce((n, b) => n + b.L.length, 0);
+    expect(queued).toBeGreaterThanOrEqual(played); // never waited again
+    expect(timers).toHaveLength(0);
+    expect(streamer.stalls).toBe(1);
+    // A new play (or seek) waits for it again, once more at most STALL_MS: it may have recovered.
+    streamer.play(2 * S, 2);
+    await settle();
+    expect(timers).toHaveLength(1);
+  });
 });

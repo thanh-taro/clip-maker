@@ -13,7 +13,8 @@
 import type { FeedPacket, FeedReply, FeedRequest } from '../core';
 import { createAudioDecoder, withNormalisedDescription } from '../codec';
 import { SAMPLE_RATE } from '../plan';
-import type { Demand } from './demand';
+import type { Voice } from '../plan';
+import { MIX_LATENCY_MARGIN, soundDemand, type Demand } from './demand';
 import { Resampler } from './resample';
 import type { SoundSource } from './source';
 import { toStereo } from './stereo';
@@ -50,6 +51,7 @@ const MAX_CURSORS = 8;
 export interface FeedBatch {
   readonly config?: AudioDecoderConfig | null;
   readonly first?: boolean;
+  readonly start?: number;
   readonly packets: readonly FeedPacket[];
   readonly done: boolean;
 }
@@ -219,17 +221,19 @@ class Cursor {
     return this.chunks.size * CHUNK * 8;
   }
 
+  /** Holds [from, to): nothing below `keepFrom` is kept (it was freed or never stored). */
   covers(from: number, to: number): boolean {
-    return this.start <= from + START_SLACK && (this.done || this.end >= to);
+    return this.keepFrom <= from && this.start <= from + START_SLACK && (this.done || this.end >= to);
   }
 
-  /** Could go on to serve [from, …) without a seek. */
+  /**
+   * Could go on to serve [from, …) without a seek: never below what it keeps (freed samples would read
+   * as silence); a window still waiting for its first output serves ranges starting near its own.
+   */
   reaches(from: number): boolean {
-    return (
-      this.from <= from &&
-      this.start <= from + START_SLACK &&
-      (this.done || from <= Math.max(this.end, this.from) + REUSE_GAP)
-    );
+    if (from < this.keepFrom) return false;
+    if (this.start === Number.POSITIVE_INFINITY) return !this.done && from <= this.from + REUSE_GAP;
+    return this.start <= from + START_SLACK && (this.done || from <= Math.max(this.end, this.from) + REUSE_GAP);
   }
 
   retarget(from: number, to: number): void {
@@ -300,7 +304,10 @@ class Cursor {
       // WebKit keeps packet times after trimming Opus pre-skip (build question 84). A decoder that drops
       // frames from its first output (Opus pre-skip) is detected by the shortfall against the packet.
       const p0 = batch.packets[0];
-      const preSkip = batch.config.codec === 'opus' ? opusPreSkip(batch.config.description) : 0;
+      // The pre-skip is subtracted only when the container did not already put the track's first
+      // packet before time 0 (an edit list does that; WebM and Ogg as mediabunny reads them do not).
+      const preSkip =
+        batch.config.codec === 'opus' && (batch.start ?? 0) >= 0 ? opusPreSkip(batch.config.description) : 0;
       let next: number | null = null;
       dec = await bank.decoders(
         batch.config,
@@ -334,9 +341,13 @@ class Cursor {
         },
         (m) => (failure ??= m),
       );
-      if (!dec) return this.owner.silence();
+      if (!dec) {
+        if (bank.strict) throw new Error(`NotSupportedError: ${batch.config.codec} can't be decoded here`);
+        return this.owner.silence();
+      }
       let fed = 0;
       for (;;) {
+        if (failure) throw new Error(failure);
         for (const p of batch.packets) {
           dec.decode(p);
           fed = p.t + p.d;
@@ -372,6 +383,7 @@ class Cursor {
 
   private emit(out: { from: number; L: Float32Array; R: Float32Array } | null): void {
     if (!out || this.closed) return;
+    this.owner.stalled = false;
     this.store(out.from, out.L, out.R);
     this.end = out.from + out.L.length;
     this.owner.bank.progress();
@@ -396,6 +408,8 @@ export class WindowedSource implements SoundSource {
   silent = false;
   /** A decode error (`name: message`): heard as silence; exports fail on it. */
   failure: string | null = null;
+  /** Given up on by the preview after STALL_MS: heard as silence until it decodes again or a new window opens. */
+  stalled = false;
 
   constructor(
     readonly bank: SoundBank,
@@ -413,7 +427,7 @@ export class WindowedSource implements SoundSource {
   }
 
   ready(from: number, to: number): boolean {
-    return this.silent || this.failure !== null || this.cursors.some((c) => c.covers(from, to));
+    return this.silent || this.stalled || this.failure !== null || this.cursors.some((c) => c.covers(from, to));
   }
 
   silence(): void {
@@ -438,18 +452,60 @@ export class WindowedSource implements SoundSource {
     if (this.silent || this.failure) return;
     const left = new Set(this.cursors);
     const next: Cursor[] = [];
-    for (const [from, to] of ranges.slice(0, MAX_CURSORS)) {
+    for (const [from, to] of fewest(ranges, MAX_CURSORS)) {
       let best: Cursor | null = null;
       for (const c of left) if (c.reaches(from) && (!best || c.end > best.end)) best = c;
       if (best) {
         left.delete(best);
         best.retarget(from, to);
         next.push(best);
-      } else next.push(new Cursor(this, from, to));
+      } else {
+        this.stalled = false;
+        next.push(new Cursor(this, from, to));
+      }
     }
     for (const c of left) c.close();
     this.cursors = next;
   }
+}
+
+/** At most `max` ranges: the two with the smallest gap between them are joined until it fits. */
+export function fewest(ranges: readonly [number, number][], max: number): [number, number][] {
+  const out = ranges.map((r): [number, number] => [r[0], r[1]]);
+  while (out.length > max) {
+    let k = 0;
+    for (let i = 1; i < out.length - 1; i++) if (out[i + 1]![0] - out[i]![1] < out[k + 1]![0] - out[k]![1]) k = i;
+    out[k]![1] = Math.max(out[k]![1], out[k + 1]![1]);
+    out.splice(k + 1, 1);
+  }
+  return out;
+}
+
+/** The longest an export's mix waits for one block's decoded sound. */
+export const SOUND_WAIT_MS = 20_000;
+
+/**
+ * An offline mix's `prepare` (exports, ADR-0008 §6): before mixing project samples [from, to) it keeps
+ * them and ≈ 2 s ahead decoded and waits for them (at most `ms`). A pass that starts again from an
+ * earlier sample (verify-and-trim) first frees every window, so it decodes from its start. A decode
+ * error is thrown through `fail`.
+ */
+export function offlinePrepare(
+  bank: SoundBank,
+  voices: readonly Voice[],
+  fail: (message: string) => Error,
+  ms = SOUND_WAIT_MS,
+): (from: number, to: number) => Promise<void> {
+  let last = Number.POSITIVE_INFINITY;
+  return async (from, to) => {
+    if (from < last) bank.want([]);
+    last = from;
+    bank.want(soundDemand(voices, from - MIX_LATENCY_MARGIN, to + MIX_LATENCY_MARGIN + DECODE_AHEAD));
+    const need = soundDemand(voices, from - MIX_LATENCY_MARGIN, to + MIX_LATENCY_MARGIN);
+    await bank.until(need, ms);
+    const failure = bank.failureOf(need);
+    if (failure) throw fail(`AudioDecodeError: ${failure}`);
+  };
 }
 
 /** Merges each source's demanded ranges (sorted; gaps under MERGE_GAP joined). */
@@ -485,6 +541,8 @@ export class SoundBank {
     readonly feed: SoundFeed,
     readonly decoders: DecoderFactory = webDecoders,
     private readonly onProgress: () => void = () => undefined,
+    /** Exports: a codec the device can't decode is an error, never silence (question 33). */
+    readonly strict = false,
   ) {}
 
   /** The sources with sound (others are silent and never decoded); removed ones are freed. */
@@ -515,9 +573,36 @@ export class SoundBank {
     return demand.every((d) => this.sources.get(d.sourceId)?.ready(d.from, d.to) ?? true);
   }
 
-  /** Resolves when `ready(demand)`. */
-  async until(demand: readonly Demand[]): Promise<void> {
-    while (!this.ready(demand)) await new Promise<void>((r) => this.waiters.push(r));
+  /** Resolves when `ready(demand)`; rejects with a TimeoutError after `ms` without it. */
+  async until(demand: readonly Demand[], ms = Number.POSITIVE_INFINITY): Promise<void> {
+    const deadline = Date.now() + ms;
+    while (!this.ready(demand)) {
+      const left = deadline - Date.now();
+      if (left <= 0) {
+        const ids = demand.filter((d) => !this.sources.get(d.sourceId)?.ready(d.from, d.to)).map((d) => d.sourceId);
+        throw new Error(`TimeoutError: the sound of ${[...new Set(ids)].join(', ')} was not decoded within ${ms} ms`);
+      }
+      await new Promise<void>((r) => {
+        const t = Number.isFinite(left) ? setTimeout(r, left) : null;
+        this.waiters.push(() => {
+          if (t !== null) clearTimeout(t);
+          r();
+        });
+      });
+    }
+  }
+
+  /** The preview gave up waiting: these sources play silent until they decode again (STALL_MS). */
+  giveUp(demand: readonly Demand[]): void {
+    for (const d of demand) {
+      const s = this.sources.get(d.sourceId);
+      if (s && !s.ready(d.from, d.to)) s.stalled = true;
+    }
+  }
+
+  /** Sources given up on are waited for again (play, seek). */
+  retry(): void {
+    for (const s of this.sources.values()) s.stalled = false;
   }
 
   /** The first decode error among the demanded sources. */

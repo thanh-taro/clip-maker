@@ -17,6 +17,8 @@ let project: Project | null = null;
 const streamer = new Streamer((id) => given.get(id) ?? bank?.get(id), undefined, undefined, {
   want: (d) => bank?.want(d.filter((x) => !given.has(x.sourceId))),
   ready: (d) => bank?.ready(d.filter((x) => !given.has(x.sourceId))) ?? true,
+  giveUp: (d) => bank?.giveUp(d),
+  retry: () => bank?.retry(),
 });
 
 /** The sources whose sound is decoded: every source with sound that was not given whole. */

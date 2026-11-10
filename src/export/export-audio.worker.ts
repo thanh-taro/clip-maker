@@ -6,16 +6,7 @@
 // mix order with ≈ 2 s ahead, from encoded packets the export worker reads (the sound feed; build
 // questions 33, 83): memory stays bounded however long the sources are (NFR-05). A decode error fails
 // the export (AudioCodecError); sound is never dropped silently.
-import {
-  DECODE_AHEAD,
-  endSampleOf,
-  MIX_LATENCY_MARGIN,
-  pcmSource,
-  portFeed,
-  soundDemand,
-  SoundBank,
-  type SoundSource,
-} from '../audio';
+import { endSampleOf, offlinePrepare, pcmSource, portFeed, SoundBank, type SoundSource } from '../audio';
 import { audioEncoderConfig } from '../codec';
 import { helloFrom, type AudioPortMessage, type FromExportAudio, type ToExportAudio, type WorkerScope } from '../core';
 import { voices } from '../plan';
@@ -36,7 +27,8 @@ scope.onmessage = (e: MessageEvent<ToExportAudio>) => {
   const send = (msg: AudioPortMessage, transfer: Transferable[] = []): void => port.postMessage(msg, transfer);
   const sources = new Map<string, SoundSource>(m.pcm.map((p) => [p.sourceId, pcmSource(p.L, p.R)]));
   const all = voices(m.project);
-  const decoded = new SoundBank(portFeed(m.feed ?? new MessageChannel().port1));
+  // Strict: a codec this device can't decode fails the export like a decode error (question 33).
+  const decoded = new SoundBank(portFeed(m.feed ?? new MessageChannel().port1), undefined, undefined, true);
   // Without a feed nothing can be decoded: such sources are heard as silence (an export always has one).
   decoded.setSources(
     m.feed
@@ -51,13 +43,7 @@ scope.onmessage = (e: MessageEvent<ToExportAudio>) => {
     voices: all,
     bank: (id) => sources.get(id) ?? decoded.get(id),
     endSample: endSampleOf(m.project),
-    prepare: async (from, to) => {
-      decoded.want(soundDemand(heard, from - MIX_LATENCY_MARGIN, to + MIX_LATENCY_MARGIN + DECODE_AHEAD));
-      const need = soundDemand(heard, from - MIX_LATENCY_MARGIN, to + MIX_LATENCY_MARGIN);
-      await decoded.until(need);
-      const failure = decoded.failureOf(need);
-      if (failure) throw new AudioCodecError(`AudioDecodeError: ${failure}`);
-    },
+    prepare: offlinePrepare(decoded, heard, (message) => new AudioCodecError(message)),
   };
   let last = -Infinity;
   let lastAlive = -Infinity;

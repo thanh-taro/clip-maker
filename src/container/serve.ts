@@ -65,8 +65,10 @@ export function serveSound(
       p.catch(() => inputs.delete(id));
     }
     inputs.set(id, p);
+    // The least recently used inputs go first; one with an open stream is never closed.
     for (const [old, q] of inputs) {
       if (inputs.size <= OPEN_INPUTS) break;
+      if (old === id || [...streams.values()].some((x) => x.sourceId === old)) continue;
       inputs.delete(old);
       void q.then((i) => i.close()).catch(() => undefined);
     }
@@ -132,7 +134,7 @@ export function serveSound(
         const head = r.done ? null : r.value;
         // A stream from the track's first packet needs no codec pre-roll (decoding starts as from 0).
         const first = !head || head.timestamp <= audio.firstTimestamp + 1e-9;
-        await batch(m.id, s, { config: audio.decoderConfig, first }, head);
+        await batch(m.id, s, { config: audio.decoderConfig, first, start: audio.firstTimestamp }, head);
       });
     } else if (m.type === 'more') {
       const s = streams.get(m.id);

@@ -23,8 +23,9 @@ for (const spec of [
   { ...base, codec: 'aac', sampleRate: 48_000 },
   { ...base, codec: 'aac', sampleRate: 44_100, mono: true },
   { ...base, codec: 'opus', sampleRate: 48_000 },
+  { ...base, codec: 'opus', sampleRate: 48_000, container: 'mp4' },
 ] as ToneSpec[]) {
-  const name = `${spec.codec} ${spec.sampleRate / 1000} kHz${spec.mono ? ' mono' : ''}`;
+  const name = `${spec.codec} ${spec.sampleRate / 1000} kHz${spec.mono ? ' mono' : ''}${spec.container ? ` in ${spec.container}` : ''}`;
   test(`INV-02 ADR-0008 §2/§6 a clip’s sound decodes on time, at its pitch and level (${name})`, async ({ page }) => {
     test.setTimeout(60_000);
     const ok = await page.evaluate(([c, r]) => window.harness.sound.canEncode(c as 'aac' | 'opus', r as number), [
