@@ -6,8 +6,7 @@
 // worker's "the effect chain drew" answer then lets media in, or turns the screen unsupported and stops
 // every worker. The timed effects result only shows the slow-device notice.
 import { render } from 'preact';
-import { language } from '../copy';
-import { embedded, initHost, loadFonts, registerOffline, resolveLanguage } from '../host';
+import { embedded, initHost, loadFonts, registerOffline, resolveLanguage, setLanguage } from '../host';
 import { browserDevice, device, finishCheck, openingCheck, type DeviceDeps } from './device';
 import { Shell } from './Shell';
 import { Unsupported } from './Unsupported';
@@ -44,9 +43,9 @@ export async function main(options: MainOptions = {}): Promise<void> {
       return null;
     }
   })();
-  language.value = resolveLanguage(address, navigator.languages ?? [navigator.language]);
-  // Implements: F-022.R1 (mark the page language even if the boot script did not run).
-  document.documentElement.lang = language.value;
+  // Implements: F-022.R1/R3 — RULE-18's address → browser → en-US, before anything renders, and the
+  // page marked with it (even if the boot script did not run). Host messages switch it later (MOD-Host).
+  setLanguage(resolveLanguage(address, navigator.languages ?? [navigator.language]));
   document.title = TITLE;
 
   // Implements: F-023.R1/R4 — the check runs before anything can be added and makes no request.

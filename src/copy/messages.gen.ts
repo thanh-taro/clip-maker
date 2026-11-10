@@ -197,11 +197,11 @@ export const CATALOG: { readonly [L in Language]: { readonly [K in MessageId]: s
     "media.kind_audio": "Audio",
     "empty.drop_hint": "Or drop or paste files here",
     "drop.kinds": "Videos, photos and audio",
-    "notice.added": "Added {count} files",
+    "notice.added": {"one":"Added {count} file","other":"Added {count} files"},
     "notice.adding": "Adding {done} of {total}…",
     "notice.adding_label": "Adding media",
     "notice.checking": "Checking {done} of {total} files…",
-    "notice.applied_all": "Applied to all {count} clips",
+    "notice.applied_all": {"one":"Applied to {count} clip","other":"Applied to all {count} clips"},
     "adjust.group_light": "Light",
     "adjust.group_colour": "Colour",
     "adjust.group_effects": "Effects",
@@ -501,11 +501,11 @@ export const CATALOG: { readonly [L in Language]: { readonly [K in MessageId]: s
     "media.kind_audio": "Âm thanh",
     "empty.drop_hint": "Hoặc thả hay dán tệp vào đây",
     "drop.kinds": "Video, ảnh và âm thanh",
-    "notice.added": "Đã thêm {count} tệp",
+    "notice.added": {"other":"Đã thêm {count} tệp"},
     "notice.adding": "Đang thêm {done}/{total}…",
     "notice.adding_label": "Đang thêm tệp",
     "notice.checking": "Đang kiểm tra {done}/{total} tệp…",
-    "notice.applied_all": "Đã áp dụng cho cả {count} clip",
+    "notice.applied_all": {"other":"Đã áp dụng cho cả {count} clip"},
     "adjust.group_light": "Ánh sáng",
     "adjust.group_colour": "Màu sắc",
     "adjust.group_effects": "Hiệu ứng",
@@ -622,7 +622,7 @@ export const CATALOG: { readonly [L in Language]: { readonly [K in MessageId]: s
 };
 
 /** IDs whose text has plural forms, selected by `{count}`. */
-export const PLURAL_IDS: ReadonlySet<MessageId> = new Set<MessageId>([]);
+export const PLURAL_IDS: ReadonlySet<MessageId> = new Set<MessageId>(["notice.added","notice.applied_all"]);
 
 export type MessageId =
   | "action.add_media"
@@ -1115,11 +1115,11 @@ export interface MessageParams {
   "media.kind_audio": undefined;
   "empty.drop_hint": undefined;
   "drop.kinds": undefined;
-  "notice.added": { count: string | number };
+  "notice.added": { count: number };
   "notice.adding": { done: string | number; total: string | number };
   "notice.adding_label": undefined;
   "notice.checking": { done: string | number; total: string | number };
-  "notice.applied_all": { count: string | number };
+  "notice.applied_all": { count: number };
   "adjust.group_light": undefined;
   "adjust.group_colour": undefined;
   "adjust.group_effects": undefined;

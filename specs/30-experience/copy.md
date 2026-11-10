@@ -244,11 +244,11 @@ Rules for every string:
 | **COPY-media.kind_audio** | Audio | Âm thanh | |
 | **COPY-empty.drop_hint** | Or drop or paste files here | Hoặc thả hay dán tệp vào đây | |
 | **COPY-drop.kinds** | Videos, photos and audio | Video, ảnh và âm thanh | |
-| **COPY-notice.added** | Added {count} files | Đã thêm {count} tệp | |
+| **COPY-notice.added** | one: Added {count} file · other: Added {count} files | Đã thêm {count} tệp | |
 | **COPY-notice.adding** | Adding {done} of {total}… | Đang thêm {done}/{total}… | |
 | **COPY-notice.adding_label** | Adding media | Đang thêm tệp | |
 | **COPY-notice.checking** | Checking {done} of {total} files… | Đang kiểm tra {done}/{total} tệp… | |
-| **COPY-notice.applied_all** | Applied to all {count} clips | Đã áp dụng cho cả {count} clip | |
+| **COPY-notice.applied_all** | one: Applied to {count} clip · other: Applied to all {count} clips | Đã áp dụng cho cả {count} clip | |
 
 ## Inspector controls
 | ID | en-US | vi-VN | Notes |
