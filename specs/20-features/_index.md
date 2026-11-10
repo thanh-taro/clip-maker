@@ -12,7 +12,7 @@
 | F-008 | Apply a look | M-1 | P0 | ready |
 | F-009 | Fade and cross-fade | M-1 | P1 | ready |
 | F-010 | Add text | M-1 | P0 | ready |
-| F-011 | Add music and set sound | M-1 | P0 | ready |
+| F-011 | Add music and set sound | M-1 | P0 | building |
 | F-012 | Set the frame | M-1 | P0 | building |
 | F-013 | Navigate the timeline | M-1 | P1 | ready |
 | F-014 | Undo and redo | M-1 | P0 | building |

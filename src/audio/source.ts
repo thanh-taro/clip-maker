@@ -39,3 +39,21 @@ export const bankOf =
   (sources: ReadonlyMap<string, SoundSource>): SourceBank =>
   (id) =>
     sources.get(id);
+
+/** The parts of a project that say which sources have sound (MOD-Core `Project`). */
+interface SoundProject {
+  readonly sources: readonly { readonly id: string; readonly kind: string; readonly hasSound?: boolean }[];
+  readonly audioClips: readonly { readonly sourceId: string }[];
+}
+
+/**
+ * The sources whose sound is decoded: every video or audio source with sound, and every bundled track an
+ * audio clip plays (ENT-MusicTrack: an audio clip's source that is not one of the project's sources).
+ * Implements: F-011.R5 (bundled music in the same mix as the clips' sound), ADR-0008 §7.
+ */
+export function soundSourceIds(project: SoundProject): string[] {
+  const ids = project.sources.filter((s) => s.kind === 'audio' || s.hasSound === true).map((s) => s.id);
+  const known = new Set(project.sources.map((s) => s.id));
+  for (const a of project.audioClips) if (!known.has(a.sourceId) && !ids.includes(a.sourceId)) ids.push(a.sourceId);
+  return ids;
+}
