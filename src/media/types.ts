@@ -31,6 +31,8 @@ export interface ProbedSource {
   readonly notices: readonly 'notice.no_sound'[];
   /** A photo's decoded bitmap (scaled on load per RULE-02), transferred from the worker. */
   readonly bitmap?: ImageBitmap;
+  /** A video's first frame, small, for the media panel (CMP-MediaPanel), transferred from the worker. */
+  readonly thumbnail?: ImageBitmap;
 }
 
 export type ProbeOutcome =

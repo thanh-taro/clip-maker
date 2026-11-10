@@ -7,6 +7,8 @@
 // every worker. The timed effects result only shows the slow-device notice.
 import { render } from 'preact';
 import { embedded, initHost, loadFonts, registerOffline, resolveLanguage, setLanguage } from '../host';
+import { intake, registry } from '../media';
+import { configureAdding } from './adding';
 import { browserDevice, device, finishCheck, openingCheck, type DeviceDeps } from './device';
 import { Shell } from './Shell';
 import { Unsupported } from './Unsupported';
@@ -68,6 +70,15 @@ export async function main(options: MainOptions = {}): Promise<void> {
   if (opening.status === 'drawing-check') {
     startWorkers();
     preloadWorklet();
+    // Implements: F-001.R1/R2 — added files are checked in the analysis worker (MOD-Media intake).
+    configureAdding({
+      intake: (items, onProgress, signal, ctx) => {
+        const worker = workers.get('analysis');
+        if (!worker) return Promise.reject(new Error('analysis worker not running'));
+        return intake(items, onProgress, signal, { ...ctx, worker });
+      },
+      release: (id) => registry.release(id),
+    });
   }
   registerOffline();
   void loadFonts();

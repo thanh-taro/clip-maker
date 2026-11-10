@@ -18,6 +18,8 @@ export interface DecodeCheckOptions {
   /** Time allowed for the flush that forces held frames out. */
   readonly timeoutMs?: number;
   readonly signal?: AbortSignal | undefined;
+  /** Video only: receives a copy of the first decoded frame, which it owns and must close. */
+  readonly onFirstFrame?: ((frame: VideoFrame) => void) | undefined;
 }
 
 /** Why a source's track does not decode on this device (both give COPY-reason.codec). */
@@ -43,7 +45,7 @@ async function take<T>(packets: AsyncIterable<T>, n: number, signal?: AbortSigna
 export async function checkVideoDecodes(
   config: VideoDecoderConfig,
   packets: AsyncIterable<EncodedInput>,
-  { maxPackets = 24, timeoutMs = 5000, signal }: DecodeCheckOptions = {},
+  { maxPackets = 24, timeoutMs = 5000, signal, onFirstFrame }: DecodeCheckOptions = {},
 ): Promise<DecodeFailure | null> {
   if (!(await supports(globalThis.VideoDecoder, config))) return 'unsupported-config';
   const first = await take(packets, maxPackets, signal);
@@ -51,6 +53,7 @@ export async function checkVideoDecodes(
   let error = false;
   const dec = new VideoDecoder({
     output: (f) => {
+      if (frames === 0 && onFirstFrame) onFirstFrame(f.clone());
       frames++;
       f.close();
     },

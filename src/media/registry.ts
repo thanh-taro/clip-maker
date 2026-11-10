@@ -11,6 +11,8 @@ export interface RegistryEntry {
   readonly file: File;
   readonly details: ProbeDetails;
   readonly bitmap?: ImageBitmap;
+  /** A video's small first frame (CMP-MediaPanel). */
+  readonly thumbnail?: ImageBitmap;
 }
 
 export class SourceRegistry {
@@ -23,6 +25,7 @@ export class SourceRegistry {
       file: a.file,
       details: a.details,
       ...(a.bitmap ? { bitmap: a.bitmap } : {}),
+      ...(a.thumbnail ? { thumbnail: a.thumbnail } : {}),
     };
     this.#entries.set(a.source.id, { entry, refs: 1 });
     return entry;
@@ -47,12 +50,16 @@ export class SourceRegistry {
     if (!e) return;
     if (--e.refs > 0) return;
     e.entry.bitmap?.close();
+    e.entry.thumbnail?.close();
     this.#entries.delete(id);
   }
 
   /** New project (RULE-23): everything goes. */
   clear(): void {
-    for (const { entry } of this.#entries.values()) entry.bitmap?.close();
+    for (const { entry } of this.#entries.values()) {
+      entry.bitmap?.close();
+      entry.thumbnail?.close();
+    }
     this.#entries.clear();
   }
 
