@@ -6,9 +6,9 @@ milestone: M-1
 priority: P0
 personas: [PER-01]
 entities: []
-rules: [RULE-17]
+rules: [RULE-17, RULE-20]
 screens: [SCR-Editor]
-components: []
+components: [CMP-EmptyState]
 nfr: [NFR-01, NFR-07, NFR-09, NFR-04]
 events: []
 depends_on: []

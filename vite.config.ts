@@ -43,5 +43,8 @@ export default defineConfig({
   test: {
     include: ['tests/unit/**/*.test.ts', 'tests/property/**/*.test.ts'],
     environment: 'node',
+    // DSP and property tests take ~1 s idle; a busy machine can push them past Vitest's 5 s default.
+    // They assert results, not speed (wall-clock checks are the @realtime e2e tests).
+    testTimeout: 20_000,
   },
 });
