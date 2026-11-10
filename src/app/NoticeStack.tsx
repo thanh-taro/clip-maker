@@ -30,7 +30,13 @@ import {
 effect(() => {
   if (slowNotice.value) {
     if (!notices.peek().some((n) => n.tag === 'slow_device'))
-      showNotice({ kind: 'info', tag: 'slow_device', text: () => t('notice.slow_device'), onClose: dismissSlow });
+      showNotice({
+        kind: 'info',
+        tag: 'slow_device',
+        pinned: true,
+        text: () => t('notice.slow_device'),
+        onClose: dismissSlow,
+      });
   } else closeTagged('slow_device');
 });
 
@@ -155,7 +161,14 @@ function NoticeCard({ n, order }: { n: NoticeEntry; order: number }) {
         <p class="tk-notice__text">{n.text()}</p>
       )}
       {n.kind === 'progress' ? (
-        <button type="button" class="tk-notice__cancel" onClick={cancelAdding}>
+        <button
+          type="button"
+          class="tk-notice__cancel"
+          onClick={() => {
+            focusAfter(card.current);
+            cancelAdding();
+          }}
+        >
           {t('action.cancel')}
         </button>
       ) : (

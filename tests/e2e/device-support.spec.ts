@@ -250,20 +250,21 @@ test.describe('F-023 effects check (app harness)', () => {
     });
   }
 
-  test('F-023.R1 RULE-22 Add media is unavailable while the effect chain has not drawn, then available', async ({
+  test('F-023.R1 RULE-22 while the effect chain has not drawn, media waits and Add media stays usable (build-spec-questions 59)', async ({
     page,
   }) => {
     await page.goto(`${APP_HARNESS}?effects=pending&lang=en-US`);
     const editor = page.locator('[data-screen="SCR-Editor"]');
     await expect(editor).toHaveAttribute('data-device', 'drawing-check');
-    await expect(addMedia(page, 'en-US')).toHaveAttribute('aria-disabled', 'true');
-    await expect(page.getByRole('toolbar').getByRole('button', { name: TEXT['en-US'].addMedia })).toHaveAttribute(
+    // Files picked now are queued until the check lets media in (F-001), so Add media is not
+    // announced as unavailable.
+    await expect(addMedia(page, 'en-US')).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('toolbar').getByRole('button', { name: TEXT['en-US'].addMedia })).not.toHaveAttribute(
       'aria-disabled',
       'true',
     );
     await page.evaluate(() => (window as unknown as AppHarness).appHarness.draw());
     await expect(editor).toHaveAttribute('data-device', 'supported');
-    await expect(addMedia(page, 'en-US')).not.toHaveAttribute('aria-disabled', 'true');
   });
 
   test('RULE-22 an effect chain the device cannot draw turns the opening screen into SCR-Unsupported, with no workers', async ({

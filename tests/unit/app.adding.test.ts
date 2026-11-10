@@ -2,28 +2,38 @@
 // MOD-Media's intake, applied to the session's project as one RULE-13 step, with progress, cancel,
 // the queue before the device check has drawn (build-spec-questions 59) and the result notices
 // (CMP-Notice). The probe is a fake; decoding paths run in tests/e2e/add-media.spec.ts.
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { layoutOf, projectEnd, type FrameRate, type Source } from '../../src/core';
-import { intakeBatch, type IntakeItem, type ProbeOutcome } from '../../src/media';
+import { intakeBatch, SourceRegistry, type IntakeItem, type ProbeOutcome } from '../../src/media';
 import { canUndo, history, newProject, playhead, project, undo, isEmpty } from '../../src/project';
+import { language } from '../../src/copy';
 import { device, resetDeviceSession } from '../../src/app/device';
 import {
   addFiles,
   cancelAdding,
   configureAdding,
   needsClip,
+  openPanel,
   placeAgain,
   progress,
+  queued,
   refusedFiles,
   removeMedia,
   resetAdding,
+  watchSources,
 } from '../../src/app/adding';
 import { notices, resetNotices } from '../../src/app/notice-stack';
 import { virtualNamedFile } from '../support/blobs';
 import { S } from '../support/project';
 
 type Kind = Source['kind'];
-/** File names say what the fake probe finds: `name.<kind>.<seconds>` or `name.bad`. */
+/** A stand-in for an ImageBitmap whose `close` is watched. */
+const fakeBitmap = () =>
+  ({ width: 96, height: 54, close: vi.fn() }) as unknown as ImageBitmap & { close: ReturnType<typeof vi.fn> };
+/**
+ * File names say what the fake probe finds: `name.<kind>.<seconds>[.mute]` or `name.bad`; a photo gets
+ * a bitmap and a video a thumbnail; `.mute` is a video whose sound can't be decoded.
+ */
 const file = (name: string, size = 1000): File => {
   const f = new File([new Uint8Array(1)], name);
   Object.defineProperty(f, 'size', { value: size });
@@ -34,7 +44,7 @@ function fakeProbe(gate?: (name: string) => Promise<void>) {
   return async (f: File, _rate: FrameRate, signal: AbortSignal): Promise<ProbeOutcome> => {
     await gate?.(f.name);
     signal.throwIfAborted();
-    const [, kind, seconds] = f.name.split('.') as [string, Kind | 'bad', string | undefined];
+    const [, kind, seconds, flag] = f.name.split('.') as [string, Kind | 'bad', string | undefined, string?];
     if (kind === 'bad') return { ok: false, reason: 'reason.unsupported' };
     const duration = kind === 'photo' ? undefined : Math.round(Number(seconds) * S);
     const source: Omit<Source, 'id'> = {
@@ -45,17 +55,40 @@ function fakeProbe(gate?: (name: string) => Promise<void>) {
       ...(kind === 'audio' ? { hasSound: true } : { width: 1920, height: 1080 }),
       ...(kind === 'video' ? { frameRate: 30, hasSound: true } : {}),
     };
-    return { ok: true, probed: { source, details: { format: 'MP4', rotation: 0, scaled: false }, notices: [] } };
+    return {
+      ok: true,
+      probed: {
+        source,
+        details: { format: 'MP4', rotation: 0, scaled: false },
+        notices: flag === 'mute' ? ['notice.no_sound'] : [],
+        ...(kind === 'photo' ? { bitmap: fakeBitmap() } : {}),
+        ...(kind === 'video' ? { thumbnail: fakeBitmap() } : {}),
+      },
+    };
   };
 }
 
 let released: string[] = [];
 let ids = 0;
+/** The test's source registry, filled the way MOD-Media's `intake` fills the session's. */
+let reg = new SourceRegistry();
 function useProbe(gate?: (name: string) => Promise<void>) {
   configureAdding({
-    intake: (items, onProgress, signal, ctx) =>
-      intakeBatch(items, { ...ctx, nextId: () => `s${++ids}`, probe: fakeProbe(gate), onProgress, signal }),
-    release: (id) => released.push(id),
+    intake: async (items, onProgress, signal, ctx) => {
+      const r = await intakeBatch(items, {
+        ...ctx,
+        nextId: () => `s${++ids}`,
+        probe: fakeProbe(gate),
+        onProgress,
+        signal,
+      });
+      for (const a of r.accepted) reg.add(a);
+      return r;
+    },
+    release: (id) => {
+      released.push(id);
+      reg.release(id);
+    },
   });
 }
 
@@ -71,9 +104,16 @@ beforeEach(() => {
   resetNotices();
   released = [];
   ids = 0;
+  reg = new SourceRegistry();
+  stopSources = watchSources(reg);
   useProbe();
 });
-afterEach(() => resetAdding());
+let stopSources: () => void = () => undefined;
+afterEach(() => {
+  stopSources();
+  resetAdding();
+  language.value = 'en-US';
+});
 
 describe('F-001 adding media (MOD-App controller)', () => {
   it('F-001.AC1 a picked phone video in an empty project is listed and is the only clip on the main track, at 0', async () => {
@@ -221,20 +261,69 @@ describe('F-001 adding media (MOD-App controller)', () => {
     expect(shown()[1]).toEqual(['error', 'refused_list', "Couldn't add:", "Holiday: folders can't be added"]);
   });
 
-  it('F-001 edge case a video whose sound cannot be decoded is added silent with COPY-notice.no_sound', async () => {
-    configureAdding({
-      intake: async (items) => {
-        const r = await intakeBatch(items, { sourceCount: 0, rate: 30, nextId: () => 'mute', probe: fakeProbe() });
-        return { ...r, notices: [{ id: 'notice.no_sound', name: 'clip.video.3' }] };
-      },
-      release: () => undefined,
-    });
-    await addFiles([file('clip.video.3')]);
-    expect(shown()).toContainEqual([
-      'info',
-      'no_sound',
-      "clip.video.3 was added without sound. This browser can't play its audio.",
+  it('F-001 edge case videos whose sound cannot be decoded are added silent with one COPY-notice.no_sound naming them all', async () => {
+    await addFiles([file('a.video.3.mute'), file('b.video.3'), file('c.video.3.mute')]);
+    expect(shown().filter((n) => n[1] === 'no_sound')).toEqual([
+      [
+        'info',
+        'no_sound',
+        "a.video.3.mute and c.video.3.mute was added without sound. This browser can't play its audio.",
+      ],
     ]);
+    language.value = 'vi-VN';
+    expect(notices.value.find((n) => n.tag === 'no_sound')!.text()).toBe(
+      'Đã thêm a.video.3.mute và c.video.3.mute nhưng không có tiếng. Trình duyệt này không phát được âm thanh của tệp.',
+    );
+  });
+
+  it('F-001 CMP-Notice notices of one batch never replace each other (no_sound and length_limited are both info)', async () => {
+    await addFiles([file('long.video.595')]);
+    resetNotices();
+    await addFiles([file('quiet.video.30.mute')]);
+    expect(shown().map((n) => n[1])).toEqual(['added', 'no_sound', 'length_limited']);
+  });
+
+  it('F-001.R2 when the check itself fails, the files are refused with a reason, never lost', async () => {
+    configureAdding({ intake: () => Promise.reject(new Error('worker gone')), release: () => undefined });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await addFiles([file('a.video.2'), file('b.video.2')]);
+    error.mockRestore();
+    expect(project.value.sources).toEqual([]);
+    expect(shown()).toEqual([
+      [
+        'error',
+        'refused_list',
+        "Couldn't add:",
+        'a.video.2: has no usable picture or sound',
+        'b.video.2: has no usable picture or sound',
+      ],
+    ]);
+  });
+
+  it('CMP-MediaPanel while the panel is closed, the refused group holds only the latest batch; while open it adds up', async () => {
+    await addFiles([file('one.bad')]);
+    await addFiles([file('two.bad')]);
+    expect(refusedFiles.value.map((r) => r.name)).toEqual(['two.bad']);
+    openPanel();
+    await addFiles([file('three.bad')]);
+    expect(refusedFiles.value.map((r) => r.name)).toEqual(['two.bad', 'three.bad']);
+  });
+
+  it('F-001.R6 cancel while a second batch is queued drops the queued batch too; a later batch still runs', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((r) => (release = r));
+    useProbe((name) => (name.startsWith('slow') ? held : Promise.resolve()));
+    const first = addFiles([file('done.video.2'), file('slow.video.2')]);
+    const second = addFiles([file('queued.video.2')]);
+    await expect.poll(() => progress.value?.position).toBe(2);
+    expect(queued.value).toBe(1);
+    cancelAdding();
+    release();
+    await Promise.all([first, second]);
+    expect(queued.value).toBe(0);
+    expect(project.value.sources.map((s) => s.name)).toEqual(['done.video.2']);
+    await addFiles([file('later.video.2')]);
+    expect(project.value.sources.map((s) => s.name)).toEqual(['done.video.2', 'later.video.2']);
   });
 
   it('F-001.R6 a second batch waits for the first and becomes its own undo step', async () => {
@@ -263,5 +352,55 @@ describe('F-023 build-spec-questions 59: files added before the effect chain has
     await batch;
     expect(project.value.sources).toEqual([]);
     expect(notices.value).toEqual([]);
+  });
+});
+
+describe('ADR-0009 §7 decoded pictures and file references follow the project and its history', () => {
+  it('ADR-0009 removing a source frees its bitmap and thumbnail; undo brings it back and rebuilds them lazily', async () => {
+    await addFiles([file('pic.photo'), file('clip.video.3')]);
+    const [photo, video] = project.value.sources.map((s) => s.id) as [string, string];
+    const bitmap = reg.get(photo)!.bitmap as unknown as { close: ReturnType<typeof vi.fn> };
+    const thumb = reg.get(video)!.thumbnail as unknown as { close: ReturnType<typeof vi.fn> };
+    removeMedia(photo);
+    removeMedia(video);
+    expect(bitmap.close).toHaveBeenCalledOnce();
+    expect(thumb.close).toHaveBeenCalledOnce();
+    expect(reg.get(photo)).toMatchObject({ file: expect.any(File) });
+    expect(reg.get(photo)!.bitmap).toBeUndefined();
+    const redecode = vi.fn(async () => ({ bitmap: fakeBitmap() }));
+    reg.setRedecode(redecode);
+    undo();
+    undo();
+    expect(redecode).not.toHaveBeenCalled(); // lazily: only when something draws it
+    const [again] = await Promise.all([reg.load(photo), reg.load(photo)]);
+    expect(again!.bitmap).toBeDefined();
+    expect(redecode).toHaveBeenCalledOnce();
+  });
+
+  it('ADR-0009 INV-01 after undo then a new edit, a source no history step holds is forgotten, File and all', async () => {
+    await addFiles([file('keep.video.3')]);
+    await addFiles([file('gone.video.3')]);
+    const gone = project.value.sources[1]!.id;
+    const thumb = reg.get(gone)!.thumbnail as unknown as { close: ReturnType<typeof vi.fn> };
+    undo();
+    expect(reg.has(gone)).toBe(true); // redo can still bring it back
+    placeAgain(project.value.sources[0]!.id); // a new edit discards the redo step
+    expect(reg.has(gone)).toBe(false);
+    expect(thumb.close).toHaveBeenCalledOnce();
+  });
+
+  it('ADR-0009 a checked source the project could not keep is released at once', async () => {
+    // A video shorter than the minimum that reached MOD-Project is refused there (RULE-02 too_short).
+    await addFiles([file('ok.video.3'), file('tiny.video.0')]);
+    expect(released).toHaveLength(1);
+    expect(reg.has(released[0]!)).toBe(false);
+    expect(reg.size).toBe(1);
+    expect(shown().at(-1)).toEqual(['error', 'refused_list', "Couldn't add:", 'tiny.video.0: too short']);
+  });
+
+  it('RULE-23 a new project forgets every source', async () => {
+    await addFiles([file('a.video.3')]);
+    newProject();
+    expect(reg.size).toBe(0);
   });
 });

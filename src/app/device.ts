@@ -66,7 +66,8 @@ export const device = signal<DeviceStatus>({ status: 'checking' });
 
 /**
  * Implements: F-023.R1 — media is accepted only on a device that passed every RULE-22 check. Files
- * picked before then are queued by F-001 until this turns true (or the screen turns unsupported).
+ * picked before then are queued by F-001 until this turns true (or the screen turns unsupported), so
+ * Add media stays usable meanwhile and is not marked unavailable.
  */
 export const acceptsMedia: ReadonlySignal<boolean> = computed(() => device.value.status === 'supported');
 

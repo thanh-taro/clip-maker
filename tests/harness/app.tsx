@@ -12,6 +12,7 @@
 // The codec interfaces and WebGL2 are tested on the production build instead, by changing them on the
 // page before it loads (the presence check and the codec probe run on the main thread).
 import '../../src/app/styles/index.css';
+import { queued } from '../../src/app/adding';
 import { main } from '../../src/app/app';
 import { browserDevice, type DeviceDeps, type EffectsRun } from '../../src/app/device';
 import { workers } from '../../src/app/workers';
@@ -35,6 +36,7 @@ declare global {
       undo(): void;
       setPlayhead(seconds: number): void;
       release(): void;
+      queued(): number;
     };
   }
 }
@@ -86,6 +88,7 @@ window.appHarness = {
   undo,
   setPlayhead: (seconds) => (playhead.value = Math.round(seconds * S)),
   release: () => held.splice(0).forEach((f) => f()),
+  queued: () => queued.value,
 };
 
 const fixed = (ok: boolean, slow: boolean): EffectsRun => ({

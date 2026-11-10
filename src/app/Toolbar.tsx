@@ -10,7 +10,6 @@ type ActionLabel = {
   [K in MessageId]: K extends `action.${string}` ? (MessageParams[K] extends undefined ? K : never) : never;
 }[MessageId];
 import { needsClip } from './adding';
-import { acceptsMedia } from './device';
 import { Icon, type IconName } from './icons';
 import { addMedia } from './MediaInput';
 
@@ -52,7 +51,6 @@ function ToolButton({ item }: { item: Item }) {
       aria-label={item.labelled ? undefined : name}
       title={item.labelled ? undefined : name}
       disabled={item.disabled}
-      aria-disabled={item.id === 'add-media' && !acceptsMedia.value ? 'true' : undefined}
       onClick={item.id === 'add-media' ? addMedia : undefined}
     >
       <Icon name={item.icon} size={20} />

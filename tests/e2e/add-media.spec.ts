@@ -39,6 +39,14 @@ const PDF_AS_MP4: Payload = {
   buffer: bytes('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n'),
 };
 const VIDEO = (as = 'phone.mp4') => fx('mp4-faststart.mp4', as);
+const PNG: Payload = {
+  name: 'dot.png',
+  mimeType: 'image/png',
+  buffer: Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  ),
+};
 
 interface Harness {
   appHarness: {
@@ -47,6 +55,7 @@ interface Harness {
     setPlayhead(s: number): void;
     release(): void;
     draw(): void;
+    queued(): number;
   };
 }
 const projectOf = (page: Page) => page.evaluate(() => (window as unknown as Harness).appHarness.project());
@@ -85,17 +94,20 @@ async function drop(page: Page, files: Payload[], { release = true } = {}): Prom
   );
 }
 
-/** Dispatches a `paste` whose clipboard holds these files, or only text and a link. */
-async function paste(page: Page, files: Payload[], strings: Record<string, string> = {}): Promise<void> {
+/**
+ * Dispatches a `paste` whose clipboard holds these files, or only text and a link. True when the tool
+ * took it (the event's default was prevented).
+ */
+async function paste(page: Page, files: Payload[], strings: Record<string, string> = {}): Promise<boolean> {
   const data = files.map((f) => ({ name: f.name, type: f.mimeType, bytes: [...f.buffer] }));
-  await page.evaluate(
+  return page.evaluate(
     ({ data, strings }) => {
       const dt = new DataTransfer();
       for (const f of data) dt.items.add(new File([new Uint8Array(f.bytes)], f.name, { type: f.type }));
       for (const [type, value] of Object.entries(strings)) dt.setData(type, value);
       const e = new Event('paste', { bubbles: true, cancelable: true });
       Object.defineProperty(e, 'clipboardData', { value: dt });
-      (document.activeElement ?? document.body).dispatchEvent(e);
+      return !(document.activeElement ?? document.body).dispatchEvent(e);
     },
     { data, strings },
   );
@@ -112,9 +124,11 @@ const panel = (page: Page) => page.getByRole('complementary', { name: text('en-U
 const notice = (page: Page, tag: string) => page.locator(`[data-notice="${tag}"]`);
 /**
  * WebKit reports the page's own reads of a picked file (`blob:` URLs of the tool's origin) as requests;
- * they never leave the device, so the network log leaves them out.
+ * they never leave the device, so on WebKit the network log leaves exactly those out.
  */
-const network = (url: string) => !url.startsWith('blob:');
+const network = (url: string, browserName: string, origin: string) =>
+  !(browserName === 'webkit' && url.startsWith(`blob:${origin}/`));
+const MP3 = () => fx('silent-1s.mp3', 'song.mp3');
 
 test.describe('F-001 add media (app harness)', () => {
   test('F-001.AC1 a picked phone video appears in the media panel and is the only clip on the main track, at 0', async ({
@@ -135,20 +149,18 @@ test.describe('F-001 add media (app harness)', () => {
     await axe(page);
   });
 
-  test('F-001.AC2 dropped videos and a photo go to the main track in order; audio to the audio track at the playhead', async ({
+  test('F-001.AC2 two videos, a photo and an MP3 dropped at once: in order on the main track, the MP3 on the audio track at the playhead', async ({
     page,
-    browserName,
   }) => {
-    test.skip(browserName === 'webkit', 'Ogg/Opus is refused as codec on WebKit (RULE-01); the order is unit-tested');
     await open(page);
     await drop(page, [VIDEO('first.mp4')]);
     await expect.poll(async () => (await projectOf(page)).clips.length).toBe(1);
     await page.evaluate(() => (window as unknown as Harness).appHarness.setPlayhead(1));
-    await drop(page, [VIDEO('a.mp4'), fx('mp4-rot90.mp4', 'b.mp4'), fx('audio-opus.ogg', 'song.ogg')]);
-    await expect.poll(async () => (await projectOf(page)).clips.length).toBe(3);
+    await drop(page, [VIDEO('a.mp4'), fx('mp4-rot90.mp4', 'b.mp4'), PNG, MP3()]);
+    await expect.poll(async () => (await projectOf(page)).clips.length).toBe(4);
     const p = await projectOf(page);
-    expect(p.clips.map((c) => c.source)).toEqual(['first.mp4', 'a.mp4', 'b.mp4']);
-    expect(p.audio).toEqual([expect.objectContaining({ source: 'song.ogg', start: 1 })]);
+    expect(p.clips.map((c) => c.source)).toEqual(['first.mp4', 'a.mp4', 'b.mp4', 'dot.png']);
+    expect(p.audio).toEqual([expect.objectContaining({ source: 'song.mp3', start: 1 })]);
     expect(p.steps).toBe(2);
   });
 
@@ -230,37 +242,38 @@ test.describe('F-001 add media (app harness)', () => {
 
   test('F-001.AC10 a pasted video file is added; a clipboard with only text or a link adds and fetches nothing', async ({
     page,
+    browserName,
   }) => {
+    const origin = `http://localhost:${MEDIA_HARNESS_PORT}`;
     const requests: string[] = [];
     await open(page);
     page.on('request', (r) => {
-      if (network(r.url())) requests.push(r.url());
+      if (network(r.url(), browserName, origin)) requests.push(r.url());
     });
-    await paste(page, [], {
+    // The text-and-link paste is left to the page (not taken by the tool) …
+    const taken = await paste(page, [], {
       'text/plain': 'https://example.com/clip.mp4',
       'text/uri-list': 'https://example.com/clip.mp4',
     });
-    await page.waitForTimeout(300);
-    expect((await projectOf(page)).sources).toEqual([]);
-    await expect(page.locator('[data-screen="SCR-Editor"]')).toHaveAttribute('data-state', 'empty');
-    await paste(page, [VIDEO('copied.mp4')]);
+    expect(taken).toBe(false);
+    // … and batches run in order, so once the file pasted after it is in, nothing else came before it.
+    expect(await paste(page, [VIDEO('copied.mp4')])).toBe(true);
     await expect.poll(async () => (await projectOf(page)).sources.map((s) => s.name)).toEqual(['copied.mp4']);
-    expect(requests.filter((u) => !u.startsWith(`http://localhost:${MEDIA_HARNESS_PORT}/`))).toEqual([]);
-    expect(requests.some((u) => u.includes('example.com'))).toBe(false);
+    expect((await projectOf(page)).steps).toBe(1);
+    expect(requests.filter((u) => !u.startsWith(`${origin}/`))).toEqual([]);
   });
 
   test('F-001.AC11 an audio file in an empty project goes on the audio track from 0; Export stays unavailable with COPY-notice.needs_clip', async ({
     page,
-    browserName,
   }) => {
-    test.skip(browserName === 'webkit', 'Ogg/Opus is refused as codec on WebKit (RULE-01)');
     await open(page);
     await expect(notice(page, 'needs_clip').first()).toHaveText(text('en-US', 'notice.needs_clip'));
-    await pick(page, [fx('audio-opus.ogg', 'song.ogg')]);
+    await pick(page, [MP3()]);
     await expect.poll(async () => (await projectOf(page)).audio.length).toBe(1);
     const p = await projectOf(page);
     expect(p.clips).toEqual([]);
-    expect(p.audio[0]).toMatchObject({ source: 'song.ogg', start: 0 });
+    expect(p.audio[0]).toMatchObject({ source: 'song.mp3', start: 0 });
+    expect(p.audio[0]!.end).toBeGreaterThan(1);
     await expect(page.locator('[data-screen="SCR-Editor"]')).toHaveAttribute('data-state', 'default');
     await expect(page.getByRole('button', { name: text('en-US', 'action.export') })).toBeDisabled();
     await expect(notice(page, 'needs_clip').first()).toBeVisible();
@@ -289,8 +302,12 @@ test.describe('F-001 add media (app harness)', () => {
     await open(page, 'effects=pending&lang=en-US');
     await expect(page.locator('[data-screen="SCR-Editor"]')).toHaveAttribute('data-device', 'drawing-check');
     await page.setInputFiles('.tk-file-input', [VIDEO('early.mp4')]);
-    await page.waitForTimeout(300);
+    await expect.poll(() => page.evaluate(() => (window as unknown as Harness).appHarness.queued())).toBe(1);
     expect((await projectOf(page)).sources).toEqual([]);
+    // Add media works during the check (the files wait), so it is not announced as unavailable.
+    await expect(
+      page.getByRole('main').getByRole('button', { name: text('en-US', 'action.add_media') }),
+    ).not.toHaveAttribute('aria-disabled', 'true');
     await page.evaluate(() => (window as unknown as Harness).appHarness.draw());
     await expect.poll(async () => (await projectOf(page)).sources.map((s) => s.name)).toEqual(['early.mp4']);
   });
@@ -313,15 +330,113 @@ test.describe('F-001 add media (app harness)', () => {
   });
 });
 
+test.describe('F-001 add media — focus and the narrow sheet (app harness)', () => {
+  test("CMP-MediaPanel after Delete focus moves to the next row's Delete, else the previous row's, else the heading", async ({
+    page,
+  }) => {
+    await open(page);
+    await pick(page, [VIDEO('a.mp4'), VIDEO('b.mp4'), VIDEO('c.mp4')]);
+    const del = (name: string) =>
+      panel(page)
+        .getByRole('listitem')
+        .filter({ hasText: name })
+        .getByRole('button', { name: text('en-US', 'action.delete') });
+    await del('b.mp4').click();
+    await expect(del('c.mp4')).toBeFocused();
+    await del('c.mp4').click();
+    await expect(del('a.mp4')).toBeFocused();
+    await del('a.mp4').click();
+    await expect(panel(page).getByRole('heading', { name: text('en-US', 'media.title') })).toBeFocused();
+  });
+
+  test('F-001.R6 Cancel in the progress notice keeps focus in the tool (Add media of the empty state)', async ({
+    page,
+  }) => {
+    await open(page, 'effects=fast&lang=en-US&gate=0');
+    await pick(page, [VIDEO('1.mp4'), VIDEO('2.mp4')]);
+    const cancel = notice(page, 'adding').getByRole('button', { name: text('en-US', 'action.cancel') });
+    await cancel.focus();
+    await page.keyboard.press('Enter');
+    await expect(notice(page, 'adding')).toHaveCount(0);
+    await expect(page.getByRole('main').getByRole('button', { name: text('en-US', 'action.add_media') })).toBeFocused();
+  });
+
+  test("F-001.R6 Cancel in the media panel's checking row moves focus to the panel", async ({ page }) => {
+    await open(page, 'effects=fast&lang=en-US&gate=1');
+    await pick(page, [VIDEO('1.mp4'), VIDEO('2.mp4')]);
+    const row = panel(page).locator('[data-checking]');
+    await expect(row).toContainText('2 of 2');
+    await row.getByRole('button', { name: text('en-US', 'action.cancel') }).click();
+    await expect(row).toHaveCount(0);
+    await expect(panel(page).getByRole('button', { name: text('en-US', 'action.add_media') })).toBeFocused();
+    await expect.poll(async () => (await projectOf(page)).sources.map((s) => s.name)).toEqual(['1.mp4']);
+  });
+
+  test('F-001.R6 Cancel while another batch is queued drops the queued batch too', async ({ page }) => {
+    await open(page, 'effects=fast&lang=en-US&gate=1');
+    await pick(page, [VIDEO('1.mp4'), VIDEO('2.mp4')]);
+    await expect(notice(page, 'adding')).toContainText('Adding 2 of 2…');
+    await drop(page, [VIDEO('queued.mp4')]);
+    await expect.poll(() => page.evaluate(() => (window as unknown as Harness).appHarness.queued())).toBe(1);
+    await notice(page, 'adding')
+      .getByRole('button', { name: text('en-US', 'action.cancel') })
+      .click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as Harness).appHarness.queued())).toBe(0);
+    await expect(page.locator('[data-screen="SCR-Editor"]')).toHaveAttribute('data-state', 'default');
+    expect((await projectOf(page)).sources.map((s) => s.name)).toEqual(['1.mp4']);
+  });
+
+  test('CMP-MediaPanel narrow: a modal sheet that takes focus, keeps Tab inside, closes on Esc and returns focus', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await open(page);
+    const opener = page.getByRole('main').getByRole('button', { name: text('en-US', 'action.add_media') });
+    const chooser = page.waitForEvent('filechooser');
+    await opener.click();
+    await (await chooser).setFiles([]);
+    const sheet = page.getByRole('dialog', { name: text('en-US', 'media.title') });
+    await expect(sheet).toHaveAttribute('aria-modal', 'true');
+    await expect(sheet.getByRole('heading', { name: text('en-US', 'media.title') })).toBeFocused();
+    await axe(page);
+    for (let i = 0; i < 4; i++) {
+      await page.keyboard.press('Tab');
+      expect(await sheet.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    }
+    await page.keyboard.press('Shift+Tab');
+    expect(await sheet.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
+
+  test('CMP-MediaPanel narrow with sources and refusals passes axe (vi-VN)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await open(page, 'effects=fast&lang=vi-VN');
+    const chooser = page.waitForEvent('filechooser');
+    await page
+      .getByRole('main')
+      .getByRole('button', { name: text('vi-VN', 'action.add_media') })
+      .click();
+    await (await chooser).setFiles([VIDEO('pho.mp4'), HEIC]);
+    const sheet = page.getByRole('dialog', { name: text('vi-VN', 'media.title') });
+    await expect(sheet.getByRole('listitem').filter({ hasText: 'pho.mp4' })).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: text('vi-VN', 'media.title') })).toBeFocused();
+    await axe(page);
+  });
+});
+
 test.describe('F-001 add media (production build)', () => {
   test("F-001.AC7 a session of picking, dropping and pasting media requests only the tool's own files, none carrying content", async ({
     page,
     baseURL,
+    browserName,
   }) => {
     const origin = new URL(baseURL!).origin;
     const requests: { url: string; method: string; body: boolean }[] = [];
     page.on('request', (r) => {
-      if (network(r.url())) requests.push({ url: r.url(), method: r.method(), body: r.postDataBuffer() !== null });
+      if (network(r.url(), browserName, origin))
+        requests.push({ url: r.url(), method: r.method(), body: r.postDataBuffer() !== null });
     });
     await page.route(
       (url) => url.origin !== origin && url.protocol !== 'data:',
@@ -338,10 +453,33 @@ test.describe('F-001 add media (production build)', () => {
     await expect(panel(page).getByRole('listitem').filter({ hasText: 'dropped.mp4' })).toBeVisible();
     await paste(page, [fx('mp4-elst-trim.mp4', 'pasted.mp4')]);
     await expect(panel(page).getByRole('listitem').filter({ hasText: 'pasted.mp4' })).toBeVisible();
-    await page.waitForTimeout(500);
+    await expect(editor).toHaveAttribute('data-state', 'default');
     // Adding media makes no request at all; the whole session requests only the tool's own files.
     expect(requests.slice(before)).toEqual([]);
     expect(requests.filter((r) => new URL(r.url).origin !== origin)).toEqual([]);
     expect(requests.filter((r) => r.method !== 'GET' || r.body)).toEqual([]);
+  });
+});
+
+test.describe('F-001 drops never navigate (production build)', () => {
+  test('F-001.R5 a file dropped on SCR-Unsupported is kept from the browser, so the page never navigates', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      delete (globalThis as { VideoDecoder?: unknown }).VideoDecoder;
+    });
+    await page.goto('/?lang=en-US');
+    await expect(page.locator('[data-screen="SCR-Unsupported"]')).toBeVisible();
+    const url = page.url();
+    const prevented = await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([new Uint8Array(4)], 'clip.mp4', { type: 'video/mp4' }));
+      const target = document.querySelector('[data-screen="SCR-Unsupported"]')!;
+      const fire = (type: string) =>
+        !target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }));
+      return { over: fire('dragover'), drop: fire('drop') };
+    });
+    expect(prevented).toEqual({ over: true, drop: true });
+    expect(page.url()).toBe(url);
   });
 });

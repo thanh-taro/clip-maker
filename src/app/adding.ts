@@ -6,10 +6,17 @@
 // notices (CMP-Notice) live here. Nothing is uploaded, copied or kept beyond the session (INV-01):
 // the files stay references in MOD-Media's registry.
 import { computed, effect, signal } from '@preact/signals';
-import { isTooShort, type FrameRate, type Notice, type RefusalReason, type Source } from '../core';
-import { t } from '../copy';
-import type { IntakeItem, IntakeProgress, IntakeResult, Refusal } from '../media';
-import { addMedia, edit, placeSource, playhead, project, removeSource } from '../project';
+import { isTooShort, type FrameRate, type Notice, type Project, type RefusalReason, type Source } from '../core';
+import { language, t } from '../copy';
+import {
+  FAILED_REASON,
+  type IntakeItem,
+  type IntakeProgress,
+  type IntakeResult,
+  type Refusal,
+  type SourceRegistry,
+} from '../media';
+import { addMedia, edit, history, placeSource, playhead, project, removeSource, type History } from '../project';
 import { device } from './device';
 import { closeNotice, showNotice, type NoticeKind } from './notice-stack';
 
@@ -45,6 +52,9 @@ let itemCounter = 0;
 /** IDs of new clips and audio clips for the session. */
 const nextItemId = (): string => `item-${++itemCounter}`;
 
+/** Batches waiting for the one being checked, or for the device check (build-spec-questions 59). */
+export const queued = signal(0);
+
 let chain: Promise<void> = Promise.resolve();
 let current: AbortController | null = null;
 /** Bumped by Cancel: batches queued before it are dropped (F-001.R6 "and the rest"). */
@@ -79,12 +89,20 @@ function kindOf(id: Notice): NoticeKind {
 type PlainNotice = Exclude<Notice, RefusalReason>;
 const isRefusal = (id: Notice): id is Notice & RefusalReason => id.startsWith('reason.');
 
-/** Shows MOD-Project's notices for an edit (refusal reasons are shown in the refused list instead). */
-export function showResultNotices(ids: readonly Notice[]): void {
+/**
+ * Shows MOD-Project's notices for an edit (refusal reasons are shown in the refused list instead).
+ * Notices of one batch carry its number, so they never replace each other.
+ */
+export function showResultNotices(ids: readonly Notice[], batch?: number): void {
   for (const id of ids) {
     if (isRefusal(id)) continue;
     const plain = id as PlainNotice;
-    showNotice({ kind: kindOf(plain), tag: plain.slice('notice.'.length), text: () => t(plain) });
+    showNotice({
+      kind: kindOf(plain),
+      tag: plain.slice('notice.'.length),
+      text: () => t(plain),
+      ...(batch !== undefined ? { batch } : {}),
+    });
   }
 }
 
@@ -94,18 +112,27 @@ function refusedTitle(): string {
   return (t('error.refused_list', { list: MARK }).split(MARK)[0] ?? '').trim();
 }
 
-function showRefused(refused: readonly Refusal[]): void {
+function showRefused(refused: readonly Refusal[], batch: number): void {
   if (refused.length === 0) return;
   showNotice({
     kind: 'error',
     tag: 'refused_list',
+    batch,
     text: refusedTitle,
     items: refused.map((r) => ({ name: r.name, text: () => t(r.reason) })),
   });
 }
 
+/** Names joined the way the active language writes a list ("a.mp4, b.mov and c.mp4"). */
+export function nameList(names: readonly string[]): string {
+  return new Intl.ListFormat(language.value, { type: 'conjunction' }).format(names);
+}
+
+let batchCounter = 0;
+
 /** Implements: F-001.R2/R3/R6, RULE-01 "Kept as a source", RULE-13 — one batch's result as one step. */
 function apply(result: IntakeResult): void {
+  const batch = ++batchCounter;
   const sources: Source[] = result.accepted.map((a) => a.source);
   const placed = edit((p) => addMedia(p, sources, playhead.peek(), nextItemId));
   const present = new Set(project.peek().sources.map((s) => s.id));
@@ -117,18 +144,22 @@ function apply(result: IntakeResult): void {
     ...lost.map((a) => ({ name: a.source.name, reason: lostReason(a.source) })),
   ];
   const added = result.accepted.length - lost.length;
-  if (added > 0) showNotice({ kind: 'success', tag: 'added', text: () => t('notice.added', { count: added }) });
-  for (const n of result.notices) {
-    if (!present.has(result.accepted.find((a) => a.source.name === n.name)?.source.id ?? '')) continue;
-    showNotice({ kind: 'info', tag: 'no_sound', text: () => t('notice.no_sound', { name: n.name }) });
-  }
-  showResultNotices(placed);
-  refusedFiles.value = [...refusedFiles.value, ...refused];
-  showRefused(refused);
+  if (added > 0) showNotice({ kind: 'success', tag: 'added', batch, text: () => t('notice.added', { count: added }) });
+  // One COPY-notice.no_sound per batch, naming every silent file that was kept.
+  const silent = result.notices.filter((n) => n.id === 'notice.no_sound' && present.has(n.sourceId)).map((n) => n.name);
+  if (silent.length)
+    showNotice({ kind: 'info', tag: 'no_sound', batch, text: () => t('notice.no_sound', { name: nameList(silent) }) });
+  showResultNotices(placed, batch);
+  // The panel's refused group: added to while the panel is open, else only this batch's refusals.
+  refusedFiles.value = panelOpen.peek() ? [...refusedFiles.value, ...refused] : refused;
+  showRefused(refused, batch);
 }
 
 async function runBatch(items: readonly IntakeItem[], gen: number): Promise<void> {
-  if (items.length === 0 || !(await whenAccepting()) || gen !== generation || !deps) return;
+  if (items.length === 0 || !(await whenAccepting()) || gen !== generation || !deps) {
+    queued.value = Math.max(0, queued.value - 1);
+    return;
+  }
   const ctl = new AbortController();
   current = ctl;
   const key = showNotice({
@@ -140,6 +171,7 @@ async function runBatch(items: readonly IntakeItem[], gen: number): Promise<void
     },
   });
   let result: IntakeResult | null = null;
+  queued.value = Math.max(0, queued.value - 1);
   try {
     const p = project.peek();
     result = await deps.intake(
@@ -151,7 +183,17 @@ async function runBatch(items: readonly IntakeItem[], gen: number): Promise<void
       { sourceCount: p.sources.length, rate: p.frame.frameRate },
     );
   } catch (e) {
-    if (!ctl.signal.aborted) console.error('adding: intake failed', e);
+    // The check could not run (no analysis worker, an internal error): the files are refused with a
+    // reason, never silently lost (RULE-01).
+    if (!ctl.signal.aborted) {
+      console.error('adding: intake failed', e);
+      result = {
+        accepted: [],
+        refused: items.map((i) => ({ name: i.name, reason: FAILED_REASON })),
+        notices: [],
+        cancelled: false,
+      };
+    }
   } finally {
     current = null;
     progress.value = null;
@@ -166,6 +208,7 @@ async function runBatch(items: readonly IntakeItem[], gen: number): Promise<void
  */
 export function addFiles(items: readonly IntakeItem[]): Promise<void> {
   const gen = generation;
+  queued.value++;
   const run = chain.then(() => runBatch(items, gen));
   chain = run.catch(() => undefined);
   return run;
@@ -194,9 +237,16 @@ export function dismissRefused(index: number): void {
   refusedFiles.value = refusedFiles.value.filter((_, i) => i !== index);
 }
 
-export function openPanel(): void {
+/** What had focus when the panel opened, to give it back on close (CMP-MediaPanel, narrow dialog). */
+export let panelOpener: Element | null = null;
+
+export function openPanel(opener: Element | null = null): void {
+  if (!panelOpen.peek()) panelOpener = opener;
   panelOpen.value = true;
 }
+
+/** Bumped when the system file picker closes (picked or cancelled): the narrow sheet takes focus back. */
+export const pickerClosed = signal(0);
 
 /** CMP-MediaPanel: refused items stay listed until dismissed or the panel closes. */
 export function closePanel(): void {
@@ -204,9 +254,33 @@ export function closePanel(): void {
   refusedFiles.value = [];
 }
 
+/** The sources a history can bring back (in any step's document before or after). */
+function historySources(h: History): Set<string> {
+  const ids = new Set<string>();
+  const add = (p: Project) => p.sources.forEach((s) => ids.add(s.id));
+  for (const step of [...h.past, ...h.future]) {
+    add(step.before);
+    add(step.after);
+  }
+  return ids;
+}
+
+/**
+ * Implements: ADR-0009 §7, INV-01 — after every edit, undo or redo, the registry frees the pictures of
+ * sources that left the project (rebuilt lazily if undo brings them back) and forgets sources that
+ * neither the project nor any history step holds, `File` reference included.
+ */
+export function watchSources(reg: SourceRegistry): () => void {
+  return effect(() => {
+    const ids = new Set(project.value.sources.map((s) => s.id));
+    reg.sync(ids, historySources(history.value));
+  });
+}
+
 /** Test reset (one page = one session in the app). */
 export function resetAdding(): void {
   cancelAdding();
+  queued.value = 0;
   chain = Promise.resolve();
   progress.value = null;
   refusedFiles.value = [];

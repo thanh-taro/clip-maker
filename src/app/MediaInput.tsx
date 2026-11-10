@@ -11,7 +11,7 @@
 import { signal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import { t } from '../copy';
-import { addFiles, openPanel } from './adding';
+import { addFiles, openPanel, pickerClosed } from './adding';
 import { Icon } from './icons';
 import { carriesFiles, filesFromPaste, itemsFromDrop, pasteTargetsField } from './transfer';
 
@@ -23,8 +23,9 @@ export function pickFiles(): void {
 }
 
 /** Add media outside the media panel: the panel opens (left drawer, or the narrow sheet) and the picker. */
-export function addMedia(): void {
-  openPanel();
+export function addMedia(e?: { currentTarget: EventTarget | null }): void {
+  // The button that was activated (WebKit doesn't focus a clicked button, so focus can't tell).
+  openPanel((e?.currentTarget as Element | null) ?? document.activeElement);
   pickFiles();
 }
 
@@ -45,10 +46,23 @@ export function FilePicker() {
         const el = e.currentTarget;
         const files = Array.from(el.files ?? []);
         el.value = '';
+        pickerClosed.value++;
         if (files.length) void addFiles(files);
       }}
+      // The picker was dismissed without a choice.
+      onCancel={() => pickerClosed.value++}
     />
   );
+}
+
+/**
+ * Implements: F-001.R5, NFR-01 — installed by `main()` before any screen renders (SCR-Unsupported too):
+ * the browser never opens a dropped file or follows a dropped link, which would leave the tool.
+ */
+export function guardDrops(doc: Document = document): void {
+  const stop = (e: Event) => e.preventDefault();
+  doc.addEventListener('dragover', stop);
+  doc.addEventListener('drop', stop);
 }
 
 /** CMP-DropOverlay is showing. */
@@ -73,18 +87,21 @@ export function useMediaInput(): void {
       if (!escaped) dragging.value = true;
     };
     const onOver = (e: DragEvent) => {
-      // Every drag is handled here, so the browser never opens a dropped file or link itself.
-      e.preventDefault();
+      // The page-wide guard (guardDrops) already keeps the browser from opening a dropped file or link.
       if (e.dataTransfer) e.dataTransfer.dropEffect = carriesFiles(e.dataTransfer) ? 'copy' : 'none';
     };
     const onLeave = (e: DragEvent) => {
       if (!carriesFiles(e.dataTransfer)) return;
       // Enter and leave come in pairs per element; the count reaches 0 when the drag leaves the tool.
+      // A leave with nothing under the pointer outside the page also ends it (some engines skip pairs);
+      // inside the page WebKit reports no related target for every move, so position decides.
       depth = Math.max(0, depth - 1);
-      if (depth === 0) hide();
+      const outside =
+        e.relatedTarget === null &&
+        (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= innerWidth || e.clientY >= innerHeight);
+      if (depth === 0 || outside) hide();
     };
     const onDrop = (e: DragEvent) => {
-      e.preventDefault();
       const items = itemsFromDrop(e.dataTransfer);
       hide();
       if (items.length) void addFiles(items);

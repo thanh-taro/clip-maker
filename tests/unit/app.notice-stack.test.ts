@@ -35,3 +35,21 @@ describe('CMP-Notice stack', () => {
     expect(hideAfter('progress')).toBeNull();
   });
 });
+
+describe('CMP-Notice stack (F-001 review, build-spec-questions 74a)', () => {
+  it('F-001 CMP-Notice notices of the same batch never replace each other; a later batch replaces them', () => {
+    let list: NoticeEntry[] = [];
+    list = pushNotice(list, { ...entry('info', 'no_sound'), batch: 1 });
+    list = pushNotice(list, { ...entry('info', 'length_limited'), batch: 1 });
+    expect(tags(list)).toEqual(['no_sound', 'length_limited']);
+    list = pushNotice(list, { ...entry('info', 'no_sound_2'), batch: 2 });
+    expect(tags(list)).toEqual(['no_sound_2']);
+  });
+
+  it('F-023.AC7 COPY-notice.slow_device is never replaced by another notice', () => {
+    let list: NoticeEntry[] = [{ ...entry('info', 'slow_device'), pinned: true }];
+    list = pushNotice(list, entry('info', 'length_limited'));
+    list = pushNotice(list, { ...entry('info', 'no_sound'), batch: 3 });
+    expect(tags(list)).toEqual(['slow_device', 'no_sound']);
+  });
+});

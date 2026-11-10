@@ -2,9 +2,9 @@
 // fake probe, the batch as one undo step through MOD-Project, and the refusal paths of the real
 // probe that need no decoder (Node). Decoding paths run in tests/e2e/media-intake.spec.ts.
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { FrameRate, Source } from '../../src/core';
-import { intakeBatch, SourceRegistry, type IntakeItem, type ProbeOutcome } from '../../src/media';
+import { intakeBatch, SourceRegistry, workerProbe, type IntakeItem, type ProbeOutcome } from '../../src/media';
 import { probeFile } from '../../src/media/probe';
 import { addMedia, EMPTY_HISTORY, record, undoStep } from '../../src/project';
 import { readsOf, virtualNamedFile } from '../support/blobs';
@@ -225,5 +225,78 @@ describe('MOD-Media registry', () => {
     expect(reg.has('s1')).toBe(true);
     reg.release('s1');
     expect(reg.has('s1')).toBe(false);
+  });
+});
+
+describe('MOD-Media intake leaks and failures (F-001 review)', () => {
+  const bmp = () => ({ close: vi.fn() }) as unknown as ImageBitmap & { close: ReturnType<typeof vi.fn> };
+  const photoOutcome = (bitmap: ImageBitmap): ProbeOutcome => ({
+    ok: true,
+    probed: {
+      source: { kind: 'photo', name: 'p.png', bytes: 1, width: 1, height: 1 },
+      details: { format: 'png', rotation: 0, scaled: false },
+      notices: [],
+      bitmap,
+    },
+  });
+
+  it('F-001.R6 a picture decoded for a file that was cancelled meanwhile is freed', async () => {
+    const ctl = new AbortController();
+    const bitmap = bmp();
+    const r = await intakeBatch([fileOf('x', 'p.png')], {
+      ...opts(),
+      signal: ctl.signal,
+      probe: async () => {
+        ctl.abort();
+        return photoOutcome(bitmap);
+      },
+    });
+    expect(r).toMatchObject({ accepted: [], cancelled: true });
+    expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
+  it('F-001.R6 a probe reply that arrives after cancel has its pictures freed', async () => {
+    const worker = new EventTarget() as EventTarget & { postMessage: ReturnType<typeof vi.fn> };
+    worker.postMessage = vi.fn();
+    const ctl = new AbortController();
+    const pending = workerProbe(worker as unknown as Worker)(fileOf('x', 'p.png'), 30, ctl.signal);
+    const { id } = worker.postMessage.mock.calls[0]![0] as { id: number };
+    ctl.abort();
+    await expect(pending).rejects.toBeDefined();
+    expect(worker.postMessage).toHaveBeenLastCalledWith({ type: 'cancel', id });
+    const bitmap = bmp();
+    worker.dispatchEvent(new MessageEvent('message', { data: { type: 'probed', id, outcome: photoOutcome(bitmap) } }));
+    expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
+  it('F-001.R2 an unexpected failure refuses that file and the rest with a reason; finished files are kept', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const r = await intakeBatch(
+      ['a.ok', 'b.ok', 'c.ok'].map((n) => fileOf('x', n)),
+      opts({
+        probe: async (f, rate, signal) => {
+          if (f.name === 'b.ok') throw new Error('worker crashed');
+          return fakeProbe()(f, rate, signal);
+        },
+      }),
+    );
+    error.mockRestore();
+    expect(r.accepted.map((a) => a.source.name)).toEqual(['a.ok']);
+    expect(r.refused).toEqual([
+      { name: 'b.ok', reason: 'reason.no_media' },
+      { name: 'c.ok', reason: 'reason.no_media' },
+    ]);
+    expect(r.cancelled).toBe(false);
+  });
+
+  it('F-001 the no-sound notice carries the id of the source it is about', async () => {
+    const r = await intakeBatch([fileOf('x', 'quiet.ok')], {
+      ...opts(),
+      probe: async (f, rate, signal) => {
+        const o = await fakeProbe()(f, rate, signal);
+        return o.ok ? { ok: true, probed: { ...o.probed, notices: ['notice.no_sound'] } } : o;
+      },
+    });
+    expect(r.notices).toEqual([{ id: 'notice.no_sound', name: 'quiet.ok', sourceId: r.accepted[0]!.source.id }]);
   });
 });

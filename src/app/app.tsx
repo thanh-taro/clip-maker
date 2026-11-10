@@ -7,8 +7,10 @@
 // every worker. The timed effects result only shows the slow-device notice.
 import { render } from 'preact';
 import { embedded, initHost, loadFonts, registerOffline, resolveLanguage, setLanguage } from '../host';
-import { intake, registry } from '../media';
-import { configureAdding } from './adding';
+import { intake, registry, workerProbe } from '../media';
+import { project } from '../project';
+import { configureAdding, watchSources } from './adding';
+import { guardDrops } from './MediaInput';
 import { browserDevice, device, finishCheck, openingCheck, type DeviceDeps } from './device';
 import { Shell } from './Shell';
 import { Unsupported } from './Unsupported';
@@ -64,6 +66,8 @@ export async function main(options: MainOptions = {}): Promise<void> {
   const deps = options.device ?? browserDevice(() => workers.get('engine'));
   const opening = await openingCheck(deps);
 
+  // F-001.R5: no dropped file or link ever navigates the page, on any screen.
+  guardDrops();
   const root = document.getElementById('app');
   if (root) render(<App remember={remember} />, root);
 
@@ -79,6 +83,19 @@ export async function main(options: MainOptions = {}): Promise<void> {
       },
       release: (id) => registry.release(id),
     });
+    // ADR-0009 §7: pictures of sources that left the project are freed and rebuilt here when needed.
+    registry.setRedecode(async (entry) => {
+      const worker = workers.get('analysis');
+      if (!worker) return {};
+      const o = await workerProbe(worker)(entry.file, project.peek().frame.frameRate, new AbortController().signal);
+      return o.ok
+        ? {
+            ...(o.probed.bitmap ? { bitmap: o.probed.bitmap } : {}),
+            ...(o.probed.thumbnail ? { thumbnail: o.probed.thumbnail } : {}),
+          }
+        : {};
+    });
+    watchSources(registry);
   }
   registerOffline();
   void loadFonts();

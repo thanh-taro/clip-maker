@@ -15,6 +15,8 @@ import {
   closePanel,
   dismissRefused,
   panelOpen,
+  panelOpener,
+  pickerClosed,
   placeAgain,
   progress,
   refusedFiles,
@@ -48,16 +50,22 @@ const lengthOf = (s: Source): number => s.duration ?? RULE_05.photoDefaultSecond
 /** The row thumbnail: a video's first frame or the photo, cropped to fill (cover). */
 function Thumbnail({ source }: { source: Source }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  useLayoutEffect(() => {
-    const c = canvas.current;
-    const entry = registry.get(source.id);
-    const img = entry?.thumbnail ?? entry?.bitmap;
-    const ctx = c?.getContext('2d');
-    if (!c || !img || !ctx) return;
-    const scale = Math.max(c.width / img.width, c.height / img.height);
-    const w = img.width * scale;
-    const h = img.height * scale;
-    ctx.drawImage(img, (c.width - w) / 2, (c.height - h) / 2, w, h);
+  useEffect(() => {
+    let live = true;
+    // ADR-0009 §7: pictures freed while the source was out of the project are rebuilt on demand.
+    void registry.load(source.id).then((entry) => {
+      const c = canvas.current;
+      const img = entry?.thumbnail ?? entry?.bitmap;
+      const ctx = c?.getContext('2d');
+      if (!live || !c || !img || !ctx) return;
+      const scale = Math.max(c.width / img.width, c.height / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      ctx.drawImage(img, (c.width - w) / 2, (c.height - h) / 2, w, h);
+    });
+    return () => {
+      live = false;
+    };
   }, [source.id]);
   return (
     <span class={`tk-media__thumb tk-media__thumb--${source.kind}`}>
@@ -92,10 +100,11 @@ function SourceRow({ source }: { source: Source }) {
           <button
             type="button"
             class="tk-icon-button"
+            data-action="delete"
             aria-label={t('action.delete')}
             aria-describedby={nameId}
             title={t('action.delete')}
-            onClick={() => removeMedia(source.id)}
+            onClick={() => deleteSource(source.id)}
           >
             <Icon name="trash" size={16} />
           </button>
@@ -103,6 +112,32 @@ function SourceRow({ source }: { source: Source }) {
       </div>
     </li>
   );
+}
+
+/** Where focus goes after the next render (Delete and Cancel remove the focused control). */
+let focusNext: (() => HTMLElement | null) | null = null;
+
+const panelEl = () => document.querySelector<HTMLElement>('.tk-media');
+const headingEl = () => document.getElementById('tk-media-title');
+
+/**
+ * Implements: CMP-MediaPanel Delete (F-001.AC6) without losing focus: the next row's Delete, else the
+ * previous row's, else the panel heading.
+ */
+function deleteSource(id: string): void {
+  const ids = project.peek().sources.map((s) => s.id);
+  const i = ids.indexOf(id);
+  const target = ids[i + 1] ?? ids[i - 1];
+  focusNext = () =>
+    (target && panelEl()?.querySelector<HTMLElement>(`[data-source="${target}"] [data-action="delete"]`)) ||
+    headingEl();
+  removeMedia(id);
+}
+
+/** Cancel in the checking row: the row goes away, so focus moves to the panel's Add media or heading. */
+function cancelFromPanel(): void {
+  focusNext = () => panelEl()?.querySelector<HTMLElement>('[data-action="panel-add-media"]') ?? headingEl();
+  cancelAdding();
 }
 
 function CheckingRow() {
@@ -122,7 +157,7 @@ function CheckingRow() {
           text={t('notice.checking', { done: p.done, total: p.total })}
         />
       </div>
-      <button type="button" class="tk-button tk-button--ghost" onClick={cancelAdding}>
+      <button type="button" class="tk-button tk-button--ghost" onClick={cancelFromPanel}>
         {t('action.cancel')}
       </button>
     </div>
@@ -174,24 +209,60 @@ function AddButton({ outlined }: { outlined: boolean }) {
   );
 }
 
-/** Closes the panel; focus returns to the toolbar's Add media when shown, else to the preview area. */
+const shown = (el: Element | null): el is HTMLElement =>
+  el instanceof HTMLElement && el !== document.body && el.isConnected && el.getClientRects().length > 0;
+
+/**
+ * Closes the panel; focus returns to the control that opened it, else the toolbar's Add media when
+ * shown, else the preview area.
+ */
 function closeAndReturn(): void {
+  const opener = panelOpener;
   closePanel();
-  const add = document.querySelector<HTMLElement>('.tk-toolbar [data-action="add-media"]');
-  (add && add.getClientRects().length ? add : document.querySelector<HTMLElement>('.tk-preview-area'))?.focus();
+  const add = document.querySelector('.tk-toolbar [data-action="add-media"]');
+  const target = shown(opener) ? opener : shown(add) ? add : document.querySelector<HTMLElement>('.tk-preview-area');
+  target?.focus();
 }
+
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([type="hidden"]), [tabindex]:not([tabindex="-1"])';
 
 export function MediaPanel() {
   const isNarrow = useNarrow();
   const panel = useRef<HTMLElement>(null);
   const open = panelOpen.value;
-  // The narrow sheet is a dialog: Esc inside it closes it.
+  const picked = pickerClosed.value;
+  // After Delete or Cancel removed the focused control.
+  useLayoutEffect(() => {
+    const next = focusNext;
+    if (!next) return;
+    focusNext = null;
+    next()?.focus();
+  });
+  // The narrow sheet is a modal dialog: focus moves into it when it opens and when the file picker
+  // closes; Tab stays inside it; Esc from anywhere in it closes it and returns focus to its opener.
+  useEffect(() => {
+    if (!open || !isNarrow) return;
+    if (!panel.current?.contains(document.activeElement)) headingEl()?.focus();
+  }, [open, isNarrow, picked]);
   useEffect(() => {
     if (!open || !isNarrow) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || !panel.current?.contains(document.activeElement)) return;
-      e.preventDefault();
-      closeAndReturn();
+      const el = panel.current;
+      if (!el || !el.contains(document.activeElement)) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeAndReturn();
+      } else if (e.key === 'Tab') {
+        // Focus is moved here rather than left to the browser, whose Tab order differs (WebKit skips
+        // buttons by default), so it never leaves the sheet.
+        const items = [...el.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(shown);
+        if (!items.length) return;
+        e.preventDefault();
+        const i = items.indexOf(document.activeElement as HTMLElement);
+        const n = items.length;
+        const next = i < 0 ? (e.shiftKey ? n - 1 : 0) : (i + (e.shiftKey ? n - 1 : 1)) % n;
+        items[next]?.focus();
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -205,11 +276,12 @@ export function MediaPanel() {
       class="tk-media"
       data-variant={isNarrow ? 'sheet' : 'drawer'}
       role={isNarrow ? 'dialog' : undefined}
+      aria-modal={isNarrow ? 'true' : undefined}
       aria-labelledby="tk-media-title"
     >
       {isNarrow ? <span class="tk-media__grabber" /> : null}
       <header class="tk-media__head">
-        <h2 id="tk-media-title" class="tk-media__title">
+        <h2 id="tk-media-title" class="tk-media__title" tabIndex={-1}>
           {t('media.title')}
         </h2>
         {empty ? null : <AddButton outlined={false} />}

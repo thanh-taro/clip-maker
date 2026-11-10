@@ -18,6 +18,13 @@ export interface NoticeEntry {
   readonly text: () => string;
   /** An error's list ("name: reason"; CMP-Notice error). */
   readonly items?: readonly { readonly name: string; readonly text: () => string }[];
+  /** The adding batch it reports on: notices of one batch never replace each other. */
+  readonly batch?: number;
+  /**
+   * Never replaced by another notice; only its own timer or the user closes it (COPY-notice.slow_device,
+   * F-023.AC7).
+   */
+  readonly pinned?: boolean;
   /** Called when the notice closes (by Close, its timer, Cancel or being replaced). */
   readonly onClose?: () => void;
 }
@@ -33,12 +40,18 @@ export function hideAfter(kind: NoticeKind): number | null {
   return null;
 }
 
+/** `entry` replaces `older`: same kind, `older` not pinned, and not from the same adding batch. */
+const replaces = (entry: NoticeEntry, older: NoticeEntry): boolean =>
+  older.kind === entry.kind && !older.pinned && (entry.batch === undefined || older.batch !== entry.batch);
+
 /**
  * Implements: CMP-Notice — a newer notice replaces an older one of the same kind (so an error is only
- * ever replaced by a newer error, never by info) and goes to the bottom of the stack.
+ * ever replaced by a newer error, never by info) and goes to the bottom of the stack. Notices of the
+ * same batch never replace each other, and a pinned notice (COPY-notice.slow_device) is never replaced
+ * (build-spec-questions 74a, decided).
  */
 export function pushNotice(list: readonly NoticeEntry[], entry: NoticeEntry): NoticeEntry[] {
-  return [...list.filter((n) => n.kind !== entry.kind), entry];
+  return [...list.filter((n) => !replaces(entry, n)), entry];
 }
 
 /** Implements: CMP-Notice "stack" — the newest 2 show; the rest fold into COPY-notice.more. */
@@ -59,7 +72,7 @@ let nextKey = 0;
 
 export function showNotice(n: Omit<NoticeEntry, 'key'>): number {
   const entry: NoticeEntry = { ...n, key: ++nextKey };
-  const replaced = notices.value.filter((x) => x.kind === entry.kind);
+  const replaced = notices.value.filter((x) => replaces(entry, x));
   notices.value = pushNotice(notices.value, entry);
   for (const r of replaced) r.onClose?.();
   return entry.key;
