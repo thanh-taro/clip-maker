@@ -1,0 +1,380 @@
+/* MOD-App — F-006 placement, tokens only: CMP-Inspector's Position section (board CMP-Inspector "clip
+   Position"; CMP-Timeline "narrow / sheet open" for the phone Position and Scale rows), CMP-Preview "clip
+   selected" (the violet placement outline and eight white handles over the frame, a dashed violet guide on
+   a snapped centre line), and CMP-Inspector "compact" (the resize grip, build question 105). */
+@layer layout {
+  /* ── The Edit tab's sections (Position, then Speed) ── */
+  .tk-inspector__sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-5);
+  }
+
+  /* ── The Position section ── */
+  .tk-place {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-place__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-place__title {
+    margin: 0;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+    letter-spacing: var(--tk-font-letter-spacing-caps);
+    text-transform: uppercase;
+  }
+
+  .tk-place__reset {
+    min-block-size: var(--tk-size-target-min);
+    gap: var(--tk-space-1);
+    padding-inline: var(--tk-space-1-5);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-medium);
+  }
+
+  .tk-place__reset[aria-disabled='true'] {
+    color: var(--tk-color-muted);
+    cursor: default;
+  }
+
+  .tk-place__reset[aria-disabled='true']:hover {
+    background: transparent;
+  }
+
+  .tk-place .tk-options--segments {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Fit / Fill are words, not numbers: the body face. */
+  .tk-place .tk-option {
+    font-family: var(--tk-font-family-body);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  /* The group's name (COPY-placement.mode) for assistive technology; the heading says Position above it. */
+  .tk-place__hidden {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tk-place__control {
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-place__label {
+    flex: none;
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  /* Thin track, accent fill from the start (the native range input, as the Exact speed slider). */
+  .tk-place__slider {
+    flex: 1;
+    min-inline-size: 0;
+    block-size: var(--tk-size-target-min);
+    margin: 0;
+    background: transparent;
+    accent-color: var(--tk-color-accent);
+    cursor: pointer;
+  }
+
+  .tk-place__field {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: var(--tk-space-1);
+  }
+
+  .tk-place__number {
+    inline-size: calc(var(--tk-space-10) + var(--tk-space-4));
+    block-size: var(--tk-size-tool-button);
+    padding-inline: var(--tk-space-1-5);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-sm);
+    background: var(--tk-color-bg);
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-sm);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+  }
+
+  /* The numbers read in the text colour when changed, muted at the default (CMP-Inspector "clip Adjust"). */
+  .tk-place[data-changed] .tk-place__number {
+    color: var(--tk-color-fg);
+  }
+
+  .tk-place__unit {
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+  }
+
+  .tk-place__offset {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1-5);
+  }
+
+  .tk-place__offsets {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--tk-space-2);
+  }
+
+  .tk-place__xy {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+    min-inline-size: 0;
+  }
+
+  .tk-place__sublabel {
+    overflow: hidden;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* One row: the four nudges, then Rotate and the two flips. */
+  .tk-place__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--tk-space-1);
+  }
+
+  .tk-place__divider {
+    inline-size: var(--tk-border-width-hairline);
+    block-size: var(--tk-space-5);
+    margin-inline: var(--tk-space-1);
+    background: var(--tk-color-line);
+  }
+
+  .tk-place__button {
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    color: var(--tk-color-fg);
+  }
+
+  .tk-place__button[aria-pressed='true'] {
+    border-color: var(--tk-color-accent);
+    background: var(--tk-color-selection);
+  }
+
+  /* ── Phone: the Position row (label on the left), the Scale row and the turn row at touch size ── */
+  .tk-place__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--tk-space-1-5) var(--tk-space-2);
+  }
+
+  .tk-place__row-label {
+    flex: none;
+    min-inline-size: calc(var(--tk-space-12) + var(--tk-space-4));
+    margin: 0;
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-place__row > .tk-field {
+    flex: 1 1 calc(var(--tk-size-touch-target) * 3);
+    min-inline-size: 0;
+  }
+
+  .tk-place--touch .tk-option {
+    block-size: var(--tk-size-touch-target);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  .tk-place--touch .tk-place__button {
+    inline-size: var(--tk-size-touch-target);
+    block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-place--touch .tk-place__label {
+    min-inline-size: calc(var(--tk-space-12) + var(--tk-space-4));
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-place--touch .tk-place__slider {
+    block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-place--touch .tk-place__number {
+    block-size: var(--tk-size-touch-target);
+    font-size: var(--tk-font-size-input);
+  }
+
+  .tk-place--touch .tk-place__reset {
+    min-block-size: var(--tk-size-touch-target);
+    margin-inline-start: auto;
+    padding-inline: var(--tk-space-3);
+    border-color: var(--tk-color-line);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  @media (pointer: coarse) {
+    .tk-place__button {
+      inline-size: var(--tk-size-touch-target);
+      block-size: var(--tk-size-touch-target);
+    }
+    .tk-place__reset {
+      min-block-size: var(--tk-size-touch-target);
+    }
+  }
+
+  /* ── CMP-Preview "clip selected": the outline and handles over the frame ── */
+  /* No z-index: the notice stack and the full-screen bar come later in the stage and stay above it. */
+  .tk-place-layer {
+    position: absolute;
+    touch-action: none;
+    cursor: move;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .tk-place-layer[hidden] {
+    display: none;
+  }
+
+  .tk-place-layer__outline {
+    position: absolute;
+    box-sizing: border-box;
+    border: var(--tk-border-width-focus) solid var(--tk-color-preview-outline);
+    pointer-events: none;
+  }
+
+  /* The handle's hit area (`size.targetMin`, `size.handleHit` on touch) around its visible square. */
+  .tk-place-layer__handle {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    inline-size: var(--tk-size-target-min);
+    block-size: var(--tk-size-target-min);
+    transform: translate(-50%, -50%);
+    touch-action: none;
+  }
+
+  .tk-place-layer__handle::after {
+    content: '';
+    inline-size: var(--tk-size-handle);
+    block-size: var(--tk-size-handle);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-preview-outline);
+    border-radius: var(--tk-radius-xs);
+    background: var(--tk-color-preview-handle);
+  }
+
+  .tk-place-layer__handle--nwse {
+    cursor: nwse-resize;
+  }
+  .tk-place-layer__handle--nesw {
+    cursor: nesw-resize;
+  }
+  .tk-place-layer__handle--ns {
+    cursor: ns-resize;
+  }
+  .tk-place-layer__handle--ew {
+    cursor: ew-resize;
+  }
+
+  @media (pointer: coarse) {
+    .tk-place-layer__handle {
+      inline-size: var(--tk-size-handle-hit);
+      block-size: var(--tk-size-handle-hit);
+    }
+  }
+
+  /* A snapped centre line (RULE-07): a dashed violet guide across the frame. */
+  .tk-place-layer__guide {
+    position: absolute;
+    pointer-events: none;
+  }
+
+  .tk-place-layer__guide[hidden] {
+    display: none;
+  }
+
+  .tk-place-layer__guide--x {
+    inset-block: 0;
+    inset-inline-start: 50%;
+    border-inline-start: var(--tk-border-width-hairline) dashed var(--tk-color-preview-outline);
+  }
+
+  .tk-place-layer__guide--y {
+    inset-inline: 0;
+    inset-block-start: 50%;
+    border-block-start: var(--tk-border-width-hairline) dashed var(--tk-color-preview-outline);
+  }
+
+  /* ── CMP-Inspector "compact": the resize grip on the panel's left edge (700–999 px only) ── */
+  .tk-inspector {
+    position: relative;
+  }
+
+  .tk-inspector__grip {
+    display: none;
+  }
+
+  @container tk-editor (700px <= width < 1000px) {
+    .tk-inspector {
+      inline-size: var(--inspector-width, var(--tk-size-inspector));
+    }
+
+    .tk-inspector__grip {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: calc(var(--tk-size-target-min) / -2);
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      inline-size: var(--tk-size-target-min);
+      color: var(--tk-color-muted);
+      cursor: ew-resize;
+      touch-action: none;
+    }
+
+    .tk-inspector__grip:hover,
+    .tk-inspector__grip:focus-visible {
+      color: var(--tk-color-fg);
+    }
+
+    .tk-inspector__grip > .tk-icon {
+      box-sizing: content-box;
+      padding-block: var(--tk-space-2);
+      border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+      border-radius: var(--tk-radius-xs);
+      background: var(--tk-color-surface);
+    }
+  }
+
+  @media (forced-colors: active) {
+    .tk-place__number,
+    .tk-place__button {
+      border-color: CanvasText;
+    }
+    .tk-place__button[aria-pressed='true'] {
+      border-color: Highlight;
+    }
+    .tk-place-layer__outline {
+      border-color: Highlight;
+    }
+  }
+}

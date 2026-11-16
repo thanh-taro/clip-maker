@@ -3,10 +3,12 @@
 // injected as HTML (ADR-0002 bans innerHTML) — and drawn with the stroke width of the designs.
 import type { JSX } from 'preact';
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowLeftToLine,
   ArrowRight,
   ArrowRightToLine,
+  ArrowUp,
   AudioLines,
   ChevronLeft,
   ChevronRight,
@@ -19,6 +21,9 @@ import {
   ExternalLink,
   FilePlus2,
   Film,
+  FlipHorizontal2,
+  FlipVertical2,
+  GripVertical,
   Image,
   Info,
   Keyboard,
@@ -31,6 +36,8 @@ import {
   Play,
   Plus,
   Redo2,
+  RotateCcw,
+  RotateCw,
   Scissors,
   ShieldCheck,
   SkipBack,
@@ -100,6 +107,16 @@ const SOURCES = {
   split: Scissors,
   setIn: ArrowLeftToLine,
   setOut: ArrowRightToLine,
+  // F-006: the Position section's nudges, Rotate, the flips and Reset; the compact inspector's resize grip
+  nudgeLeft: ArrowLeft,
+  nudgeRight: ArrowRight,
+  nudgeUp: ArrowUp,
+  nudgeDown: ArrowDown,
+  rotate: RotateCw,
+  flipH: FlipHorizontal2,
+  flipV: FlipVertical2,
+  reset: RotateCcw,
+  grip: GripVertical,
 } as const;
 
 export type IconName = keyof typeof SOURCES;
