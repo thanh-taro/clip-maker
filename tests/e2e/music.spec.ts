@@ -121,6 +121,12 @@ const musicButton = (page: Page, lang: Language = 'en-US') =>
     .getByRole('toolbar', { name: text(lang, 'toolbar.label') })
     .getByRole('button', { name: text(lang, 'action.music') });
 const inspector = (page: Page) => page.locator('.tk-inspector');
+/** F-005: a selected video clip's inspector has the clip tabs; its sound is on the Sound tab. */
+async function soundTab(page: Page, lang: Language = 'en-US'): Promise<void> {
+  const tab = inspector(page).getByRole('tab', { name: text(lang, 'inspector.sound') });
+  await tab.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+}
 const spans = async (page: Page) => (await summary(page)).audio.map((a) => [a.start, a.end]);
 
 async function axe(page: Page): Promise<void> {
@@ -477,7 +483,7 @@ test.describe('F-011 sound section (app harness)', () => {
     await timeline(page)
       .getByRole('button', { name: /^B\.mp4 / })
       .click();
-    await expect(inspector(page).getByRole('heading', { name: text('en-US', 'inspector.sound') })).toBeVisible();
+    await soundTab(page, 'en-US');
     const steps = (await summary(page)).steps;
     await inspector(page)
       .getByRole('button', { name: text('en-US', 'action.mute_all') })
@@ -492,6 +498,7 @@ test.describe('F-011 sound section (app harness)', () => {
     await timeline(page)
       .getByRole('button', { name: /^B\.mp4 / })
       .click();
+    await soundTab(page, 'en-US');
     await expect(inspector(page).getByRole('button', { name: text('en-US', 'action.mute_all') })).toBeVisible();
   });
 
@@ -503,6 +510,7 @@ test.describe('F-011 sound section (app harness)', () => {
     await timeline(page)
       .getByRole('button', { name: /^A\.mp4 / })
       .click();
+    await soundTab(page, 'en-US');
     const field = inspector(page).getByRole('spinbutton', { name: text('en-US', 'sound.volume') });
     const slider = inspector(page).getByRole('slider', { name: text('en-US', 'sound.volume') });
     let steps = (await summary(page)).steps;
@@ -549,6 +557,7 @@ test.describe('F-011 sound section (app harness)', () => {
     await timeline(page)
       .getByRole('button', { name: /^A\.mp4 / })
       .click();
+    await soundTab(page, 'en-US');
     const field = inspector(page).getByRole('spinbutton', { name: text('en-US', 'sound.volume') });
     await field.fill('80');
     await field.press('Enter');
@@ -571,6 +580,7 @@ test.describe('F-011 sound section (app harness)', () => {
     await timeline(page, 'vi-VN')
       .getByRole('button', { name: /^A\.mp4 / })
       .click();
+    await soundTab(page, 'vi-VN');
     const field = inspector(page).getByRole('spinbutton', { name: text('vi-VN', 'sound.volume') });
     const slider = inspector(page).getByRole('slider', { name: text('vi-VN', 'sound.volume') });
     await expect(field).toHaveAttribute('inputmode', 'decimal');
@@ -612,6 +622,7 @@ test.describe('F-011 sound section (app harness)', () => {
     await timeline(page)
       .getByRole('button', { name: /^A\.mp4 / })
       .click();
+    await soundTab(page, 'en-US');
     const slider = inspector(page).getByRole('slider', { name: text('en-US', 'sound.volume') });
     const steps = (await summary(page)).steps;
     // The press reaches the slider; the release reaches only the window (released outside, as when the
@@ -666,6 +677,7 @@ test.describe('F-011 sound section (app harness)', () => {
     await timeline(page)
       .getByRole('button', { name: /^V\.mp4 / })
       .click();
+    await soundTab(page, 'en-US');
     const field = inspector(page).getByRole('spinbutton', { name: text('en-US', 'sound.volume') });
     await field.fill('50');
     await field.press('Enter');

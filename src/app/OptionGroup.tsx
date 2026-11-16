@@ -26,6 +26,7 @@ export function OptionGroup<T>({
   value,
   onChoose,
   variant,
+  labelledBy,
 }: {
   /** Element id prefix (unique per rendered group). */
   readonly id: string;
@@ -36,6 +37,11 @@ export function OptionGroup<T>({
   readonly onChoose: (value: T) => void;
   /** `segments`: equal columns; `swatches`: a grid of colour dots, text options as chips. */
   readonly variant: 'segments' | 'swatches';
+  /**
+   * The id of a label shown elsewhere (the Speed section heading, the Edit sheet's row label): the group is
+   * named by it and shows no label of its own.
+   */
+  readonly labelledBy?: string;
 }) {
   const group = useRef<HTMLDivElement>(null);
   const chosen = options.findIndex((o) => o.value === value);
@@ -49,12 +55,14 @@ export function OptionGroup<T>({
     if (option.value !== value) onChoose(option.value);
     group.current?.querySelectorAll<HTMLElement>('[role="radio"]')[next]?.focus();
   };
-  const labelId = `${id}-label`;
+  const labelId = labelledBy ?? `${id}-label`;
   return (
     <div class="tk-field">
-      <span class="tk-field__label" id={labelId}>
-        {label}
-      </span>
+      {labelledBy ? null : (
+        <span class="tk-field__label" id={labelId}>
+          {label}
+        </span>
+      )}
       <div
         ref={group}
         class={`tk-options tk-options--${variant}`}

@@ -36,10 +36,15 @@ export function formatNumber(value: number, lang: Language = language.value): st
 
 /**
  * A number field's shown text (style.md "Number fields"): the language's decimal mark, no group marks,
- * at most `fractionDigits` decimals, so the text reads back through `parseNumber`.
+ * at most `fractionDigits` decimals (exactly that many when `fixed`, as the speed field's `2.00`), so the
+ * text reads back through `parseNumber`.
  */
-export function formatField(value: number, lang: Language = language.value, fractionDigits = 0): string {
-  return new Intl.NumberFormat(lang, { useGrouping: false, maximumFractionDigits: fractionDigits }).format(value);
+export function formatField(value: number, lang: Language = language.value, fractionDigits = 0, fixed = false): string {
+  return new Intl.NumberFormat(lang, {
+    useGrouping: false,
+    maximumFractionDigits: fractionDigits,
+    minimumFractionDigits: fixed ? fractionDigits : 0,
+  }).format(value);
 }
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

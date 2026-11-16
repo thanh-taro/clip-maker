@@ -18,6 +18,8 @@ export interface NumberFieldProps {
   readonly step?: number;
   /** Decimals shown (the value is never rounded here; the edit's rule decides its precision). */
   readonly fractionDigits?: number;
+  /** Always show `fractionDigits` decimals (the speed field reads `2.00`, CMP-Inspector "clip Speed"). */
+  readonly fixedDigits?: boolean;
   /**
    * Called once per commit with the typed value, clamped to min–max, only when it differs from `value`.
    * Returns the value now in effect (the rule may round it), which the field then shows.
@@ -39,14 +41,20 @@ export function NumberField(props: NumberFieldProps) {
   const latest = useRef(props);
   latest.current = props;
   const show = (v: number): void => {
-    if (ref.current) ref.current.value = formatField(v, language.peek(), latest.current.fractionDigits ?? 0);
+    if (ref.current)
+      ref.current.value = formatField(
+        v,
+        language.peek(),
+        latest.current.fractionDigits ?? 0,
+        latest.current.fixedDigits === true,
+      );
   };
 
   // Uncontrolled: a re-render while the user types never overwrites the text; a new value or language
   // from elsewhere (the slider, undo, a language switch) is shown when the field is not being edited.
   useLayoutEffect(() => {
     if (!editing.current) show(value);
-  }, [value, lang, fractionDigits]);
+  }, [value, lang, fractionDigits, props.fixedDigits]);
 
   const commitValue = (typed: number): void => {
     editing.current = false;

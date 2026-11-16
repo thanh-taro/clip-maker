@@ -9,9 +9,14 @@
 // in the body below the title row; until then a selection shows the title row only (build question
 // 106). The compact layout's resize grip and close (COPY-inspector.resize) are not built yet (build
 // question 105).
+// F-005: a selected video clip gets the clip tabs (a tablist named COPY-inspector.label): Edit
+// (COPY-inspector.edit) with the Speed section, and Sound (COPY-inspector.sound) with F-011's sound
+// section. Adjust and Looks join with F-007/F-008, Position with F-006 and Fades with F-009 (build
+// question 115). A photo clip keeps the plain title row until its Edit tab has a section (Duration, Fades).
 // Implements: F-012.R1–R3 (the controls), F-012 UX notes, CMP-Inspector "Frame (nothing selected)" and
-// "Accessibility" (single-section panels use a heading; option groups are radio groups; swatches carry
-// colour names).
+// "Accessibility" (tabs are a tablist named COPY-inspector.label; single-section panels use a heading;
+// option groups are radio groups; swatches carry colour names), F-005 UX notes.
+import { signal } from '@preact/signals';
 import { t } from '../copy';
 import type { Frame, FrameRate } from '../core';
 import type { RefObject } from 'preact';
@@ -29,6 +34,8 @@ import {
 import { OptionGroup, type Option } from './OptionGroup';
 import { soundTarget } from './sound';
 import { SoundSection } from './SoundSection';
+import { speedTarget } from './speed';
+import { SpeedSection } from './SpeedSection';
 
 const aspectLabel = (a: Frame['aspect']): string => (a === 'original' ? t('frame.original') : a);
 const backgroundLabel = (b: Frame['background']): string => (b === 'blur' ? t('frame.blur') : t(`colour.${b}`));
@@ -95,18 +102,99 @@ export function useKeepFocus(container: RefObject<HTMLElement>, fallback: RefObj
   }, [key]);
 }
 
+type ClipTab = 'edit' | 'sound';
+
+/** The clip tab shown (UI state, not an edit: RULE-13). It stays when another clip is selected. */
+export const clipTab = signal<ClipTab>('edit');
+
+const CLIP_TABS: readonly { tab: ClipTab; label: 'inspector.edit' | 'inspector.sound' }[] = [
+  { tab: 'edit', label: 'inspector.edit' },
+  { tab: 'sound', label: 'inspector.sound' },
+];
+
+const tabId = (tab: ClipTab): string => `tk-inspector-tab-${tab}`;
+const PANEL_ID = 'tk-inspector-panel';
+
 /**
- * CMP-Inspector on wide and compact layouts (hidden on narrow layouts by CSS). F-011: a selected audio
- * clip, and a selected video clip until its other tabs exist, show the sound section under a plain title
- * row (COPY-inspector.sound).
+ * CMP-Inspector "Accessibility": the clip tabs, a tablist named COPY-inspector.label (ARIA tabs pattern:
+ * only the selected tab is in the Tab order; Left/Right, Home/End move and select, wrapping).
+ */
+function ClipTabs({ selectedRef }: { readonly selectedRef: RefObject<HTMLButtonElement> }) {
+  const current = clipTab.value;
+  const pick = (i: number, list: HTMLElement | null): void => {
+    const n = CLIP_TABS.length;
+    const next = CLIP_TABS[(i + n) % n]!;
+    clipTab.value = next.tab;
+    list?.querySelectorAll<HTMLElement>('[role="tab"]')[(i + n) % n]?.focus();
+  };
+  return (
+    <div class="tk-inspector__tabs" role="tablist" aria-label={t('inspector.label')}>
+      {CLIP_TABS.map(({ tab, label }, i) => {
+        const on = tab === current;
+        return (
+          <button
+            key={tab}
+            ref={on ? selectedRef : null}
+            type="button"
+            role="tab"
+            id={tabId(tab)}
+            class="tk-inspector__tab"
+            aria-selected={on ? 'true' : 'false'}
+            aria-controls={on ? PANEL_ID : undefined}
+            tabIndex={on ? 0 : -1}
+            onClick={() => (clipTab.value = tab)}
+            onKeyDown={(e) => {
+              if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+              const list = e.currentTarget.parentElement;
+              const to =
+                e.key === 'ArrowRight'
+                  ? i + 1
+                  : e.key === 'ArrowLeft'
+                    ? i - 1
+                    : e.key === 'Home'
+                      ? 0
+                      : e.key === 'End'
+                        ? CLIP_TABS.length - 1
+                        : null;
+              if (to === null) return;
+              e.preventDefault();
+              pick(to, list);
+            }}
+          >
+            {t(label)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * CMP-Inspector on wide and compact layouts (hidden on narrow layouts by CSS). A selected video clip shows
+ * the clip tabs (F-005: Edit with Speed, Sound); a selected audio clip the sound section under a plain
+ * title row (COPY-inspector.sound, F-011); nothing selected, the frame.
  */
 export function Inspector() {
   const frame = frameSectionShown.value;
-  const sound = !frame && soundTarget.value !== null;
+  const tabs = !frame && speedTarget.value !== null;
+  const sound = !frame && !tabs && soundTarget.value !== null;
+  const tab = clipTab.value;
   const panel = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  const section = frame ? 'frame' : sound ? 'sound' : 'selection';
-  useKeepFocus(panel, heading, section);
+  const selectedTab = useRef<HTMLButtonElement>(null);
+  const section = frame ? 'frame' : tabs ? `clip-${tab}` : sound ? 'sound' : 'selection';
+  useKeepFocus(panel, tabs ? selectedTab : heading, section);
+  if (tabs)
+    return (
+      <aside ref={panel} class="tk-inspector" aria-label={t('inspector.label')} data-section={section}>
+        <header class="tk-inspector__head tk-inspector__head--tabs">
+          <ClipTabs selectedRef={selectedTab} />
+        </header>
+        <div class="tk-inspector__body" role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(tab)}>
+          {tab === 'edit' ? <SpeedSection id="tk-inspector-speed" /> : <SoundSection id="tk-inspector-sound" />}
+        </div>
+      </aside>
+    );
   return (
     <aside ref={panel} class="tk-inspector" aria-labelledby={HEAD_ID} data-section={section}>
       <header class="tk-inspector__head">
