@@ -54,7 +54,7 @@
     "build": {
       "title": "4 Implementation",
       "status": "in_progress",
-      "step": "4 wave 4: W4-prep, F-004 merged (check 9/9); next F-005 speed, then F-006, F-007, F-008, F-009, F-010, F-013, F-015, F-018",
+      "step": "4 wave 4: W4-prep, F-004, F-005 merged (check 9/9, 487 e2e); next F-006 placement (+ compact inspector resize grip Q105), then F-007, F-008, F-009, F-010, F-013, F-015, F-018",
       "gate": {
         "status": "pending",
         "at": null,
@@ -739,10 +739,6 @@
     }
   },
   "log": [
-    {
-      "at": "2026-11-03T06:05:17+00:00",
-      "event": "set environment"
-    },
     {
       "at": "2026-11-03T06:05:17+00:00",
       "event": "Phase 0: greenfield; profile reused from image-annotator; autonomy balanced"
@@ -1538,9 +1534,13 @@
     {
       "at": "2026-11-16T10:28:01+00:00",
       "event": "build step: 4 wave 4: W4-prep, F-004 merged (check 9/9); next F-005 speed, then F-006, F-007, F-008, F-009, F-010, F-013, F-015, F-018"
+    },
+    {
+      "at": "2026-11-16T11:18:10+00:00",
+      "event": "build step: 4 wave 4: W4-prep, F-004, F-005 merged (check 9/9, 487 e2e); next F-006 placement (+ compact inspector resize grip Q105), then F-007, F-008, F-009, F-010, F-013, F-015, F-018"
     }
   ],
-  "updated": "2026-11-16T10:28:01+00:00",
+  "updated": "2026-11-16T11:18:10+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
