@@ -256,9 +256,11 @@ test.describe('F-005 speed (app harness)', () => {
     await field.fill('9');
     await field.press('Enter');
     await expect(field).toHaveValue('4.00');
+    expect((await summary(page)).steps).toBe(steps + 2);
     await field.fill('0');
     await field.press('Enter');
     await expect(field).toHaveValue('0.25');
+    expect((await summary(page)).steps).toBe(steps + 3);
     // Unreadable: nothing changes and the value comes back (style.md "Number fields").
     steps = (await summary(page)).steps;
     await field.fill('fast');
@@ -273,10 +275,11 @@ test.describe('F-005 speed (app harness)', () => {
     expect((await summary(page)).steps).toBe(steps + 1);
     await page.keyboard.press('End');
     await expect(field).toHaveValue('4.00');
+    expect((await summary(page)).steps).toBe(steps + 2);
     expect((await previewOf(page)).playhead).toBe(playhead);
   });
 
-  test('CMP-Inspector the clip tabs: a tablist with one tab stop; Left/Right and Home/End switch Edit and Sound without stepping the preview', async ({
+  test('CMP-Inspector the clip tabs: a tablist with one tab stop; Left/Right (wrapping), Home and End switch Edit and Sound without stepping the preview', async ({
     page,
   }) => {
     await open(page);
@@ -297,7 +300,13 @@ test.describe('F-005 speed (app harness)', () => {
     await page.keyboard.press('Home');
     await expect(edit).toBeFocused();
     await expect(exactField(inspector(page))).toBeVisible();
+    // Left from the first tab wraps to the last; Home and End go to the first and last.
     await page.keyboard.press('ArrowLeft');
+    await expect(sound).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('Home');
+    await expect(edit).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('End');
+    await expect(sound).toBeFocused();
     await expect(sound).toHaveAttribute('aria-selected', 'true');
     expect((await previewOf(page)).playhead).toBe(playhead);
     // The chosen tab stays when another clip is selected.

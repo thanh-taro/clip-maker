@@ -33,8 +33,27 @@ export function SpeedSection({ id, touch = false }: { readonly id: string; reado
     drag.current?.end();
     drag.current = null;
   });
-  // Leaving the section (deselecting, another tab, closing the sheet) ends an open movement.
-  useEffect(() => () => endDrag.current(), []);
+  // Leaving the section (deselecting, another tab, closing the sheet) or another clip becoming the selection
+  // mid-drag ends an open movement: its moves never reach the newly selected clip.
+  const targetId = target?.id ?? null;
+  /** The pointer that was dragging for the previous clip is still down: its moves are ignored until release. */
+  const orphan = useRef(false);
+  useEffect(
+    () => () => {
+      if (held.current) {
+        orphan.current = true;
+        const clear = (): void => {
+          orphan.current = false;
+          removeEventListener('pointerup', clear);
+          removeEventListener('pointercancel', clear);
+        };
+        addEventListener('pointerup', clear);
+        addEventListener('pointercancel', clear);
+      }
+      endDrag.current();
+    },
+    [targetId],
+  );
   if (!target) return null;
   const headId = `${id}-title`;
   const exactId = `${id}-exact`;
@@ -97,6 +116,7 @@ export function SpeedSection({ id, touch = false }: { readonly id: string; reado
           data-control="speed-slider"
           onPointerDown={() => {
             end();
+            orphan.current = false;
             // A release anywhere (outside the slider or the page) ends the movement. No pointer capture:
             // in WebKit a captured range input no longer drags its thumb.
             addEventListener('pointerup', end);
@@ -105,6 +125,10 @@ export function SpeedSection({ id, touch = false }: { readonly id: string; reado
           }}
           onInput={(e) => {
             const v = Number(e.currentTarget.value);
+            if (orphan.current) {
+              e.currentTarget.value = String(target.speedPct);
+              return;
+            }
             if (held.current) {
               // The movement starts with its first move. Undo or redo mid-drag cut it (F-014 onCut): the
               // slider is controlled, so it shows the restored speed, and the next move starts a new step.

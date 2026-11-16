@@ -3,7 +3,8 @@
 Entries are needed only for items that are `building` or `shipped`.
 
 ## 2026-11-16 — F-005 building
-- F-005 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 128–129 (the phone Exact row, the speed slider's movement rule).
+- F-005 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 127–129 (the clip tabs and their keys, the phone Exact row, the speed slider’s movement rule).
+- MOD-Project "Public surface": a plain `edit(op)` that changes the project cuts every open gesture, as undo does (build question 96; F-005 review).
 - RULE-20 *Scope*: the inspector's clip tabs (a tab list) get Left, Right, Home and End (ARIA tabs pattern), so those keys don't step the preview while a tab has focus (build question 127).
 
 ## 2026-11-16 — F-004 building

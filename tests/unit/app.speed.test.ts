@@ -4,7 +4,7 @@
 // project.clips.test.ts.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { layoutOf, type Project } from '../../src/core';
-import { EMPTY_HISTORY, history, playhead, project, redo, selection, undo } from '../../src/project';
+import { EMPTY_HISTORY, deleteItem, edit, history, playhead, project, redo, selection, undo } from '../../src/project';
 import { selectClip } from '../../src/app/arrange';
 import { beginSpeedDrag, QUICK_SPEEDS, setSpeedOnce, speedLabel, speedTarget } from '../../src/app/speed';
 import { notices, resetNotices } from '../../src/app/notice-stack';
@@ -128,5 +128,28 @@ describe('F-005 speed in the editor', () => {
     drag.set(350);
     drag.end();
     expect(speedTarget.value?.speedPct).toBe(150);
+  });
+
+  it('Q96 an edit landing mid-movement is kept: the movement is cut and its next move starts from the project as it now is', () => {
+    selectClip('A');
+    let cut = 0;
+    const drag = beginSpeedDrag('A', () => cut++);
+    drag.set(200);
+    // A media batch or key lands meanwhile (here: B deleted).
+    edit((p) => deleteItem(p, 'B'));
+    expect(cut).toBe(1);
+    expect(drag.active).toBe(false);
+    drag.set(300);
+    drag.end();
+    expect(project.value.clips.map((c) => c.id)).toEqual(['A', 'P']);
+    // The slider's next input begins a fresh movement from the current project.
+    const next = beginSpeedDrag('A', () => undefined);
+    next.set(300);
+    next.end();
+    expect(project.value.clips.map((c) => c.id)).toEqual(['A', 'P']);
+    expect(speedTarget.value?.speedPct).toBe(300);
+    undo();
+    expect(speedTarget.value?.speedPct).toBe(200);
+    expect(project.value.clips.map((c) => c.id)).toEqual(['A', 'P']);
   });
 });
