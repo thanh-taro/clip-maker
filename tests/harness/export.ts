@@ -102,6 +102,8 @@ interface Options {
   readonly estimate?: boolean;
   /** Dense, music-like sound (noise) instead of two tones: what the delivered AAC rate is measured on. */
   readonly dense?: boolean;
+  /** The clip's in point (µs of source time; F-004.AC7), instead of 0. */
+  readonly inPoint?: number;
 }
 
 export interface FrameCheck {
@@ -306,6 +308,8 @@ async function run(o: Options): Promise<RunReport> {
   const seconds = o.frames / 30;
   const project: Project = {
     ...coded,
+    // F-004.AC7: the clip trimmed at its start to a source time.
+    clips: coded.clips.map((c) => (o.inPoint === undefined ? c : { ...c, in: o.inPoint })),
     sources: [
       ...coded.sources.map((src) => ({ ...src, hasSound: o.sound })),
       ...(o.music

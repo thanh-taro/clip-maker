@@ -7,13 +7,16 @@
 // name and length), Add media, and the arrange tiles Move earlier, Move later, Duplicate and Delete.
 // F-012: with nothing selected, the frame section (COPY-inspector.frame) follows Add media, at touch
 // size (style.md "Layouts" narrow: Edit holds Add media, Frame when nothing is selected, then the
-// selection's actions). The Audio, Text, Looks and Adjust tabs, the Split / Start here / End here /
-// Cross-fade tiles and the setting rows join with their features (F-004 to F-011).
+// selection's actions). The Text, Looks and Adjust tabs, the Cross-fade tile
+// and the setting rows join with their features (F-005 to F-010).
 // F-011: the Audio tab (COPY-tab.audio) and its sheet: the selection's sound (a video or audio clip, at
 // touch size) and CMP-MusicPicker's narrow body (your audio, the bundled tracks); switching away from it
 // stops the preview. The Edit sheet's tiles act on a selected audio clip too (Earlier/Later in time).
+// F-004: the first row of tiles is Split, Start here and End here (Cross-fade joins it with F-009); the
+// arrange tiles start the second row.
 // Implements: F-003.R6 (visible controls on touch), F-003.AC5, RULE-21 (move-earlier/later stand in for
-// hold-and-drag; touch-size targets), F-011.R1/R3/R4/R8 on narrow layouts, CMP-MusicPicker "narrow".
+// hold-and-drag; start-here and end-here stand in for the trim drag; touch-size targets), F-004.R2/R6,
+// F-011.R1/R3/R4/R8 on narrow layouts, CMP-MusicPicker "narrow".
 import { effect, signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
@@ -28,7 +31,7 @@ import { addMedia } from './MediaInput';
 import { MusicBody } from './MusicPicker';
 import { soundTarget, stopPreview } from './sound';
 import { SoundSection } from './SoundSection';
-import { ARRANGE_ITEMS } from './Timeline';
+import { ARRANGE_ITEMS, TRIM_ITEMS } from './Timeline';
 
 type Sheet = 'edit' | 'audio';
 
@@ -143,10 +146,12 @@ export function EditSheet() {
   useSheetEsc(open, ref, TAB_ID);
   if (!open) return null;
   const clip = selectedClip.value ?? selectedAudio.value;
-  // Tile order of the board: Move earlier, Move later, Duplicate, Delete (in danger).
-  const tiles = ['move-earlier', 'move-later', 'duplicate', 'delete'].map((id) =>
-    ARRANGE_ITEMS.find((i) => i.id === id)!,
-  );
+  // Tile order of the board: Split, Start here, End here, (Cross-fade, F-009) / Move earlier, Move later,
+  // Duplicate, Delete (in danger).
+  const tiles = [
+    ...TRIM_ITEMS,
+    ...['move-earlier', 'move-later', 'duplicate', 'delete'].map((id) => ARRANGE_ITEMS.find((i) => i.id === id)!),
+  ];
   return (
     <section ref={ref} id={SHEET_ID} class="tk-sheet" role="tabpanel" aria-labelledby={TAB_ID}>
       <span class="tk-sheet__grabber" aria-hidden="true" />

@@ -10,6 +10,11 @@
 // Implements: F-003.R1, F-003.R2 (drag), F-002.R3 (scrub on the ruler), CMP-Timeline anatomy and
 // accessibility (items focusable in order, named by their name and duration), RULE-21 hold-and-drag,
 // F-011.R2 (move an audio clip; it never overlaps another, INV-06), CMP-Timeline "audio item".
+// F-004 adds the trim handles on the selected clip or audio clip (CMP-Timeline "trimming"): neutral end tabs
+// whose drag trims the item's start or end as one gesture (one undo step), with the length / end readout
+// and the dashed snap line while the edge snaps (RULE-14, within 8 screen pixels). The scale holds still
+// during a trim, so the edge stays under the pointer. Implements: F-004.R1, F-004.R3 (audio clips; the
+// text lane comes with F-010), F-004.R4, RULE-21 (dragging a trim handle trims; no hold).
 import { effect, signal, type ReadonlySignal, type Signal } from '@preact/signals';
 import { frameStart, nearestFrame, projectEnd, type AudioClip, type Clip, type Micros, type Project } from '../core';
 import {
@@ -19,10 +24,14 @@ import {
   boundaryAt,
   clipBoxes,
   fitScale,
+  itemSpan,
   labelFits,
   moveTarget,
+  pointerTime,
   rulerTicks,
+  snapTime,
   timeAt,
+  trimSnapTargets,
   type ClipBox,
 } from './geometry';
 
@@ -56,6 +65,22 @@ export interface TimelineDeps {
   moveAudio?(id: string, start: Micros): void;
   /** A scrub on the ruler starts (playback keeps the latest time, F-002.R3). */
   scrubStart?(): void;
+  /**
+   * F-004: a drag of item `id`'s start or end edge begins; every move goes through the returned drag as one
+   * undo step. `onCut` runs when undo, redo or New project cut it (the view then ends the drag).
+   */
+  trim?(id: string, edge: 'start' | 'end', onCut: () => void): TrimDrag;
+  /** F-004.R4: the trim readout's two parts, COPY-timeline.length and COPY-timeline.ends_at. */
+  trimReadout?(length: Micros, end: Micros): readonly [length: string, ends: string];
+}
+
+/** F-004: one trim drag as MOD-App runs it (its moves coalesce into one RULE-13 step). */
+export interface TrimDrag {
+  /** The edge asks for timeline time `t` (already snapped). */
+  to(t: Micros): void;
+  /** `notify`: show the trim's notices (false when the drag was stopped by another change). */
+  end(notify?: boolean): void;
+  readonly active: boolean;
 }
 
 export interface TimelineView {
@@ -116,6 +141,23 @@ interface ClipEls {
   drawn: string;
 }
 
+/** F-004: a trim handle being dragged. */
+interface Trim {
+  readonly id: string;
+  readonly edge: 'start' | 'end';
+  readonly lane: 'clip' | 'audio';
+  readonly pointerId: number;
+  readonly touch: boolean;
+  readonly startX: number;
+  /** The edge's time when the drag began. */
+  readonly from: Micros;
+  /** The scale when the drag began: it holds still until the drag ends. */
+  readonly scale: number;
+  /** The project as the drag began: snap targets are its items' edges (the playhead is read live). */
+  readonly base: Project;
+  session: TrimDrag | null;
+}
+
 interface Drag {
   /** A main-track clip, or an audio clip (F-011). */
   readonly kind: 'clip' | 'audio';
@@ -158,6 +200,22 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const head = el('span', 'tk-playhead', host);
   decorative(head);
   el('span', 'tk-playhead__head', head);
+  // F-004: the selected item's trim handles (moved into its lane), the snap line and the trim readout.
+  const handles = (['start', 'end'] as const).map((edge) => {
+    const h = el('span', `tk-trim tk-trim--${edge}`);
+    h.dataset['edge'] = edge;
+    decorative(h);
+    return h;
+  });
+  const snapLine = el('span', 'tk-snap', host);
+  decorative(snapLine);
+  snapLine.hidden = true;
+  const readout = el('div', 'tk-trim-readout', host);
+  decorative(readout);
+  const readLength = el('span', 'tk-trim-readout__length', readout);
+  el('span', 'tk-trim-readout__sep', readout).textContent = '·';
+  const readEnd = el('span', 'tk-trim-readout__end', readout);
+  readout.hidden = true;
 
   const width = signal(0);
   const resize = new ResizeObserver(() => {
@@ -172,6 +230,11 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   let scale = 0;
   let labels: { at: Micros; node: HTMLElement }[] = [];
   let drag: Drag | null = null;
+  let trim: Trim | null = null;
+  /** A trim move is being applied: the project change it makes is the drag's own. */
+  let applying = false;
+  /** Bumped when a trim ends, so the track is laid out again at the fitting scale. */
+  const relayout = signal(0);
   let suppressClick = false;
 
   const xOf = (t: Micros): string => `${t * scale}px`;
@@ -250,14 +313,18 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   let laidOut: Project | null = null;
   const stopLayout = effect(() => {
     const p = project.value;
-    // The project changed under a drag: its clip indexes are stale, so the drag ends without a move.
+    void relayout.value;
+    // The project changed under a drag: its clip indexes are stale, so the drag ends without a move. A
+    // trim's own moves change it too; any other change (a batch of media, undo) ends the trim.
     if (drag && laidOut && p !== laidOut) endDrag(false);
+    if (trim && laidOut && p !== laidOut && !applying) endTrim('abort');
     laidOut = p;
     track.setAttribute('aria-label', deps.trackLabel());
     const selected = new Set(selection.value);
     const w = width.value;
     const projEnd = projectEnd(p);
-    scale = fitScale(w, projEnd);
+    // During a trim the scale holds still, so the dragged edge stays under the pointer (F-004).
+    scale = trim ? trim.scale : fitScale(w, projEnd);
     boxes = clipBoxes(p, scale);
     host.toggleAttribute('data-empty', !p.clips.length);
     hint.hidden = p.clips.length > 0;
@@ -318,8 +385,27 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     });
     track.appendChild(drop);
     layoutAudio(p, selected);
+    placeHandles(p, selected);
     placeHead(playhead.peek());
   });
+
+  /** F-004: the trim handles on the selected main-track clip or audio clip (CMP-Timeline "trimming"). */
+  function placeHandles(p: Project, selected: ReadonlySet<string>): void {
+    const id = [...selected][0];
+    const span = id !== undefined ? itemSpan(p, id) : null;
+    const lane = span?.kind === 'clip' ? track : span?.kind === 'audio' ? audioLane : null;
+    for (const h of handles) {
+      if (!span || !lane || id === undefined) {
+        h.remove();
+        continue;
+      }
+      h.dataset['itemId'] = id;
+      h.dataset['lane'] = span.kind;
+      const t = h.dataset['edge'] === 'start' ? span.start : span.end;
+      h.style.left = `${t * scale}px`;
+      if (h.parentElement !== lane) lane.appendChild(h);
+    }
+  }
 
   function audioEls(id: string): { button: HTMLButtonElement; name: HTMLSpanElement; past: HTMLSpanElement } {
     let a = audios.get(id);
@@ -449,7 +535,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   // end (the lanes' end padding) and below the track; the ruler scrubs instead.
   const onLanesDown = (e: PointerEvent): void => {
     const target = e.target as Element;
-    if (e.button !== 0 || target.closest('.tk-clip, .tk-aclip, .tk-ruler')) return;
+    if (e.button !== 0 || target.closest('.tk-clip, .tk-aclip, .tk-ruler, .tk-trim')) return;
     deps.select(null);
   };
   const onTrackDown = (e: PointerEvent): void => {
@@ -512,13 +598,116 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     drop.hidden = moveTarget(d.index, b) === null;
     drop.style.left = `${edge}px`;
   };
+  // ── Trim handles (F-004.R1/R3/R4): drag an edge; RULE-14 snapping; one undo step ──────────────────
+  function showReadout(t: Trim): void {
+    const span = itemSpan(project.peek(), t.id);
+    if (!span || !deps.trimReadout) return;
+    const [length, ends] = deps.trimReadout(span.end - span.start, span.end);
+    readLength.textContent = length;
+    readEnd.textContent = ends;
+    readout.hidden = false;
+    // Below the main track for a clip, above the audio lane for an audio clip; at the item, kept inside.
+    const lane = t.lane === 'clip' ? track : audioLane;
+    const top = t.lane === 'clip' ? lane.offsetTop + lane.offsetHeight : lane.offsetTop - readout.offsetHeight;
+    readout.style.top = `${top}px`;
+    const max = Math.max(0, host.clientWidth - readout.offsetWidth);
+    readout.style.left = `${Math.min(max, Math.max(0, span.start * t.scale))}px`;
+  }
+  /**
+   * `commit`: the release keeps the trim. `cancel` (Esc): the edge goes back where it began, so the drag
+   * leaves no step. `abort`: the project changed under the drag (undo, a batch of media): it just stops,
+   * and the notices of a trim that no longer stands are not shown.
+   */
+  function endTrim(how: 'commit' | 'cancel' | 'abort'): void {
+    const t = trim;
+    trim = null;
+    if (!t) return;
+    if (how === 'cancel' && t.session?.active) {
+      applying = true;
+      try {
+        t.session.to(t.from);
+      } finally {
+        applying = false;
+      }
+    }
+    t.session?.end(how !== 'abort');
+    snapLine.hidden = true;
+    readout.hidden = true;
+    host.classList.remove('tk-lanes--trimming');
+    // Lay the track out again at the scale that fits the new length.
+    relayout.value++;
+  }
+  const onTrimDown = (e: PointerEvent): void => {
+    const h = (e.target as Element).closest<HTMLElement>('.tk-trim');
+    if (!h || e.button !== 0 || drag || trim || !deps.trim || scale <= 0) return;
+    const id = h.dataset['itemId'] ?? '';
+    const p = project.peek();
+    const span = itemSpan(p, id);
+    if (!span || span.kind === 'text') return;
+    e.preventDefault();
+    const edge = h.dataset['edge'] === 'start' ? 'start' : 'end';
+    trim = {
+      id,
+      edge,
+      lane: span.kind,
+      pointerId: e.pointerId,
+      touch: e.pointerType === 'touch',
+      startX: e.clientX,
+      from: edge === 'start' ? span.start : span.end,
+      scale,
+      base: p,
+      session: null,
+    };
+    capture(host, e.pointerId);
+  };
+  const onTrimMove = (e: PointerEvent): void => {
+    const t = trim;
+    if (!t || t.pointerId !== e.pointerId) return;
+    // The button was released where the lanes never heard it: the drag is over.
+    if (!t.touch && e.buttons === 0) {
+      endTrim('commit');
+      return;
+    }
+    const dx = e.clientX - t.startX;
+    if (!t.session) {
+      if (dx === 0 || !deps.trim) return;
+      t.session = deps.trim(t.id, t.edge, () => {
+        if (trim === t) endTrim('abort');
+      });
+      host.classList.add('tk-lanes--trimming');
+    }
+    e.preventDefault();
+    // Back where it began is exactly where it began: no rounding through pixels and no snapping, so the
+    // drag leaves no step. A main-track clip's start may go before its own start (and before 0): the
+    // trimmed head comes back (MOD-Project clamps it to the source); other edges stop at 0.
+    const mainStart = t.lane === 'clip' && t.edge === 'start';
+    const raw = t.from + Math.round(dx / t.scale);
+    const wanted = dx === 0 ? t.from : mainStart ? raw : pointerTime(t.from * t.scale + dx, t.scale);
+    const snapped = dx === 0 ? null : snapTime(wanted, trimSnapTargets(t.base, t.id, playhead.peek()), t.scale);
+    applying = true;
+    try {
+      t.session.to(snapped ?? wanted);
+    } finally {
+      applying = false;
+    }
+    if (trim !== t) return;
+    snapLine.hidden = snapped === null;
+    if (snapped !== null) snapLine.style.transform = `translateX(${snapped * t.scale}px)`;
+    showReadout(t);
+  };
+  host.addEventListener('pointerdown', onTrimDown);
+  host.addEventListener('pointermove', onTrimMove);
+
   // Also on the window: a release outside the track (or outside the page) ends the drag there.
   const onUp = (e: PointerEvent): void => {
     if (drag?.pointerId === e.pointerId) endDrag(e.type === 'pointerup');
+    // A cancelled pointer (the browser took the gesture) gives the edge back, as a cancelled move does.
+    if (trim?.pointerId === e.pointerId) endTrim(e.type === 'pointerup' ? 'commit' : 'cancel');
   };
-  // RULE-21: once a held touch drags, the browser must not pan (it would cancel the pointer).
+  // RULE-21: once a held touch drags, the browser must not pan (it would cancel the pointer); a trim
+  // handle's drag never pans.
   const onTouchMove = (e: TouchEvent): void => {
-    if (drag?.active && drag.touch && e.cancelable) e.preventDefault();
+    if (((drag?.active && drag.touch) || trim) && e.cancelable) e.preventDefault();
   };
   const onClick = (e: MouseEvent): void => {
     const button = (e.target as Element).closest<HTMLButtonElement>('.tk-clip, .tk-aclip');
@@ -535,6 +724,10 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     if (e.key === 'Escape' && drag?.active) {
       e.preventDefault();
       endDrag(false);
+    }
+    if (e.key === 'Escape' && trim) {
+      e.preventDefault();
+      endTrim('cancel');
     }
   };
   // A held touch shows no context menu or text selection while it waits to drag.
@@ -568,6 +761,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   audioLane.addEventListener('pointerdown', onAudioDown);
   audioLane.addEventListener('pointermove', onTrackMove);
   audioLane.addEventListener('touchmove', onTouchMove, { passive: false });
+  host.addEventListener('touchmove', onTouchMove, { passive: false });
   audioLane.addEventListener('click', onClick);
   audioLane.addEventListener('contextmenu', onContext);
   track.addEventListener('pointerdown', onTrackDown);
@@ -592,10 +786,14 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       stopHead();
       resize.disconnect();
       if (drag?.timer) clearTimeout(drag.timer);
+      if (trim) endTrim('abort');
       document.removeEventListener('keydown', onKey, true);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       host.removeEventListener('pointerdown', onLanesDown);
+      host.removeEventListener('pointerdown', onTrimDown);
+      host.removeEventListener('pointermove', onTrimMove);
+      host.removeEventListener('touchmove', onTouchMove);
       host.replaceChildren();
       host.classList.remove('tk-lanes');
     },

@@ -299,6 +299,55 @@ describe('F-004 trim and split (domain)', () => {
     expect(r.notices).toEqual(['notice.length_limited']);
   });
 
+  it('RULE-05 F-004 edge case: a split inside the clip’s own cross-fade into the next removes that cross-fade', () => {
+    const p = proj({ clips: [video('A', 10, { crossFadeNext: S }), video('B', 10)] });
+    const r = splitAt(p, 'A', 9.5 * S, counter());
+    expect(ids(r.project)).toEqual(['A', 'new-1', 'B']);
+    expect(r.project.clips.map((c) => c.crossFadeNext)).toEqual([0, 0, 0]);
+    ok(r.project);
+  });
+
+  it('F-004.R1 RULE-06 trimming a 2× clip maps timeline time to source time through its speed', () => {
+    const p = proj({ clips: [video('A', 20, { speedPct: 200 }), video('B', 5)] });
+    expect(layoutOf(p).spans[0]!.frames).toBe(300);
+    // 2 s of timeline at its start is 4 s of source.
+    const r = trimTo(p, 'A', 'start', 2 * S);
+    expect(r.project.clips[0]).toMatchObject({ in: 4 * S, out: 20 * S });
+    expect(layoutOf(r.project).spans[0]!.frames).toBe(240);
+    // Its end at 6 s of timeline: 12 s of source after the in point.
+    const r2 = trimTo(r.project, 'A', 'end', 6 * S);
+    expect(r2.project.clips[0]).toMatchObject({ in: 4 * S, out: 16 * S });
+    // Dragged back before its start: the head returns, the in point stops at 0.
+    expect(trimTo(r2.project, 'A', 'start', -5 * S).project.clips[0]).toMatchObject({ in: 0, out: 16 * S });
+  });
+
+  it('RULE-05 F-004 edge case: a photo’s trim keeps its duration within 0.1–60 s, at either edge', () => {
+    const p = proj({ clips: [photo('P', 3), video('B', 5)] });
+    expect(trimTo(p, 'P', 'end', 100 * S).project.clips[0]!.duration).toBe(60 * S);
+    expect(trimTo(p, 'P', 'end', 0).project.clips[0]!.duration).toBe(0.1 * S);
+    expect(trimTo(p, 'P', 'start', 2 * S).project.clips[0]!.duration).toBe(1 * S);
+    // Its start dragged before itself (and before 0) makes it longer, up to 60 s.
+    expect(trimTo(p, 'P', 'start', -2 * S).project.clips[0]!.duration).toBe(5 * S);
+    expect(trimTo(p, 'P', 'start', -100 * S).project.clips[0]!.duration).toBe(60 * S);
+    expect(trimTo(p, 'P', 'start', 3 * S).project.clips[0]!.duration).toBe(0.1 * S);
+  });
+
+  it('RULE-10 F-004 trimming the start of a clip with an incoming cross-fade keeps it while it fits, then shrinks it to half the clip', () => {
+    const p = proj({ clips: [video('A', 4, { crossFadeNext: S }), video('B', 4)] });
+    expect(startOf(p, 'B')).toBe(90);
+    // 1 s off B's start: 3 s left, the 1 s cross-fade still fits (≤ half of 3 s).
+    const r = trimTo(p, 'B', 'start', 4 * S);
+    expect(r.project.clips[1]).toMatchObject({ in: S });
+    expect(r.project.clips[0]!.crossFadeNext).toBe(S);
+    expect(startOf(r.project, 'B')).toBe(90);
+    // 3.5 s off: B is 15 frames, the cross-fade shrinks to half of it (7 frames).
+    const r2 = trimTo(p, 'B', 'start', 6.5 * S);
+    expect(layoutOf(r2.project).spans[1]!.frames).toBe(15);
+    expect(r2.project.clips[0]!.crossFadeNext).toBe(233_333);
+    ok(r.project);
+    ok(r2.project);
+  });
+
   it('RULE-05 set start/end here trims the selected clip at the playhead', () => {
     const p = proj({ clips: [video('A', 10), video('B', 5)] });
     const r = trimTo(p, 'A', 'start', 2 * S);

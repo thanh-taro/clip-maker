@@ -2,6 +2,11 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-16 — F-004 building
+- F-004 set to `building` (phase 4, wave 4); it stays `building` until F-010's text lane gives text layers their trim handles and selection (build question 125) and the owner answers build questions 122–124.
+- CMP-Timeline "trimming": the readout's end time is COPY-timeline.ends_at (the copy exists; the "pending" note is removed).
+- MOD-Timeline "Public surface": `itemSpan(project, id)`, which MOD-App uses to decide when Start here and End here apply.
+
 ## 2026-11-10 — F-003 building
 - F-003 set to `building` (phase 4, wave 3); it stays `building` until the owner answers build questions 88–89 and the other Edit-sheet tiles and timeline tools join (F-004, F-009, F-013).
 - MOD-Timeline "Public surface": `mountTimeline(element, signals, deps)` — the words, pictures and edit actions come from MOD-App, since MOD-Timeline may import only MOD-Core, MOD-Project and MOD-Media.

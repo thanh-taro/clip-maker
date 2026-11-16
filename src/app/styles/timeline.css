@@ -408,6 +408,113 @@
     display: none;
   }
 
+  /* ── Trim handles (F-004; CMP-Timeline "trimming", style.md "Time, playhead and handles", D-039):
+     neutral `handle` end tabs with a `bg` grip mark, never mango, on the selected item only. ── */
+  .tk-clip[aria-pressed='true'] .tk-clip__label {
+    padding-inline: calc(var(--tk-size-handle) + var(--tk-space-1));
+  }
+
+  .tk-clip[aria-pressed='true'] .tk-clip__strip {
+    margin-inline: var(--tk-size-handle);
+    inline-size: calc(100% - 2 * var(--tk-size-handle));
+  }
+
+  .tk-aclip[aria-pressed='true'] .tk-aclip__chip {
+    margin-inline-start: calc(var(--tk-size-handle) + var(--tk-space-1));
+  }
+
+  .tk-trim {
+    position: absolute;
+    inset-block: 0;
+    z-index: 60;
+    inline-size: var(--tk-size-handle);
+    background: var(--tk-color-handle);
+    cursor: ew-resize;
+    touch-action: none;
+  }
+
+  /* The handles sit inside the item's ends. */
+  .tk-trim--start {
+    border-radius: var(--tk-radius-clip) 0 0 var(--tk-radius-clip);
+  }
+
+  .tk-trim--end {
+    border-radius: 0 var(--tk-radius-clip) var(--tk-radius-clip) 0;
+    transform: translateX(-100%);
+  }
+
+  .tk-trim::after {
+    content: '';
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: 50%;
+    inline-size: var(--tk-border-width-focus);
+    block-size: var(--tk-space-4);
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-bg);
+    transform: translate(-50%, -50%);
+  }
+
+  .tk-audio-lane .tk-trim::after {
+    block-size: var(--tk-space-3);
+  }
+
+  /* RULE-21 / CMP-Timeline "narrow / no sheet": a `size.handleHit` hit area on touch. */
+  @media (pointer: coarse) {
+    .tk-trim::before {
+      content: '';
+      position: absolute;
+      inset-inline: calc((var(--tk-size-handle) - var(--tk-size-handle-hit)) / 2);
+      inset-block: min(0px, calc((100% - var(--tk-size-handle-hit)) / 2));
+    }
+  }
+
+  /* RULE-14: the dashed snap line at the target a trimmed edge snapped to. */
+  .tk-snap {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: var(--tk-space-0-5);
+    z-index: 101;
+    border-inline-start: var(--tk-border-width-hairline) dashed var(--tk-color-fg);
+    pointer-events: none;
+  }
+
+  .tk-snap[hidden],
+  .tk-trim-readout[hidden] {
+    display: none;
+  }
+
+  /* F-004.R4: the resulting length and the end time while an edge is dragged. */
+  .tk-trim-readout {
+    position: absolute;
+    z-index: 103;
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-1-5);
+    block-size: var(--tk-space-6);
+    margin-inline-start: var(--tk-space-0-5);
+    padding-inline: var(--tk-space-2);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .tk-trim-readout__sep,
+  .tk-trim-readout__end {
+    color: var(--tk-color-muted);
+  }
+
+  .tk-lanes--trimming,
+  .tk-lanes--trimming .tk-clip,
+  .tk-lanes--trimming .tk-aclip {
+    cursor: ew-resize;
+  }
+
   /* Project-end marker: a dashed line with COPY-timeline.project_end in the ruler band. */
   .tk-end {
     position: absolute;
@@ -623,6 +730,11 @@
     color: var(--tk-color-danger);
   }
 
+  /* The arrange tiles start the second row (the first: Split, Start here, End here, Cross-fade F-009). */
+  .tk-sheet__grid > [data-action='move-earlier'] {
+    grid-column-start: 1;
+  }
+
   .tk-tile[aria-disabled='true'] {
     color: var(--tk-color-muted);
     cursor: default;
@@ -674,6 +786,12 @@
     .tk-playhead__head,
     .tk-track__drop {
       background: Highlight;
+    }
+    .tk-trim {
+      background: CanvasText;
+    }
+    .tk-snap {
+      border-color: CanvasText;
     }
   }
 }

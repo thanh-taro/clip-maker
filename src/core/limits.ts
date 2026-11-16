@@ -117,6 +117,9 @@ export const RULE_12 = /* @__PURE__ */ Object.freeze({
   limiterDbtp: -1,
 });
 
+/** Implements: RULE-14 timeline view: snapping within 8 screen pixels. */
+export const RULE_14 = /* @__PURE__ */ Object.freeze({ snapPx: 8 });
+
 /** Implements: RULE-15 video export choices (the bitrate tables live with F-015). */
 export const RULE_15 = /* @__PURE__ */ Object.freeze({
   resolutions: Object.freeze([480, 720, 1080, 1440, 2160] as const),

@@ -2,12 +2,16 @@
 // the region named COPY-timeline.label, its action toolbar on wide and compact layouts, and the lane
 // gutter; MOD-Timeline draws the ruler, playhead and main track imperatively inside (ADR-0002 §1).
 // Built with F-003: Delete, Duplicate, Move earlier and Move later (text-and-icon buttons, unavailable
-// with readable muted labels while nothing is selected). Split, Start here and End here (F-004), snapping
-// and zoom (F-013) join the toolbar with their features. On narrow layouts the actions live in the Edit
+// with readable muted labels while nothing is selected). Snapping
+// and zoom (F-013) join the toolbar with their feature. On narrow layouts the actions live in the Edit
 // sheet (./EditSheet.tsx) and the toolbar is hidden.
 // F-011: the audio lane's gutter icon and its items' names; with an audio clip selected the move actions
 // read Earlier and Later (COPY-action.time_earlier, COPY-action.time_later) and move it one frame in time
-// (CMP-Timeline "audio item"). Trimming and splitting audio clips wait for F-004's handles and Split.
+// (CMP-Timeline "audio item").
+// F-004: Split, Start here and End here lead the toolbar (CMP-Timeline "wide / default"), then a divider;
+// the view's trim handles drag through ./trim.ts with the readout COPY-timeline.length · COPY-timeline.ends_at.
+// Implements: F-004.R1–R4, F-004.R6 (visible controls that trim at the playhead), RULE-21 (trim drag →
+// start-here and end-here controls).
 // Implements: F-003.R1 (selection shown on the timeline), F-003.R6 (visible controls), F-003.AC5,
 // RULE-20 arrange keys (bound while the timeline is mounted), RULE-21 (move-earlier/later stand in for
 // hold-and-drag; time controls for audio clips), F-011.R2, F-011.R8.
@@ -16,6 +20,7 @@ import { formatDuration, t } from '../copy';
 import { registry } from '../media';
 import { isEmpty, playhead, project, selection } from '../project';
 import { mountTimeline, type TimelineView } from '../timeline';
+import { beginTrim, splitHere, trimAvailable, trimHere } from './trim';
 import { MUSIC_TRACKS } from '../core';
 import {
   arrangeAvailable,
@@ -44,6 +49,9 @@ function keepFocus(index: number): void {
 }
 
 type ArrangeLabel =
+  | 'action.split'
+  | 'action.set_in'
+  | 'action.set_out'
   | 'action.delete'
   | 'action.duplicate'
   | 'action.move_left'
@@ -52,7 +60,7 @@ type ArrangeLabel =
   | 'action.time_later';
 
 export interface ArrangeItem {
-  readonly id: 'delete' | 'duplicate' | 'move-earlier' | 'move-later';
+  readonly id: 'split' | 'set-in' | 'set-out' | 'delete' | 'duplicate' | 'move-earlier' | 'move-later';
   readonly label: ArrangeLabel;
   /** The label for the current selection (an audio clip's moves are Earlier and Later in time). */
   readonly labelNow?: () => ArrangeLabel;
@@ -60,6 +68,31 @@ export interface ArrangeItem {
   readonly run: () => boolean;
   readonly available: () => boolean;
 }
+
+/** F-004.R2/R6: Split, Start here and End here as visible controls (the toolbar here, the phone Edit sheet). */
+export const TRIM_ITEMS: readonly ArrangeItem[] = [
+  {
+    id: 'split',
+    label: 'action.split',
+    icon: 'split',
+    run: splitHere,
+    available: () => trimAvailable.value.split,
+  },
+  {
+    id: 'set-in',
+    label: 'action.set_in',
+    icon: 'setIn',
+    run: () => trimHere('start'),
+    available: () => trimAvailable.value.setIn,
+  },
+  {
+    id: 'set-out',
+    label: 'action.set_out',
+    icon: 'setOut',
+    run: () => trimHere('end'),
+    available: () => trimAvailable.value.setOut,
+  },
+];
 
 /** F-003.R6: the four arrange actions as visible controls (the toolbar here, the phone Edit sheet). */
 export const ARRANGE_ITEMS: readonly ArrangeItem[] = [
@@ -146,6 +179,11 @@ export function Timeline() {
         move: (id, to) => void moveClipTo(id, to),
         moveAudio: (id, start) => void moveAudioTo(id, start),
         scrubStart: pauseForScrub,
+        trim: beginTrim,
+        trimReadout: (length, end) => [
+          t('timeline.length', { length: formatDuration(length) }),
+          t('timeline.ends_at', { time: formatDuration(end) }),
+        ],
       },
     );
     onDeleted(keepFocus);
@@ -161,6 +199,10 @@ export function Timeline() {
   return (
     <section class="tk-timeline" aria-label={t('timeline.label')} data-unavailable={empty ? '' : undefined}>
       <div class="tk-tl-toolbar" role="toolbar" aria-label={t('timeline.label')}>
+        {TRIM_ITEMS.map((item) => (
+          <ToolbarButton key={item.id} item={item} />
+        ))}
+        <span class="tk-tl-toolbar__divider" aria-hidden="true" />
         {ARRANGE_ITEMS.slice(0, 2).map((item) => (
           <ToolbarButton key={item.id} item={item} />
         ))}

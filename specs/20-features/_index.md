@@ -5,7 +5,7 @@
 | F-001 | Add media | M-1 | P0 | building |
 | F-002 | Play and scrub the preview | M-1 | P0 | building |
 | F-003 | Arrange clips on the main track | M-1 | P0 | building |
-| F-004 | Trim and split clips | M-1 | P0 | ready |
+| F-004 | Trim and split clips | M-1 | P0 | building |
 | F-005 | Change clip speed | M-1 | P1 | ready |
 | F-006 | Place, rotate and flip clips | M-1 | P0 | ready |
 | F-007 | Adjust colour and light | M-1 | P0 | ready |
