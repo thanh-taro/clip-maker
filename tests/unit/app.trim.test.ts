@@ -4,7 +4,7 @@
 // in project.clips.test.ts.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { layoutOf, projectEnd, type Project } from '../../src/core';
-import { EMPTY_HISTORY, history, playhead, project, selection, undo } from '../../src/project';
+import { EMPTY_HISTORY, deleteItem, edit, history, playhead, project, selection, undo } from '../../src/project';
 import { runArrangeAction, selectClip } from '../../src/app/arrange';
 import { beginTrim, clipUnder, splitHere, splitTarget, trimAvailable, trimHere } from '../../src/app/trim';
 import { notices, resetNotices } from '../../src/app/notice-stack';
@@ -185,6 +185,21 @@ describe('F-004 trimming and splitting in the editor', () => {
     drag.end();
     expect(frames()).toEqual([300, 150]);
     expect(steps()).toBe(0);
+  });
+
+  it('Q96 an edit landing mid-trim is kept: the drag is cut and later moves of it do nothing', () => {
+    let cut = 0;
+    const drag = beginTrim('A', 'end', () => cut++);
+    drag.to(6 * S);
+    // A media batch or key lands meanwhile (here: the audio clip deleted).
+    edit((p) => deleteItem(p, 'M'));
+    expect(cut).toBe(1);
+    expect(drag.active).toBe(false);
+    drag.to(4 * S);
+    drag.end();
+    expect(frames()).toEqual([180, 150]);
+    expect(project.value.audioClips).toHaveLength(0);
+    expect(steps()).toBe(2);
   });
 
   it('F-004.AC2 a drag past the source end does not grow the clip and leaves no step', () => {

@@ -91,6 +91,26 @@ describe('F-014 undo and redo', () => {
     expect(project.value).toBe(before);
   });
 
+  it('MOD-Project Q96 an edit made outside a gesture that changes the project cuts every open gesture (onCut, not active)', () => {
+    load(proj({ clips: [video('A', 10), video('B', 5)] }));
+    let cuts = 0;
+    const g = beginGesture(() => cuts++);
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 10 }));
+    // An edit that changes nothing cuts nothing.
+    edit((p) => ({ project: p, notices: [], changed: [] }));
+    expect(g.active).toBe(true);
+    edit((p) => deleteItem(p, 'B'));
+    expect(cuts).toBe(1);
+    expect(g.active).toBe(false);
+    // Its next edit is a new step after the other edit, which stays.
+    g.edit((p) => setAdjustments(p, 'A', { brightness: 20 }));
+    g.end();
+    expect(project.value.clips.map((c) => c.id)).toEqual(['A']);
+    undo();
+    expect(project.value.clips.map((c) => c.id)).toEqual(['A']);
+    expect(project.value.clips[0]!.adjustments).toEqual({ brightness: 10 });
+  });
+
   it('F-014.AC5 undoing a delete selects the restored clip; undoing the add of the last clip limits the playhead to the end', () => {
     load(proj({ clips: [video('A', 10), video('B', 5)] }));
     edit((p) => deleteItem(p, 'B'));

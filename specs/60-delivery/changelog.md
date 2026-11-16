@@ -2,6 +2,11 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-16 — F-005 building
+- F-005 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 127–129 (the clip tabs and their keys, the phone Exact row, the speed slider’s movement rule).
+- MOD-Project "Public surface": a plain `edit(op)` that changes the project cuts every open gesture, as undo does (build question 96; F-005 review).
+- RULE-20 *Scope*: the inspector's clip tabs (a tab list) get Left, Right, Home and End (ARIA tabs pattern), so those keys don't step the preview while a tab has focus (build question 127).
+
 ## 2026-11-16 — F-004 building
 - F-004 set to `building` (phase 4, wave 4); it stays `building` until F-010's text lane gives text layers their trim handles and selection (build question 125) and the owner answers build questions 122–124.
 - CMP-Timeline "trimming": the readout's end time is COPY-timeline.ends_at (the copy exists; the "pending" note is removed).

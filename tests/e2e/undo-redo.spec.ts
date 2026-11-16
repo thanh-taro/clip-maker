@@ -4,7 +4,7 @@
 // operations and gesture API those features will use, and are marked below:
 //   AC1 — the look (F-008) and Add text with typing (F-010); the split is F-004's real Split control
 //         (re-run with it per build question 100);
-//   AC4 — the slider movement (F-007's adjustment sliders; F-005/F-006 sliders alike);
+//   AC4 — now the real Exact speed slider of F-005 (re-run per build question 100);
 //   AC6 — the text layer typed in CMP-TextEditor (F-010).
 // Undo and Redo themselves are always the toolbar buttons or the keys. Axe at 320 and 1280 px in en-US
 // and vi-VN.
@@ -190,22 +190,60 @@ test.describe('F-014 undo and redo (app harness)', () => {
     await unavailable(page, 'redo');
   });
 
-  test('F-014.AC4 a slider dragged through many values returns to before the drag in one undo (the slider is F-007; the movement via the harness)', async ({
+  test('F-014.AC4 Q104 a real slider drag through many values (F-005’s Exact speed) returns to before the drag in one undo; a drag back to where it began leaves no step', async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
     await open(page);
     await add(page, [video('A.mp4')]);
+    await clipButtons(page).first().click();
+    const slider = page
+      .getByRole('complementary', { name: text('en-US', 'inspector.label') })
+      .getByRole('slider', { name: text('en-US', 'speed.exact') });
+    await expect(slider).toHaveValue('100');
     const before = await state(page);
     const steps = (await summary(page)).steps;
-    await page.evaluate(() =>
-      (window as unknown as Harness).appHarness.slide(
-        0,
-        Array.from({ length: 60 }, (_, i) => i - 30),
-      ),
-    );
+    const box = (await slider.boundingBox())!;
+    const y = box.y + box.height / 2;
+    // Grab the thumb at 1× ((1 − 0.25) ÷ 3.75 = 20 % along; WebKit drags only from the thumb) and drag
+    // it right through many values, then release.
+    const thumbX = await slider.evaluate((el: HTMLInputElement) => {
+      const r = el.getBoundingClientRect();
+      const thumb = 16;
+      return r.left + thumb / 2 + ((Number(el.value) - 25) / 375) * (r.width - thumb);
+    });
+    await page.mouse.move(thumbX, y);
+    await page.mouse.down();
+    const seen = new Set<string>();
+    for (let k = 1; k <= 12; k++) {
+      await page.mouse.move(thumbX + k * box.width * 0.05, y);
+      seen.add(await slider.inputValue());
+    }
+    await page.mouse.up();
+    expect(seen.size).toBeGreaterThan(5);
+    expect(Number(await slider.inputValue())).toBeGreaterThan(200);
     expect((await summary(page)).steps).toBe(steps + 1);
     await undoButton(page).click();
     expect(await state(page)).toBe(before);
+    await expect(slider).toHaveValue('100');
+    // Q104: away and back to the starting value is no change: no step, and redo stays available.
+    await available(page, 'redo');
+    await page.mouse.move(thumbX, y);
+    await page.mouse.down();
+    for (let k = 1; k <= 6; k++) await page.mouse.move(thumbX + k * box.width * 0.05, y);
+    for (let k = 5; k >= 0; k--) await page.mouse.move(thumbX + k * box.width * 0.05, y);
+    // Engines map the pointer to a value a little differently (WebKit keeps the grab offset): nudge the
+    // held thumb a pixel at a time until it reads 1× again.
+    let x = thumbX;
+    for (let i = 0; i < 40 && (await slider.inputValue()) !== '100'; i++) {
+      x += Number(await slider.inputValue()) < 100 ? 1 : -1;
+      await page.mouse.move(x, y);
+    }
+    await page.mouse.up();
+    await expect(slider).toHaveValue('100');
+    expect((await summary(page)).steps).toBe(steps);
+    expect(await state(page)).toBe(before);
+    await available(page, 'redo');
   });
 
   test('F-014.AC5 undoing a delete selects the restored clip; undoing the add of the last clip moves a later playhead to the end', async ({

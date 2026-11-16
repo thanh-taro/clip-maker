@@ -597,23 +597,31 @@ async function encodedParts(frames: number, seconds: number) {
 /**
  * ADR-0008 §6 / build question 33: an export of a clip whose sound is decoded from its file (no PCM given):
  * the tone clip of tests/harness/sound.ts exported as it is, and the file read back (MOD-Audio's decoder,
- * or the WAV samples).
+ * or the WAV samples). F-005.AC2: `speedPct` plays the clip at that speed (RULE-06); the tone is then
+ * analysed at its project time (onset ÷ speed) and the decoded length is the source's ÷ speed.
  */
 async function runTone(
   settings: ExportSettings,
   spec: ToneSpec,
+  speedPct = 100,
 ): Promise<{
   result: ExportResult | { ok: false; error: string };
   tone: ToneReport | null;
   container: string | null;
   decodedSeconds: number;
+  /** The exported file's length (MP4: its longest track; WAV: its samples), seconds. */
+  fileSeconds: number;
+  /** RMS over the last 0.15–0.05 s of the decoded sound, dBFS (the tone lasts to the end). */
+  tailDb: number;
 }> {
   const file = await makeToneClip(spec);
   const coded = codedProject({ rate: 30, frames: Math.round(spec.seconds * 30), gop: 30 });
   const project: Project = {
     ...coded,
     sources: coded.sources.map((s) => ({ ...s, hasSound: true, duration: Math.round(spec.seconds * 1e6) })),
+    clips: coded.clips.map((c) => ({ ...c, speedPct })),
   };
+  const speed = speedPct / 100;
   workers ??= new ExportWorkers();
   let saved: Blob | null = null;
   const handle = await start(project, settings, {
@@ -633,10 +641,11 @@ async function runTone(
   const result = await handle.result;
   await handle.cleaned;
   const blob = saved as Blob | null;
-  if (!blob) return { result, tone: null, container: null, decodedSeconds: 0 };
+  if (!blob) return { result, tone: null, container: null, decodedSeconds: 0, fileSeconds: 0, tailDb: -Infinity };
   let L: Float32Array;
   let R: Float32Array;
   let container: string;
+  let fileSeconds: number;
   if (settings.kind === 'audio' && settings.format === 'wav') {
     const v = new DataView(await blob.arrayBuffer());
     const n = (v.byteLength - 44) / 4;
@@ -647,13 +656,18 @@ async function runTone(
       R[i] = v.getInt16(46 + i * 4, true) / 32768;
     }
     container = 'WAV';
+    fileSeconds = n / 48_000;
   } else {
     const input = await openInput(blob);
     container = input.format;
+    fileSeconds = input.duration;
     input.close();
-    [L, R] = await decodeWindow(blob, 0, spec.seconds);
+    [L, R] = await decodeWindow(blob, 0, spec.seconds / speed);
   }
-  return { result, tone: analyseTone(L, R, 0, spec), container, decodedSeconds: L.length / 48_000 };
+  const heard = analyseTone(L, R, 0, { ...spec, onset: spec.onset / speed });
+  const tail = L.subarray(Math.max(0, L.length - 7200), Math.max(0, L.length - 2400));
+  const tailDb = 10 * Math.log10(tail.reduce((a, x) => a + x * x, 0) / Math.max(1, tail.length));
+  return { result, tone: heard, container, decodedSeconds: L.length / 48_000, fileSeconds, tailDb };
 }
 
 /** F-011: the sound settings of runMix's one tone clip, and an optional bundled track over it. */

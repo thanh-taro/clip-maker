@@ -14,6 +14,8 @@
 // stops the preview. The Edit sheet's tiles act on a selected audio clip too (Earlier/Later in time).
 // F-004: the first row of tiles is Split, Start here and End here (Cross-fade joins it with F-009); the
 // arrange tiles start the second row.
+// F-005: with a video clip selected, the setting rows follow the tiles: Speed with its label on the left
+// and the six quick segments, then the Exact slider and field at touch size (the fine control, F-005.R1).
 // Implements: F-003.R6 (visible controls on touch), F-003.AC5, RULE-21 (move-earlier/later stand in for
 // hold-and-drag; start-here and end-here stand in for the trim drag; touch-size targets), F-004.R2/R6,
 // F-011.R1/R3/R4/R8 on narrow layouts, CMP-MusicPicker "narrow".
@@ -31,6 +33,8 @@ import { addMedia } from './MediaInput';
 import { MusicBody } from './MusicPicker';
 import { soundTarget, stopPreview } from './sound';
 import { SoundSection } from './SoundSection';
+import { speedTarget } from './speed';
+import { SpeedSection } from './SpeedSection';
 import { ARRANGE_ITEMS, TRIM_ITEMS } from './Timeline';
 
 type Sheet = 'edit' | 'audio';
@@ -199,6 +203,7 @@ export function EditSheet() {
             );
           })}
         </div>
+        {speedTarget.value ? <SpeedSection id="tk-sheet-speed" touch /> : null}
       </div>
     </section>
   );

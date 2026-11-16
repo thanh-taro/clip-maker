@@ -406,6 +406,19 @@ describe('F-005 speed (domain)', () => {
     expect(r.project.clips[0]!.crossFadeNext).toBe(S);
   });
 
+  it('F-005 edge case RULE-10 a faster clip’s fade in and fade out shrink in proportion to fit its new length', () => {
+    const p = proj({ clips: [video('A', 4, { fadeIn: 3 * S, fadeOut: S })] });
+    const r = setSpeed(p, 'A', 400);
+    // 1 s = 30 frames; the fades (90 + 30 frames) shrink 3 : 1 to 22 + 7 frames.
+    expect(r.project.clips[0]).toMatchObject({ fadeIn: Math.floor((22 * S) / 30), fadeOut: Math.floor((7 * S) / 30) });
+  });
+
+  it('F-005 edge case RULE-10 a cross-fade into a faster clip shrinks to half of it as well', () => {
+    const p = proj({ clips: [video('A', 10, { crossFadeNext: 2 * S }), video('B', 4)] });
+    const r = setSpeed(p, 'B', 400);
+    expect(r.project.clips[0]!.crossFadeNext).toBe(0.5 * S);
+  });
+
   it('RULE-10 cross-fades cannot be shortened past the limit either', () => {
     const p = proj({ clips: [video('A', 300, { crossFadeNext: S }), video('B', 300.8)] });
     expect(setCrossFade(p, 'A', 5).notices).toEqual(['notice.length_full']);
