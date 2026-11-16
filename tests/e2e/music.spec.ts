@@ -256,6 +256,128 @@ test.describe('F-011 music picker and audio track (app harness)', () => {
     await expect(first).toHaveAttribute('aria-pressed', 'true');
   });
 
+  test('F-011.R2 RULE-21 on touch an audio clip moves after a 0.4 s hold and drag; a quick swipe does not move it', async ({
+    browser,
+    browserName,
+    page: plain,
+  }) => {
+    const before: [number, number][] = [
+      [0, 5],
+      [8, 12],
+    ];
+    const after = [
+      [3, 8],
+      [8, 12],
+    ];
+    if (browserName === 'chromium') {
+      // Real touch input (CDP Input.dispatchTouchEvent) on a touch page, as in arrange-clips.spec.ts: the
+      // browser's own pan and pointercancel behaviour applies, as on a phone.
+      const context = await browser.newContext({ hasTouch: true, viewport: { width: 1000, height: 700 } });
+      const page = await context.newPage();
+      await open(page);
+      await photoProject(page, 30);
+      await audioTrack(page, before);
+      const first = audioItem(page, 0);
+      await settled(first);
+      const cdp = await context.newCDPSession(page);
+      const touch = async (seconds: number, holdMs: number) => {
+        const b = (await first.boundingBox())!;
+        const pxPerS = b.width / 5;
+        const x = b.x + 10;
+        const y = b.y + b.height / 2;
+        const toX = x + seconds * pxPerS;
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
+        await page.waitForTimeout(holdMs);
+        for (let i = 1; i <= 8; i++) {
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [{ x: x + ((toX - x) * i) / 8, y, id: 1 }],
+          });
+          await page.waitForTimeout(16);
+        }
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      };
+      await touch(6, 0);
+      await page.waitForTimeout(100);
+      expect(await spans(page)).toEqual(before);
+      await settled(first);
+      await touch(6, 500);
+      await expect.poll(() => spans(page)).toEqual(after);
+      await context.close();
+      return;
+    }
+    // WebKit: Playwright has no touch input for desktop WebKit, so the pointer events are synthetic here
+    // (the hold timing and the move logic; the browser's pan is covered on Chromium above).
+    const page = plain;
+    await open(page);
+    await photoProject(page, 30);
+    await audioTrack(page, before);
+    const first = audioItem(page, 0);
+    await settled(first);
+    const touch = async (seconds: number, holdMs: number) => {
+      const b = (await first.boundingBox())!;
+      await page.evaluate(
+        async ({ x, y, toX, holdMs }) => {
+          const target = document.elementFromPoint(x, y) ?? document.body;
+          const fire = (el: EventTarget, type: string, cx: number) =>
+            el.dispatchEvent(
+              new PointerEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                pointerId: 7,
+                pointerType: 'touch',
+                clientX: cx,
+                clientY: y,
+                isPrimary: true,
+                button: 0,
+                buttons: type === 'pointerup' ? 0 : 1,
+              }),
+            );
+          fire(target, 'pointerdown', x);
+          await new Promise((r) => setTimeout(r, holdMs));
+          for (let i = 1; i <= 6; i++) fire(target, 'pointermove', x + ((toX - x) * i) / 6);
+          fire(target, 'pointerup', toX);
+        },
+        { x: b.x + 10, y: b.y + b.height / 2, toX: b.x + 10 + (6 * b.width) / 5, holdMs },
+      );
+    };
+    await touch(6, 0);
+    expect(await spans(page)).toEqual(before);
+    await touch(6, 500);
+    await expect.poll(() => spans(page)).toEqual(after);
+  });
+
+  test('F-011.R2 an audio clip drag released outside the lane leaves no ghost drag', async ({ page }) => {
+    await open(page);
+    await photoProject(page, 30);
+    await audioTrack(page, [
+      [0, 5],
+      [8, 12],
+    ]);
+    const first = audioItem(page, 0);
+    await settled(first);
+    const dragging = timeline(page).locator('.tk-clip--dragging');
+    const box = (await first.boundingBox())!;
+    const pxPerS = box.width / 5;
+    const y = box.y + box.height / 2;
+    // Released over the preview, far above the lane.
+    await page.mouse.move(box.x + 10, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 10 + pxPerS, y, { steps: 4 });
+    await expect(dragging).toHaveCount(1);
+    await page.mouse.move(box.x + 10 + pxPerS, 100, { steps: 4 });
+    await page.mouse.up();
+    await expect(dragging).toHaveCount(0);
+    const placed = await spans(page);
+    const steps = (await summary(page)).steps;
+    // Moving over the lane afterwards with no button down drags nothing and moves nothing.
+    await page.mouse.move(box.x + 10, y, { steps: 2 });
+    await page.mouse.move(box.x + 10 + 6 * pxPerS, y, { steps: 8 });
+    await expect(dragging).toHaveCount(0);
+    expect(await spans(page)).toEqual(placed);
+    expect((await summary(page)).steps).toBe(steps);
+  });
+
   test('F-011.AC9 moving the 0–5 s clip to 10 s when 5–30 s is taken in a 30 s project changes nothing and makes no undo step', async ({
     page,
   }) => {
@@ -373,7 +495,7 @@ test.describe('F-011 sound section (app harness)', () => {
     await expect(inspector(page).getByRole('button', { name: text('en-US', 'action.mute_all') })).toBeVisible();
   });
 
-  test('F-011.R3 RULE-12 volume is set by the field (clamped to 0–200 %) and the slider; M toggles mute; a field change is one step', async ({
+  test('F-011.R3 RULE-12 volume is set by the field (clamped to 0–200 %) and the slider; M toggles mute; a field change and a whole slider drag are one step each', async ({
     page,
   }) => {
     await open(page);
@@ -383,11 +505,29 @@ test.describe('F-011 sound section (app harness)', () => {
       .click();
     const field = inspector(page).getByRole('spinbutton', { name: text('en-US', 'sound.volume') });
     const slider = inspector(page).getByRole('slider', { name: text('en-US', 'sound.volume') });
+    let steps = (await summary(page)).steps;
     await field.fill('250');
     await field.press('Enter');
     await expect(field).toHaveValue('200');
     await expect(slider).toHaveValue('200');
     expect((await stateOf(page)).clips[0]!.volume).toBe(200);
+    expect((await summary(page)).steps).toBe(steps + 1);
+    // A real pointer drag across the slider changes the volume many times: one step for the whole drag.
+    steps = (await summary(page)).steps;
+    const box = (await slider.boundingBox())!;
+    const y = box.y + box.height / 2;
+    // Grab the thumb (at 200 %, the right end: WebKit drags only from the thumb) and drag it left.
+    await page.mouse.move(box.x + box.width - 4, y);
+    await page.mouse.down();
+    for (let k = 1; k <= 8; k++) await page.mouse.move(box.x + box.width - 4 - k * box.width * 0.08, y);
+    await page.mouse.up();
+    const dragged = (await stateOf(page)).clips[0]!.volume!;
+    expect(dragged).toBeLessThan(150);
+    expect(dragged).toBeGreaterThan(40);
+    await expect(field).toHaveValue(String(dragged));
+    expect((await summary(page)).steps).toBe(steps + 1);
+    await field.fill('200');
+    await field.press('Enter');
     await slider.focus();
     await page.keyboard.press('ArrowLeft');
     expect((await stateOf(page)).clips[0]!.volume).toBe(199);
@@ -399,6 +539,66 @@ test.describe('F-011 sound section (app harness)', () => {
     await page.keyboard.press('m');
     await expect(mute).toHaveAttribute('aria-pressed', 'true');
     expect((await stateOf(page)).clips[0]).toMatchObject({ muted: true, volume: 199 });
+  });
+
+  test('F-011.R3 CMP-Inspector clearing the volume field, or typing what is not a number, makes no edit and shows the volume again', async ({
+    page,
+  }) => {
+    await open(page);
+    await threeClips(page);
+    await timeline(page)
+      .getByRole('button', { name: /^A\.mp4 / })
+      .click();
+    const field = inspector(page).getByRole('spinbutton', { name: text('en-US', 'sound.volume') });
+    await field.fill('80');
+    await field.press('Enter');
+    const steps = (await summary(page)).steps;
+    await field.fill('');
+    await field.press('Enter');
+    await expect(field).toHaveValue('80');
+    await field.fill('');
+    await field.blur();
+    await expect(field).toHaveValue('80');
+    expect((await stateOf(page)).clips[0]!.volume).toBe(80);
+    expect((await summary(page)).steps).toBe(steps);
+  });
+
+  test('F-011.R3 CMP-Inspector a slider drag released outside the slider (or the window) ends its step: the next change is a step of its own', async ({
+    page,
+  }) => {
+    await open(page);
+    await threeClips(page);
+    await timeline(page)
+      .getByRole('button', { name: /^A\.mp4 / })
+      .click();
+    const slider = inspector(page).getByRole('slider', { name: text('en-US', 'sound.volume') });
+    const steps = (await summary(page)).steps;
+    // The press reaches the slider; the release reaches only the window (released outside, as when the
+    // pointer leaves the page): synthetic events, so the slider itself never hears the release.
+    await slider.evaluate((el: HTMLInputElement) => {
+      const init = { bubbles: true, pointerId: 9, pointerType: 'mouse', isPrimary: true, button: 0, buttons: 1 };
+      el.dispatchEvent(new PointerEvent('pointerdown', init));
+      el.value = '60';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      window.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0 }));
+    });
+    expect((await stateOf(page)).clips[0]!.volume).toBe(60);
+    expect((await summary(page)).steps).toBe(steps + 1);
+    await slider.focus();
+    await page.keyboard.press('ArrowRight');
+    expect((await stateOf(page)).clips[0]!.volume).toBe(61);
+    expect((await summary(page)).steps).toBe(steps + 2);
+    // Leaving the slider (blur) also ends a gesture the release never reached.
+    await slider.evaluate((el: HTMLInputElement) => {
+      el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 10, pointerType: 'mouse' }));
+      el.value = '70';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.keyboard.press('Tab');
+    await slider.focus();
+    await page.keyboard.press('ArrowRight');
+    expect((await stateOf(page)).clips[0]!.volume).toBe(71);
+    expect((await summary(page)).steps).toBe(steps + 4);
   });
 
   test('F-011.AC3 F-011.AC10 (preview) 50 % plays the clip 6.0 dB ± 0.5 dB quieter; muted it is silent; unmuted it is back at 50 %', async ({
@@ -565,18 +765,18 @@ test.describe('F-011 export (media harness, real export workers)', () => {
   const mix = (page: Page, m: { volume?: number; muted?: boolean; music?: { id: string; volume: number } }, t = tone) =>
     page.evaluate(([s, sp, mm, w]) => window.harness.export.runMix(s, sp, mm, w), [settings, t, m, span] as const);
 
-  test('F-011.AC3 F-011.AC10 (export) 50 % is 6.0 dB ± 0.5 dB quieter in the decoded export; muted it is silent; unmuted at 50 % it is back', async ({
+  // Unmuting restores the previous volume in the project itself (the preview test above and MOD-Project's
+  // unit tests); the export renders whatever project it is given, so only 50 % and muted are exported here.
+  test('F-011.AC3 F-011.AC10 (export) 50 % is 6.0 dB ± 0.5 dB quieter in the decoded export; muted at 50 % it is silent', async ({
     page,
   }) => {
     test.setTimeout(240_000);
     const full = await mix(page, {});
     const half = await mix(page, { volume: 50 });
     const muted = await mix(page, { volume: 50, muted: true });
-    const back = await mix(page, { volume: 50, muted: false });
-    for (const r of [full, half, muted, back]) expect(r.ok).toBe(true);
+    for (const r of [full, half, muted]) expect(r.ok).toBe(true);
     expect(Math.abs(full.rmsDb - half.rmsDb - 6.0)).toBeLessThanOrEqual(0.5);
     expect(muted.rmsDb).toBeLessThan(-80);
-    expect(Math.abs(back.rmsDb - half.rmsDb)).toBeLessThan(0.1);
   });
 
   test('F-011.AC5 F-011.R5 Q87 (export) bundled music at 200 % over loud video sound: the decoded export’s true peak is ≤ −1 dBTP', async ({

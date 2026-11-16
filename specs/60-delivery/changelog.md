@@ -100,6 +100,7 @@ Owner decisions on `.build-my-app/reports/build-spec-questions.md` items 1–7, 
 - RULE-20 *Scope*: a focused option group (radio group, e.g. CMP-Inspector's aspect, rate and background) gets the arrow keys, which move its choice, so they never also step the preview (ARIA radio pattern; build question 107).
 
 ## 2026-11-16 — F-011 add music and set sound
-- MOD-Assets public surface: `musicTracks()` is the compiled-in catalogue; `musicBlob(id)` / `musicBytes(id)` read a track's packaged file from its compiled-in own-origin path only (build question 113).
+- MOD-Assets public surface: `musicTracks()` is the compiled-in catalogue; `musicBlob(id)` / `musicBytes(id)` give a track's packaged file (when it is read: build question 113, open).
+- copy.md: COPY-notice.music_unavailable (en-US, vi-VN), shown when a bundled track's file could not be read (build question 120).
 - MOD-Audio public surface: the audition is `audition(trackId, length)` plus `auditionStop(t)`; the project's plan is kept meanwhile (ADR-0008 §7).
 - dependencies.md: DEP-41 … DEP-43, three generated placeholder music tracks (not for release; `check:licenses --release` fails on them), and DEP-14's status (build question 114).

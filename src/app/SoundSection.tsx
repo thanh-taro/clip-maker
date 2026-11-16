@@ -10,7 +10,7 @@
 // sound as one step, then Unmute), F-011.R8 (Earlier/Later without dragging), CMP-Inspector "Behavior"
 // (slider drags update live and are one undo step; fields clamp to the rule's range) and "Accessibility"
 // (the slider and its field share the label; the toggle exposes a pressed state).
-import { useRef } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import { t } from '../copy';
 import { RULE_12 } from '../core';
 import { arrangeAvailable, moveSelected } from './arrange';
@@ -20,13 +20,22 @@ import { originalMuted, setMute, setVolumeOnce, soundTarget, toggleMuteAll, volu
 export function SoundSection({ id, touch = false }: { readonly id: string; readonly touch?: boolean }) {
   const target = soundTarget.value;
   const gesture = useRef<ReturnType<typeof volumeGesture> | null>(null);
+  /**
+   * Ends the slider gesture (one undo step). Also bound to the window's pointerup and pointercancel while
+   * a gesture is open, so a release outside the slider ends it too. Stable, so the listener can be removed.
+   */
+  const endGesture = useRef((): void => {
+    removeEventListener('pointerup', endGesture.current);
+    removeEventListener('pointercancel', endGesture.current);
+    gesture.current?.end();
+    gesture.current = null;
+  });
+  // Leaving the section (deselecting, closing the sheet) ends an open gesture.
+  useEffect(() => () => endGesture.current(), []);
   if (!target) return null;
   const labelId = `${id}-volume-label`;
   const allMuted = target.kind === 'video' && originalMuted.value;
-  const endGesture = (): void => {
-    gesture.current?.end();
-    gesture.current = null;
-  };
+  const end = endGesture.current;
   const available = arrangeAvailable.value;
   return (
     <div
@@ -61,9 +70,12 @@ export function SoundSection({ id, touch = false }: { readonly id: string; reado
             aria-labelledby={labelId}
             aria-valuetext={`${target.volume} %`}
             data-control="volume-slider"
-
             onPointerDown={() => {
-              endGesture();
+              end();
+              // A release anywhere (outside the slider or the page) ends the gesture. No pointer capture:
+              // in WebKit a captured range input no longer drags its thumb.
+              addEventListener('pointerup', end);
+              addEventListener('pointercancel', end);
               // Undo or redo mid-drag: the gesture starts a new step by itself (F-014); the slider is controlled.
               gesture.current = volumeGesture(target.id, () => undefined);
             }}
@@ -72,9 +84,10 @@ export function SoundSection({ id, touch = false }: { readonly id: string; reado
               if (gesture.current) gesture.current.set(v);
               else setVolumeOnce(target.id, v);
             }}
-            onPointerUp={endGesture}
-            onPointerCancel={endGesture}
-            onChange={endGesture}
+            onPointerUp={end}
+            onPointerCancel={end}
+            onBlur={end}
+            onChange={end}
           />
           <span class="tk-sound__centre" aria-hidden="true" />
         </span>
@@ -91,6 +104,12 @@ export function SoundSection({ id, touch = false }: { readonly id: string; reado
             data-control="volume-field"
             onChange={(e) => {
               const el = e.currentTarget;
+              // An emptied field or one the browser can't read as a number makes no edit: the shown
+              // volume comes back (CMP-Inspector "Behavior": fields clamp to the rule's range).
+              if (el.value.trim() === '' || el.validity.badInput) {
+                el.value = String(soundTarget.peek()?.volume ?? target.volume);
+                return;
+              }
               setVolumeOnce(target.id, Number(el.value));
               // A typed value out of range shows the clamped one (RULE-12).
               el.value = String(soundTarget.peek()?.volume ?? target.volume);

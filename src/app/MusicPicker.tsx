@@ -1,7 +1,7 @@
 // MOD-App — CMP-MusicPicker (specs/30-experience/components/CMP-MusicPicker.md; board CMP-MusicPicker):
 // browse and preview the bundled music, then add a track at the playhead. Wide and compact layouts: a
 // popover (`size.popover`) anchored to the toolbar's Music; narrow layouts: the Audio tab's sheet (D-038)
-// renders the same body (./AudioSheet.tsx). The picker is a dialog named COPY-music.title; the tracks
+// renders the same body (`AudioSheet` in ./EditSheet.tsx). The picker is a dialog named COPY-music.title; the tracks
 // form a list; each row has its Play preview toggle (pressed while it plays; its name includes the title),
 // the title, the length in m:ss, source and licence, and Add at playhead. Only one preview plays at a
 // time; closing the picker stops it. Esc closes and returns focus to Music.

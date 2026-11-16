@@ -69,10 +69,15 @@ export function closePicker(): void {
  * CMP-MusicPicker "row / no audio room": the tracks that can't be placed at the playhead now (RULE-12:
  * less than 0.1 s free from the start point, or the playhead at or past the project end).
  */
+let lastNoRoom: ReadonlySet<string> = new Set();
 export const noRoom = computed<ReadonlySet<string>>(() => {
   const p = project.value;
   const at = playhead.value;
-  return new Set(tracks.filter((t) => addMusic(p, t.id, at, () => 'probe', tracks).project === p).map((t) => t.id));
+  const next = tracks.filter((t) => addMusic(p, t.id, at, () => 'probe', tracks).project === p).map((t) => t.id);
+  // The playhead moves every frame while playing: the same set is returned so the picker does not re-render.
+  if (next.length === lastNoRoom.size && next.every((id) => lastNoRoom.has(id))) return lastNoRoom;
+  lastNoRoom = new Set(next);
+  return lastNoRoom;
 });
 
 /**

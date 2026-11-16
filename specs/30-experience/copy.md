@@ -153,6 +153,7 @@ Rules for every string:
 | **COPY-notice.split_too_close** | Move the playhead further from the clip's edge to split. | Hãy dời vị trí phát xa mép clip hơn để tách. | |
 | **COPY-notice.text_limit** | You've reached 50 text layers. | Đã đạt tối đa 50 lớp chữ. | |
 | **COPY-notice.no_audio_room** | No free room on the audio track here. | Không còn chỗ trống trên rãnh âm thanh tại đây. | |
+| **COPY-notice.music_unavailable** | This track couldn't be loaded. Try again. | Không tải được bản nhạc này. Hãy thử lại. | F-011: a bundled track's file could not be read (build question 120) |
 | **COPY-notice.speed_limited** | Speed stopped here so the clip stays at least 0.1 s long. | Tốc độ dừng ở đây để clip dài ít nhất 0,1 giây. | |
 | **COPY-notice.crossfade_too_short** | These clips are too short for a cross-fade. | Các clip này quá ngắn để chuyển mờ. | |
 | **COPY-notice.no_sound_to_export** | This project has no sound to export. | Dự án không có âm thanh để xuất. | |

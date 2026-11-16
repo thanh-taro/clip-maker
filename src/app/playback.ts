@@ -8,7 +8,7 @@
 // a touch scroll, undo/redo per RULE-13) seeks the preview there, latest wins (F-002.R3). On touch, a
 // scroll that scrubs pauses playback first (RULE-14): call `pauseForScrub()` when it starts.
 // Implements: F-002.R1–R5 (wiring), F-002.R7 (full screen state), RULE-20 Playback, F-023.AC7.
-import { effect, signal, type ReadonlySignal, type Signal } from '@preact/signals';
+import { computed, effect, signal, untracked, type ReadonlySignal, type Signal } from '@preact/signals';
 import { Playback, WORKLET_URL, type ToAudioWorker } from '../audio';
 import type { EngineMedia, FrameRate, Micros, Project, Source, ToEngine } from '../core';
 import { resolveKey, scopeOf, type Action, type FocusInfo } from '../keys';
@@ -16,8 +16,10 @@ import { musicBlob } from '../assets';
 import { registry } from '../media';
 import { fullscreen, mountPreview, type Fullscreen, type PreviewController } from '../preview';
 import { playhead, project } from '../project';
+import { t } from '../copy';
 import { watchSlow } from './device';
 import { dragging } from './MediaInput';
+import { showNotice } from './notice-stack';
 import { workers } from './workers';
 
 /** The mounted preview of the session (null until the workers run, and on SCR-Unsupported). */
@@ -113,6 +115,10 @@ export interface WorkerFeed {
   readonly music?: (trackId: string) => Promise<Blob>;
   /** The bundled track the music picker is auditioning (its file must reach the engine too). */
   readonly audition?: ReadonlySignal<string | null>;
+  /** A bundled track's file could not be read (F-011.R7); it is read again on the next `retry` change. */
+  readonly onMusicFailed?: (trackId: string) => void;
+  /** Each change reads again the files still wanted and not sent (Play: a failed track read retries). */
+  readonly retry?: ReadonlySignal<unknown>;
 }
 
 /**
@@ -146,16 +152,23 @@ export function feedWorkers(feed: WorkerFeed): () => void {
   const post = (add: EngineMedia[], remove: string[]): void => {
     if (live && (add.length || remove.length)) feed.engine.postMessage({ type: 'engine:mediaChanges', add, remove });
   };
+  type Item = { id: string; music: boolean; get: () => Promise<EngineMedia | null> };
+  /** The items of the latest project (what `retry` looks up again). */
+  let items: readonly Item[] = [];
   /** Looks up `items` once each and sends those still wanted. */
-  const lookUp = (items: readonly { id: string; get: () => Promise<EngineMedia | null> }[]): void => {
-    const fresh = items.filter((x) => !sent.has(x.id) && !looking.has(x.id));
+  const lookUp = (list: readonly Item[]): void => {
+    const fresh = list.filter((x) => !sent.has(x.id) && !looking.has(x.id));
     if (!fresh.length) return;
     for (const x of fresh) looking.add(x.id);
     // Each item travels when it is ready: a slow source never holds back a track the picker auditions.
     for (const x of fresh)
       void x
         .get()
-        .catch(() => null)
+        .catch(() => {
+          // A failed track read is reported (F-011.R7); the next `retry` reads it again.
+          if (x.music && live && wanted.has(x.id)) feed.onMusicFailed?.(x.id);
+          return null;
+        })
         .then((m) => {
           looking.delete(x.id);
           if (m === null || !wanted.has(m.id) || sent.has(m.id)) return;
@@ -173,20 +186,41 @@ export function feedWorkers(feed: WorkerFeed): () => void {
     for (const id of removed) sent.delete(id);
     post([], removed);
     const read = feed.music;
-    lookUp([
-      ...p.sources.map((s) => ({ id: s.id, get: () => feed.media(s) })),
+    items = [
+      ...p.sources.map((s) => ({ id: s.id, music: false, get: () => feed.media(s) })),
       ...(read
         ? music.map((id) => ({
             id,
+            music: true,
             get: async (): Promise<EngineMedia> => ({ id, kind: 'audio', file: await read(id) }),
           }))
         : []),
-    ]);
+    ];
+    lookUp(items);
+  });
+  // Implements: F-011.R5 — music whose read failed is read again on Play (the items not yet sent).
+  const again = effect(() => {
+    void feed.retry?.value;
+    untracked(() => lookUp(items));
   });
   return () => {
     live = false;
     stop();
+    again();
   };
+}
+
+/**
+ * A bundled track's file could not be read (F-011.R7): an audition of it stops (the picker shows it
+ * stopped) and COPY-notice.music_unavailable shows; a project's track is read again on Play (build
+ * question 120).
+ */
+export function musicFailed(trackId: string): void {
+  if (auditionTrack.peek() === trackId) {
+    playback.peek()?.clock.stopAudition();
+    auditionTrack.value = null;
+  }
+  showNotice({ kind: 'warning', tag: 'music_unavailable', text: () => t('notice.music_unavailable') });
 }
 
 /** The registry's file or bitmap for a source (pictures freed by ADR-0009 §7 are rebuilt first). */
@@ -216,7 +250,16 @@ export function mountPlayback(frame: HTMLElement, stage: HTMLElement): () => voi
   const fs = fullscreen(stage);
   const stops = [
     connectPreview(ctl, { playhead }),
-    feedWorkers({ project, engine, audio, media: registryMedia, music: musicBlob, audition: auditionTrack }),
+    feedWorkers({
+      project,
+      engine,
+      audio,
+      media: registryMedia,
+      music: musicBlob,
+      audition: auditionTrack,
+      onMusicFailed: musicFailed,
+      retry: computed(() => ctl.state.value === 'playing'),
+    }),
   ];
   clock.onAuditionEnded = () => (auditionTrack.value = null);
   playback.value = { ctl, fs, clock };

@@ -4,8 +4,9 @@
 // row or carries a license outside the shipped allow-list (plus the scoped MPL-2.0 exception for
 // `mediabunny`, ADR-0005). Font files must trace to a registered font asset package and be a latin or
 // vietnamese subset (ADR-0012); bundled music files (.m4a) must trace to the checked music pack and a
-// registered track row (DEP-14, ADR-0013, F-011); unknown binary file types fail. Copied from the sibling
-// image-annotator.
+// registered track row (DEP-14, ADR-0013, F-011), and with `--release` (or LICENCE_RELEASE=1; `pnpm
+// check:release`) a placeholder track (`"placeholder": true`) fails; unknown binary file types fail.
+// Copied from the sibling image-annotator.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,8 +50,11 @@ const FONT_LICENSES = new Set(['OFL-1.1']);
 /** ADR-0005: the one shipped exception, by exact package name. */
 const SHIPPED_EXCEPTIONS = { mediabunny: 'MPL-2.0' };
 
-/** @returns {{ shipped: Map<string,string>, problems: string[] }} */
-export function scanDist(distDir, registry) {
+/**
+ * @param {{ release?: boolean }} [options] release: a shipped placeholder music track fails (F-011, DEP-14)
+ * @returns {{ shipped: Map<string,string>, problems: string[] }}
+ */
+export function scanDist(distDir, registry, { release = false } = {}) {
   const problems = [];
   const files = walk(distDir);
   const registered = new Map(registry.flatMap((r) => r.names.map((n) => [n, r])));
@@ -115,6 +119,8 @@ export function scanDist(distDir, registry) {
       const base = path.basename(f);
       const track = musicTracks.find((t) => MUSIC_FILE.exec(base)?.[1] === t.file.replace(/\.m4a$/, ''));
       if (!track) problems.push(`music file ships outside the checked music pack (DEP-14): ${f}`);
+      else if (release && track.placeholder)
+        problems.push(`placeholder music track ${track.file} ships in a release (DEP-14, build question 114): ${f}`);
       else if (!registry.some((r) => isActive(r) && /asset/i.test(r.kind) && r.label.includes(track.file)))
         problems.push(`music track ${track.file} ships without its registry row (DEP-14, ADR-0013 §4): ${f}`);
     } else if (ext && !KNOWN_EXT.has(ext)) {
@@ -132,7 +138,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.error('✗ dist/ missing: run `pnpm build` first');
     process.exit(1);
   }
-  const { shipped, problems } = scanDist(dist, readRegistry().filter(isActive));
+  const release = process.argv.includes('--release') || process.env.LICENCE_RELEASE === '1';
+  const { shipped, problems } = scanDist(dist, readRegistry().filter(isActive), { release });
   const list = [...shipped].map(([n, v]) => `${n}@${v}`).sort();
   console.log(`dist: ${shipped.size} third-party packages ship — ${list.length ? list.join(', ') : '(none)'}`);
   if (problems.length) {

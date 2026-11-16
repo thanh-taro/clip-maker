@@ -2,11 +2,13 @@
 // F-020.R4, MOD-Build). Copied from the sibling image-annotator. Lists every shipped (runtime/asset)
 // registry entry that is installed, with its licence text; MPL-2.0 packages (the ADR-0005 exception)
 // also get a link to the exact source of the shipped version. CC-BY build data gets an attribution.
-// Music tracks (DEP-14 rows) join once they are registered (ADR-0013).
+// Bundled music (ADR-0013 §4): one entry per track of the checked pack, with its title, source, licence,
+// registry row and checksum; the in-tool view lists the same tracks from MUSIC_TRACKS (MOD-Core).
 import fs from 'node:fs';
 import path from 'node:path';
 import { abs, emit, GENERATED_HEADER } from './lib/util.mjs';
 import { findInstalled, isActive, isShipped, readRegistry, REGISTRY } from './lib/registry.mjs';
+import { musicPack } from './gen-music-manifest.mjs';
 
 const OUT = abs('public/third-party-notices.txt');
 /** The in-tool notices view's rows (F-020.R4): bundled into the page, so opening it makes no request. */
@@ -101,6 +103,18 @@ export function genNotices({ check }) {
       const version = dir ? JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).version : r.range;
       return `${name ?? r.label} ${version} (${r.id}) — ${r.license}. Used at build time only; not shipped.`;
     });
+  // ADR-0013 §4 / F-020.R4: every bundled track, with the registry row the licence audit keeps for it.
+  const music = musicPack().tracks.map((t) => {
+    const row = rows.find((r) => /asset/i.test(r.kind) && r.label.includes(t.file));
+    return [
+      `${t.title} — ${t.file}${row ? ` (${row.id})` : ''}`,
+      `Source: ${t.source}`,
+      `Licence: ${t.licence}`,
+      t.sha256 ? `SHA-256: ${t.sha256}` : null,
+    ]
+      .filter((l) => l !== null)
+      .join('\n');
+  });
   const rule = '='.repeat(72);
   const out = [
     'Clip Maker — third-party notices',
@@ -109,7 +123,8 @@ export function genNotices({ check }) {
     'This tool ships the following third-party code and assets.',
     ...sections.flatMap((s) => [rule, s]),
     rule,
-    'Bundled music: none yet (ADR-0013; each track is listed here with its title, source and licence).',
+    music.length ? 'Bundled music (ADR-0013):' : 'Bundled music: none.',
+    ...music.flatMap((m) => ['', m]),
     rule,
     'Attributions (build-time data):',
     ...(attributions.length ? attributions.map((a) => `- ${a}`) : ['- none']),

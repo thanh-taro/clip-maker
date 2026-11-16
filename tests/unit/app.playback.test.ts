@@ -4,7 +4,16 @@
 // session notice (F-023.AC7, build question 62).
 import { computed, signal, type ReadonlySignal } from '@preact/signals';
 import { afterEach, describe, expect, it } from 'vitest';
-import { connectPreview, feedWorkers, musicIds, overlayOpen, runAction } from '../../src/app/playback';
+import {
+  auditionTrack,
+  connectPreview,
+  feedWorkers,
+  musicFailed,
+  musicIds,
+  overlayOpen,
+  runAction,
+} from '../../src/app/playback';
+import { notices, resetNotices } from '../../src/app/notice-stack';
 import { dragging } from '../../src/app/MediaInput';
 import { resetDeviceSession, slowNotice } from '../../src/app/device';
 import type { ToAudioWorker } from '../../src/audio';
@@ -245,6 +254,56 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
     expect(changes(engine).at(-1)).toEqual({ type: 'engine:mediaChanges', add: [], remove: ['placeholder-chords'] });
     expect(read).toEqual([track, 'placeholder-chords']);
     stop();
+  });
+
+  it('F-011.R7 a bundled track whose read fails is reported, and read again on Play (retry)', async () => {
+    const track = 'placeholder-pad';
+    const project = signal(proj({ clips: [video('a', 4)] }));
+    const audition = signal<string | null>(null);
+    const retry = signal(false);
+    const engine: ToEngine[] = [];
+    const failed: string[] = [];
+    let fail = true;
+    const music = async (id: string) => {
+      if (fail) throw new Error('NetworkError');
+      return new Blob([id]);
+    };
+    const stop = feedWorkers({
+      project,
+      engine: { postMessage: (m) => engine.push(m) },
+      audio: { postMessage: () => undefined },
+      media,
+      music,
+      audition,
+      onMusicFailed: (id) => failed.push(id),
+      retry,
+    });
+    audition.value = track;
+    await flush();
+    expect(failed).toEqual([track]);
+    expect(changes(engine).flatMap((m) => m.add.map((x) => x.id))).toEqual(['src-a']);
+    // Play: the read is tried again and the track reaches the engine.
+    fail = false;
+    retry.value = true;
+    await flush();
+    expect(changes(engine).flatMap((m) => m.add.map((x) => x.id))).toEqual(['src-a', track]);
+    expect(failed).toEqual([track]);
+    stop();
+  });
+
+  it('F-011.R1 an auditioned track whose read fails stops its preview and shows COPY-notice.music_unavailable', () => {
+    resetNotices();
+    auditionTrack.value = 'placeholder-pad';
+    musicFailed('placeholder-pad');
+    expect(auditionTrack.value).toBeNull();
+    expect(notices.value.map((n) => [n.kind, n.tag])).toEqual([['warning', 'music_unavailable']]);
+    expect(notices.value[0]!.text()).toBe("This track couldn't be loaded. Try again.");
+    // A project's track failing leaves another audition alone.
+    auditionTrack.value = 'placeholder-chords';
+    musicFailed('placeholder-pad');
+    expect(auditionTrack.value).toBe('placeholder-chords');
+    auditionTrack.value = null;
+    resetNotices();
   });
 
   it('F-002.R2 every project change reaches the audio worker, whose mix the preview plays', async () => {

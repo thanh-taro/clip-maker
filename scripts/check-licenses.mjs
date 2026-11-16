@@ -11,7 +11,7 @@
 //    audit has approved the rows (the registry is a spec; this script never edits it);
 //  - every bundled music track (DEP-14, ADR-0013 §4) has its own registry row; placeholder tracks (generated
 //    stand-ins until the owner picks the real ones, F-011) are a warning, and fail with `--release` (or
-//    LICENCE_RELEASE=1), which the release phase runs;
+//    LICENCE_RELEASE=1), which the release phase runs as `pnpm check:release` (docs/deploy/release-checklist.md);
 //  - then the dist/ scan (scripts/check-dist.mjs, rule 7) proves what actually ships.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -198,7 +198,7 @@ if (RELEASE && pack.tracks.length < 8)
 const DIST = abs('dist');
 if (!fs.existsSync(DIST)) problems.push('dist/ missing: run `pnpm build` first (the dist/ scan of ADR-0001 rule 6)');
 else {
-  const scan = scanDist(DIST, registry);
+  const scan = scanDist(DIST, registry, { release: RELEASE });
   problems.push(...scan.problems.map((p) => `dist: ${p}`));
   const list = [...scan.shipped].map(([n, v]) => `${n}@${v}`).sort();
   console.log(`dist: ${scan.shipped.size} third-party packages ship — ${list.length ? list.join(', ') : '(none)'}`);
