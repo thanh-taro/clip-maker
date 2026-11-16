@@ -9,52 +9,115 @@
 // size (style.md "Layouts" narrow: Edit holds Add media, Frame when nothing is selected, then the
 // selection's actions). The Audio, Text, Looks and Adjust tabs, the Split / Start here / End here /
 // Cross-fade tiles and the setting rows join with their features (F-004 to F-011).
+// F-011: the Audio tab (COPY-tab.audio) and its sheet: the selection's sound (a video or audio clip, at
+// touch size) and CMP-MusicPicker's narrow body (your audio, the bundled tracks); switching away from it
+// stops the preview. The Edit sheet's tiles act on a selected audio clip too (Earlier/Later in time).
 // Implements: F-003.R6 (visible controls on touch), F-003.AC5, RULE-21 (move-earlier/later stand in for
-// hold-and-drag; touch-size targets).
-import { signal } from '@preact/signals';
+// hold-and-drag; touch-size targets), F-011.R1/R3/R4/R8 on narrow layouts, CMP-MusicPicker "narrow".
+import { effect, signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
 import { layoutOf, frameStart } from '../core';
 import { project } from '../project';
-import { selectedClip } from './arrange';
+import { MUSIC_TRACKS } from '../core';
+import { selectedAudio, selectedClip } from './arrange';
 import { Icon } from './icons';
 import { frameSectionShown } from './frame';
 import { FrameSection, useKeepFocus } from './Inspector';
 import { addMedia } from './MediaInput';
+import { MusicBody } from './MusicPicker';
+import { soundTarget, stopPreview } from './sound';
+import { SoundSection } from './SoundSection';
 import { ARRANGE_ITEMS } from './Timeline';
 
+type Sheet = 'edit' | 'audio';
+
 /** The open sheet of the narrow tab bar (null: none, the default). */
-export const openSheet = signal<'edit' | null>(null);
+export const openSheet = signal<Sheet | null>(null);
+
+// CMP-MusicPicker "Behavior": closing the picker (the Audio sheet) stops its preview.
+effect(() => {
+  if (openSheet.value !== 'audio') stopPreview();
+});
 
 const TAB_ID = 'tk-tab-edit';
 const SHEET_ID = 'tk-sheet-edit';
+const AUDIO_TAB_ID = 'tk-tab-audio';
+const AUDIO_SHEET_ID = 'tk-sheet-audio';
+const AUDIO_TITLE_ID = 'tk-sheet-audio-title';
 const FRAME_HEAD_ID = 'tk-sheet-frame-title';
+const SOUND_HEAD_ID = 'tk-sheet-sound-title';
+
+const TABS: readonly {
+  sheet: Sheet;
+  id: string;
+  panel: string;
+  icon: 'edit' | 'music';
+  label: 'inspector.edit' | 'tab.audio';
+}[] = [
+  { sheet: 'edit', id: TAB_ID, panel: SHEET_ID, icon: 'edit', label: 'inspector.edit' },
+  { sheet: 'audio', id: AUDIO_TAB_ID, panel: AUDIO_SHEET_ID, icon: 'music', label: 'tab.audio' },
+];
 
 /** The phone tab bar (D-038). Hidden on wide and compact layouts (CSS). */
 export function TabBar() {
-  const open = openSheet.value === 'edit';
   return (
     <div class="tk-tabbar">
       <div class="tk-tabbar__tabs" role="tablist">
-        <button
-          type="button"
-          id={TAB_ID}
-          class="tk-tabbar__tab"
-          role="tab"
-          aria-selected={open ? 'true' : 'false'}
-          aria-controls={open ? SHEET_ID : undefined}
-          onClick={() => (openSheet.value = open ? null : 'edit')}
-        >
-          <Icon name="edit" size={20} />
-          <span>{t('inspector.edit')}</span>
-        </button>
+        {TABS.map((tab) => {
+          const open = openSheet.value === tab.sheet;
+          return (
+            <button
+              key={tab.sheet}
+              type="button"
+              id={tab.id}
+              class="tk-tabbar__tab"
+              role="tab"
+              aria-selected={open ? 'true' : 'false'}
+              aria-controls={open ? tab.panel : undefined}
+              onClick={() => (openSheet.value = open ? null : tab.sheet)}
+            >
+              <Icon name={tab.icon} size={20} />
+              <span>{t(tab.label)}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
+/** Esc in an open sheet closes it and returns focus to its tab. */
+function useSheetEsc(open: boolean, ref: { readonly current: HTMLElement | null }, tabId: string): void {
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape' || e.defaultPrevented || !ref.current?.contains(document.activeElement)) return;
+      e.preventDefault();
+      openSheet.value = null;
+      document.getElementById(tabId)?.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+}
+
 /** The selection's name and length as muted meta in the sheet header. */
 function SelectionMeta() {
+  const audio = selectedAudio.value;
+  if (audio) {
+    const p = project.value;
+    const name =
+      p.sources.find((s) => s.id === audio.sourceId)?.name ??
+      MUSIC_TRACKS.find((m) => m.id === audio.sourceId)?.title ??
+      '';
+    return (
+      <span class="tk-sheet__meta">
+        <span class="tk-sheet__name">{name}</span>
+        <span class="tk-sheet__length">{formatDuration(audio.out - audio.in)}</span>
+      </span>
+    );
+  }
   const clip = selectedClip.value;
   if (!clip) return null;
   const p = project.value;
@@ -77,20 +140,9 @@ export function EditSheet() {
   const title = useRef<HTMLHeadingElement>(null);
   const frame = frameSectionShown.value;
   useKeepFocus(ref, title, frame);
-  // Esc in the sheet closes it and returns focus to its tab.
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape' || e.defaultPrevented || !ref.current?.contains(document.activeElement)) return;
-      e.preventDefault();
-      openSheet.value = null;
-      document.getElementById(TAB_ID)?.focus();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open]);
+  useSheetEsc(open, ref, TAB_ID);
   if (!open) return null;
-  const clip = selectedClip.value;
+  const clip = selectedClip.value ?? selectedAudio.value;
   // Tile order of the board: Move earlier, Move later, Duplicate, Delete (in danger).
   const tiles = ['move-earlier', 'move-later', 'duplicate', 'delete'].map((id) =>
     ARRANGE_ITEMS.find((i) => i.id === id)!,
@@ -137,10 +189,67 @@ export function EditSheet() {
                 }}
               >
                 <Icon name={item.icon} size={20} />
-                <span class="tk-tile__label">{t(item.label)}</span>
+                <span class="tk-tile__label">{t(item.labelNow?.() ?? item.label)}</span>
               </button>
             );
           })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The Audio sheet (style.md "Layouts" narrow: Music, your audio and the selection's sound; CMP-MusicPicker
+ * "narrow"): grabber, the title COPY-music.title with Close, the selection's sound section when a video or
+ * audio clip is selected (build question 112), then the your-audio row and the touch-size track rows.
+ */
+export function AudioSheet() {
+  const open = openSheet.value === 'audio';
+  const ref = useRef<HTMLElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
+  const sound = soundTarget.value !== null;
+  useKeepFocus(ref, title, sound);
+  useSheetEsc(open, ref, AUDIO_TAB_ID);
+  if (!open) return null;
+  return (
+    <section
+      ref={ref}
+      id={AUDIO_SHEET_ID}
+      class="tk-sheet tk-sheet--audio"
+      role="tabpanel"
+      aria-labelledby={AUDIO_TAB_ID}
+    >
+      <span class="tk-sheet__grabber" aria-hidden="true" />
+      <div class="tk-sheet__body">
+        <header class="tk-sheet__head tk-sheet__head--close">
+          <h2 ref={title} class="tk-sheet__title" id={AUDIO_TITLE_ID} tabIndex={-1}>
+            {t('music.title')}
+          </h2>
+          <button
+            type="button"
+            class="tk-icon-button tk-sheet__close"
+            aria-label={t('action.close')}
+            title={t('action.close')}
+            data-action="close"
+            onClick={() => {
+              openSheet.value = null;
+              document.getElementById(AUDIO_TAB_ID)?.focus();
+            }}
+          >
+            <Icon name="close" size={20} />
+          </button>
+        </header>
+        {sound ? (
+          <section class="tk-sheet__section" aria-labelledby={SOUND_HEAD_ID}>
+            <h3 class="tk-sheet__section-title" id={SOUND_HEAD_ID}>
+              {t('inspector.sound')}
+            </h3>
+            <SoundSection id="tk-sheet-sound" touch />
+          </section>
+        ) : null}
+        <div class="tk-music tk-music--sheet">
+          <MusicBody touch titleId={AUDIO_TITLE_ID} />
         </div>
       </div>
     </section>

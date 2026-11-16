@@ -16,10 +16,20 @@ import { Icon } from './icons';
 import { carriesFiles, filesFromPaste, itemsFromDrop, pasteTargetsField } from './transfer';
 
 let input: HTMLInputElement | null = null;
+const ACCEPT_ALL = 'video/*,image/*,audio/*';
 
 /** Implements: F-001.R1 — opens the system file picker (several files at once). */
 export function pickFiles(): void {
-  input?.click();
+  if (!input) return;
+  input.accept = ACCEPT_ALL;
+  input.click();
+}
+
+/** CMP-MusicPicker "Your audio": the same picker, offering audio files (F-001; the check is by content). */
+export function pickAudio(): void {
+  if (!input) return;
+  input.accept = 'audio/*';
+  input.click();
 }
 
 /** Add media outside the media panel: the panel opens (left drawer, or the narrow sheet) and the picker. */
@@ -39,18 +49,22 @@ export function FilePicker() {
       class="tk-file-input"
       type="file"
       multiple
-      accept="video/*,image/*,audio/*"
+      accept={ACCEPT_ALL}
       tabIndex={-1}
       aria-hidden="true"
       onChange={(e) => {
         const el = e.currentTarget;
         const files = Array.from(el.files ?? []);
         el.value = '';
+        el.accept = ACCEPT_ALL;
         pickerClosed.value++;
         if (files.length) void addFiles(files);
       }}
       // The picker was dismissed without a choice.
-      onCancel={() => pickerClosed.value++}
+      onCancel={(e) => {
+        e.currentTarget.accept = ACCEPT_ALL;
+        pickerClosed.value++;
+      }}
     />
   );
 }

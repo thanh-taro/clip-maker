@@ -3,7 +3,15 @@
 // ticks, the clip boundary nearest a drop point (RULE-05 reorder) and the time under the pointer.
 // Implements: CMP-Timeline "wide / default" (clip widths equal duration × the ruler scale), RULE-05
 // reorder target, F-002.R3 (the ruler's time under the pointer), F-003.R2.
-import { frameStart, layoutOf, MICROS_PER_SECOND, type Micros, type Project } from '../core';
+import {
+  frameStart,
+  layoutOf,
+  MICROS_PER_SECOND,
+  nearestFrame,
+  type FrameRate,
+  type Micros,
+  type Project,
+} from '../core';
 
 /** The ruler of an empty project spans one minute (SCR-Editor "empty" board). */
 export const EMPTY_SPAN: Micros = 60 * MICROS_PER_SECOND;
@@ -111,3 +119,41 @@ export function timeAt(x: number, scale: number, end: Micros): Micros {
 /** CMP-Timeline: under 48 px of width a clip shows its duration only (its name moves to the tooltip). */
 export const MIN_NAMED_WIDTH = 48;
 export const labelFits = (width: number): boolean => width >= MIN_NAMED_WIDTH;
+
+/** An audio clip on the audio lane at a scale (F-011): it may run past the project end (INV-07). */
+export interface AudioBox {
+  readonly id: string;
+  readonly start: Micros;
+  /** Exclusive: the clip's own end, wherever the project ends. */
+  readonly end: Micros;
+  readonly x: number;
+  readonly width: number;
+  /** Pixels from the box's left edge where the project ends inside it (the hatched rest), or null. */
+  readonly pastEndX: number | null;
+}
+
+/** Implements: CMP-Timeline "wide / default" (the audio clip past the project end, INV-07), F-011.R2. */
+export function audioBoxes(project: Project, scale: number): AudioBox[] {
+  const end = frameStart(layoutOf(project).frames, project.frame.frameRate);
+  return project.audioClips.map((a) => {
+    const stop = a.start + (a.out - a.in);
+    return {
+      id: a.id,
+      start: a.start,
+      end: stop,
+      x: a.start * scale,
+      width: (stop - a.start) * scale,
+      pastEndX: stop > end && project.clips.length > 0 ? Math.max(0, (end - a.start) * scale) : null,
+    };
+  });
+}
+
+/**
+ * F-011.R2: the start an audio clip dragged by `dx` pixels asks for — its start moved by the drag, at
+ * the nearest frame start, never before 0. MOD-Project's RULE-12 move rule then places it.
+ */
+export function audioDragStart(start: Micros, dx: number, scale: number, rate: FrameRate): Micros {
+  if (scale <= 0) return start;
+  const t = Math.max(0, Math.round(start + dx / scale));
+  return frameStart(nearestFrame(t, rate), rate);
+}

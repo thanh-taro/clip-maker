@@ -45,7 +45,7 @@ describe('MOD-Keys edit keys (RULE-20, F-003.R6)', () => {
     expect(resolveKey(key('ArrowRight', { altKey: true }), 'none')).toBe('move-later');
     // Plain arrows stay frame steps (F-002); Shift+Alt is the 1 s time move of text and audio (F-010, F-011).
     expect(resolveKey(key('ArrowLeft'), 'none')).toBe('frame-back');
-    expect(resolveKey(key('ArrowLeft', { altKey: true, shiftKey: true }), 'none')).toBeNull();
+    expect(resolveKey(key('ArrowLeft', { altKey: true, shiftKey: true }), 'none')).toBe('move-earlier-second');
   });
 
   it('RULE-20 edit keys act only in scope: never while a field is edited, a dialog is open or a slider has focus', () => {

@@ -300,6 +300,114 @@
     display: none;
   }
 
+  /* ── Audio lane (F-011): title chip, waveform band, the part past the project end hatched (INV-07) ── */
+  .tk-audio-lane {
+    position: relative;
+    block-size: var(--tk-size-audio-lane);
+    margin-block-start: var(--tk-space-1);
+    touch-action: pan-x pan-y;
+  }
+
+  .tk-tl-gutter__audio {
+    margin-block-start: calc(
+      var(--tk-size-timeline-track) / 2 + var(--tk-space-1) + var(--tk-size-audio-lane) / 2 - var(--tk-space-4)
+    );
+  }
+
+  .tk-aclip {
+    position: absolute;
+    inset-block: 0;
+    display: flex;
+    align-items: center;
+    min-inline-size: 0;
+    padding: 0;
+    overflow: hidden;
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    border-radius: var(--tk-radius-track-item);
+    background: var(--tk-color-track-audio);
+    color: var(--tk-color-track-label);
+    cursor: grab;
+    touch-action: pan-x pan-y;
+    -webkit-touch-callout: none;
+  }
+
+  .tk-aclip[aria-pressed='true'] {
+    border-color: var(--tk-color-accent);
+    box-shadow: inset 0 0 0 var(--tk-border-width-hairline) var(--tk-color-accent);
+  }
+
+  .tk-aclip:focus-visible {
+    outline-offset: 0;
+  }
+
+  /* RULE-21: a touch-size hit area around the 28 px item (the lane sits under the main track). */
+  @media (pointer: coarse) {
+    .tk-aclip {
+      overflow: visible;
+    }
+    .tk-aclip::before {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      inset-block: calc((var(--tk-size-audio-lane) - var(--tk-size-touch-target)) / 2);
+    }
+  }
+
+  /* The waveform band (decorative; build question 116: a drawn band until MOD-Media reads the peaks). */
+  .tk-aclip__wave {
+    position: absolute;
+    inset: var(--tk-space-1) var(--tk-space-0-5);
+    background: repeating-linear-gradient(
+      to right,
+      var(--tk-color-waveform) 0 var(--tk-border-width-focus),
+      transparent var(--tk-border-width-focus) var(--tk-space-1)
+    );
+    mask-image: linear-gradient(to bottom, transparent 15%, black 35%, black 65%, transparent 85%);
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  .tk-aclip[data-muted] .tk-aclip__wave {
+    opacity: 0.2;
+  }
+
+  /* The title sits on its own chip before the waveform, and stays on one line. */
+  .tk-aclip__chip {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 1;
+    max-inline-size: 100%;
+    margin-inline-start: var(--tk-space-1);
+    padding: 0 var(--tk-space-1);
+    overflow: hidden;
+    border-radius: var(--tk-radius-xs);
+    background: var(--tk-color-track-audio);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+    line-height: var(--tk-font-line-height-tight);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* INV-07: the part past the project end is hatched and dimmed (never heard or exported). */
+  .tk-aclip__past {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: 2;
+    background: repeating-linear-gradient(
+      135deg,
+      var(--tk-color-scrim) 0 var(--tk-space-1),
+      transparent var(--tk-space-1) var(--tk-space-2)
+    );
+    border-inline-start: var(--tk-border-width-hairline) dashed var(--tk-color-line-strong);
+    pointer-events: none;
+  }
+
+  .tk-aclip__past[hidden] {
+    display: none;
+  }
+
   /* Project-end marker: a dashed line with COPY-timeline.project_end in the ruler band. */
   .tk-end {
     position: absolute;
@@ -546,14 +654,20 @@
     .tk-editor[data-sheet] .tk-tl-body {
       padding-block-end: var(--tk-space-1);
     }
+    .tk-editor[data-sheet] .tk-audio-lane,
+    .tk-editor[data-sheet] .tk-tl-gutter__audio {
+      display: none;
+    }
   }
 
   @media (forced-colors: active) {
     .tk-clip,
+    .tk-aclip,
     .tk-xfade__marker {
       border-color: CanvasText;
     }
-    .tk-clip[aria-pressed='true'] {
+    .tk-clip[aria-pressed='true'],
+    .tk-aclip[aria-pressed='true'] {
       outline: var(--tk-border-width-focus) solid Highlight;
     }
     .tk-playhead,

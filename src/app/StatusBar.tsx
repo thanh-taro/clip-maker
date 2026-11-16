@@ -1,6 +1,7 @@
 // MOD-App — CMP-StatusBar (specs/30-experience/components/CMP-StatusBar.md): the always-visible
 // privacy badge (F-020.R1), the privacy details popover (F-020.R2), the source link (F-020.R3) and the
 // in-tool licence notices view (F-020.R4). The project facts (COPY-status.facts) come with F-002.
+import { signal } from '@preact/signals';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { t } from '../copy';
 import { Icon } from './icons';
@@ -8,6 +9,12 @@ import { noticeSections } from './notices';
 
 /** F-020.AC3: the public source repository. */
 export const SOURCE_URL = 'https://github.com/thanh-taro/clip-maker';
+
+/**
+ * CMP-MusicPicker's link to COPY-privacy.notices opens the same in-tool notices view (F-020.R4); each
+ * request bumps this counter. Closing the view returns focus to the badge.
+ */
+export const noticesRequest = signal(0);
 
 /** What the status bar shows over the editor: nothing, the privacy details, or the notices view. */
 type View = 'closed' | 'details' | 'notices';
@@ -56,6 +63,11 @@ export function StatusBar() {
       document.removeEventListener('pointerdown', onPointer);
     };
   }, []);
+
+  const requested = noticesRequest.value;
+  useEffect(() => {
+    if (requested > 0) setView('notices');
+  }, [requested]);
 
   const toggle = () => {
     focusNext.current = view === 'closed' ? 'details' : 'badge';

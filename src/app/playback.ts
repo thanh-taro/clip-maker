@@ -12,6 +12,7 @@ import { effect, signal, type ReadonlySignal, type Signal } from '@preact/signal
 import { Playback, WORKLET_URL, type ToAudioWorker } from '../audio';
 import type { EngineMedia, FrameRate, Micros, Project, Source, ToEngine } from '../core';
 import { resolveKey, scopeOf, type Action, type FocusInfo } from '../keys';
+import { musicBlob } from '../assets';
 import { registry } from '../media';
 import { fullscreen, mountPreview, type Fullscreen, type PreviewController } from '../preview';
 import { playhead, project } from '../project';
@@ -26,6 +27,9 @@ export const playback = signal<{
   /** MOD-Audio's clock (the picture follows it). */
   readonly clock: Playback;
 } | null>(null);
+
+/** F-011.R1: the bundled track the music picker is auditioning (MOD-Audio `Playback.audition`), or null. */
+export const auditionTrack = signal<string | null>(null);
 
 /**
  * Binds the controller to MOD-Project's playhead both ways and follows its slow-device signal. The
@@ -105,6 +109,22 @@ export interface WorkerFeed {
   readonly audio: { postMessage(m: ToAudioWorker): void };
   /** What the engine draws for a source (a video's file, a photo's bitmap); null for none. */
   readonly media: (source: Source) => Promise<EngineMedia | null>;
+  /** A bundled track's packaged file (MOD-Assets), read for its sound like an audio source (F-011). */
+  readonly music?: (trackId: string) => Promise<Blob>;
+  /** The bundled track the music picker is auditioning (its file must reach the engine too). */
+  readonly audition?: ReadonlySignal<string | null>;
+}
+
+/**
+ * The bundled tracks whose files the sound feed must serve: those the project's audio clips play (an audio
+ * clip's source that is not one of the project's sources is a bundled track, ENT-MusicTrack) and the one
+ * being auditioned. Implements: F-011.R5 (bundled music in the preview's mix), ADR-0008 §7.
+ */
+export function musicIds(p: Project, auditioned: string | null): string[] {
+  const known = new Set(p.sources.map((s) => s.id));
+  const ids = new Set(p.audioClips.map((a) => a.sourceId).filter((id) => !known.has(id)));
+  if (auditioned) ids.add(auditioned);
+  return [...ids];
 }
 
 /**
@@ -112,8 +132,9 @@ export interface WorkerFeed {
  * INV-02), and the engine the changes of the project's sources by id (ADR-0009 §7): a new source's file
  * or bitmap once, a removed source's id. Sources that stay are never sent again, so the engine keeps
  * their decoders (a source id's file never changes within a session). Audio sources go to the engine
- * too: it serves every source's encoded sound to the audio worker (the sound feed, ADR-0008 §6). The
- * project itself reaches the engine through MOD-Preview.
+ * too: it serves every source's encoded sound to the audio worker (the sound feed, ADR-0008 §6), and so
+ * do the bundled tracks that audio clips play or the picker auditions (F-011, Q87: the packaged file
+ * through the same SoundBank). The project itself reaches the engine through MOD-Preview.
  */
 export function feedWorkers(feed: WorkerFeed): () => void {
   /** Ids the engine has. */
@@ -125,22 +146,42 @@ export function feedWorkers(feed: WorkerFeed): () => void {
   const post = (add: EngineMedia[], remove: string[]): void => {
     if (live && (add.length || remove.length)) feed.engine.postMessage({ type: 'engine:mediaChanges', add, remove });
   };
+  /** Looks up `items` once each and sends those still wanted. */
+  const lookUp = (items: readonly { id: string; get: () => Promise<EngineMedia | null> }[]): void => {
+    const fresh = items.filter((x) => !sent.has(x.id) && !looking.has(x.id));
+    if (!fresh.length) return;
+    for (const x of fresh) looking.add(x.id);
+    // Each item travels when it is ready: a slow source never holds back a track the picker auditions.
+    for (const x of fresh)
+      void x
+        .get()
+        .catch(() => null)
+        .then((m) => {
+          looking.delete(x.id);
+          if (m === null || !wanted.has(m.id) || sent.has(m.id)) return;
+          sent.add(m.id);
+          post([m], []);
+        });
+  };
   const stop = effect(() => {
     const p = feed.project.value;
+    const auditioned = feed.audition?.value ?? null;
     feed.audio.postMessage({ type: 'audio:setProject', project: p });
-    wanted = new Set(p.sources.map((s) => s.id));
+    const music = feed.music ? musicIds(p, auditioned) : [];
+    wanted = new Set([...p.sources.map((s) => s.id), ...music]);
     const removed = [...sent].filter((id) => !wanted.has(id));
     for (const id of removed) sent.delete(id);
     post([], removed);
-    const fresh = p.sources.filter((s) => !sent.has(s.id) && !looking.has(s.id));
-    if (!fresh.length) return;
-    for (const s of fresh) looking.add(s.id);
-    void Promise.all(fresh.map((s) => feed.media(s).catch(() => null))).then((list) => {
-      for (const s of fresh) looking.delete(s.id);
-      const add = list.filter((m): m is EngineMedia => m !== null && wanted.has(m.id) && !sent.has(m.id));
-      for (const m of add) sent.add(m.id);
-      post(add, []);
-    });
+    const read = feed.music;
+    lookUp([
+      ...p.sources.map((s) => ({ id: s.id, get: () => feed.media(s) })),
+      ...(read
+        ? music.map((id) => ({
+            id,
+            get: async (): Promise<EngineMedia> => ({ id, kind: 'audio', file: await read(id) }),
+          }))
+        : []),
+    ]);
   });
   return () => {
     live = false;
@@ -173,9 +214,14 @@ export function mountPlayback(frame: HTMLElement, stage: HTMLElement): () => voi
   audio.postMessage({ type: 'audio:feed', port: feed.port2 } satisfies ToAudioWorker, [feed.port2]);
   const ctl = mountPreview(frame, { project }, { engine, clock });
   const fs = fullscreen(stage);
-  const stops = [connectPreview(ctl, { playhead }), feedWorkers({ project, engine, audio, media: registryMedia })];
+  const stops = [
+    connectPreview(ctl, { playhead }),
+    feedWorkers({ project, engine, audio, media: registryMedia, music: musicBlob, audition: auditionTrack }),
+  ];
+  clock.onAuditionEnded = () => (auditionTrack.value = null);
   playback.value = { ctl, fs, clock };
   return () => {
+    clock.stopAudition();
     for (const s of stops) s();
     playback.value = null;
     void fs.exit();

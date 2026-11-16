@@ -29,8 +29,7 @@ function voice(out, f, from, len, gain, pan, attack, release) {
   for (let i = 0; i < n && s0 + i < L.length; i++) {
     const env = Math.min(1, i / Math.max(1, a), (n - i) / Math.max(1, r));
     const t = i / RATE;
-    const x =
-      Math.sin(2 * Math.PI * f * t) + 0.3 * Math.sin(4 * Math.PI * f * t) + 0.1 * Math.sin(6 * Math.PI * f * t);
+    const x = Math.sin(2 * Math.PI * f * t) + 0.3 * Math.sin(4 * Math.PI * f * t) + 0.1 * Math.sin(6 * Math.PI * f * t);
     const v = x * env * gain;
     L[s0 + i] += v * (1 - pan);
     R[s0 + i] += v * (1 + pan);

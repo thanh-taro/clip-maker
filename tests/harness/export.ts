@@ -2,7 +2,8 @@
 // A frame-coded clip is made in the page (tests/harness/video.ts) and its sound is generated, so nothing
 // is added to git. Exports run through MOD-Export's main-thread side and its two real workers; results
 // are read back with MOD-Container and compared with the compositor's paint (the preview's picture).
-import { endSampleOf, pcmSource, TruePeakMeter, type SoundSource } from '../../src/audio';
+import { endSampleOf, pcmSource, truePeak, TruePeakMeter, type SoundSource } from '../../src/audio';
+import { musicBlob } from '../../src/assets';
 import {
   chooseAudioFormat,
   chooseVideoFormat,
@@ -17,6 +18,7 @@ import { createOutput, openInput, type OutPacket } from '../../src/container';
 import {
   frameStart,
   projectFrames,
+  type EngineMedia,
   type ExportSettings,
   type Frame,
   type PcmSource,
@@ -650,6 +652,95 @@ async function runTone(
   return { result, tone: analyseTone(L, R, 0, spec), container, decodedSeconds: L.length / 48_000 };
 }
 
+/** F-011: the sound settings of runMix's one tone clip, and an optional bundled track over it. */
+export interface MixSpec {
+  /** The video clip's volume (RULE-12, %), and whether it is muted. */
+  readonly volume?: number;
+  readonly muted?: boolean;
+  /** A bundled track (ENT-MusicTrack id) placed at 0 for the whole project, at this volume. */
+  readonly music?: { readonly id: string; readonly volume: number };
+}
+
+export interface MixReport {
+  readonly ok: boolean;
+  /** RMS of the decoded export over [from, to) seconds, in dBFS (−∞ for digital silence). */
+  readonly rmsDb: number;
+  /** True peak of the whole decoded export (BS.1770-4 meter), dBTP. */
+  readonly truePeakDb: number;
+}
+
+/**
+ * F-011.AC3/AC5/AC10 (export half): the tone clip of tests/harness/sound.ts exported with its RULE-12
+ * volume or mute, and optionally a bundled track (read by MOD-Assets from its packaged file and decoded
+ * like any source, Q87), through the real export workers; the file is decoded back and measured.
+ */
+async function runMix(
+  settings: ExportSettings,
+  spec: ToneSpec,
+  mix: MixSpec,
+  window: readonly [number, number],
+): Promise<MixReport> {
+  const file = await makeToneClip(spec);
+  const coded = codedProject({ rate: 30, frames: Math.round(spec.seconds * 30), gop: 30 });
+  const length = Math.round(spec.seconds * 1e6);
+  const project: Project = {
+    ...coded,
+    sources: coded.sources.map((s) => ({ ...s, hasSound: true, duration: length })),
+    clips: coded.clips.map((c) => ({
+      ...c,
+      ...(mix.volume !== undefined ? { volume: mix.volume } : {}),
+      ...(mix.muted !== undefined ? { muted: mix.muted } : {}),
+    })),
+    audioClips: mix.music
+      ? [
+          {
+            id: 'music-1',
+            sourceId: mix.music.id,
+            start: 0,
+            in: 0,
+            out: length,
+            volume: mix.music.volume,
+            muted: false,
+            fadeIn: 0,
+            fadeOut: 0,
+          },
+        ]
+      : [],
+  };
+  const media: EngineMedia[] = [{ id: 'src-a', kind: 'video', file }];
+  if (mix.music) media.push({ id: mix.music.id, kind: 'audio', file: await musicBlob(mix.music.id) });
+  workers ??= new ExportWorkers();
+  let saved: Blob | null = null;
+  const handle = await start(project, settings, {
+    workers,
+    scratch,
+    caps: await caps(),
+    media,
+    looks: {},
+    texts: () => ({}),
+    phone: false,
+    gains: new Map(),
+    save: (blob) => {
+      saved = blob;
+      return URL.createObjectURL(blob);
+    },
+  });
+  const result = await handle.result;
+  await handle.cleaned;
+  const blob = saved as Blob | null;
+  if (!result.ok || !blob) return { ok: false, rmsDb: Number.NaN, truePeakDb: Number.NaN };
+  const [L, R] = await decodeWindow(blob, 0, spec.seconds);
+  const a = Math.round(window[0] * 48_000);
+  const b = Math.min(L.length, Math.round(window[1] * 48_000));
+  let sum = 0;
+  for (let i = a; i < b; i++) sum += (L[i]! * L[i]! + R[i]! * R[i]!) / 2;
+  return {
+    ok: true,
+    rmsDb: 10 * Math.log10(sum / Math.max(1, b - a)),
+    truePeakDb: truePeak([L, R]).dB,
+  };
+}
+
 /** A picture sample: RGB 0–255. */
 export type Sample = readonly [number, number, number];
 
@@ -748,6 +839,7 @@ export const exportHarness = {
   caps,
   run,
   runTone,
+  runMix,
   frameFill,
   /** The last export's file as bytes (Playwright saves it for manual checks). */
   async lastFile(): Promise<number[]> {

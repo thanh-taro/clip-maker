@@ -9,9 +9,9 @@
 // cache, so the portal stays and loads the tool into its frame again.
 // Not covered yet (need later features): AC1's add a video, apply a look, add text and bundled music
 // through the editor (F-001, F-008, F-010, F-011) and export from the export panel (F-015); here the
-// export runs from the offline copy of the export harness with the real export workers. AC2's looks and
-// music join once they are packed into the asset manifest (F-008, F-011); the manifest check below
-// then covers them with no change.
+// export runs from the offline copy of the export harness with the real export workers. AC2's looks
+// join once they are packed into the asset manifest (F-008); the bundled music is in it (F-011), and
+// F-011.AC7 previews and places a track with no connection below.
 import { expect, test, type APIRequestContext, type BrowserContext, type Frame, type Page } from '@playwright/test';
 import { HOST_ALLOWED, hostPageUrl, offlineServer } from './support/host-urls';
 
@@ -336,5 +336,40 @@ test.describe('F-021 offline', () => {
       await context.close();
       await publish(request, tool, '1');
     }
+  });
+
+  test('F-011.AC7 F-011.R7 NFR-01 opened once online, a bundled track previews and is placed with no connection, and no request is made', async ({
+    page,
+    context,
+    browserName,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    const tool = offlineServer(browserName);
+    const first = await openTool(page, 'standalone', tool);
+    const { keys, files } = await offlineReady(first);
+    const music = files.filter((f) => f.endsWith('.m4a'));
+    expect(music.length).toBeGreaterThan(0);
+    for (const f of music) expect(keys).toContain(f);
+
+    await offline(context, request, tool, browserName);
+    const frame = await reopen(page, 'standalone', tool);
+    expect(await controlled(frame)).toBe(true);
+    await expect.poll(() => runningWorkers(page), { timeout: 60_000 }).toEqual([...WORKERS].sort());
+    await resetLog(request, tool);
+    await frame.getByRole('toolbar', { name: 'Editor' }).getByRole('button', { name: 'Music' }).click();
+    const dialog = frame.getByRole('dialog', { name: 'Music' });
+    const row = dialog.getByRole('listitem').first();
+    // Play preview: it plays (the progress line grows with the worklet's clock).
+    await row.getByRole('button', { name: /^Play preview: / }).click();
+    await expect
+      .poll(async () => (await row.locator('.tk-music__progress').boundingBox())?.width ?? 0, { timeout: 30_000 })
+      .toBeGreaterThan(1);
+    await row.getByRole('button', { name: /^Stop preview: / }).click();
+    // Add at playhead: placed on the audio track (an empty main track: at 0, RULE-12).
+    await row.getByRole('button', { name: 'Add at playhead' }).click();
+    await expect(frame.locator('.tk-aclip')).toHaveCount(1);
+    // Nothing but the worker's own version check (WebKit repeats it); the track came from the offline copy.
+    expect(onlyVersionCheck(await requestLog(request, tool))).toEqual([]);
   });
 });

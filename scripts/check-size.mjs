@@ -2,7 +2,8 @@
 // image-annotator. Everything loads at start-up (ADR-0002: no lazy chunks), so every shipped JS/CSS
 // file is counted and must be either loaded by dist/index.html, or one of the module workers / the
 // audio worklet of ADR-0003. Compressed with gzip level 9; 1 KB = 1,000 bytes. WOFF2 is already
-// compressed, so font files count as they are. Looks and music join when they are packed (ADR-0013).
+// compressed, so font files count as they are. Bundled music (AAC, already compressed) counts as it is in
+// its own group, outside the code total (NFR-10: ≤ 10 MB; F-011). Looks join when they are packed.
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -25,6 +26,7 @@ export const BUDGET = {
   'export-audio': 12_000,
   code: 560_000, // code and styles total
   fonts: 200_000, // "≈ 200 KB" for the five font packages
+  music: 10_000_000, // NFR-10: bundled music ≤ 10 MB in total (F-011, DEP-14); outside the code total
 };
 /** Worker / worklet chunks (Vite names them after their source file). */
 const CHUNK_GROUP = [
@@ -64,6 +66,7 @@ for (const f of assets) {
     if (group) groups[group].push([f, gz(buf)]);
     else problems.push(`${f}: JS chunk not loaded at start-up and not a worker/worklet (no lazy chunks, ADR-0002)`);
   } else if (FONT.test(f)) groups.fonts.push([f, buf.length]);
+  else if (f.endsWith('.m4a')) groups.music.push([f, buf.length]);
   else if (/\.woff2?$/.test(f)) problems.push(`${f}: font file outside the latin/vietnamese subsets (ADR-0012)`);
 }
 // A dynamic import() leaves a trace in the Vite manifest (ADR-0002: none allowed).
@@ -78,7 +81,7 @@ if (fs.existsSync(manifestFile)) {
 const sum = (g) => groups[g].reduce((s, [, n]) => s + n, 0);
 const sums = Object.fromEntries(Object.keys(BUDGET).map((g) => [g, sum(g)]));
 sums.code = Object.keys(BUDGET)
-  .filter((g) => !['code', 'fonts'].includes(g))
+  .filter((g) => !['code', 'fonts', 'music'].includes(g))
   .reduce((s, g) => s + sums[g], 0);
 for (const rows of Object.values(groups)) for (const [f, n] of rows) console.log(`${kb(n).padStart(9)}  ${f}`);
 console.log('');

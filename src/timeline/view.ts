@@ -4,13 +4,18 @@
 // thumbnails, names, lengths and cross-fade markers; selecting a clip; moving a clip by dragging it to the
 // nearest clip boundary (RULE-05; on touch after holding it for 0.4 s, RULE-21). Zoom, scroll and the
 // centre-fixed touch playhead (F-013, F-017), trim handles (F-004), the cross-fade popover (F-009) and the
-// text and audio lanes (F-010, F-011) come with their features.
+// text lane (F-010) comes with its feature. F-011 adds the audio lane: each audio clip with its title chip
+// and waveform band, the part past the project end hatched (INV-07), selecting it, and moving it by
+// dragging (on touch after the 0.4 s hold) to the start MOD-Project's RULE-12 move rule picks.
 // Implements: F-003.R1, F-003.R2 (drag), F-002.R3 (scrub on the ruler), CMP-Timeline anatomy and
-// accessibility (items focusable in order, named by their name and duration), RULE-21 hold-and-drag.
+// accessibility (items focusable in order, named by their name and duration), RULE-21 hold-and-drag,
+// F-011.R2 (move an audio clip; it never overlaps another, INV-06), CMP-Timeline "audio item".
 import { effect, signal, type ReadonlySignal, type Signal } from '@preact/signals';
-import { frameStart, nearestFrame, projectEnd, type Clip, type Micros, type Project } from '../core';
+import { frameStart, nearestFrame, projectEnd, type AudioClip, type Clip, type Micros, type Project } from '../core';
 import {
   EMPTY_SPAN,
+  audioBoxes,
+  audioDragStart,
   boundaryAt,
   clipBoxes,
   fitScale,
@@ -45,6 +50,10 @@ export interface TimelineDeps {
   select(id: string | null): void;
   /** Move clip `id` to index `to` of the resulting order (one undo step). */
   move(id: string, to: number): void;
+  /** An audio clip's title: its source's name, or the bundled track's title (F-011). */
+  audioName?(clip: AudioClip): string;
+  /** Move audio clip `id` to start at `start`; MOD-Project's RULE-12 move rule places it (F-011.R2). */
+  moveAudio?(id: string, start: Micros): void;
   /** A scrub on the ruler starts (playback keeps the latest time, F-002.R3). */
   scrubStart?(): void;
 }
@@ -108,6 +117,8 @@ interface ClipEls {
 }
 
 interface Drag {
+  /** A main-track clip, or an audio clip (F-011). */
+  readonly kind: 'clip' | 'audio';
   readonly id: string;
   readonly index: number;
   readonly pointerId: number;
@@ -119,6 +130,8 @@ interface Drag {
   cancelled: boolean;
   timer: ReturnType<typeof setTimeout> | null;
   boundary: number | null;
+  /** Pixels moved so far (audio clips take their requested start from it). */
+  dx: number;
 }
 
 /**
@@ -137,6 +150,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const hint = el('span', 'tk-track__hint', track);
   const drop = el('span', 'tk-track__drop', track);
   decorative(drop);
+  // F-011: the audio lane under the main track (the text lane comes between them with F-010).
+  const audioLane = el('div', 'tk-audio-lane', host);
   const end = el('span', 'tk-end', host);
   decorative(end);
   const endLabel = el('span', 'tk-end__label', end);
@@ -152,6 +167,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   resize.observe(host);
 
   const clips = new Map<string, ClipEls>();
+  const audios = new Map<string, { button: HTMLButtonElement; name: HTMLSpanElement; past: HTMLSpanElement }>();
   let boxes: ClipBox[] = [];
   let scale = 0;
   let labels: { at: Micros; node: HTMLElement }[] = [];
@@ -301,8 +317,56 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       }
     });
     track.appendChild(drop);
+    layoutAudio(p, selected);
     placeHead(playhead.peek());
   });
+
+  function audioEls(id: string): { button: HTMLButtonElement; name: HTMLSpanElement; past: HTMLSpanElement } {
+    let a = audios.get(id);
+    if (a) return a;
+    const button = el('button', 'tk-aclip');
+    button.type = 'button';
+    button.dataset['audioId'] = id;
+    const wave = el('span', 'tk-aclip__wave', button);
+    decorative(wave);
+    const chip = el('span', 'tk-aclip__chip', button);
+    decorative(chip);
+    const name = el('span', 'tk-aclip__name', chip);
+    const past = el('span', 'tk-aclip__past', button);
+    decorative(past);
+    a = { button, name, past };
+    audios.set(id, a);
+    return a;
+  }
+
+  /** F-011: the audio lane — every audio clip at its time; the part past the project end hatched (INV-07). */
+  function layoutAudio(p: Project, selected: ReadonlySet<string>): void {
+    const keep = new Set(p.audioClips.map((a) => a.id));
+    for (const [id, a] of audios) {
+      if (keep.has(id)) continue;
+      a.button.remove();
+      audios.delete(id);
+    }
+    const boxes = audioBoxes(p, scale);
+    // Time order (focus order, CMP-Timeline accessibility); the list itself is in insertion order.
+    const order = p.audioClips.map((clip, i) => ({ clip, box: boxes[i]! })).sort((a, b) => a.box.start - b.box.start);
+    order.forEach(({ clip, box }, i) => {
+      const a = audioEls(clip.id);
+      const name = deps.audioName?.(clip) ?? '';
+      const length = deps.time(box.end - box.start);
+      a.name.textContent = name;
+      a.button.setAttribute('aria-label', `${name} ${length}`);
+      a.button.setAttribute('aria-pressed', String(selected.has(clip.id)));
+      a.button.title = labelFits(box.width) ? '' : name;
+      a.button.toggleAttribute('data-muted', clip.muted);
+      a.button.style.left = `${box.x}px`;
+      a.button.style.width = `${box.width}px`;
+      a.past.hidden = box.pastEndX === null;
+      if (box.pastEndX !== null) a.past.style.left = `${box.pastEndX}px`;
+      // DOM order is time order (items focusable in order, CMP-Timeline accessibility).
+      if (audioLane.children[i] !== a.button) audioLane.insertBefore(a.button, audioLane.children[i] ?? null);
+    });
+  }
 
   function placeHead(t: Micros): void {
     const x = t * scale;
@@ -351,9 +415,9 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     drag = null;
     if (!d) return;
     if (d.timer) clearTimeout(d.timer);
-    const c = clips.get(d.id);
-    c?.button.classList.remove('tk-clip--dragging');
-    if (c) c.button.style.transform = '';
+    const button = d.kind === 'audio' ? audios.get(d.id)?.button : clips.get(d.id)?.button;
+    button?.classList.remove('tk-clip--dragging');
+    if (button) button.style.transform = '';
     track.classList.remove('tk-track--dragging');
     drop.hidden = true;
     if (!d.active) return;
@@ -361,11 +425,22 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     suppressClick = true;
     setTimeout(() => (suppressClick = false), 0);
     deps.select(d.id);
+    if (d.kind === 'audio') {
+      const a = project.peek().audioClips.find((x) => x.id === d.id);
+      if (commit && a && d.dx !== 0)
+        deps.moveAudio?.(d.id, audioDragStart(a.start, d.dx, scale, project.peek().frame.frameRate));
+      return;
+    }
     const to = commit && d.boundary !== null ? moveTarget(d.index, d.boundary) : null;
     if (to !== null) deps.move(d.id, to);
   }
   function startDrag(d: Drag): void {
     d.active = true;
+    if (d.kind === 'audio') {
+      audios.get(d.id)?.button.classList.add('tk-clip--dragging');
+      capture(audioLane, d.pointerId);
+      return;
+    }
     clips.get(d.id)?.button.classList.add('tk-clip--dragging');
     track.classList.add('tk-track--dragging');
     capture(track, d.pointerId);
@@ -374,7 +449,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   // end (the lanes' end padding) and below the track; the ruler scrubs instead.
   const onLanesDown = (e: PointerEvent): void => {
     const target = e.target as Element;
-    if (e.button !== 0 || target.closest('.tk-clip, .tk-ruler')) return;
+    if (e.button !== 0 || target.closest('.tk-clip, .tk-aclip, .tk-ruler')) return;
     deps.select(null);
   };
   const onTrackDown = (e: PointerEvent): void => {
@@ -386,6 +461,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     if (index < 0) return;
     const touch = e.pointerType === 'touch';
     const d: Drag = {
+      kind: 'clip',
       id,
       index,
       pointerId: e.pointerId,
@@ -395,6 +471,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       cancelled: false,
       timer: null,
       boundary: null,
+      dx: 0,
     };
     if (touch) d.timer = setTimeout(() => !d.cancelled && drag === d && startDrag(d), HOLD_MS);
     drag = d;
@@ -419,6 +496,12 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       startDrag(d);
     }
     e.preventDefault();
+    d.dx = dx;
+    if (d.kind === 'audio') {
+      const a = audios.get(d.id);
+      if (a) a.button.style.transform = `translateX(${dx}px)`;
+      return;
+    }
     const c = clips.get(d.id);
     if (c) c.button.style.transform = `translateX(${dx}px)`;
     const box = boxes[d.index];
@@ -438,14 +521,14 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     if (drag?.active && drag.touch && e.cancelable) e.preventDefault();
   };
   const onClick = (e: MouseEvent): void => {
-    const button = (e.target as Element).closest<HTMLButtonElement>('.tk-clip');
+    const button = (e.target as Element).closest<HTMLButtonElement>('.tk-clip, .tk-aclip');
     if (!button) return;
     if (suppressClick) {
       suppressClick = false;
       return;
     }
     // Activating the selected clip again clears the selection (a toggle, as a tap on empty space).
-    const id = button.dataset['clipId'] ?? null;
+    const id = button.dataset['clipId'] ?? button.dataset['audioId'] ?? null;
     deps.select(button.getAttribute('aria-pressed') === String(true) ? null : id);
   };
   const onKey = (e: KeyboardEvent): void => {
@@ -458,7 +541,35 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const onContext = (e: Event): void => {
     if (drag?.touch) e.preventDefault();
   };
+  // F-011.R2: an audio clip drags in time (on touch after the hold), placed by the RULE-12 move rule.
+  const onAudioDown = (e: PointerEvent): void => {
+    const button = (e.target as Element).closest<HTMLButtonElement>('.tk-aclip');
+    if (!button || e.button !== 0 || drag) return;
+    const id = button.dataset['audioId'] ?? '';
+    if (!project.peek().audioClips.some((a) => a.id === id)) return;
+    const touch = e.pointerType === 'touch';
+    const d: Drag = {
+      kind: 'audio',
+      id,
+      index: -1,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      touch,
+      active: false,
+      cancelled: false,
+      timer: null,
+      boundary: null,
+      dx: 0,
+    };
+    if (touch) d.timer = setTimeout(() => !d.cancelled && drag === d && startDrag(d), HOLD_MS);
+    drag = d;
+  };
   host.addEventListener('pointerdown', onLanesDown);
+  audioLane.addEventListener('pointerdown', onAudioDown);
+  audioLane.addEventListener('pointermove', onTrackMove);
+  audioLane.addEventListener('touchmove', onTouchMove, { passive: false });
+  audioLane.addEventListener('click', onClick);
+  audioLane.addEventListener('contextmenu', onContext);
   track.addEventListener('pointerdown', onTrackDown);
   track.addEventListener('pointermove', onTrackMove);
   track.addEventListener('touchmove', onTouchMove, { passive: false });
