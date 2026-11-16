@@ -563,6 +563,47 @@ test.describe('F-011 sound section (app harness)', () => {
     expect((await summary(page)).steps).toBe(steps);
   });
 
+  test('Q121 F-011.R3 in vi-VN the volume field reads "50,5" with the decimal comma (51 %, RULE-12 whole percent), not 200 %', async ({
+    page,
+  }) => {
+    await open(page, 'vi-VN');
+    await threeClips(page, 'vi-VN');
+    await timeline(page, 'vi-VN')
+      .getByRole('button', { name: /^A\.mp4 / })
+      .click();
+    const field = inspector(page).getByRole('spinbutton', { name: text('vi-VN', 'sound.volume') });
+    const slider = inspector(page).getByRole('slider', { name: text('vi-VN', 'sound.volume') });
+    await expect(field).toHaveAttribute('inputmode', 'decimal');
+    let steps = (await summary(page)).steps;
+    await field.fill('50,5');
+    await field.press('Enter');
+    // RULE-12 volume is a whole percent (project schema): 50.5 rounds to 51, one step.
+    await expect(field).toHaveValue('51');
+    await expect(slider).toHaveValue('51');
+    expect((await stateOf(page)).clips[0]!.volume).toBe(51);
+    expect((await summary(page)).steps).toBe(steps + 1);
+    // "1.000" is one thousand in vi-VN: clamped to 200 %.
+    await field.fill('1.000');
+    await field.press('Enter');
+    await expect(field).toHaveValue('200');
+    expect((await stateOf(page)).clips[0]!.volume).toBe(200);
+    // What can't be read makes no edit and shows the volume again, on Enter and on blur.
+    steps = (await summary(page)).steps;
+    await field.fill('50.5');
+    await field.press('Enter');
+    await expect(field).toHaveValue('200');
+    await field.fill('abc');
+    await field.blur();
+    await expect(field).toHaveValue('200');
+    expect((await summary(page)).steps).toBe(steps);
+    // The spinbutton keys step it, one edit per press.
+    await field.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(field).toHaveValue('199');
+    expect((await stateOf(page)).clips[0]!.volume).toBe(199);
+    expect((await summary(page)).steps).toBe(steps + 1);
+  });
+
   test('F-011.R3 CMP-Inspector a slider drag released outside the slider (or the window) ends its step: the next change is a step of its own', async ({
     page,
   }) => {

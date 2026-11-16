@@ -9,12 +9,14 @@
 // Implements: F-011.R3 (volume 0–200 % and mute for any video clip or audio clip), F-011.R4 (Mute original
 // sound as one step, then Unmute), F-011.R8 (Earlier/Later without dragging), CMP-Inspector "Behavior"
 // (slider drags update live and are one undo step; fields clamp to the rule's range) and "Accessibility"
-// (the slider and its field share the label; the toggle exposes a pressed state).
+// (the slider and its field share the label; the toggle exposes a pressed state). The field is the shared
+// NumberField (style.md "Number fields", build question 121).
 import { useEffect, useRef } from 'preact/hooks';
 import { t } from '../copy';
 import { RULE_12 } from '../core';
 import { arrangeAvailable, moveSelected } from './arrange';
 import { Icon } from './icons';
+import { NumberField } from './NumberField';
 import { originalMuted, setMute, setVolumeOnce, soundTarget, toggleMuteAll, volumeGesture } from './sound';
 
 export function SoundSection({ id, touch = false }: { readonly id: string; readonly touch?: boolean }) {
@@ -92,27 +94,17 @@ export function SoundSection({ id, touch = false }: { readonly id: string; reado
           <span class="tk-sound__centre" aria-hidden="true" />
         </span>
         <span class="tk-sound__field">
-          <input
-            type="number"
-            inputMode="numeric"
+          <NumberField
             class="tk-sound__number"
+            control="volume-field"
             min={RULE_12.minVolume}
             max={RULE_12.maxVolume}
-            step={1}
             value={target.volume}
-            aria-labelledby={labelId}
-            data-control="volume-field"
-            onChange={(e) => {
-              const el = e.currentTarget;
-              // An emptied field or one the browser can't read as a number makes no edit: the shown
-              // volume comes back (CMP-Inspector "Behavior": fields clamp to the rule's range).
-              if (el.value.trim() === '' || el.validity.badInput) {
-                el.value = String(soundTarget.peek()?.volume ?? target.volume);
-                return;
-              }
-              setVolumeOnce(target.id, Number(el.value));
-              // A typed value out of range shows the clamped one (RULE-12).
-              el.value = String(soundTarget.peek()?.volume ?? target.volume);
+            labelledBy={labelId}
+            onCommit={(v) => {
+              // RULE-12: whole percent (the edit rounds); the field shows the volume in effect.
+              setVolumeOnce(target.id, v);
+              return soundTarget.peek()?.volume ?? v;
             }}
           />
           <span class="tk-sound__unit" aria-hidden="true">

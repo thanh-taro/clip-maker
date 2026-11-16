@@ -34,6 +34,52 @@ export function formatNumber(value: number, lang: Language = language.value): st
   return new Intl.NumberFormat(lang).format(value);
 }
 
+/**
+ * A number field's shown text (style.md "Number fields"): the language's decimal mark, no group marks,
+ * at most `fractionDigits` decimals, so the text reads back through `parseNumber`.
+ */
+export function formatField(value: number, lang: Language = language.value, fractionDigits = 0): string {
+  return new Intl.NumberFormat(lang, { useGrouping: false, maximumFractionDigits: fractionDigits }).format(value);
+}
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const numberPatterns = new Map<Language, { re: RegExp; group: string; decimal: string }>();
+
+/** The language's decimal and group marks, from Intl's own parts (platform-mapping "Number fields"). */
+function numberPattern(lang: Language): { re: RegExp; group: string; decimal: string } {
+  let p = numberPatterns.get(lang);
+  if (!p) {
+    const parts = new Intl.NumberFormat(lang).formatToParts(12345.6);
+    const group = parts.find((x) => x.type === 'group')?.value ?? ',';
+    const decimal = parts.find((x) => x.type === 'decimal')?.value ?? '.';
+    const g = escapeRe(group);
+    const d = escapeRe(decimal);
+    // Optional sign; digits, either plain or grouped in threes after a first group of one to three;
+    // an optional decimal part. At least one digit somewhere (checked below).
+    const re = new RegExp(`^([-−+]?)(\\d*|\\d{1,3}(?:${g}\\d{3})+)(?:${d}(\\d*))?$`);
+    p = { re, group, decimal };
+    numberPatterns.set(lang, p);
+  }
+  return p;
+}
+
+/**
+ * A typed number read with the language's decimal and group marks (style.md "Number fields"; vi-VN
+ * "50,5" is 50.5 and "1.000" is 1000). Null when it can't be read: empty, junk, the other language's
+ * marks where they don't form a valid number (never guessed), exponents, or a non-finite value.
+ * Implements: style.md "Number fields" (build question 121).
+ */
+export function parseNumber(text: string, lang: Language = language.value): number | null {
+  const m = numberPattern(lang).re.exec(text.trim());
+  if (!m) return null;
+  const [, sign = '', whole = '', fraction = ''] = m;
+  if (whole === '' && fraction === '') return null;
+  const digits = whole.replace(/\D/g, '');
+  const value = Number(`${digits || '0'}.${fraction || '0'}`);
+  if (!Number.isFinite(value)) return null;
+  return sign === '-' || sign === '−' ? -value : value;
+}
+
 type Args<K extends MessageId> = MessageParams[K] extends undefined ? [] : [params: MessageParams[K]];
 
 /**

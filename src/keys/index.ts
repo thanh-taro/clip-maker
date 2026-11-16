@@ -28,7 +28,7 @@ export type Action =
   /** Alt+Left / Alt+Right: move the selected clip one place earlier / later (F-003.R2). */
   | 'move-earlier'
   | 'move-later'
-  /** Shift+Alt+Left / Shift+Alt+Right: move the selected text layer or audio clip 1 s (RULE-20; F-011). */
+  /** Shift+Alt+Left / Shift+Alt+Right: move the selected text layer or audio clip 1 s, a clip one place (RULE-20; F-011). */
   | 'move-earlier-second'
   | 'move-later-second'
   /** M: mute or unmute the selected clip (RULE-20; F-011.R3). */
@@ -146,7 +146,8 @@ function editKey(
   if (code === 'KeyY' && ctrlKey && !metaKey && !altKey && !shiftKey) return 'redo';
   if (code === 'KeyD' && mod && !altKey && !shiftKey) return 'duplicate';
   if ((code === 'ArrowLeft' || code === 'ArrowRight') && altKey && !metaKey && !ctrlKey) {
-    // Shift+Alt moves a text layer or audio clip by 1 s (F-010, F-011); a clip moves one place only.
+    // Shift+Alt moves a text layer or audio clip by 1 s (F-010, F-011); for a main-track clip Shift makes
+    // no difference (RULE-20, Q93): MOD-App moves it one place like Alt+Left/Right.
     if (shiftKey) return code === 'ArrowLeft' ? 'move-earlier-second' : 'move-later-second';
     return code === 'ArrowLeft' ? 'move-earlier' : 'move-later';
   }

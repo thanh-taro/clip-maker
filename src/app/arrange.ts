@@ -177,8 +177,12 @@ export function runArrangeAction(action: Action, repeat = false): boolean {
       return true;
     case 'move-earlier-second':
     case 'move-later-second': {
-      // Shift+Alt: 1 s for an audio clip (a text layer's comes with F-010); a clip keeps the browser's key (Q93).
-      if (!selectedAudio.peek()) return false;
+      // RULE-20 (Q93): Shift+Alt moves an audio clip 1 s (a text layer's comes with F-010); for a main-track
+      // clip Shift makes no difference, so it moves one place like Alt+Left/Right and the key is taken.
+      if (!selectedAudio.peek()) {
+        moveSelected(action === 'move-earlier-second' ? 'earlier' : 'later');
+        return true;
+      }
       const second = project.peek().frame.frameRate;
       moveAudioBy(action === 'move-earlier-second' ? -second : second);
       return true;
