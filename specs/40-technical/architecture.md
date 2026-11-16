@@ -232,7 +232,7 @@ WebKit).
 | Audio worker + worklet | ≤ 50 KB |
 | Analysis worker, its own bundle (container read ≈ 73 KB, codec, media; 72.3 KB measured in E3) | ≤ 105 KB |
 | Export worker, its own bundle (container read ≈ 73 KB + writer ≈ 48 KB, codec, plan, compositor, export, gifenc) | ≤ 180 KB |
-| Export-audio worker | ≤ 12 KB (Q83: raised from 10 KB by E6 source decoding; owner review pending) |
+| Export-audio worker | ≤ 12 KB (raised from 10 KB by E6 source decoding; decided by the owner 2026-11-16, build question 83) |
 | **Code and styles total** (every bundle counted, so code shared by two workers counts twice) | **≤ 560 KB** |
 | Fonts (5 packages, latin + vietnamese) | ≈ 200 KB |
 | Look tables (16 × 33³ 8-bit PNG, ≤ 30 KB each; measured 4–15 KB) | ≤ 0.5 MB (fonts + looks ≤ 1.5 MB) |

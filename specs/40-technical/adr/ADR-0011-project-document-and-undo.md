@@ -34,8 +34,10 @@ the model scales here because the project is small data: media stays in files.
    New project cut an open gesture and tell its owner. *(Amended 2026-11-10 by F-014, build
    question 96: was "steps `{ before, after, selectionBefore, selectionAfter, coalesceKey }` and a
    cursor … coalesced by key".)*
-   **Depth**: at least 200 steps; up to 500 while the estimated retained size (new objects per
-   step) stays under 32 MB, then the oldest beyond 200 are dropped. A worst-case step (Apply to all
+   **Depth**: the last 200 steps are kept and the oldest beyond 200 are dropped; a later version
+   may keep more while the estimated retained size (new objects per step) stays under 32 MB.
+   *(Amended 2026-11-16 by the owner, build question 101: was "up to 500 while the estimated
+   retained size … stays under 32 MB".)* A worst-case step (Apply to all
    over ~300 clips) retains a few hundred KB, so 200 steps stay well inside the phone budget
    (ADR-0009).
 4. **Sources and history**: removing a source is a step; its registry entry (the `File` reference

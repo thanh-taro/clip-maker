@@ -6,9 +6,12 @@ depends_on: [MOD-Core]
 ---
 
 ## Responsibility
-Reads the build-generated asset manifest and loads look tables and bundled music from the tool's
-own origin after first render, so the service worker has them for offline use and no feature
-fetches on first use (NFR-01, D-017). The only module allowed to call `fetch`, and only for paths
+Reads the build-generated asset manifest and loads look tables from the tool's own origin after
+first render, so the service worker has them for offline use and no feature fetches on first use
+(NFR-01, D-017). Bundled music is read on first use: a track's hashed file, listed in the asset
+manifest, is read when it is first auditioned or placed, and the service worker's precache makes
+it available offline after the first visit (ADR-0013 §5, build question 113). On the development
+server, which builds no manifest, the compiled-in music paths stand in for it; never in a build. The only module allowed to call `fetch`, and only for paths
 listed in the manifest. Provides the music catalogue (ENT-MusicTrack: id, title, source, licence,
 duration) and the looks catalogue.
 

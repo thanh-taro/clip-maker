@@ -50,5 +50,6 @@ CMP-Toolbar opens CMP-MusicPicker (COPY-action.music) with COPY-music.title, COP
 ## Edge cases
 - Less than 0.1 s free from the start point, or the playhead at or past the project end → refused with COPY-notice.no_audio_room (RULE-12).
 - An audio clip past the project end → kept but not heard or exported (INV-07).
+- A bundled track's file can't be read → its preview stops and COPY-notice.music_unavailable shows; during project playback the same notice shows, and the track is read again the next time the user plays.
 
 ## Open questions

@@ -40,6 +40,9 @@ light is fully supported (D-029).
   `font.size.xs` uppercase `muted`, letter-spaced.
 - **Numbers:** JetBrains Mono at `font.size.sm`. Number fields use `font.size.input` so phones
   don't zoom on focus.
+- **Number fields:** a typed value accepts the language's decimal separator (vi-VN: a comma),
+  parsed with the language's number format parts. A value that can't be parsed is rejected: the
+  field shows its value again and nothing is edited. To build before F-005/F-007.
 - **Text layers in the video:** the four RULE-11 faces (Sans, Display, Serif, Rounded), chosen in
   `40-technical`, at sizes from RULE-11, not from the UI scale.
 - The portal's display face (Unbounded) is not used inside the tool.
@@ -53,14 +56,15 @@ Breakpoints are measured on the tool's own width (the iframe when embedded):
   - timeline across the bottom (main track, text lane, audio lane);
   - status bar.
   The media panel opens as a left drawer from Add media.
-- **Compact (700–999 px):** the inspector becomes a resizable right sheet, toolbar labels become
-  icons, and the timeline stays at the bottom.
+- **Compact (700–999 px):** the inspector becomes a resizable right sheet (a resize grip and no
+  Close; to build with F-006/F-007), toolbar labels become icons, and the timeline stays at the
+  bottom. The inspector is hidden while the media drawer is open and comes back when it closes.
 - **Narrow (< 700 px, phones):** (D-038)
   - **Top bar:** More menu (New project, Keyboard shortcuts, Licences and credits, Source code), then Undo and Redo, then Export (filled). Every target is at least 44 px.
   - **Preview**, then the **timeline** with the centre-fixed playhead (RULE-14, D-013).
   - **Bottom tab bar** (`size.tabBar`): Edit, Audio, Text, Looks, Adjust.
     - *Edit* holds Add media, Frame (when nothing is selected), and the selection's actions: split, start/end here, delete, duplicate, move earlier/later, cross-fade, speed, fades, position and nudge.
-    - *Audio* holds Music (CMP-MusicPicker), add your own audio, and the selection's sound.
+    - *Audio* holds Music (CMP-MusicPicker), add your own audio, and the selection's sound: while a video or audio clip is selected, its sound section sits at the top of the Audio sheet.
     - *Text* holds Add text and the text style.
     - *Adjust* holds the 12 adjustments, Hold to compare, Apply to all, and copy/paste colour.
     Each tab opens its tools as a bottom sheet above the tab bar. The transport (44 px) and a timeline peek (ruler + main track, 76 px) always stay visible above an open sheet; no sheet is open by default. A sheet takes at most 40 % of the height (60 % when the tool is under 640 px tall). Its body scrolls, including any message above a sticky footer, and the export panel follows the same rule.

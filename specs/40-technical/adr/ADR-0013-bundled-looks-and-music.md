@@ -38,9 +38,16 @@ audio path as user files (ADR-0008).
    licence, date checked, a copy of the licence/dedication page saved with the audit, file
    checksum), and the notices file and the in-tool notices list them (F-020.R4).
 5. **Loading**: looks and music are listed in the build-generated asset manifest; MOD-Assets
-   reads them from the tool's own origin at start-up after first render (ADR-0014's
+   reads looks from the tool's own origin at start-up after first render (ADR-0014's
    `connect-src 'self'`), the service worker caches them (ADR-0015), and nothing is fetched on
-   first use.
+   first use. Bundled music tracks are hashed build files listed in the asset manifest and
+   precached by the service worker on the first online visit; MOD-Assets reads a track when it is
+   first auditioned or placed (served from the offline copy), and only if the manifest lists it.
+   On the development server, which builds no manifest, the compiled-in music paths stand in for
+   it; never in a build. *(Amended 2026-11-16 by the owner, build question 113: music was read "at
+   start-up after first render"; reading up to 10 MB on every start would cost memory and start-up
+   time for nothing. NFR-01's "the first online visit fetches everything" still holds through the
+   precache.)*
 
 ## Alternatives considered
 - **Opus in Ogg/WebM** — smaller; decoding support on every target's codec API to be confirmed.

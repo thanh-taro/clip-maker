@@ -12,7 +12,7 @@ The only working screen. The user adds media, edits on the timeline, and exports
 ## Layout regions
 1. CMP-Toolbar.
 2. CMP-Preview, with CMP-TextEditor over it while text is being edited.
-3. CMP-Inspector for the selection, or the frame. On narrow widths it becomes a panel the user opens from the selection.
+3. CMP-Inspector for the selection, or the frame. On narrow widths it becomes a panel the user opens from the selection. On compact widths (700–999 px) it is hidden while the media drawer is open.
 4. CMP-Timeline.
 5. CMP-MediaPanel, opened from the toolbar on narrow widths.
 6. CMP-StatusBar.

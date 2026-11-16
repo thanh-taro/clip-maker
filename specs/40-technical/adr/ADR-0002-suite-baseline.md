@@ -17,9 +17,12 @@ siblings already handle with "framework for chrome, imperative canvas for the he
 ## Decision
 Reuse the suite decisions as written, with these clip-maker specifics:
 1. **UI**: Preact 10 + @preact/signals (DEP-01…DEP-03). Chrome (toolbar, media panel, inspector,
-   export panel, dialogs, notices) is Preact. The preview surface and the timeline are imperative
-   canvases owned by MOD-Preview and MOD-Timeline; pointer moves, scrubbing and playback ticks never
-   re-render Preact components. State lives in signals (ADR-0011).
+   export panel, dialogs, notices) is Preact. The preview surface is an imperative canvas owned by
+   MOD-Preview; the timeline is an imperative DOM view owned by MOD-Timeline (canvas strips for
+   thumbnails and waveforms); neither re-renders Preact components on pointer moves, scrubbing or
+   playback ticks. State lives in signals (ADR-0011). *(Amended 2026-11-16 by the owner, build
+   question 94: was "the preview surface and the timeline are imperative canvases"; a DOM timeline
+   makes every clip a focusable named control for keyboard and screen readers, NFR-06.)*
 2. **Language and build**: strict TypeScript, Vite, pnpm, matching the suite's pinned majors. Vite
    builds the module workers and the audio worklet module (ADR-0003) as hashed same-origin files.
    **No dynamic `import()` and no lazy chunks**: every code file loads at startup (NFR-01, D-017).

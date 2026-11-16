@@ -59,6 +59,7 @@ confirmed by the spikes in `architecture.md`. Updated with the spike outcomes on
 | Fixed centre playhead and scroll-scrub (RULE-14, D-013) | Own scroll physics on the timeline canvas (`touch-action: none`), momentum ending on a frame start | Native scrolling cannot snap per frame |
 | Hold 0.4 s then drag; pinch zoom (RULE-21) | Pointer timers and two-pointer tracking; `wheel` + `ctrlKey` for trackpad pinch | |
 | Keys (RULE-20) | `keydown` with `event.code` for letters (US positions), Mod = Meta on macOS else Ctrl | |
+| Number fields accept the language's decimal separator (style.md) | Text inputs (`inputmode="decimal"`) parsed with the separators from `Intl.NumberFormat(lang).formatToParts()`; unparsable → restore the shown value, no edit | Not `<input type="number">`: WebKit reads vi-VN "50,5" as 505 (build question 121); to build before F-005/F-007 |
 
 ## Getting results out
 | Spec wording | Platform mapping | Notes |

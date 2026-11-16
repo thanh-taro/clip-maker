@@ -39,6 +39,6 @@ Being able to undo anything makes experimenting safe (PRN-04, PER-03).
 CMP-Toolbar holds COPY-action.undo and COPY-action.redo; each is unavailable when there is nothing to undo or redo.
 
 ## Edge cases
-- Undo during playback → playback continues with the restored project.
+- Undo during playback → playback continues with the restored project; if the restored project ends before the playhead, playback stops at the end.
 
 ## Open questions

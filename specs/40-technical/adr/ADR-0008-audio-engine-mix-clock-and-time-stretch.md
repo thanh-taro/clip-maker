@@ -24,10 +24,17 @@ Stretch is MIT but ships as WebAssembly, which needs `'wasm-unsafe-eval'` in the
    48 kHz stereo. `render(audioPlan, fromSample, count)` produces the mix for any range. Preview
    (audio worker → worklet) and every export (export worker → `AudioEncoder` or the WAV writer)
    call the same function with plans from MOD-Plan.
-2. **Per-voice chain**: decode window (`AudioDecoder`, WAV parsed directly) → downmix/upmix to
+2. **Per-voice chain**: decode window (`AudioDecoder`, WAV through `AudioDecoder`'s `pcm-*`
+   codecs) → downmix/upmix to
    stereo by fixed rules → resample to 48 kHz (windowed-sinc polyphase, fixed taps) →
    time-stretch when speed ≠ 1 → gain (volume × fade curve; equal-power `cos/sin` in cross-fades;
    straight lines elsewhere; mute = 0) → sum.
+   *(Amended 2026-11-16 by the owner, build questions 84 and 86a: was "WAV parsed directly"; WAV
+   sources use the same decoder path as every other format. The stereo rules are: 1 channel → the
+   same signal on both sides at full level; 2 channels → as is; more → WAVE/SMPTE channel order
+   (L, R, C, LFE, then surround pairs), the centre to both sides and each surround to its own side
+   at −3 dB (×√½, ITU-R BS.775), the LFE left out, nothing normalised (the limiter keeps the
+   peak).)*
 3. **Limiter**: look-ahead true-peak limiter with 4× oversampled peak detection (ITU-R BS.1770
    style), ceiling below −1 dBTP by a margin that covers encoder overshoot (start −1.5 dBTP; SP-audio
    measures the decoded AAC/Opus overshoot and fixes the margin so F-011.AC5 holds on decoded

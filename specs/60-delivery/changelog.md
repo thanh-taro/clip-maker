@@ -104,3 +104,20 @@ Owner decisions on `.build-my-app/reports/build-spec-questions.md` items 1–7, 
 - copy.md: COPY-notice.music_unavailable (en-US, vi-VN), shown when a bundled track's file could not be read (build question 120).
 - MOD-Audio public surface: the audition is `audition(trackId, length)` plus `auditionStop(t)`; the project's plan is kept meanwhile (ADR-0008 §7).
 - dependencies.md: DEP-41 … DEP-43, three generated placeholder music tracks (not for release; `check:licenses --release` fails on them), and DEP-14's status (build question 114).
+
+## 2026-11-16 — Wave 3 review decisions (owner)
+- architecture.md: the export-audio worker budget is 12 KB, decided (build question 83).
+- ADR-0008 §2 amended: WAV through `AudioDecoder`'s `pcm-*` codecs instead of "parsed directly", and the stereo down-mix rules written out (build questions 84, 86a).
+- ADR-0002 §1 amended: the timeline is an imperative DOM view owned by MOD-Timeline, with canvas strips for thumbnails and waveforms (build question 94).
+- ADR-0011 §3 amended: history keeps the last 200 steps; a later version may keep more (build question 101).
+- ADR-0013 §5 and MOD-Assets Responsibility: bundled music is read on first use from the manifest-listed hashed files and precached by the service worker; the compiled-in paths stand in on the development server only (build question 113).
+- F-014 edge case: if the restored project ends before the playhead, playback stops at the end (build question 99).
+- RULE-13 *After undo or redo*: the changed item is selected only if it is the only changed item that still exists (build question 103).
+- RULE-20: for a clip, Shift makes no difference with Alt+Left/Right; Ctrl+Y redoes on all platforms (build questions 93, 98).
+- F-011 edge case and CMP-MusicPicker "row / preview failed": a bundled track that can't be read stops its preview and shows COPY-notice.music_unavailable, also during project playback (build question 120).
+- SCR-Editor, style.md and CMP-Inspector "compact": at 700–999 px the inspector is hidden while the media drawer is open (build question 111); the compact inspector has a resize grip and no Close, to build with F-006/F-007 (build question 105).
+- CMP-Timeline "narrow / sheet open": vi-VN tile labels wrap to two lines; the short-forms sentence is removed (build question 88).
+- CMP-Notice "placement · narrow": the stack sits just above a sheet that overlays the timeline, and stays above the transport with a docked tab sheet (build question 89).
+- CMP-Inspector, CMP-MusicPicker and style.md: the phone Audio sheet holds the selection's sound section (build question 112).
+- style.md "Number fields" and platform-mapping: number fields accept the language's decimal separator and reject what can't be parsed by showing the value again with no edit; to build before F-005/F-007 (build question 121).
+- Deferred: the bundled music tracks keep their placeholders (DEP-41 … DEP-43) through waves 4–5; before release Claude shortlists ~15 CC0 candidates, asking before any download, and the owner picks 8+ (build question 114).

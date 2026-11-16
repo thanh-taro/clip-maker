@@ -21,6 +21,8 @@ Header (COPY-music.title) with Close (COPY-action.close); "your audio" row (COPY
 | row / previewing | As in the popover: selection surface, Stop preview, progress line, labelled Add at playhead. |
 | row / no audio room | Add at playhead is unavailable and COPY-notice.no_audio_room explains why under the row. |
 | narrow | Bottom sheet (opened from the Audio tab, at most 40 % of the height) with grabber, title and Close; the your-audio hint and a full-width touch-size Your audio button; touch-size rows where Add at playhead is always an icon button with its label as accessible name. |
+| narrow / Audio sheet with a selection | While a video or audio clip is selected, the sheet shows, under its title and Close, the selection's sound section at touch size: Volume (COPY-sound.volume) slider and field, Mute (COPY-action.mute), and Mute original sound (COPY-action.mute_all) for a video clip or Earlier/Later (COPY-action.time_earlier, COPY-action.time_later) for an audio clip; then Your audio and the tracks. |
+| row / preview failed | A track's file can't be read: its preview stops (the row shows it stopped) and COPY-notice.music_unavailable shows (F-011 edge cases). |
 | narrow · vi-VN (top) | The sheet's top in Vietnamese: title, hint and Your audio fit without truncation. |
 
 ## Behavior
