@@ -43,3 +43,9 @@
 - QA-open: Q25 (decoder fallback, phone), Q39 (colour range tag), Q45 (AAC estimate on real music).
 - Owner checks pending: music shortlist (D-034), look sign-off, floor stills, chart MP4 player
   check, Android, iPhone device checks.
+
+## Memory (2026-11-16)
+The PC crashed from test memory. Playwright now runs at most `BMA_TEST_WORKERS` browsers (default 2) and
+Vitest `BMA_TEST_WORKERS` threads (default 2). Run every build/test through the plugin's wrapper
+(`bma_heavy.py`, 1 heavy run at a time machine-wide, stops on critical memory pressure). Never run
+two builders' checks at once.
