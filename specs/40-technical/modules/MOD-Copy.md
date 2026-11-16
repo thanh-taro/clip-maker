@@ -15,6 +15,7 @@ and are formatted when shown, so a language switch re-renders them.
 
 ## Public surface
 - `t(id, params)`, `formatNumber`, `formatDuration`, `formatTimecode(µs, rate)`, `formatMB`.
+- `parseNumber(text, lang)` and `formatField(value, lang, digits)`: a number field's typed text read, and its value shown, with the language's decimal and group marks (style.md "Number fields", build question 121).
 
 ## Implements
 F-022.R1/R4/R5; RULE-18; INV-05. Decided by ADR-0002.
