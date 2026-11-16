@@ -54,7 +54,7 @@
     "build": {
       "title": "4 Implementation",
       "status": "in_progress",
-      "step": "4 wave 3: all units merged (F-002, E6, F-003, F-014, F-012, F-011; check 9/9, 417 e2e); wave gate: check:realtime, then owner wave 3 review",
+      "step": "4 wave 4 start: W4-prep (shared number field Q121 + RULE-20 Q93 Alt+Shift for clips); then F-004, F-005, F-006, F-007, F-008, F-009, F-010, F-013, F-015, F-018 one at a time",
       "gate": {
         "status": "pending",
         "at": null,
@@ -739,14 +739,6 @@
     }
   },
   "log": [
-    {
-      "at": "2026-11-03T06:04:39+00:00",
-      "event": "initialized (autonomy=balanced)"
-    },
-    {
-      "at": "2026-11-03T06:04:39+00:00",
-      "event": "phase setup -> in_progress"
-    },
     {
       "at": "2026-11-03T06:05:17+00:00",
       "event": "set profile"
@@ -1538,9 +1530,17 @@
     {
       "at": "2026-11-16T08:28:00+00:00",
       "event": "build step: 4 wave 3: all units merged (F-002, E6, F-003, F-014, F-012, F-011; check 9/9, 417 e2e); wave gate: check:realtime, then owner wave 3 review"
+    },
+    {
+      "at": "2026-11-16T08:34:04+00:00",
+      "event": "build step: 4 wave 4 start: W4-prep (shared number field Q121 + RULE-20 Q93 Alt+Shift for clips); then F-004, F-005, F-006, F-007, F-008, F-009, F-010, F-013, F-015, F-018 one at a time"
+    },
+    {
+      "at": "2026-11-16T08:34:04+00:00",
+      "event": "Wave 3 owner review 2026-11-16: all accepted (6dd1e66); music deferred to pre-release"
     }
   ],
-  "updated": "2026-11-16T08:28:00+00:00",
+  "updated": "2026-11-16T08:34:04+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
