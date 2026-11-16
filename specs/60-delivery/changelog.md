@@ -2,6 +2,12 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-16 — F-006 building
+- F-006 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 132–135 (the offset range, when the handles show, the photo's Edit title row, the phone turn row).
+- CMP-Inspector "compact": the resize grip is built (build question 105, decided): Left/Up widen it by 16 px, Right/Down narrow it, Shift goes to the limit, Home/End go to the limits; the width is UI state and stays while the page is open. style.md "Layouts" compact says so, and that the hidden toolbar labels stay as the buttons' names (NFR-06).
+- RULE-20 *Scope*: the compact inspector's resize grip gets the slider keys (it is a focusable separator), so its arrows don't step the preview.
+- MOD-Preview "Public surface": the on-preview placement geometry (`screenRect`, `handlePoints`, `moveFrom`, `scaleFrom`, `pinchScale`).
+
 ## 2026-11-16 — F-005 building
 - F-005 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 127–129 (the clip tabs and their keys, the phone Exact row, the speed slider’s movement rule).
 - MOD-Project "Public surface": a plain `edit(op)` that changes the project cuts every open gesture, as undo does (build question 96; F-005 review).

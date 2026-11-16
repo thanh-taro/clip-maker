@@ -32,7 +32,7 @@ import { main } from '../../src/app/app';
 import { browserDevice, type DeviceDeps, type EffectsRun } from '../../src/app/device';
 import { playback } from '../../src/app/playback';
 import { workers } from '../../src/app/workers';
-import { frameStart, layoutOf, type Frame, type FromEngine, type Project } from '../../src/core';
+import { frameStart, layoutOf, type Frame, type FromEngine, type Placement, type Project } from '../../src/core';
 import {
   addText,
   beginGesture,
@@ -73,6 +73,8 @@ export interface ClipSummary {
   readonly speed: number;
   readonly look: string | null;
   readonly selected: boolean;
+  /** F-006: the clip's placement (RULE-07). */
+  readonly placement: Placement;
 }
 
 /** Settings the editor has no control for yet (F-004 photo length, F-005 speed, F-008 look, F-009 cross-fade). */
@@ -273,6 +275,7 @@ function clipsSummary(): ClipSummary[] {
     speed: c.speedPct ?? 100,
     look: c.look?.id ?? null,
     selected: selection.value.includes(c.id),
+    placement: c.placement,
   }));
 }
 

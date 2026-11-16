@@ -72,15 +72,17 @@ const COMPOSITE_KEYS = new Set([...SLIDER_KEYS, 'Space']);
 
 /**
  * RULE-20 *Scope*: a field being edited, an open dialog or menu, or a focused control that uses this
- * key itself (buttons and toggles get Space and Enter; radios the arrows too; sliders get the arrows,
- * Home, End and Page keys; lists, grids and trees those and Space; a scrolling region the arrows, Space
+ * key itself (buttons and toggles get Space and Enter; radios the arrows too; sliders and resize grips get
+ * the arrows, Home, End and Page keys; lists, grids and trees those and Space; a scrolling region the arrows, Space
  * and Page keys).
  */
 export function scopeOf(focus: FocusInfo | null, code: string): KeyScope {
   if (!focus) return 'none';
   if (focus.editable) return 'field';
   if (focus.inDialog) return 'dialog';
-  const slider = focus.role === 'slider' || (focus.tag === 'input' && focus.type === 'range');
+  // A focused separator is a window splitter (the compact inspector's resize grip, Q105): keyed as a slider.
+  const slider =
+    focus.role === 'slider' || focus.role === 'separator' || (focus.tag === 'input' && focus.type === 'range');
   if (slider) return SLIDER_KEYS.has(code) ? 'control' : 'none';
   if (focus.role !== null && COMPOSITE_ROLES.has(focus.role)) return COMPOSITE_KEYS.has(code) ? 'control' : 'none';
   // A radio of an option group (CMP-Inspector: aspect, rate, background) moves its choice with the arrows.

@@ -22,6 +22,7 @@ import {
   type ExportSettings,
   type Frame,
   type PcmSource,
+  type Placement,
   type Project,
 } from '../../src/core';
 import {
@@ -777,17 +778,20 @@ export interface FrameFillReport {
  * F-012.AC6 (export half): the frame-coded 4:3 clip, fitted (RULE-07 Fit) in a frame with the given
  * aspect and background, exported at 480p Balanced through the real export workers; frame `k` of the
  * file is decoded and sampled at `points` (fractions of the width and height), next to the
- * compositor's paint of the same plan.
+ * compositor's paint of the same plan. F-006: `placement` places the clip (rotation, flips, Fill, scale,
+ * offset; RULE-07) in the file and in the paint alike (INV-02).
  */
 async function frameFill(
   frame: Partial<Frame>,
   points: readonly (readonly [number, number])[],
   k = 15,
+  placement: Partial<Placement> = {},
 ): Promise<FrameFillReport> {
   const frames = 30;
   const clip = await makeClip({ rate: 30, frames, gop: 30 });
   const coded = codedProject({ rate: 30, frames, gop: 30 });
-  const project: Project = { ...coded, frame: { ...coded.frame, ...frame } };
+  const clips = coded.clips.map((c) => ({ ...c, placement: { ...c.placement, ...placement } }));
+  const project: Project = { ...coded, clips, frame: { ...coded.frame, ...frame } };
   workers ??= new ExportWorkers();
   let saved: Blob | null = null;
   const handle = await start(

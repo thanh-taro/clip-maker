@@ -16,6 +16,8 @@
 // arrange tiles start the second row.
 // F-005: with a video clip selected, the setting rows follow the tiles: Speed with its label on the left
 // and the six quick segments, then the Exact slider and field at touch size (the fine control, F-005.R1).
+// F-006: with a video or photo clip selected, the placement rows come first, as in the inspector: the Position row (label on the left, Fit/Fill, the four
+// nudges), the Scale slider row, then Rotate, the flips and Reset at touch size (build question 135); then Speed.
 // Implements: F-003.R6 (visible controls on touch), F-003.AC5, RULE-21 (move-earlier/later stand in for
 // hold-and-drag; start-here and end-here stand in for the trim drag; touch-size targets), F-004.R2/R6,
 // F-011.R1/R3/R4/R8 on narrow layouts, CMP-MusicPicker "narrow".
@@ -35,6 +37,8 @@ import { soundTarget, stopPreview } from './sound';
 import { SoundSection } from './SoundSection';
 import { speedTarget } from './speed';
 import { SpeedSection } from './SpeedSection';
+import { placementTarget } from './placement';
+import { PositionSection } from './PositionSection';
 import { ARRANGE_ITEMS, TRIM_ITEMS } from './Timeline';
 
 type Sheet = 'edit' | 'audio';
@@ -203,6 +207,7 @@ export function EditSheet() {
             );
           })}
         </div>
+        {placementTarget.value ? <PositionSection id="tk-sheet-place" touch /> : null}
         {speedTarget.value ? <SpeedSection id="tk-sheet-speed" touch /> : null}
       </div>
     </section>

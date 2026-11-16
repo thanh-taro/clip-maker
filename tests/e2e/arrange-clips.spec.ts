@@ -522,7 +522,7 @@ test.describe('F-003 arrange clips (app harness)', () => {
       await tab.click();
       const sheet = page.getByRole('tabpanel', { name: text(lang, 'inspector.edit') });
       await expect(sheet).toBeVisible();
-      await expect(sheet.getByRole('heading')).toHaveText(text(lang, 'inspector.label'));
+      await expect(sheet.getByRole('heading', { level: 2 })).toHaveText(text(lang, 'inspector.label'));
       await expect(sheet).toContainText('B.png');
       // The transport and the timeline peek stay visible above the open sheet.
       const peek = (await timeline(page, lang).locator('.tk-track').boundingBox())!;

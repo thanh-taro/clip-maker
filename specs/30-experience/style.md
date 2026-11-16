@@ -57,7 +57,7 @@ Breakpoints are measured on the tool's own width (the iframe when embedded):
   - status bar.
   The media panel opens as a left drawer from Add media.
 - **Compact (700–999 px):** the inspector becomes a resizable right sheet (a resize grip and no
-  Close; to build with F-006/F-007), toolbar labels become icons, and the timeline stays at the
+  Close; CMP-Inspector "compact"), toolbar labels become icons (the label stays as the button's name), and the timeline stays at the
   bottom. The inspector is hidden while the media drawer is open and comes back when it closes.
 - **Narrow (< 700 px, phones):** (D-038)
   - **Top bar:** More menu (New project, Keyboard shortcuts, Licences and credits, Source code), then Undo and Redo, then Export (filled). Every target is at least 44 px.

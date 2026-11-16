@@ -7,6 +7,7 @@
 // Implements: F-002.R1 (the frame), F-002.R2 (Play/Pause), F-002.R4 (step, start, end), F-002.R5 (the
 // time, COPY-time.position with the frame suffix, D-039), F-002.R7 (full screen / maximised), RULE-20
 // playback keys (bound while the editor is mounted), RULE-21 (frame step and play stand in for scrub).
+// F-006: the selected clip's placement outline and handles over the frame (./PlacementOverlay.tsx).
 import { computed, effect, signal } from '@preact/signals';
 import type { Ref } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
@@ -15,6 +16,7 @@ import { isEmpty, project } from '../project';
 import { EmptyState } from './EmptyState';
 import { Icon, type IconName } from './icons';
 import { Notices } from './NoticeStack';
+import { PlacementOverlay } from './PlacementOverlay';
 import { bindPlaybackKeys, mountPlayback, playback } from './playback';
 import { workersReady } from './workers';
 
@@ -247,6 +249,7 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
     <main ref={mainRef} class="tk-preview-area" tabIndex={-1} data-fullscreen={mode === 'off' ? undefined : mode}>
       <div class="tk-stage" ref={stageRef}>
         <div class="tk-frame" ref={frameRef} role="img" aria-label={frameLabel} data-empty={empty ? '' : undefined} />
+        {empty ? null : <PlacementOverlay stage={stageRef} />}
         {empty ? <EmptyState addRef={addRef} /> : null}
         {mode !== 'off' ? <FullscreenBar exitRef={exitRef} /> : null}
         <Notices />

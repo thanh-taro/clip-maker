@@ -87,9 +87,15 @@
     color: var(--tk-color-muted);
   }
 
+  /* Compact: the labels become icons; the label stays as the button's name (visually hidden, NFR-06). */
   @container tk-editor (width < 1000px) {
     .tk-tool--labelled .tk-tool__label {
-      display: none;
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
   }
 

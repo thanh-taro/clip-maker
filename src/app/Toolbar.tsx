@@ -85,7 +85,7 @@ function ToolButton({ item }: { item: Item }) {
       ].join(' ')}
       data-action={item.id}
       aria-label={item.labelled ? undefined : name}
-      title={item.labelled ? undefined : name}
+      title={name}
       aria-disabled={unavailable ? 'true' : undefined}
       onClick={onClick}
     >

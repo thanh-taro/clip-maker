@@ -337,7 +337,8 @@ test.describe('F-012 set the frame (app harness)', () => {
       .getByRole('region', { name: text('en-US', 'timeline.label') })
       .getByRole('button', { name: /^wide\.png / })
       .click();
-    await expect(page.getByRole('complementary', { name: text('en-US', 'inspector.label') })).toBeVisible();
+    // A photo's inspector is its Edit section under a plain title row (F-006, build question 134).
+    await expect(page.getByRole('complementary', { name: text('en-US', 'inspector.edit') })).toBeVisible();
     await expect(page.getByRole('radiogroup', { name: text('en-US', 'frame.aspect') })).toHaveCount(0);
   });
 
@@ -377,9 +378,10 @@ test.describe('F-012 set the frame (app harness)', () => {
     await one.focus();
     // Redo from the keyboard while a frame radio has focus: RULE-13 selects the copy.
     await page.keyboard.press(browserName === 'webkit' ? 'Meta+Shift+KeyZ' : 'ControlOrMeta+Shift+KeyZ');
+    // A photo's panel is its Edit section under a plain title row (F-006, build question 134).
     const heading = page
-      .getByRole('complementary', { name: text('en-US', 'inspector.label') })
-      .getByRole('heading', { name: text('en-US', 'inspector.label') });
+      .getByRole('complementary', { name: text('en-US', 'inspector.edit') })
+      .getByRole('heading', { name: text('en-US', 'inspector.edit'), level: 2 });
     await expect(heading).toBeFocused();
   });
 
