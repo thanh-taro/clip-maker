@@ -8,6 +8,7 @@
 // F-011 adds the audio clips: the same selection, Delete and Duplicate (RULE-12 duplicate), the time moves
 // Earlier/Later by one frame (Shift+Alt: 1 s) under the RULE-12 move rule, and M to mute the selected
 // video or audio clip. Implements: F-011.R2 (move, duplicate, delete), F-011.R8, RULE-20 (M, Shift+Alt).
+// F-004 adds the trim keys S or Mod+B (split), I and O (start / end here), acting through ./trim.ts.
 import { computed } from '@preact/signals';
 import type { AudioClip, Clip } from '../core';
 import { isMac, resolveKey, scopeOf, type Action } from '../keys';
@@ -25,6 +26,7 @@ import {
 } from '../project';
 import { nextItemId, showResultNotices } from './adding';
 import { focusInfo } from './playback';
+import { splitHere, trimHere } from './trim';
 
 /** F-003.R1: the selected main-track clip, if the selection is one. */
 export const selectedClip = computed<Clip | null>(() => {
@@ -193,6 +195,16 @@ export function runArrangeAction(action: Action, repeat = false): boolean {
       if (repeat) return selectedAudio.peek() !== null || clip?.kind === 'video';
       return toggleMuteSelected();
     }
+    // F-004 (RULE-20): S or Mod+B splits, I / O start / end the selected item at the playhead. Within the
+    // scope the keys are taken even when nothing applies (Mod+B never reaches the browser); a held key acts
+    // once.
+    case 'split':
+      if (!repeat) splitHere();
+      return true;
+    case 'set-in':
+    case 'set-out':
+      if (!repeat) trimHere(action === 'set-in' ? 'start' : 'end');
+      return true;
     default:
       return false;
   }

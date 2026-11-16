@@ -27,6 +27,7 @@ visible equivalents of every gesture (NFR-06).
   the pictures (a source's poster from MOD-Media's registry) and the edit actions (MOD-App commits them
   and shows their notices). Returns `focusClip(index)` and `dispose()`.
 - Commands `zoomIn/zoomOut/fit`, `scrollToPlayhead`.
+- `itemSpan(project, id)`: where a clip, text layer or audio clip is on the timeline (F-004: MOD-App decides from it when Start here and End here apply).
 
 ## Implements
 F-002.R3 (scrubbing), F-003, F-004, F-009 controls, F-010.R4, F-011.R2, F-013, F-017 (touch); RULE-14, RULE-21; NFR-06, NFR-07. Decided by ADR-0002.

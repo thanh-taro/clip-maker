@@ -4,7 +4,9 @@
 import type { JSX } from 'preact';
 import {
   ArrowLeft,
+  ArrowLeftToLine,
   ArrowRight,
+  ArrowRightToLine,
   AudioLines,
   ChevronLeft,
   ChevronRight,
@@ -94,6 +96,10 @@ const SOURCES = {
   stop: Square,
   audio: AudioLines,
   volume: Volume2,
+  // F-004: Split, Start here and End here (boards CMP-Timeline, SCR-Editor selected narrow)
+  split: Scissors,
+  setIn: ArrowLeftToLine,
+  setOut: ArrowRightToLine,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

@@ -296,6 +296,8 @@ export const videoHarness = {
     spec: ClipSpec,
     times: number[],
     projectRate: 24 | 25 | 30 | 60 = 30,
+    /** The clip's in point in µs of source time (F-004.AC7). */
+    inPoint = 0,
   ): Promise<{ codes: number[]; exact: boolean[]; ms: number[] }> {
     const file = await makeClip(spec);
     const { engine, events, comp } = pageEngine();
@@ -306,7 +308,9 @@ export const videoHarness = {
       height: CLIP_H,
     });
     engine.handle({ type: 'engine:media', media: [{ id: 'src-a', kind: 'video', file }] });
-    engine.handle({ type: 'engine:setProject', project: codedProject(spec, projectRate) });
+    const coded = codedProject(spec, projectRate);
+    const project = { ...coded, clips: coded.clips.map((c) => ({ ...c, in: inPoint })) };
+    engine.handle({ type: 'engine:setProject', project });
     await engine.settled();
     const codes: number[] = [];
     const exact: boolean[] = [];

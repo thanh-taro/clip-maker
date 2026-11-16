@@ -1,9 +1,9 @@
 // MOD-Keys — the RULE-20 keyboard map with scopes (specs/40-technical/modules/MOD-Keys.md).
 // Pure core: `scopeOf` says where focus is for a key, `resolveKey` maps a key event in that scope to an
 // action. MOD-App's binder executes actions. Built so far: the playback keys (F-002: Space, Left/Right
-// with Shift, Home/End), Esc, the arrange keys of F-003 (Delete/Backspace, Mod+D, Alt+Left/Right) and the
-// history keys of F-014 (Mod+Z, Mod+Shift+Z, Ctrl+Y); the other edit, view, file and help keys come with
-// their features and F-017.
+// with Shift, Home/End), Esc, the arrange keys of F-003 (Delete/Backspace, Mod+D, Alt+Left/Right), the
+// history keys of F-014 (Mod+Z, Mod+Shift+Z, Ctrl+Y), M (F-011) and the trim keys of F-004 (S or Mod+B,
+// I, O); the other edit, view, file and help keys come with their features and F-017.
 // Implements: RULE-20 Scope, Playback, Edit (delete, duplicate, move) and History, F-017.R5 (a focused
 // control that uses a key gets it), F-003.R6, F-014.R1.
 
@@ -33,6 +33,11 @@ export type Action =
   | 'move-later-second'
   /** M: mute or unmute the selected clip (RULE-20; F-011.R3). */
   | 'mute'
+  /** S or Mod+B: split at the playhead (RULE-20; F-004.R2). */
+  | 'split'
+  /** I / O: start / end the selected item here (RULE-20; F-004.R6). */
+  | 'set-in'
+  | 'set-out'
   /** Mod+Z: undo (F-014.R1). */
   | 'undo'
   /** Mod+Shift+Z or Ctrl+Y: redo (F-014.R1). */
@@ -153,5 +158,10 @@ function editKey(
   }
   // RULE-20: M mutes or unmutes the selected clip (F-011).
   if (code === 'KeyM' && plain && !shiftKey) return 'mute';
+  // RULE-20: S or Mod+B splits at the playhead; I / O start / end the selected item here (F-004).
+  if (code === 'KeyS' && plain && !shiftKey) return 'split';
+  if (code === 'KeyB' && mod && !altKey && !shiftKey) return 'split';
+  if (code === 'KeyI' && plain && !shiftKey) return 'set-in';
+  if (code === 'KeyO' && plain && !shiftKey) return 'set-out';
   return undefined;
 }

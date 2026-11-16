@@ -107,3 +107,29 @@ describe('MOD-Keys Alt+Shift+Left/Right (RULE-20, Q93)', () => {
     expect(ids(project.value)).toEqual(['A', 'B', 'C']);
   });
 });
+
+describe('MOD-Keys trim keys (RULE-20, F-004)', () => {
+  it('RULE-20 S or Mod+B splits at the playhead; I and O start and end the selected item here', () => {
+    expect(resolveKey(key('KeyS'), 'none')).toBe('split');
+    expect(resolveKey(key('KeyB', { metaKey: true }), 'none', true)).toBe('split');
+    expect(resolveKey(key('KeyB', { ctrlKey: true }), 'none', false)).toBe('split');
+    expect(resolveKey(key('KeyB'), 'none')).toBeNull();
+    expect(resolveKey(key('KeyI'), 'none')).toBe('set-in');
+    expect(resolveKey(key('KeyO'), 'none')).toBe('set-out');
+    // Modified letters keep the browser's meaning (Mod+S saves, Mod+O opens, …).
+    for (const code of ['KeyS', 'KeyI', 'KeyO']) {
+      expect(resolveKey(key(code, { metaKey: true }), 'none', true)).toBeNull();
+      expect(resolveKey(key(code, { shiftKey: true }), 'none')).toBeNull();
+      expect(resolveKey(key(code, { altKey: true }), 'none')).toBeNull();
+    }
+  });
+
+  it('RULE-20 the trim keys act only in scope: never while a field is edited or a dialog is open', () => {
+    for (const code of ['KeyS', 'KeyI', 'KeyO']) {
+      expect(resolveKey(key(code), scopeOf(focus({ tag: 'input', type: 'text', editable: true }), code))).toBeNull();
+      expect(resolveKey(key(code), scopeOf(focus({ inDialog: true }), code))).toBeNull();
+      // A focused button keeps only Space and Enter: S with a clip focused splits.
+      expect(resolveKey(key(code), scopeOf(focus({ tag: 'button' }), code))).not.toBeNull();
+    }
+  });
+});

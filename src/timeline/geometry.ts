@@ -2,12 +2,16 @@
 // boxes (INV-03: end to end from 0, a cross-fade overlapping both neighbours by its duration), the ruler
 // ticks, the clip boundary nearest a drop point (RULE-05 reorder) and the time under the pointer.
 // Implements: CMP-Timeline "wide / default" (clip widths equal duration × the ruler scale), RULE-05
-// reorder target, F-002.R3 (the ruler's time under the pointer), F-003.R2.
+// reorder target, F-002.R3 (the ruler's time under the pointer), F-003.R2. F-004 adds an item's span, the
+// time under a trim drag and RULE-14 snapping of a trimmed edge (F-004.R4).
 import {
+  audioEnd,
   frameStart,
   layoutOf,
   MICROS_PER_SECOND,
   nearestFrame,
+  projectEnd,
+  RULE_14,
   type FrameRate,
   type Micros,
   type Project,
@@ -156,4 +160,74 @@ export function audioDragStart(start: Micros, dx: number, scale: number, rate: F
   if (scale <= 0) return start;
   const t = Math.max(0, Math.round(start + dx / scale));
   return frameStart(nearestFrame(t, rate), rate);
+}
+
+/** F-004: the time under `x` pixels from the track's start, not limited to the project (a trimmed end may pass it). */
+export function pointerTime(x: number, scale: number): Micros {
+  if (scale <= 0) return 0;
+  return Math.max(0, Math.round(x / scale));
+}
+
+/** An item's place on the timeline: a main-track clip, text layer or audio clip (end exclusive). */
+export interface ItemSpan {
+  readonly kind: 'clip' | 'text' | 'audio';
+  readonly start: Micros;
+  readonly end: Micros;
+}
+
+/** F-004: where item `id` is on the timeline, or null when there is no such item. */
+export function itemSpan(project: Project, id: string): ItemSpan | null {
+  const rate = project.frame.frameRate;
+  const i = project.clips.findIndex((c) => c.id === id);
+  if (i >= 0) {
+    const span = layoutOf(project).spans[i]!;
+    return { kind: 'clip', start: frameStart(span.startFrame, rate), end: frameStart(span.endFrame, rate) };
+  }
+  const layer = project.textLayers.find((t) => t.id === id);
+  if (layer) return { kind: 'text', start: layer.start, end: layer.end };
+  const a = project.audioClips.find((x) => x.id === id);
+  if (a) return { kind: 'audio', start: a.start, end: audioEnd(a) };
+  return null;
+}
+
+/**
+ * Implements: RULE-14 snapping (F-004.R4) — the times a trimmed edge of item `id` snaps to: time 0, the
+ * playhead, the project end and the starts and ends of the other clips, text layers and audio clips.
+ * What moves with the edge is left out: for a main-track clip, the clips after it and the project end
+ * (INV-03 keeps them joined to it); the item's own edges always.
+ */
+export function trimSnapTargets(project: Project, id: string, playhead: Micros): Micros[] {
+  const rate = project.frame.frameRate;
+  const { spans } = layoutOf(project);
+  const index = project.clips.findIndex((c) => c.id === id);
+  const main = index >= 0;
+  const out: Micros[] = [0, playhead];
+  if (!main && project.clips.length) out.push(projectEnd(project));
+  spans.forEach((span, i) => {
+    if (main && i >= index) return;
+    out.push(frameStart(span.startFrame, rate), frameStart(span.endFrame, rate));
+  });
+  for (const t of project.textLayers) if (t.id !== id) out.push(t.start, t.end);
+  for (const a of project.audioClips) if (a.id !== id) out.push(a.start, audioEnd(a));
+  return [...new Set(out)].sort((a, b) => a - b);
+}
+
+/**
+ * Implements: RULE-14 — the target within `px` screen pixels of `t` nearest to it (the earlier one on a
+ * tie), or null when none is that close.
+ */
+export function snapTime(
+  t: Micros,
+  targets: readonly Micros[],
+  scale: number,
+  px: number = RULE_14.snapPx,
+): Micros | null {
+  if (scale <= 0) return null;
+  let best: Micros | null = null;
+  for (const target of targets) {
+    const d = Math.abs(target - t) * scale;
+    if (d > px) continue;
+    if (best === null || d < Math.abs(best - t) * scale) best = target;
+  }
+  return best;
 }
