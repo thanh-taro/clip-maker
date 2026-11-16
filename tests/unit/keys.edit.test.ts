@@ -1,6 +1,9 @@
 // MOD-Keys — the RULE-20 edit keys F-003 uses: Delete or Backspace, Mod+D, Alt+Left/Right, in scope only.
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { isMac, resolveKey, scopeOf, type FocusInfo } from '../../src/keys';
+import { EMPTY_HISTORY, history, project, selection } from '../../src/project';
+import { runArrangeAction, selectClip } from '../../src/app/arrange';
+import { S, audio, ids, photo, proj, video } from '../support/project';
 
 type Ev = Parameters<typeof resolveKey>[0];
 const key = (code: string, mods: Partial<Omit<Ev, 'code' | 'key'>> = {}): Ev => ({
@@ -59,5 +62,48 @@ describe('MOD-Keys edit keys (RULE-20, F-003.R6)', () => {
     // A focused clip on the timeline is a button: Delete and Alt+arrows reach the tool.
     expect(scopeOf(focus({ tag: 'button' }), 'Delete')).toBe('none');
     expect(scopeOf(focus({ tag: 'button' }), 'ArrowLeft')).toBe('none');
+  });
+});
+
+describe('MOD-Keys Alt+Shift+Left/Right (RULE-20, Q93)', () => {
+  const press = (code: 'ArrowLeft' | 'ArrowRight', shiftKey: boolean): boolean => {
+    const action = resolveKey(key(code, { altKey: true, shiftKey }), 'none');
+    return action !== null && runArrangeAction(action);
+  };
+  beforeEach(() => {
+    project.value = proj({ clips: [video('A', 4), photo('B', 3), video('C', 5)], audioClips: [audio('m', 2, 4)] });
+    history.value = EMPTY_HISTORY;
+    selection.value = [];
+  });
+
+  it('RULE-20 for a selected clip Shift makes no difference: Alt+Shift+Left/Right move it one place', () => {
+    selectClip('B');
+    expect(press('ArrowLeft', true)).toBe(true);
+    expect(ids(project.value)).toEqual(['B', 'A', 'C']);
+    expect(press('ArrowRight', true)).toBe(true);
+    expect(press('ArrowRight', true)).toBe(true);
+    expect(ids(project.value)).toEqual(['A', 'C', 'B']);
+    // One undo step per press, the same as Alt+Left/Right.
+    expect(history.value.past).toHaveLength(3);
+    expect(press('ArrowLeft', false)).toBe(true);
+    expect(ids(project.value)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('RULE-20 Alt+Shift+Left/Right with nothing selected are taken (no browser Back) and change nothing', () => {
+    expect(press('ArrowLeft', true)).toBe(true);
+    expect(press('ArrowRight', true)).toBe(true);
+    expect(ids(project.value)).toEqual(['A', 'B', 'C']);
+    expect(history.value.past).toHaveLength(0);
+  });
+
+  it('RULE-20 an audio clip keeps its Shift meaning: Alt+Shift+Left/Right move it 1 s, Alt+Left/Right one frame', () => {
+    selection.value = ['m'];
+    expect(press('ArrowRight', true)).toBe(true);
+    expect(project.value.audioClips[0]!.start).toBe(3 * S);
+    expect(press('ArrowLeft', true)).toBe(true);
+    expect(project.value.audioClips[0]!.start).toBe(2 * S);
+    expect(press('ArrowRight', false)).toBe(true);
+    expect(project.value.audioClips[0]!.start).toBeCloseTo(2 * S + S / 30, -1);
+    expect(ids(project.value)).toEqual(['A', 'B', 'C']);
   });
 });
