@@ -509,6 +509,74 @@ test.describe('F-006 place, rotate and flip (app harness)', () => {
   }
 });
 
+test.describe('F-006 pinch on the preview (app harness, touch)', () => {
+  test.use({ hasTouch: true });
+
+  type TouchPoint = { x: number; y: number; id: number };
+  /** Two-finger touch through the DevTools protocol (Chromium only: Playwright has no multi-touch API). */
+  async function touch(page: Page) {
+    const cdp = await page.context().newCDPSession(page);
+    return (type: 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel', touchPoints: TouchPoint[]) =>
+      cdp.send('Input.dispatchTouchEvent', { type, touchPoints });
+  }
+  async function centre(page: Page): Promise<{ cx: number; cy: number }> {
+    const b = (await canvas(page).boundingBox())!;
+    return { cx: b.x + b.width / 2, cy: b.y + b.height / 2 };
+  }
+
+  test('RULE-21 F-006.R2 two fingers spread to twice their distance scale the clip to 200 % in one step; lifting one finger ends the pinch', async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'multi-touch needs the DevTools protocol (Chromium)');
+    await setUp(page, '9:16');
+    const send = await touch(page);
+    const { cx, cy } = await centre(page);
+    const steps = await stepsOf(page);
+    await send('touchStart', [
+      { x: cx - 20, y: cy, id: 0 },
+      { x: cx + 20, y: cy, id: 1 },
+    ]);
+    for (const d of [25, 30, 35, 40])
+      await send('touchMove', [
+        { x: cx - d, y: cy, id: 0 },
+        { x: cx + d, y: cy, id: 1 },
+      ]);
+    await expect.poll(async () => (await placementOf(page)).scale).toBe(200);
+    // Lift one finger (Chromium releases the points a touchEnd lists): the pinch is over, as one step.
+    await send('touchEnd', [{ x: cx - 40, y: cy, id: 0 }]);
+    // The other finger moving afterwards changes nothing.
+    await send('touchMove', [{ x: cx + 90, y: cy + 30, id: 1 }]);
+    await send('touchMove', [{ x: cx + 120, y: cy + 60, id: 1 }]);
+    await send('touchEnd', []);
+    expect(await placementOf(page)).toMatchObject({ scale: 200, offsetX: 0, offsetY: 0 });
+    expect(await stepsOf(page)).toBe(steps + 1);
+  });
+
+  test('RULE-21 F-006.R2 a cancelled pinch (pointercancel) puts the clip back and makes no step', async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'multi-touch needs the DevTools protocol (Chromium)');
+    await setUp(page, '9:16');
+    const send = await touch(page);
+    const { cx, cy } = await centre(page);
+    const steps = await stepsOf(page);
+    await send('touchStart', [
+      { x: cx - 20, y: cy, id: 0 },
+      { x: cx + 20, y: cy, id: 1 },
+    ]);
+    await send('touchMove', [
+      { x: cx - 30, y: cy, id: 0 },
+      { x: cx + 30, y: cy, id: 1 },
+    ]);
+    await expect.poll(async () => (await placementOf(page)).scale).toBe(150);
+    await send('touchCancel', []);
+    await expect.poll(async () => (await placementOf(page)).scale).toBe(100);
+    expect(await stepsOf(page)).toBe(steps);
+  });
+});
+
 test.describe('F-006 Q105 the compact inspector’s resize grip (app harness)', () => {
   for (const lang of ['en-US', 'vi-VN'] as const) {
     test(`Q105 CMP-Inspector "compact" at 800 px: the grip resizes by keys and drag from size.inspector to 40 %, and the width stays while the page is open (${lang})`, async ({
@@ -653,5 +721,36 @@ test.describe('F-006 placement in the export (media harness)', () => {
       expect(check(r.exported[i]!), `export ${name} ${r.exported[i]}`).toBe(true);
       expect(check(r.painted[i]!), `paint ${name} ${r.painted[i]}`).toBe(true);
     }
+  });
+
+  test('F-006.R1 F-006.R2 RULE-07 INV-02 Fill at 150 % moved 10 % right: the shifted picture is the same in the exported video and the paint', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await page.goto(HARNESS);
+    await expect(page.locator('#out')).toHaveText('ready');
+    // Fill makes the 4:3 clip the frame's width (16:9), 150 % makes it 1.5 widths, centred 0.6 across: its
+    // left edge at −0.15. The white bits end at 0.4 of the clip, so at x = −0.15 + 0.4 × 1.5 = 0.45 of the
+    // frame (0.35 without the offset, 0.5 at 100 %). Sample on either side of that shifted edge, and the
+    // hue below the middle.
+    const points = [
+      [0.4, 0.3],
+      [0.5, 0.3],
+      [0.5, 0.75],
+    ] as const;
+    const r = await run(page, { mode: 'fill', scale: 150, offsetX: 0.1 }, points);
+    expect(r.ok).toBe(true);
+    for (const [name, i, check] of [
+      ['left of the shifted edge: white', 0, (c: number[]) => near(c, WHITE, 60)],
+      ['right of the shifted edge: black', 1, (c: number[]) => near(c, BLACK, 40)],
+      ['below the middle: the hue', 2, hue],
+    ] as const) {
+      expect(check(r.exported[i]!), `export ${name} ${r.exported[i]}`).toBe(true);
+      expect(check(r.painted[i]!), `paint ${name} ${r.painted[i]}`).toBe(true);
+    }
+    for (let i = 0; i < points.length; i++)
+      expect(near(r.exported[i]!, r.painted[i]!, 40), `parity ${points[i]} ${r.exported[i]} ${r.painted[i]}`).toBe(
+        true,
+      );
   });
 });

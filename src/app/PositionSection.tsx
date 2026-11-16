@@ -179,18 +179,29 @@ function ScaleRow({ prefix, id, p }: { prefix: string; id: string; p: Placement 
   );
 }
 
-function Nudges({ id }: { id: string }) {
+/**
+ * The nudge order of each board: CMP-Inspector "clip Position" reads left, right, up, down; the phone
+ * Edit sheet (CMP-Timeline "narrow / sheet open", SCR-Editor selected narrow) left, up, down, right.
+ */
+const ORDER: Readonly<Record<'inspector' | 'sheet', readonly NudgeDirection[]>> = {
+  inspector: ['left', 'right', 'up', 'down'],
+  sheet: ['left', 'up', 'down', 'right'],
+};
+
+function Nudges({ id, touch }: { id: string; touch: boolean }) {
   return (
     <>
-      {NUDGES.map((n) => (
-        <IconButton
-          key={n.dir}
-          icon={n.icon}
-          label={t(n.label)}
-          action={`nudge-${n.dir}`}
-          onActivate={(big) => nudgeClip(id, n.dir, big)}
-        />
-      ))}
+      {ORDER[touch ? 'sheet' : 'inspector']
+        .map((dir) => NUDGES.find((n) => n.dir === dir)!)
+        .map((n) => (
+          <IconButton
+            key={n.dir}
+            icon={n.icon}
+            label={t(n.label)}
+            action={`nudge-${n.dir}`}
+            onActivate={(big) => nudgeClip(id, n.dir, big)}
+          />
+        ))}
     </>
   );
 }
@@ -274,7 +285,7 @@ export function PositionSection({ id: prefix, touch = false }: { readonly id: st
           </h3>
           {mode(headId)}
           <div class="tk-place__buttons">
-            <Nudges id={id} />
+            <Nudges id={id} touch />
           </div>
         </div>
         <ScaleRow prefix={prefix} id={id} p={p} />
@@ -332,7 +343,7 @@ export function PositionSection({ id: prefix, touch = false }: { readonly id: st
         </div>
       </div>
       <div class="tk-place__buttons">
-        <Nudges id={id} />
+        <Nudges id={id} touch={false} />
         <span class="tk-place__divider" aria-hidden="true" />
         <TurnButtons id={id} p={p} />
       </div>

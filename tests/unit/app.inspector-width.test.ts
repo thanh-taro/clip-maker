@@ -10,13 +10,14 @@ describe('CMP-Inspector compact resize grip', () => {
     expect(inspectorWidthRange(700, 288)).toEqual({ min: 288, max: 288 });
   });
 
-  it('Q105 the grip on the inspector’s left edge: Left widens, Right narrows, Home and End go to the limits; Shift takes bigger steps', () => {
+  it('Q105 the grip on the inspector’s left edge: Left widens, Right narrows, Home and End go to the limits; Shift goes to the limit', () => {
     const r = { min: 288, max: 360 };
     expect(gripKeyWidth('ArrowLeft', false, 300, r)).toBe(300 + GRIP_STEP);
     expect(gripKeyWidth('ArrowRight', false, 330, r)).toBe(330 - GRIP_STEP);
     expect(gripKeyWidth('ArrowUp', false, 300, r)).toBe(300 + GRIP_STEP);
     expect(gripKeyWidth('ArrowDown', false, 330, r)).toBe(330 - GRIP_STEP);
     expect(gripKeyWidth('ArrowLeft', true, 300, r)).toBe(360);
+    expect(gripKeyWidth('ArrowRight', true, 330, r)).toBe(288);
     expect(gripKeyWidth('ArrowRight', false, 290, r)).toBe(288);
     expect(gripKeyWidth('Home', false, 330, r)).toBe(288);
     expect(gripKeyWidth('End', false, 300, r)).toBe(360);
