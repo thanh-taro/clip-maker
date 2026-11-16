@@ -9,10 +9,15 @@ import { HOST_ALLOWED } from './tests/e2e/support/host-urls';
 
 const CI = !!process.env['CI'];
 const PORT = PREVIEW_PORT;
+// Each worker is a browser decoding video, painting WebGL and exporting: about 1 GB at peak. The
+// machine's budget comes from the heavy-run wrapper (BMA_TEST_WORKERS, build-my-app bma_heavy.py);
+// without it, 2 — never "half the CPUs", which exhausted a 16 GB laptop.
+const WORKERS = Math.max(1, Number(process.env['BMA_TEST_WORKERS']) || 2);
 
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
+  workers: WORKERS,
   forbidOnly: CI,
   retries: CI ? 1 : 0,
   timeout: 30_000,
