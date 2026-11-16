@@ -27,6 +27,8 @@ import {
   RATE_CHOICES,
 } from './frame';
 import { OptionGroup, type Option } from './OptionGroup';
+import { soundTarget } from './sound';
+import { SoundSection } from './SoundSection';
 
 const aspectLabel = (a: Frame['aspect']): string => (a === 'original' ? t('frame.original') : a);
 const backgroundLabel = (b: Frame['background']): string => (b === 'blur' ? t('frame.blur') : t(`colour.${b}`));
@@ -93,20 +95,28 @@ export function useKeepFocus(container: RefObject<HTMLElement>, fallback: RefObj
   }, [key]);
 }
 
-/** CMP-Inspector on wide and compact layouts (hidden on narrow layouts by CSS). */
+/**
+ * CMP-Inspector on wide and compact layouts (hidden on narrow layouts by CSS). F-011: a selected audio
+ * clip, and a selected video clip until its other tabs exist, show the sound section under a plain title
+ * row (COPY-inspector.sound).
+ */
 export function Inspector() {
   const frame = frameSectionShown.value;
+  const sound = !frame && soundTarget.value !== null;
   const panel = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  useKeepFocus(panel, heading, frame);
+  const section = frame ? 'frame' : sound ? 'sound' : 'selection';
+  useKeepFocus(panel, heading, section);
   return (
-    <aside ref={panel} class="tk-inspector" aria-labelledby={HEAD_ID} data-section={frame ? 'frame' : 'selection'}>
+    <aside ref={panel} class="tk-inspector" aria-labelledby={HEAD_ID} data-section={section}>
       <header class="tk-inspector__head">
         <h2 ref={heading} class="tk-inspector__title" id={HEAD_ID} tabIndex={-1}>
-          {frame ? t('inspector.frame') : t('inspector.label')}
+          {frame ? t('inspector.frame') : sound ? t('inspector.sound') : t('inspector.label')}
         </h2>
       </header>
-      <div class="tk-inspector__body">{frame ? <FrameSection id="tk-inspector" /> : null}</div>
+      <div class="tk-inspector__body">
+        {frame ? <FrameSection id="tk-inspector" /> : sound ? <SoundSection id="tk-inspector-sound" /> : null}
+      </div>
     </aside>
   );
 }

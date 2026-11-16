@@ -1,7 +1,7 @@
 // MOD-App — CMP-Toolbar, empty-project state (specs/30-experience/components/CMP-Toolbar.md).
-// The buttons and their labels in both languages. Wired so far: Add media (F-001), Undo and Redo
-// (F-014: unavailable when there is nothing to undo or redo, and the RULE-20 history keys); the other
-// actions come with F-010, F-011, F-015, F-017 and F-018. Labels collapse to icons (compact) and the
+// The buttons and their labels in both languages. Wired so far: Add media (F-001), Music (F-011: opens
+// CMP-MusicPicker as a popover under it), Undo and Redo (F-014: unavailable when there is nothing to undo
+// or redo, and the RULE-20 history keys); the other actions come with F-010, F-015, F-017 and F-018. Labels collapse to icons (compact) and the
 // narrow top bar of D-038 is CSS on the tool's width (layout.css).
 import { useEffect } from 'preact/hooks';
 import { t, type MessageId, type MessageParams } from '../copy';
@@ -14,6 +14,17 @@ import { needsClip } from './adding';
 import { bindHistoryKeys, historyAvailable, redoEdit, undoEdit } from './history';
 import { Icon, type IconName } from './icons';
 import { addMedia } from './MediaInput';
+import { MusicPopover } from './MusicPicker';
+import { closePicker, openPicker, pickerOpen } from './sound';
+
+/** Toolbar's Music button (the picker's anchor; Esc and Close return focus to it). */
+let musicButton: HTMLButtonElement | null = null;
+
+/** F-011 / CMP-Toolbar: Music opens CMP-MusicPicker; activating it again closes it. */
+function toggleMusic(): void {
+  if (pickerOpen.peek()) closePicker();
+  else openPicker();
+}
 
 interface Item {
   readonly id: string;
@@ -50,9 +61,21 @@ function ToolButton({ item }: { item: Item }) {
   const name = t(item.label);
   const history = HISTORY[item.id];
   const unavailable = history ? !history.available() : false;
-  const onClick = history ? () => void history.run() : item.id === 'add-media' ? addMedia : undefined;
+  const music = item.id === 'music';
+  const onClick = history
+    ? () => void history.run()
+    : item.id === 'add-media'
+      ? addMedia
+      : music
+        ? toggleMusic
+        : undefined;
   return (
     <button
+      ref={(el: HTMLButtonElement | null) => {
+        if (music) musicButton = el;
+      }}
+      aria-haspopup={music ? 'dialog' : undefined}
+      aria-expanded={music ? (pickerOpen.value ? 'true' : 'false') : undefined}
       type="button"
       class={[
         'tk-tool',
@@ -102,6 +125,7 @@ export function Toolbar() {
         </button>
       </div>
       {needsClip.value ? <NeedsClip narrow /> : null}
+      <MusicPopover anchor={() => musicButton} />
     </header>
   );
 }

@@ -28,6 +28,11 @@ export type Action =
   /** Alt+Left / Alt+Right: move the selected clip one place earlier / later (F-003.R2). */
   | 'move-earlier'
   | 'move-later'
+  /** Shift+Alt+Left / Shift+Alt+Right: move the selected text layer or audio clip 1 s (RULE-20; F-011). */
+  | 'move-earlier-second'
+  | 'move-later-second'
+  /** M: mute or unmute the selected clip (RULE-20; F-011.R3). */
+  | 'mute'
   /** Mod+Z: undo (F-014.R1). */
   | 'undo'
   /** Mod+Shift+Z or Ctrl+Y: redo (F-014.R1). */
@@ -142,8 +147,10 @@ function editKey(
   if (code === 'KeyD' && mod && !altKey && !shiftKey) return 'duplicate';
   if ((code === 'ArrowLeft' || code === 'ArrowRight') && altKey && !metaKey && !ctrlKey) {
     // Shift+Alt moves a text layer or audio clip by 1 s (F-010, F-011); a clip moves one place only.
-    if (shiftKey) return null;
+    if (shiftKey) return code === 'ArrowLeft' ? 'move-earlier-second' : 'move-later-second';
     return code === 'ArrowLeft' ? 'move-earlier' : 'move-later';
   }
+  // RULE-20: M mutes or unmutes the selected clip (F-011).
+  if (code === 'KeyM' && plain && !shiftKey) return 'mute';
   return undefined;
 }

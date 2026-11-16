@@ -11,9 +11,9 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { isEmpty } from '../project';
 import { panelOpen, progress } from './adding';
-import { selectedClip } from './arrange';
+import { selectedAudio, selectedClip } from './arrange';
 import { device } from './device';
-import { EditSheet, openSheet, TabBar } from './EditSheet';
+import { AudioSheet, EditSheet, openSheet, TabBar } from './EditSheet';
 import { Inspector } from './Inspector';
 import { DropOverlay, dragging, FilePicker, useMediaInput } from './MediaInput';
 import { MediaPanel } from './MediaPanel';
@@ -29,7 +29,7 @@ function stateOf(empty: boolean): string {
   if (dragging.value) return 'dragging-file';
   if (progress.value) return 'adding';
   if (playback.value?.ctl.state.value === 'playing') return 'playing';
-  if (selectedClip.value) return 'selected';
+  if (selectedClip.value || selectedAudio.value) return 'selected';
   return empty ? 'empty' : 'default';
 }
 
@@ -90,6 +90,7 @@ export function Shell({ addRef }: { addRef: (el: HTMLButtonElement | null) => vo
       <Inspector />
       <Timeline />
       <EditSheet />
+      <AudioSheet />
       <TabBar />
       <StatusBar />
       <DropOverlay />

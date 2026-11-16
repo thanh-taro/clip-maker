@@ -667,12 +667,27 @@ export function applyToAll(p: Project, id: string): EditResult {
 
 // ── sound (F-011, RULE-12) ─────────────────────────────────────────────────────────────────────
 
+/**
+ * A video clip's sound settings changed in place: a stored value keeps its place in the clip and an unstored
+ * one is only added when it differs from the default. New clips store both (`newClip`), so a slider dragged
+ * away and back to where it began gives the very same document and the gesture leaves no undo step (build
+ * question 104, F-014.R4); setting a clip that stores neither to the defaults changes nothing.
+ */
+function withSound(c: Clip, volume: number, muted: boolean): Clip {
+  const next: { -readonly [K in keyof Clip]: Clip[K] } = { ...c };
+  if (c.volume !== undefined || volume !== RULE_12.defaultVolume) next.volume = volume;
+  if (c.muted !== undefined || muted) next.muted = muted;
+  return next;
+}
+
 /** Implements: RULE-12 volume 0–200 % for a video clip or an audio clip. */
 export function setVolume(p: Project, id: string, volume: number): EditResult {
   const v = clamp(Math.round(volume), RULE_12.minVolume, RULE_12.maxVolume);
   const clip = p.clips.find((c) => c.id === id);
   if (clip)
-    return clip.kind === 'video' ? updateClip(p, id, (c) => (c.volume === v ? c : { ...c, volume: v })) : same(p);
+    return clip.kind === 'video'
+      ? updateClip(p, id, (c) => ((c.volume ?? RULE_12.defaultVolume) === v ? c : withSound(c, v, c.muted === true)))
+      : same(p);
   const a = p.audioClips.find((x) => x.id === id);
   if (!a || a.volume === v) return same(p);
   return result(p, { ...p, audioClips: p.audioClips.map((x) => (x.id === id ? { ...x, volume: v } : x)) }, [id]);
@@ -682,7 +697,11 @@ export function setVolume(p: Project, id: string, volume: number): EditResult {
 export function setMuted(p: Project, id: string, muted: boolean): EditResult {
   const clip = p.clips.find((c) => c.id === id);
   if (clip)
-    return clip.kind === 'video' ? updateClip(p, id, (c) => (c.muted === muted ? c : { ...c, muted })) : same(p);
+    return clip.kind === 'video'
+      ? updateClip(p, id, (c) =>
+          (c.muted === true) === muted ? c : withSound(c, c.volume ?? RULE_12.defaultVolume, muted),
+        )
+      : same(p);
   const a = p.audioClips.find((x) => x.id === id);
   if (!a || a.muted === muted) return same(p);
   return result(p, { ...p, audioClips: p.audioClips.map((x) => (x.id === id ? { ...x, muted } : x)) }, [id]);
@@ -702,9 +721,9 @@ export function muteOriginal(p: Project): EditResult {
   const muted = !allOriginalMuted(p);
   const changed: string[] = [];
   const clips = p.clips.map((c) => {
-    if (c.kind !== 'video' || c.muted === muted) return c;
+    if (c.kind !== 'video' || (c.muted === true) === muted) return c;
     changed.push(c.id);
-    return { ...c, muted };
+    return withSound(c, c.volume ?? RULE_12.defaultVolume, muted);
   });
   return changed.length ? result(p, { ...p, clips }, changed) : same(p);
 }

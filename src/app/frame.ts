@@ -8,7 +8,7 @@ import { computed } from '@preact/signals';
 import { PALETTE, RULE_04, type Frame, type FrameRate } from '../core';
 import { edit, project, setAspect, setBackground, setFrameRate, type EditResult } from '../project';
 import { showResultNotices } from './adding';
-import { selectedClip } from './arrange';
+import { selectedAudio, selectedClip } from './arrange';
 
 /** F-012.R1: 9:16, 1:1, 4:5, 16:9, then Original (CMP-Inspector "Frame"). */
 export const ASPECT_CHOICES: readonly Frame['aspect'][] = RULE_04.aspects;
@@ -22,11 +22,11 @@ export const frameSettings = computed(() => project.value.frame);
 
 /**
  * CMP-Inspector and the narrow Edit sheet show the frame section when nothing selected has an inspector
- * section yet. Only main-track clips will have one first (F-005–F-008), so a selected audio clip or
- * text layer (e.g. after RULE-13 undo or redo) still shows the frame. Widen this as the text layer's
- * and audio clip's sections arrive (build question 106).
+ * section of its own: a main-track clip (its tabs, F-005–F-008; a video clip's Sound section, F-011) or
+ * an audio clip (its Sound section, F-011). A selected text layer still shows the frame until its section
+ * arrives with F-010 (build question 106).
  */
-export const frameSectionShown = computed(() => selectedClip.value === null);
+export const frameSectionShown = computed(() => selectedClip.value === null && selectedAudio.value === null);
 
 /** One edit with its notices; true when the project changed. */
 function commit(op: (p: typeof project.value) => EditResult): boolean {

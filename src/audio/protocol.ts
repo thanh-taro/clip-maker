@@ -25,7 +25,14 @@ export type ToAudioWorker =
   | { readonly type: 'audio:setProject'; readonly project: Project }
   | { readonly type: 'audio:play'; readonly from: Micros; readonly gen: number }
   | { readonly type: 'audio:pause'; readonly gen: number }
-  | { readonly type: 'audio:seek'; readonly t: Micros; readonly gen: number };
+  | { readonly type: 'audio:seek'; readonly t: Micros; readonly gen: number }
+  /**
+   * F-011.R1 / ADR-0008 §7: the picker plays bundled track `trackId` (`length` 48 kHz samples) from its
+   * start through the same mixer, as a one-voice plan; the project's mix waits meanwhile.
+   */
+  | { readonly type: 'audio:audition'; readonly trackId: string; readonly length: number; readonly gen: number }
+  /** The audition stops: the project's mix is back, paused at project time `t`. */
+  | { readonly type: 'audio:auditionStop'; readonly t: Micros; readonly gen: number };
 
 /** Audio worker → worklet (over the channel). Blocks of an older generation are dropped (flush). */
 export type ToWorklet =

@@ -24,6 +24,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "check:licenses": "node scripts/check-licenses.mjs --strict",
+    "check:release": "node scripts/check-licenses.mjs --strict --release",
     "check:size": "node scripts/check-size.mjs",
     "check:dist": "node scripts/check-dist.mjs",
     "check": "node scripts/check.mjs",

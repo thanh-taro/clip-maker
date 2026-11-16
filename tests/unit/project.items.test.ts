@@ -1,5 +1,6 @@
 // MOD-Project: fades, text layers, audio clips, sound, frame, placement and grade operations.
 import { describe, expect, it } from 'vitest';
+import { voices } from '../../src/plan';
 import {
   DEFAULT_PLACEMENT,
   frameStart,
@@ -195,6 +196,9 @@ describe('F-011 music and sound (domain)', () => {
     expect(span(r.project.audioClips[0]!)).toEqual([3 * S, 63 * S]);
     expect(r.project.audioClips[0]!.sourceId).toBe('music-1');
     expect(r.project.sources).toBe(p.sources);
+    // INV-07: only 3–20 s of it is heard (and so exported: the export renders the same voices).
+    const v = voices(r.project).find((x) => x.kind === 'audio')!;
+    expect([v.startSample, v.endSample, v.naturalEndSample]).toEqual([3 * 48_000, 20 * 48_000, 63 * 48_000]);
   });
 
   it('F-011.AC11 with the playhead at the project end, a new track starts at 0', () => {
@@ -257,7 +261,26 @@ describe('F-011 music and sound (domain)', () => {
     const p = proj({ clips: [video('A', 2)] });
     const r = setMuted(setVolume(p, 'A', 50).project, 'A', true);
     expect(r.project.clips[0]).toMatchObject({ muted: true, volume: 50 });
-    expect(setMuted(r.project, 'A', false).project.clips[0]).toMatchObject({ muted: false, volume: 50 });
+    const back = setMuted(r.project, 'A', false).project.clips[0]!;
+    expect(back.volume).toBe(50);
+    expect(back.muted ?? false).toBe(false);
+  });
+
+  it('F-011.R3 build question 104: a volume dragged away and back to 100 % leaves the very same clip (no stored default)', () => {
+    const p = proj({ clips: [video('A', 2)] });
+    const away = setVolume(p, 'A', 140).project;
+    const back = setVolume(away, 'A', 100).project;
+    expect(JSON.stringify(back.clips[0])).toBe(JSON.stringify(p.clips[0]));
+    expect(setVolume(p, 'A', 100).project).toBe(p);
+    // A clip that never stored its sound settings: setting the default stores nothing.
+    const { volume: _v, muted: _m, ...bare } = video('B', 2);
+    const q = proj({ clips: [bare as (typeof p.clips)[number]] });
+    expect(setVolume(q, 'B', 100).project).toBe(q);
+    expect(setMuted(q, 'B', false).project).toBe(q);
+    const muted = setMuted(away, 'A', true).project;
+    expect(JSON.stringify(setVolume(setVolume(muted, 'A', 30).project, 'A', 140).project.clips[0])).toBe(
+      JSON.stringify(muted.clips[0]),
+    );
   });
 
   it('RULE-12 volume is 0–200 %', () => {

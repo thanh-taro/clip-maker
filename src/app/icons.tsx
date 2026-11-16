@@ -5,6 +5,7 @@ import type { JSX } from 'preact';
 import {
   ArrowLeft,
   ArrowRight,
+  AudioLines,
   ChevronLeft,
   ChevronRight,
   CircleCheck,
@@ -32,12 +33,14 @@ import {
   ShieldCheck,
   SkipBack,
   SkipForward,
+  Square,
   Trash2,
   TriangleAlert,
   Type,
   Undo2,
   Upload,
   Video,
+  Volume2,
   VolumeX,
   X,
 } from 'lucide-static';
@@ -87,6 +90,10 @@ const SOURCES = {
   moveLater: ArrowRight,
   duplicate: Copy,
   edit: Scissors,
+  // F-011: the music picker, the audio lane and the sound section
+  stop: Square,
+  audio: AudioLines,
+  volume: Volume2,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

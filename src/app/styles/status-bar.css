@@ -87,6 +87,13 @@
       display: none;
     }
 
+    /* The phone tab bar sits between the status row and the editor: the details open above it, so they
+       never cover the tabs (F-011 added the Audio tab; RULE-21 targets stay whole). */
+    .tk-editor[data-screen='SCR-Editor'] .tk-privacy-details {
+      inset-block-end: calc(100% + var(--tk-size-tab-bar) + var(--tk-space-2));
+      max-block-size: calc(100dvh - var(--tk-size-statusbar) - var(--tk-size-tab-bar) - 2 * var(--tk-space-2));
+    }
+
     .tk-privacy-badge__icon {
       display: inline;
     }

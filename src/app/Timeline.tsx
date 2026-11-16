@@ -5,23 +5,29 @@
 // with readable muted labels while nothing is selected). Split, Start here and End here (F-004), snapping
 // and zoom (F-013) join the toolbar with their features. On narrow layouts the actions live in the Edit
 // sheet (./EditSheet.tsx) and the toolbar is hidden.
+// F-011: the audio lane's gutter icon and its items' names; with an audio clip selected the move actions
+// read Earlier and Later (COPY-action.time_earlier, COPY-action.time_later) and move it one frame in time
+// (CMP-Timeline "audio item"). Trimming and splitting audio clips wait for F-004's handles and Split.
 // Implements: F-003.R1 (selection shown on the timeline), F-003.R6 (visible controls), F-003.AC5,
 // RULE-20 arrange keys (bound while the timeline is mounted), RULE-21 (move-earlier/later stand in for
-// hold-and-drag).
+// hold-and-drag; time controls for audio clips), F-011.R2, F-011.R8.
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
 import { registry } from '../media';
 import { isEmpty, playhead, project, selection } from '../project';
 import { mountTimeline, type TimelineView } from '../timeline';
+import { MUSIC_TRACKS } from '../core';
 import {
   arrangeAvailable,
   bindArrangeKeys,
   deleteSelected,
   duplicateSelected,
+  moveAudioTo,
   moveClipTo,
   moveSelected,
   onDeleted,
   selectClip,
+  selectedAudio,
 } from './arrange';
 import { Icon, type IconName } from './icons';
 import { pauseForScrub } from './playback';
@@ -37,9 +43,19 @@ function keepFocus(index: number): void {
   }, 0);
 }
 
+type ArrangeLabel =
+  | 'action.delete'
+  | 'action.duplicate'
+  | 'action.move_left'
+  | 'action.move_right'
+  | 'action.time_earlier'
+  | 'action.time_later';
+
 export interface ArrangeItem {
   readonly id: 'delete' | 'duplicate' | 'move-earlier' | 'move-later';
-  readonly label: 'action.delete' | 'action.duplicate' | 'action.move_left' | 'action.move_right';
+  readonly label: ArrangeLabel;
+  /** The label for the current selection (an audio clip's moves are Earlier and Later in time). */
+  readonly labelNow?: () => ArrangeLabel;
   readonly icon: IconName;
   readonly run: () => boolean;
   readonly available: () => boolean;
@@ -64,6 +80,7 @@ export const ARRANGE_ITEMS: readonly ArrangeItem[] = [
   {
     id: 'move-earlier',
     label: 'action.move_left',
+    labelNow: () => (selectedAudio.value ? 'action.time_earlier' : 'action.move_left'),
     icon: 'moveEarlier',
     run: () => moveSelected('earlier'),
     available: () => arrangeAvailable.value.earlier,
@@ -71,6 +88,7 @@ export const ARRANGE_ITEMS: readonly ArrangeItem[] = [
   {
     id: 'move-later',
     label: 'action.move_right',
+    labelNow: () => (selectedAudio.value ? 'action.time_later' : 'action.move_right'),
     icon: 'moveLater',
     run: () => moveSelected('later'),
     available: () => arrangeAvailable.value.later,
@@ -91,7 +109,7 @@ function ToolbarButton({ item }: { item: ArrangeItem }) {
       }}
     >
       <Icon name={item.icon} size={16} />
-      <span>{t(item.label)}</span>
+      <span>{t(item.labelNow?.() ?? item.label)}</span>
     </button>
   );
 }
@@ -116,8 +134,17 @@ export function Timeline() {
           const entry = await registry.load(sourceId);
           return entry?.thumbnail ?? entry?.bitmap ?? null;
         },
+        audioName: (a) => {
+          const p = project.peek();
+          return (
+            p.sources.find((s) => s.id === a.sourceId)?.name ??
+            MUSIC_TRACKS.find((m) => m.id === a.sourceId)?.title ??
+            ''
+          );
+        },
         select: selectClip,
         move: (id, to) => void moveClipTo(id, to),
+        moveAudio: (id, start) => void moveAudioTo(id, start),
         scrubStart: pauseForScrub,
       },
     );
@@ -145,6 +172,7 @@ export function Timeline() {
       <div class="tk-tl-body">
         <div class="tk-tl-gutter" aria-hidden="true">
           <Icon name="film" size={16} />
+          <Icon name="audio" size={16} class="tk-tl-gutter__audio" />
         </div>
         <div class="tk-tl-lanes" ref={lanes} />
       </div>

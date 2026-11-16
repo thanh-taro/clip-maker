@@ -3,12 +3,16 @@
 // JS/CSS chunk (page, workers, worklet), and fails when any of them is not a registered runtime/asset
 // row or carries a license outside the shipped allow-list (plus the scoped MPL-2.0 exception for
 // `mediabunny`, ADR-0005). Font files must trace to a registered font asset package and be a latin or
-// vietnamese subset (ADR-0012); unknown binary file types fail. Copied from the sibling image-annotator.
+// vietnamese subset (ADR-0012); bundled music files (.m4a) must trace to the checked music pack and a
+// registered track row (DEP-14, ADR-0013, F-011), and with `--release` (or LICENCE_RELEASE=1; `pnpm
+// check:release`) a placeholder track (`"placeholder": true`) fails; unknown binary file types fail.
+// Copied from the sibling image-annotator.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { abs } from './lib/util.mjs';
 import { findInstalled, isActive, isShipped, readRegistry } from './lib/registry.mjs';
+import { musicPack } from './gen-music-manifest.mjs';
 
 const CODE_MAP = /\.(?:js|css)\.map$/;
 const NODE_MODULES = /node_modules\/((?:@[^/]+\/)?[^/@][^/]*)/g;
@@ -16,6 +20,8 @@ const FONT_EXT = /\.(woff2?|ttf|otf|eot)$/i;
 /** The only font subsets the tool ships (ADR-0012 §1): variable or one static weight. */
 const FONT_SUBSET = /-(latin|vietnamese)-(wght|\d{3})-normal-[\w-]+\.woff2$/;
 const KNOWN_EXT = new Set(['.js', '.css', '.map', '.html', '.txt', '.json', '.svg', '.webmanifest', '.ico']);
+/** A bundled music file as Vite emits it: the pack's file name with a content hash (`name-HASH.m4a`). */
+const MUSIC_FILE = /^(.+)-[\w-]{8}\.m4a$/;
 
 /** Every file under a directory, as paths relative to it. */
 function walk(dir, base = dir) {
@@ -44,11 +50,15 @@ const FONT_LICENSES = new Set(['OFL-1.1']);
 /** ADR-0005: the one shipped exception, by exact package name. */
 const SHIPPED_EXCEPTIONS = { mediabunny: 'MPL-2.0' };
 
-/** @returns {{ shipped: Map<string,string>, problems: string[] }} */
-export function scanDist(distDir, registry) {
+/**
+ * @param {{ release?: boolean }} [options] release: a shipped placeholder music track fails (F-011, DEP-14)
+ * @returns {{ shipped: Map<string,string>, problems: string[] }}
+ */
+export function scanDist(distDir, registry, { release = false } = {}) {
   const problems = [];
   const files = walk(distDir);
   const registered = new Map(registry.flatMap((r) => r.names.map((n) => [n, r])));
+  const musicTracks = musicPack().tracks;
 
   // Packages whose code reached a shipped chunk, read from the hidden source maps.
   const shipped = new Map();
@@ -104,6 +114,15 @@ export function scanDist(distDir, registry) {
         problems.push(`font file ships without a registered font asset package: ${f}`);
       else if (!FONT_SUBSET.test(base))
         problems.push(`font subset not allowed (latin + vietnamese only, ADR-0012): ${f}`);
+    } else if (ext === '.m4a') {
+      // F-011 / DEP-14: a music file ships only as a track of the checked pack with its own registry row.
+      const base = path.basename(f);
+      const track = musicTracks.find((t) => MUSIC_FILE.exec(base)?.[1] === t.file.replace(/\.m4a$/, ''));
+      if (!track) problems.push(`music file ships outside the checked music pack (DEP-14): ${f}`);
+      else if (release && track.placeholder)
+        problems.push(`placeholder music track ${track.file} ships in a release (DEP-14, build question 114): ${f}`);
+      else if (!registry.some((r) => isActive(r) && /asset/i.test(r.kind) && r.label.includes(track.file)))
+        problems.push(`music track ${track.file} ships without its registry row (DEP-14, ADR-0013 §4): ${f}`);
     } else if (ext && !KNOWN_EXT.has(ext)) {
       problems.push(`unexpected shipped file type: ${f}`);
     }
@@ -119,7 +138,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.error('✗ dist/ missing: run `pnpm build` first');
     process.exit(1);
   }
-  const { shipped, problems } = scanDist(dist, readRegistry().filter(isActive));
+  const release = process.argv.includes('--release') || process.env.LICENCE_RELEASE === '1';
+  const { shipped, problems } = scanDist(dist, readRegistry().filter(isActive), { release });
   const list = [...shipped].map(([n, v]) => `${n}@${v}`).sort();
   console.log(`dist: ${shipped.size} third-party packages ship — ${list.length ? list.join(', ') : '(none)'}`);
   if (problems.length) {

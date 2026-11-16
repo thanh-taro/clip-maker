@@ -26,6 +26,7 @@
 // The codec interfaces and WebGL2 are tested on the production build instead, by changing them on the
 // page before it loads (the presence check and the codec probe run on the main thread).
 import '../../src/app/styles/index.css';
+import { truePeak } from '../../src/audio';
 import { nextItemId, queued } from '../../src/app/adding';
 import { main } from '../../src/app/app';
 import { browserDevice, type DeviceDeps, type EffectsRun } from '../../src/app/device';
@@ -120,6 +121,8 @@ declare global {
       sync(): Promise<SyncSummary>;
       toneClip(spec: ToneSpec): Promise<number[]>;
       heard(spec: ToneSpec, hashed: number): HeardSummary;
+      /** F-011.AC5: the true peak (dBTP) and RMS (dBFS) of the sound the worklet was sent in the last generation. */
+      heardLevels(): { truePeakDb: number; rmsDb: number; seconds: number };
     };
   }
 }
@@ -195,6 +198,23 @@ function heard(spec: ToneSpec, n: number): HeardSummary {
   }
   const hashL = fnv(L, n);
   return { ...analyseTone(L, R, from, spec), from: from / 48_000, to: to / 48_000, blocks: blocks.length, hashL };
+}
+
+function heardLevels(): { truePeakDb: number; rmsDb: number; seconds: number } {
+  const gen = Math.max(...tapped.map((b) => b.gen));
+  const blocks = tapped.filter((b) => b.gen === gen).sort((a, b) => a.from - b.from);
+  const n = blocks.reduce((m, b) => m + b.L.length, 0);
+  const L = new Float32Array(n);
+  const R = new Float32Array(n);
+  let at = 0;
+  let sum = 0;
+  for (const b of blocks) {
+    L.set(b.L, at);
+    R.set(b.R, at);
+    at += b.L.length;
+    for (let i = 0; i < b.L.length; i++) sum += (b.L[i]! * b.L[i]! + b.R[i]! * b.R[i]!) / 2;
+  }
+  return { truePeakDb: truePeak([L, R]).dB, rmsDb: 10 * Math.log10(sum / Math.max(1, n)), seconds: n / 48_000 };
 }
 
 function params(): URLSearchParams {
@@ -424,6 +444,7 @@ window.appHarness = {
     return Array.from(new Uint8Array(await (await makeToneClip(spec)).arrayBuffer()));
   },
   heard,
+  heardLevels,
 };
 
 const fixed = (ok: boolean, slow: boolean): EffectsRun => ({

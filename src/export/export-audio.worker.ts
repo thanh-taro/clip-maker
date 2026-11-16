@@ -6,7 +6,15 @@
 // mix order with ≈ 2 s ahead, from encoded packets the export worker reads (the sound feed; build
 // questions 33, 83): memory stays bounded however long the sources are (NFR-05). A decode error fails
 // the export (AudioCodecError); sound is never dropped silently.
-import { endSampleOf, offlinePrepare, pcmSource, portFeed, SoundBank, type SoundSource } from '../audio';
+import {
+  endSampleOf,
+  offlinePrepare,
+  pcmSource,
+  portFeed,
+  SoundBank,
+  soundSourceIds,
+  type SoundSource,
+} from '../audio';
 import { audioEncoderConfig } from '../codec';
 import { helloFrom, type AudioPortMessage, type FromExportAudio, type ToExportAudio, type WorkerScope } from '../core';
 import { voices } from '../plan';
@@ -30,13 +38,8 @@ scope.onmessage = (e: MessageEvent<ToExportAudio>) => {
   // Strict: a codec this device can't decode fails the export like a decode error (question 33).
   const decoded = new SoundBank(portFeed(m.feed ?? new MessageChannel().port1), undefined, undefined, true);
   // Without a feed nothing can be decoded: such sources are heard as silence (an export always has one).
-  decoded.setSources(
-    m.feed
-      ? m.project.sources
-          .filter((s) => (s.kind === 'audio' || s.hasSound === true) && !sources.has(s.id))
-          .map((s) => s.id)
-      : [],
-  );
+  // Bundled music is decoded the same way from its packaged file (F-011.R5, ADR-0008 §7).
+  decoded.setSources(m.feed ? soundSourceIds(m.project).filter((id) => !sources.has(id)) : []);
   const heard = all.filter((v) => !sources.has(v.sourceId));
   // The whole project, to its end (INV-07): the same length as the video's sound (NFR-08).
   const job: MixJob = {

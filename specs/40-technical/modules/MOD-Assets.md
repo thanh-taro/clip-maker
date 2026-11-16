@@ -16,7 +16,8 @@ duration) and the looks catalogue.
 - Decoding music (MOD-Audio) or applying looks (MOD-Compositor); caching (service worker).
 
 ## Public surface
-- `looks()` → look ids, groups and table bytes; `musicTracks()` → ENT-MusicTrack list; `musicBytes(id)`.
+- `looks()` → look ids, groups and table bytes; `musicTracks()` → ENT-MusicTrack list (compiled in from the
+  checked pack); `musicBlob(id)` / `musicBytes(id)` → the track's packaged file.
 
 ## Implements
 F-008 (data), F-011.R1/R6/R7, F-021.R1/R2; RULE-09 (looks set), RULE-12 Bundled music; NFR-01, NFR-10. Decided by ADR-0013, ADR-0014, ADR-0015.

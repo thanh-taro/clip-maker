@@ -113,6 +113,10 @@ export class Playback {
   onInterrupted: (() => void) | null = null;
   /** The latest worklet statistics (underruns, low-water mark, played hash). */
   stats: WorkletStats | null = null;
+  /** F-011.R1: the bundled track the picker is auditioning, or null. */
+  auditioning: string | null = null;
+  /** The audition ended: played to its end, stopped, or replaced by playing the project. */
+  onAuditionEnded: (() => void) | null = null;
 
   private ctx: ContextLike | null = null;
   private ready: Promise<void> | null = null;
@@ -120,6 +124,8 @@ export class Playback {
   private gen = 0;
   private position: Micros = 0;
   private last: { sample: number; frame: number } | null = null;
+  /** The audition's own clock (its sample 0 is the track's start). */
+  private auditionLast: { sample: number; frame: number } | null = null;
 
   constructor(
     private readonly worker: WorkerLike,
@@ -166,7 +172,13 @@ export class Playback {
       this.stats = d.stats;
       return;
     }
-    if (d.gen !== this.gen || this.state !== 'playing') return;
+    if (d.gen !== this.gen) return;
+    if (this.auditioning !== null) {
+      if (d.type === 'position') this.auditionLast = { sample: d.sample, frame: d.frame };
+      else if (d.type === 'ended') this.stopAudition();
+      return;
+    }
+    if (this.state !== 'playing') return;
     if (d.type === 'position') this.last = { sample: d.sample, frame: d.frame };
     else if (d.type === 'ended') {
       this.position = toMicros(d.sample);
@@ -178,6 +190,8 @@ export class Playback {
 
   /** Starts playing from project time `from`. Call inside the user's gesture. */
   async play(from: Micros): Promise<void> {
+    // Playing the project ends an audition (the worker restores the project's plan on play).
+    if (this.auditioning !== null) this.endAudition();
     this.unlock();
     this.gen++;
     const gen = this.gen;
@@ -190,6 +204,11 @@ export class Playback {
   }
 
   pause(): void {
+    // During an audition the project is already paused: nothing to tell the worker (it would stop the audition).
+    if (this.auditioning !== null) {
+      if (this.state !== 'idle') this.state = 'paused';
+      return;
+    }
     if (this.state === 'playing') this.position = this.now();
     if (this.state !== 'idle') this.state = 'paused';
     this.gen++;
@@ -198,10 +217,55 @@ export class Playback {
   }
 
   seek(t: Micros): void {
+    if (this.auditioning !== null) {
+      // The project resumes here when the audition stops.
+      this.position = t;
+      return;
+    }
     this.gen++;
     this.position = t;
     this.last = null;
     this.worker.postMessage({ type: 'audio:seek', t, gen: this.gen });
+  }
+
+  /**
+   * F-011.R1, ADR-0008 §7: plays bundled track `trackId` (`duration` long) from its start through the
+   * audio worker's mixer. The project pauses first; only one audition plays at a time (a new one
+   * replaces the last). Call inside the user's gesture.
+   */
+  async audition(trackId: string, duration: Micros): Promise<void> {
+    const length = Math.round((duration * SAMPLE_RATE) / 1_000_000);
+    if (this.state === 'playing') this.pause();
+    this.unlock();
+    this.gen++;
+    const gen = this.gen;
+    this.auditioning = trackId;
+    this.auditionLast = null;
+    await this.ready;
+    if (gen !== this.gen) return; // stopped or replaced meanwhile
+    this.worker.postMessage({ type: 'audio:audition', trackId, length, gen });
+  }
+
+  /** Stops the audition (the picker's Stop preview, or closing the picker); the project is back, paused. */
+  stopAudition(): void {
+    if (this.auditioning === null) return;
+    this.endAudition();
+    this.gen++;
+    this.worker.postMessage({ type: 'audio:auditionStop', t: this.position, gen: this.gen });
+  }
+
+  private endAudition(): void {
+    this.auditioning = null;
+    this.auditionLast = null;
+    this.onAuditionEnded?.();
+  }
+
+  /** How far into the auditioned track is heard now (µs); 0 before its sound starts. */
+  auditionTime(): Micros {
+    const ctx = this.ctx;
+    if (this.auditioning === null || !ctx || !this.auditionLast) return 0;
+    const sample = this.auditionLast.sample + (this.outputFrame(ctx) - this.auditionLast.frame);
+    return Math.max(0, toMicros(sample));
   }
 
   /** Asks the worklet for its statistics (answered into `stats`). */
@@ -232,8 +296,14 @@ export class Playback {
   /** On `statechange` away from running and on page return: a bounded resume, else pause. */
   private async checkRunning(): Promise<void> {
     const ctx = this.ctx;
-    if (!ctx || ctx.state === 'running' || ctx.state === 'closed' || this.state !== 'playing') return;
+    if (!ctx || ctx.state === 'running' || ctx.state === 'closed') return;
+    if (this.state !== 'playing' && this.auditioning === null) return;
     const running = await boundedResume(ctx, this.env);
+    // F-011: an interrupted audition stops (the picker shows it stopped).
+    if (!running && this.auditioning !== null) {
+      this.stopAudition();
+      return;
+    }
     if (!running && this.state === 'playing') {
       this.pause();
       this.onInterrupted?.();
