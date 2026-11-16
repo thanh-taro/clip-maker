@@ -406,14 +406,17 @@ export function trimTo(
   const clip = p.clips[i];
   if (clip) {
     const span = layoutClips(p.clips, rate).spans[i]!;
-    if (clip.kind === 'photo') return setPhotoFrames(p, i, edge === 'start' ? span.endFrame - k : k - span.startFrame);
-    const speed = speedOf(clip) / 100;
-    if (edge === 'start')
-      return setClipIn(
-        p,
-        id,
-        (clip.in ?? 0) + Math.round((frameStart(k, rate) - frameStart(span.startFrame, rate)) * speed),
-      );
+    if (edge === 'start') {
+      // A main-track clip stays where it is (INV-03): its start edge is an offset from its own start, which
+      // may be negative (a trimmed start dragged back out, or a photo made longer at its start; may ask for
+      // a time before 0). Whole frames, the nearest one; setClipIn / the photo limits clamp it.
+      const delta = t - frameStart(span.startFrame, rate);
+      const frames = Math.sign(delta) * nearestFrame(Math.abs(delta), rate);
+      if (clip.kind === 'photo') return setPhotoFrames(p, i, span.frames - frames);
+      const offset = frames < 0 ? -frameStart(-frames, rate) : frameStart(frames, rate);
+      return setClipIn(p, id, (clip.in ?? 0) + Math.round((offset * speedOf(clip)) / 100));
+    }
+    if (clip.kind === 'photo') return setPhotoFrames(p, i, k - span.startFrame);
     const n = Math.max(k - span.startFrame, minFrames(rate));
     return setClipOut(p, id, (clip.in ?? 0) + rangeForFrames(n, speedOf(clip), rate));
   }

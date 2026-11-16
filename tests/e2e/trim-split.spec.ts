@@ -463,6 +463,92 @@ test.describe('F-004 trim and split (app harness)', () => {
     expect(await docOf(page)).toEqual(after);
   });
 
+  test('F-004.R1 a trimmed start dragged back left past the clip’s start (and 0) brings the head back: the in point returns to 0', async ({
+    page,
+  }) => {
+    await open(page);
+    // A photo, then the 2.069 s video: the video's start is trimmed by 1 s (Start here), then its start
+    // handle is dragged far left, past the photo and 0: the clip stays where it is and its head comes back
+    // up to the source's start.
+    await add(page, [photo('A.png'), video('V.mp4')]);
+    await clip(page, 'V.mp4').click();
+    const vStart = (await clipsOf(page))[1]!.start;
+    await at(page, vStart + 1);
+    await tool(page, 'action.set_in').click();
+    expect((await docOf(page)).clips[1]!.in).toBe(S);
+    const start = handle(page, 'start');
+    await settled(start);
+    const b = (await start.boundingBox())!;
+    const y = b.y + b.height / 2;
+    const steps = await stepsOf(page);
+    await page.mouse.move(b.x + b.width / 2, y);
+    await page.mouse.down();
+    await page.mouse.move(b.x - 600, y, { steps: 8 });
+    await page.mouse.up();
+    expect((await docOf(page)).clips[1]!.in).toBe(0);
+    expect((await clipsOf(page))[1]!.start).toBe(vStart);
+    expect(await stepsOf(page)).toBe(steps + 1);
+  });
+
+  test('F-004.R2 with a selected item and the playhead outside it, Split is unavailable and does nothing', async ({
+    page,
+  }) => {
+    await open(page);
+    await photos(page, 4, 3);
+    await clip(page, 'B.png').click();
+    await at(page, 2);
+    await expect(tool(page, 'action.split')).toHaveAttribute('aria-disabled', 'true');
+    const steps = await stepsOf(page);
+    await page.keyboard.press('KeyS');
+    await tool(page, 'action.split').click({ force: true });
+    await expect(notice(page, 'split_too_close')).toHaveCount(0);
+    expect(await clipsOf(page)).toHaveLength(2);
+    expect(await stepsOf(page)).toBe(steps);
+    await at(page, 5);
+    await expect(tool(page, 'action.split')).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  test('F-004.R1 a cancelled pointer (pointercancel) gives the edge back: no trim, no step', async ({ page }) => {
+    await open(page);
+    await photos(page, 10, 2);
+    await clip(page, 'A.png').click();
+    const end = handle(page, 'end');
+    await settled(end);
+    const px = await pxPerSecond(page);
+    const b = (await end.boundingBox())!;
+    const steps = await stepsOf(page);
+    const before = await ends(page);
+    const moved = await page.evaluate(
+      async ({ x, y, dx }) => {
+        const target = document.elementFromPoint(x, y) ?? document.body;
+        const fire = (el: EventTarget, type: string, cx: number) =>
+          el.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              pointerId: 11,
+              pointerType: 'touch',
+              clientX: cx,
+              clientY: y,
+              isPrimary: true,
+              button: 0,
+            }),
+          );
+        fire(target, 'pointerdown', x);
+        for (let i = 1; i <= 6; i++) fire(target, 'pointermove', x - (dx * i) / 6);
+        await new Promise((r) => setTimeout(r, 50));
+        const during = (window as unknown as Harness).appHarness.clips()[0]!.end;
+        fire(window, 'pointercancel', x - dx);
+        return during;
+      },
+      { x: b.x + b.width / 2, y: b.y + b.height / 2, dx: 3 * px },
+    );
+    // The drag did trim while it lasted, then the cancel put it back.
+    expect(moved).toBeLessThan(before[0]![1]!);
+    expect(await ends(page)).toEqual(before);
+    expect(await stepsOf(page)).toBe(steps);
+  });
+
   test('RULE-21 on touch a trim handle’s drag trims at once, with no hold', async ({
     browser,
     browserName,

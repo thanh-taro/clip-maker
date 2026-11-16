@@ -34,10 +34,20 @@ export function clipUnder(p: Project, t: Micros): string | null {
   return null;
 }
 
-/** F-004.R2 / RULE-20 S: what Split acts on — the selected item, else the main-track clip under the playhead. */
-export const splitTarget = computed<string | null>(
-  () => selectedItem.value ?? clipUnder(project.value, playhead.value),
-);
+/**
+ * F-004.R2 / RULE-20 S: what Split acts on — the selected item, else the main-track clip under the
+ * playhead. A selected item is a target only while the playhead is within it, ends included (a split too
+ * close to an edge then shows COPY-notice.split_too_close, F-004.AC4); outside it Split is unavailable
+ * (build question 122).
+ */
+export const splitTarget = computed<string | null>(() => {
+  const id = selectedItem.value;
+  if (id === null) return clipUnder(project.value, playhead.value);
+  const span = itemSpan(project.value, id)!;
+  const rate = project.value.frame.frameRate;
+  const k = frameIndexAt(playhead.value, rate);
+  return frameIndexAt(span.start, rate) <= k && k <= frameIndexAt(span.end, rate) ? id : null;
+});
 
 /** Whether the playhead is strictly inside the selected item: where its start or end can be set. */
 const playheadInside = computed<boolean>(() => {

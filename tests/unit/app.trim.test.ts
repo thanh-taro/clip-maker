@@ -39,10 +39,44 @@ describe('F-004 trimming and splitting in the editor', () => {
     expect(splitTarget.value).toBeNull();
     expect(trimAvailable.value).toEqual({ split: false, setIn: false, setOut: false });
     selectClip('M');
+    at(5);
     expect(splitTarget.value).toBe('M');
     selectClip(null);
     at(4);
     expect(trimAvailable.value).toEqual({ split: true, setIn: false, setOut: false });
+  });
+
+  it('F-004.R2 a selected item is split only with the playhead within it (ends included); outside, Split is unavailable', () => {
+    selectClip('B');
+    at(4);
+    expect(splitTarget.value).toBeNull();
+    expect(trimAvailable.value.split).toBe(false);
+    expect(splitHere()).toBe(false);
+    expect(tags()).toEqual([]);
+    // At its start (and its end) Split stays available and says the playhead is too close (F-004.AC4).
+    at(10);
+    expect(trimAvailable.value.split).toBe(true);
+    expect(splitHere()).toBe(false);
+    expect(tags()).toEqual(['split_too_close']);
+    at(15);
+    expect(splitTarget.value).toBe('B');
+    expect(steps()).toBe(0);
+  });
+
+  it('F-004.R1 a trimmed start dragged back before the clip’s start brings the head back, the in point stopping at 0', () => {
+    selectClip('A');
+    at(5);
+    trimHere('start');
+    expect(project.value.clips[0]).toMatchObject({ in: 5 * S, out: 10 * S });
+    // The handle sits at 0 s; a drag left asks for times before 0.
+    const drag = beginTrim('A', 'start', () => undefined);
+    drag.to(-2 * S);
+    expect(project.value.clips[0]).toMatchObject({ in: 3 * S });
+    drag.to(-20 * S);
+    drag.end();
+    expect(project.value.clips[0]).toMatchObject({ in: 0, out: 10 * S });
+    expect(frames()).toEqual([300, 150]);
+    expect(steps()).toBe(2);
   });
 
   it('F-004.R2 inside a cross-fade the clip under the playhead is the later one', () => {

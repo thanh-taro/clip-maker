@@ -153,7 +153,8 @@ interface Trim {
   readonly from: Micros;
   /** The scale when the drag began: it holds still until the drag ends. */
   readonly scale: number;
-  readonly targets: readonly Micros[];
+  /** The project as the drag began: snap targets are its items' edges (the playhead is read live). */
+  readonly base: Project;
   session: TrimDrag | null;
 }
 
@@ -638,7 +639,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   }
   const onTrimDown = (e: PointerEvent): void => {
     const h = (e.target as Element).closest<HTMLElement>('.tk-trim');
-    if (!h || e.button !== 0 || drag || trim || !deps.trim) return;
+    if (!h || e.button !== 0 || drag || trim || !deps.trim || scale <= 0) return;
     const id = h.dataset['itemId'] ?? '';
     const p = project.peek();
     const span = itemSpan(p, id);
@@ -654,7 +655,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       startX: e.clientX,
       from: edge === 'start' ? span.start : span.end,
       scale,
-      targets: trimSnapTargets(p, id, playhead.peek()),
+      base: p,
       session: null,
     };
     capture(host, e.pointerId);
@@ -676,9 +677,13 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       host.classList.add('tk-lanes--trimming');
     }
     e.preventDefault();
-    // Back where it began is exactly where it began (no rounding through pixels).
-    const wanted = dx === 0 ? t.from : pointerTime(t.from * t.scale + dx, t.scale);
-    const snapped = snapTime(wanted, t.targets, t.scale);
+    // Back where it began is exactly where it began: no rounding through pixels and no snapping, so the
+    // drag leaves no step. A main-track clip's start may go before its own start (and before 0): the
+    // trimmed head comes back (MOD-Project clamps it to the source); other edges stop at 0.
+    const mainStart = t.lane === 'clip' && t.edge === 'start';
+    const raw = t.from + Math.round(dx / t.scale);
+    const wanted = dx === 0 ? t.from : mainStart ? raw : pointerTime(t.from * t.scale + dx, t.scale);
+    const snapped = dx === 0 ? null : snapTime(wanted, trimSnapTargets(t.base, t.id, playhead.peek()), t.scale);
     applying = true;
     try {
       t.session.to(snapped ?? wanted);
@@ -696,7 +701,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   // Also on the window: a release outside the track (or outside the page) ends the drag there.
   const onUp = (e: PointerEvent): void => {
     if (drag?.pointerId === e.pointerId) endDrag(e.type === 'pointerup');
-    if (trim?.pointerId === e.pointerId) endTrim('commit');
+    // A cancelled pointer (the browser took the gesture) gives the edge back, as a cancelled move does.
+    if (trim?.pointerId === e.pointerId) endTrim(e.type === 'pointerup' ? 'commit' : 'cancel');
   };
   // RULE-21: once a held touch drags, the browser must not pan (it would cancel the pointer); a trim
   // handle's drag never pans.
@@ -785,6 +791,9 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       host.removeEventListener('pointerdown', onLanesDown);
+      host.removeEventListener('pointerdown', onTrimDown);
+      host.removeEventListener('pointermove', onTrimMove);
+      host.removeEventListener('touchmove', onTouchMove);
       host.replaceChildren();
       host.classList.remove('tk-lanes');
     },
