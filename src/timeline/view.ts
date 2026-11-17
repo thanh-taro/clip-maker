@@ -72,6 +72,20 @@ export interface TimelineDeps {
   trim?(id: string, edge: 'start' | 'end', onCut: () => void): TrimDrag;
   /** F-004.R4: the trim readout's two parts, COPY-timeline.length and COPY-timeline.ends_at. */
   trimReadout?(length: Micros, end: Micros): readonly [length: string, ends: string];
+  /** F-009: the cross-fade controls at each join (CMP-Timeline "cross-fade"); none without it. */
+  crossFade?: CrossFadeDeps;
+}
+
+/** F-009: what a join between two main-track clips shows and does (MOD-App's fades module). */
+export interface CrossFadeDeps {
+  /** The join after clip `id`: its cross-fade (`label` names the control) or why one can't be added. */
+  join(p: Project, id: string): { readonly on: boolean; readonly label: string; readonly reason: string | null };
+  /** The join whose popover is open (its marker shows the expanded state). */
+  readonly open: ReadonlySignal<string | null>;
+  /** The add chip was activated (adds 0.5 s, or shows the reason it can't). */
+  add(id: string): void;
+  /** The marker was activated: open (or close) its popover. */
+  toggle(id: string): void;
 }
 
 /** F-004: one trim drag as MOD-App runs it (its moves coalesce into one RULE-13 step). */
@@ -110,18 +124,33 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
   return e;
 }
 
-/** The cross-fade marker's bow-tie glyph (style.md "Cross-fade marker": never an ×). */
-function bowTie(): SVGSVGElement {
+/**
+ * The join control's glyphs (board CMP-Timeline "cross-fade"): the cross-fade marker's bow-tie (style.md
+ * "Cross-fade marker": never an ×) and the dashed add chip's plus.
+ */
+const GLYPHS = { marker: 'M4 6v12l8-6zM20 6v12l-8-6z', add: 'M12 5v14M5 12h14' } as const;
+function glyph(kind: keyof typeof GLYPHS): SVGSVGElement {
   const svg = document.createElementNS(SVG, 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('width', '12');
   svg.setAttribute('height', '12');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
   decorative(svg);
   const path = document.createElementNS(SVG, 'path');
-  path.setAttribute('d', 'M4 6v12l8-6zM20 6v12l-8-6z');
-  path.setAttribute('fill', 'currentColor');
+  path.setAttribute('d', GLYPHS[kind]);
   svg.appendChild(path);
   return svg;
+}
+
+/** F-009: a join's control (the add chip or the marker) and the hidden reason it is unavailable. */
+interface JoinEls {
+  readonly button: HTMLButtonElement;
+  readonly reason: HTMLSpanElement;
+  state: 'add' | 'marker' | '';
 }
 
 /** Keeps a pointer's moves on `target` (a pointer that is no longer down can't be captured). */
@@ -226,6 +255,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
 
   const clips = new Map<string, ClipEls>();
   const audios = new Map<string, { button: HTMLButtonElement; name: HTMLSpanElement; past: HTMLSpanElement }>();
+  /** F-009: each join's control, keyed by the clip before it (kept, so focus stays on it across edits). */
+  const joins = new Map<string, JoinEls>();
   let boxes: ClipBox[] = [];
   let scale = 0;
   let labels: { at: Micros; node: HTMLElement }[] = [];
@@ -373,6 +404,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       if (track.children[i] !== c.button) track.insertBefore(c.button, track.children[i] ?? drop);
       drawStrip(c, clip, box.width);
       if (box.crossFadeOut > 0) {
+        // The overlap's band (INV-03); the marker over it is the join's control (layoutJoins).
         const next = boxes[i + 1]!;
         const mark = el('span', 'tk-xfade', track);
         decorative(mark);
@@ -380,14 +412,111 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
         mark.style.width = `${box.crossFadeOut * scale}px`;
         mark.style.zIndex = String(p.clips.length + 1);
         el('span', 'tk-xfade__band', mark);
-        el('span', 'tk-xfade__marker', mark).appendChild(bowTie());
       }
     });
+    layoutJoins(p, selected);
     track.appendChild(drop);
     layoutAudio(p, selected);
     placeHandles(p, selected);
     placeHead(playhead.peek());
   });
+
+  function joinEls(id: string): JoinEls {
+    let j = joins.get(id);
+    if (j) return j;
+    const button = el('button', 'tk-join');
+    button.type = 'button';
+    button.dataset['joinId'] = id;
+    const reason = el('span', 'tk-join-reason');
+    reason.id = `tk-join-reason-${id}`;
+    j = { button, reason, state: '' };
+    joins.set(id, j);
+    return j;
+  }
+
+  /**
+   * F-009 (CMP-Timeline "cross-fade"): at each join of two main-track clips, a join without a cross-fade has
+   * the dashed add chip (COPY-action.add_crossfade; shown on hover, focus or when either clip is selected —
+   * CSS), unavailable with its reason between clips too short (F-009.R7); a join with one has the bow-tie
+   * marker over the overlap, which opens the length popover (expanded while open). After the clips in focus
+   * order.
+   */
+  function layoutJoins(p: Project, selected: ReadonlySet<string>): void {
+    const cf = deps.crossFade;
+    const keep = new Set(cf ? p.clips.slice(0, -1).map((c) => c.id) : []);
+    for (const [id, j] of joins) {
+      if (keep.has(id)) continue;
+      j.button.remove();
+      j.reason.remove();
+      joins.delete(id);
+    }
+    if (!cf) return;
+    const open = cf.open.peek();
+    let after: Element | null = null;
+    p.clips.slice(0, -1).forEach((clip, i) => {
+      const box = boxes[i]!;
+      const next = boxes[i + 1]!;
+      const info = cf.join(p, clip.id);
+      const j = joinEls(clip.id);
+      const state = info.on ? 'marker' : 'add';
+      if (j.state !== state) {
+        j.state = state;
+        j.button.dataset['state'] = state;
+        j.button.replaceChildren(glyph(state));
+      }
+      j.button.setAttribute('aria-label', info.label);
+      // The marker sits in the middle of the overlap; the chip on the boundary.
+      const x = info.on ? next.x + (box.crossFadeOut * scale) / 2 : next.x;
+      j.button.style.left = `${x}px`;
+      j.button.toggleAttribute('data-near', selected.has(clip.id) || selected.has(p.clips[i + 1]!.id));
+      if (info.on) {
+        j.button.setAttribute('aria-haspopup', 'dialog');
+        j.button.setAttribute('aria-expanded', String(open === clip.id));
+      } else {
+        j.button.removeAttribute('aria-haspopup');
+        j.button.removeAttribute('aria-expanded');
+      }
+      j.reason.textContent = info.reason ?? '';
+      if (info.reason !== null) {
+        j.button.setAttribute('aria-disabled', 'true');
+        j.button.setAttribute('aria-describedby', j.reason.id);
+        j.button.title = info.reason;
+      } else {
+        j.button.removeAttribute('aria-disabled');
+        j.button.removeAttribute('aria-describedby');
+        j.button.title = '';
+      }
+      // In join order after the clips. Moved only when out of place: moving a focused control would blur it.
+      const prev = j.button.previousElementSibling;
+      const inPlace =
+        j.button.parentElement === track &&
+        j.button.nextElementSibling === j.reason &&
+        (after ? prev === after : !prev?.matches('.tk-join, .tk-join-reason'));
+      if (!inPlace) {
+        if (after) after.after(j.button, j.reason);
+        else track.insertBefore(j.button, track.querySelector(':scope > .tk-join') ?? drop);
+        j.button.after(j.reason);
+      }
+      after = j.reason;
+    });
+  }
+
+  // F-009: the open popover's marker shows the expanded state (no relayout).
+  const stopOpen = effect(() => {
+    const open = deps.crossFade?.open.value ?? null;
+    for (const [id, j] of joins)
+      if (j.state === 'marker') j.button.setAttribute('aria-expanded', String(open === id));
+  });
+
+  const onJoinClick = (e: MouseEvent): void => {
+    const button = (e.target as Element).closest<HTMLButtonElement>('.tk-join');
+    const id = button?.dataset['joinId'];
+    const cf = deps.crossFade;
+    if (!button || id === undefined || !cf) return;
+    e.stopPropagation();
+    if (button.dataset['state'] === 'marker') cf.toggle(id);
+    else cf.add(id);
+  };
 
   /** F-004: the trim handles on the selected main-track clip or audio clip (CMP-Timeline "trimming"). */
   function placeHandles(p: Project, selected: ReadonlySet<string>): void {
@@ -535,7 +664,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   // end (the lanes' end padding) and below the track; the ruler scrubs instead.
   const onLanesDown = (e: PointerEvent): void => {
     const target = e.target as Element;
-    if (e.button !== 0 || target.closest('.tk-clip, .tk-aclip, .tk-ruler, .tk-trim')) return;
+    if (e.button !== 0 || target.closest('.tk-clip, .tk-aclip, .tk-ruler, .tk-trim, .tk-join')) return;
     deps.select(null);
   };
   const onTrackDown = (e: PointerEvent): void => {
@@ -770,6 +899,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   window.addEventListener('pointerup', onUp);
   window.addEventListener('pointercancel', onUp);
   track.addEventListener('click', onClick);
+  track.addEventListener('click', onJoinClick);
   track.addEventListener('contextmenu', onContext);
   document.addEventListener('keydown', onKey, true);
   drop.hidden = true;
@@ -784,6 +914,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     dispose(): void {
       stopLayout();
       stopHead();
+      stopOpen();
       resize.disconnect();
       if (drag?.timer) clearTimeout(drag.timer);
       if (trim) endTrim('abort');

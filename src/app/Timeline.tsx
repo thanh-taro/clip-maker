@@ -15,8 +15,13 @@
 // Implements: F-003.R1 (selection shown on the timeline), F-003.R6 (visible controls), F-003.AC5,
 // RULE-20 arrange keys (bound while the timeline is mounted), RULE-21 (move-earlier/later stand in for
 // hold-and-drag; time controls for audio clips), F-011.R2, F-011.R8.
+// F-009: the view's cross-fade controls at each join (the add chip, the bow-tie marker) act through
+// ./fades.ts; the marker's popover is ./CrossFadePopover.tsx. The phone Edit sheet's Cross-fade tile is
+// CROSSFADE_ITEM. Implements: F-009.R2, F-009.R7, CMP-Timeline "cross-fade".
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
+import { CrossFadePopover } from './CrossFadePopover';
+import { addCrossFade, crossFadeTile, joinOf, openJoin, secondsLabel, tileJoin } from './fades';
 import { registry } from '../media';
 import { isEmpty, playhead, project, selection } from '../project';
 import { mountTimeline, type TimelineView } from '../timeline';
@@ -57,17 +62,40 @@ type ArrangeLabel =
   | 'action.move_left'
   | 'action.move_right'
   | 'action.time_earlier'
-  | 'action.time_later';
+  | 'action.time_later'
+  | 'action.add_crossfade';
 
 export interface ArrangeItem {
-  readonly id: 'split' | 'set-in' | 'set-out' | 'delete' | 'duplicate' | 'move-earlier' | 'move-later';
+  readonly id: 'split' | 'set-in' | 'set-out' | 'delete' | 'duplicate' | 'move-earlier' | 'move-later' | 'cross-fade';
   readonly label: ArrangeLabel;
   /** The label for the current selection (an audio clip's moves are Earlier and Later in time). */
   readonly labelNow?: () => ArrangeLabel;
   readonly icon: IconName;
   readonly run: () => boolean;
   readonly available: () => boolean;
+  /**
+   * Why an unavailable control is unavailable (F-009.R7), shown with it; activating it then shows the reason
+   * as a notice (`run` does).
+   */
+  readonly reason?: () => string | null;
 }
+
+/**
+ * F-009 (CMP-Timeline "narrow / sheet open"): the phone Edit sheet's Cross-fade tile acts on the join after
+ * the selected clip: it adds a 0.5 s cross-fade and opens its popover, or opens the popover of the one there.
+ * Unavailable without a next clip, or with COPY-notice.crossfade_too_short between clips too short.
+ */
+export const CROSSFADE_ITEM: ArrangeItem = {
+  id: 'cross-fade',
+  label: 'action.add_crossfade',
+  icon: 'crossFade',
+  run: crossFadeTile,
+  available: () => tileJoin.value?.available === true,
+  reason: () => {
+    const r = tileJoin.value?.reason;
+    return r === 'notice.crossfade_too_short' ? t(r) : null;
+  },
+};
 
 /** F-004.R2/R6: Split, Start here and End here as visible controls (the toolbar here, the phone Edit sheet). */
 export const TRIM_ITEMS: readonly ArrangeItem[] = [
@@ -184,6 +212,21 @@ export function Timeline() {
           t('timeline.length', { length: formatDuration(length) }),
           t('timeline.ends_at', { time: formatDuration(end) }),
         ],
+        crossFade: {
+          join: (p, id) => {
+            const j = joinOf(p, id);
+            const on = (j?.tenths ?? 0) > 0;
+            return {
+              on,
+              // The marker is named by the popover it opens and the length; the chip by its action.
+              label: on ? `${t('crossfade.length')} ${secondsLabel(j!.tenths)}` : t('action.add_crossfade'),
+              reason: j?.reason === 'notice.crossfade_too_short' ? t(j.reason) : null,
+            };
+          },
+          open: openJoin,
+          add: (id) => void addCrossFade(id),
+          toggle: (id) => (openJoin.value = openJoin.peek() === id ? null : id),
+        },
       },
     );
     onDeleted(keepFocus);
@@ -218,6 +261,7 @@ export function Timeline() {
         </div>
         <div class="tk-tl-lanes" ref={lanes} />
       </div>
+      <CrossFadePopover />
     </section>
   );
 }

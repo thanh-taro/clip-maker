@@ -1,0 +1,295 @@
+/* MOD-App — F-009 fades and cross-fades, tokens only: CMP-Inspector's Fades (board CMP-Inspector "clip Speed",
+   "audio clip"; the phone Edit sheet's Fades row, CMP-Timeline "narrow / sheet open") and CMP-Timeline's join
+   controls (board CMP-Timeline "cross-fade": the dashed add chip shown on hover, focus or selection; the
+   bow-tie marker; the length popover). */
+@layer layout {
+  /* ── CMP-Inspector: Fades ── */
+  .tk-fades {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-fades__head {
+    margin: 0;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+    letter-spacing: var(--tk-font-letter-spacing-caps);
+    text-transform: uppercase;
+  }
+
+  .tk-fades__rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+  }
+
+  /* A row: label, slider, then the field with its unit. */
+  .tk-fades__row {
+    display: grid;
+    grid-template-columns: calc(var(--tk-space-12) + var(--tk-space-4)) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--tk-space-2);
+    min-block-size: var(--tk-size-control);
+  }
+
+  .tk-fades__label {
+    overflow: hidden;
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Thin track, accent fill from the start (the native range input, as Speed's Exact). */
+  .tk-fades__slider {
+    inline-size: 100%;
+    min-inline-size: 0;
+    block-size: var(--tk-size-target-min);
+    margin: 0;
+    background: transparent;
+    accent-color: var(--tk-color-accent);
+    cursor: pointer;
+  }
+
+  .tk-fades__field {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tk-space-1);
+  }
+
+  .tk-fades__number {
+    inline-size: var(--tk-space-12);
+    block-size: var(--tk-size-tool-button);
+    padding-inline: var(--tk-space-1-5);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-sm);
+    background: var(--tk-color-bg);
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-sm);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+  }
+
+  /* The number reads in the text colour when changed, muted at 0 (CMP-Inspector "clip Adjust"). */
+  .tk-fades__row[data-changed] .tk-fades__number {
+    color: var(--tk-color-fg);
+  }
+
+  .tk-fades__unit {
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+  }
+
+  /* Quick fade in / Quick fade out: two equal toggles. */
+  .tk-fades__toggles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--tk-space-2);
+  }
+
+  .tk-fades__toggle {
+    justify-content: center;
+    min-inline-size: 0;
+    padding-inline: var(--tk-space-2);
+    border-color: var(--tk-color-line-strong);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    white-space: nowrap;
+  }
+
+  .tk-fades__toggle[aria-pressed='true'] {
+    border-color: var(--tk-color-accent);
+    background: var(--tk-color-selection);
+  }
+
+  /* ── Phone: the Fades row (label on the left, the two toggles each with its length), rows at touch size ── */
+  .tk-fades__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--tk-space-1-5) var(--tk-space-2);
+  }
+
+  .tk-fades__line-label {
+    flex: none;
+    min-inline-size: calc(var(--tk-space-12) + var(--tk-space-4));
+    margin: 0;
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-fades__line .tk-fades__toggles {
+    flex: 1 1 calc(var(--tk-size-touch-target) * 4);
+  }
+
+  .tk-fades--touch .tk-fades__toggle {
+    gap: var(--tk-space-1-5);
+    min-block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-fades__toggle-length {
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+    font-weight: var(--tk-font-weight-medium);
+  }
+
+  .tk-fades__rows--touch .tk-fades__row {
+    grid-template-columns: calc(var(--tk-space-12) + var(--tk-space-4)) minmax(0, 1fr) auto;
+    min-block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-fades__rows--touch .tk-fades__label {
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-fades__rows--touch .tk-fades__slider {
+    block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-fades__number--touch {
+    block-size: var(--tk-size-touch-target);
+    font-size: var(--tk-font-size-input);
+  }
+
+  /* ── CMP-Timeline: the join controls ── */
+  .tk-join {
+    position: absolute;
+    inset-block-start: 50%;
+    z-index: 61;
+    display: grid;
+    place-items: center;
+    inline-size: var(--tk-size-target-min);
+    block-size: var(--tk-size-target-min);
+    padding: 0;
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-xs);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-fg);
+    cursor: pointer;
+    transform: translate(-50%, -50%);
+  }
+
+  /* The add chip: dashed and muted, shown only on hover, focus or when either clip is selected. */
+  .tk-join[data-state='add'] {
+    border-style: dashed;
+    color: var(--tk-color-muted);
+    opacity: 0;
+  }
+
+  .tk-track:hover .tk-join[data-state='add'],
+  .tk-join[data-state='add']:focus-visible,
+  .tk-join[data-state='add'][data-near] {
+    opacity: 1;
+  }
+
+  .tk-join[data-state='add'][aria-disabled='true'] {
+    cursor: default;
+  }
+
+  /* The marker while its popover is open. */
+  .tk-join[aria-expanded='true'] {
+    border-color: var(--tk-color-accent);
+    background: var(--tk-color-selection);
+  }
+
+  /* The reason an unavailable control is unavailable (F-009.R7): read by assistive technology, shown as its tooltip. */
+  .tk-join-reason {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* RULE-21 / CMP-Timeline "Accessibility": a `size.handleHit` hit area on touch; no hover there, so the
+     chip shows (and can be pressed) only with a neighbour selected. */
+  @media (pointer: coarse) {
+    .tk-join::before {
+      content: '';
+      position: absolute;
+      inset: calc((var(--tk-size-target-min) - var(--tk-size-handle-hit)) / 2);
+    }
+  }
+
+  @media (hover: none) {
+    .tk-track:hover .tk-join[data-state='add']:not([data-near]) {
+      opacity: 0;
+    }
+    .tk-join[data-state='add']:not([data-near]) {
+      pointer-events: none;
+    }
+  }
+
+  /* ── The length popover ── */
+  .tk-xfade-pop {
+    position: fixed;
+    z-index: 110;
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+    inline-size: max-content;
+    padding: var(--tk-space-2);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  .tk-xfade-pop__title {
+    margin: 0;
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-semibold);
+    white-space: nowrap;
+  }
+
+  .tk-xfade-pop__row {
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-xfade-pop__step,
+  .tk-xfade-pop__remove {
+    justify-content: center;
+    inline-size: var(--tk-size-tool-button);
+    padding: 0;
+  }
+
+  .tk-xfade-pop__remove {
+    border-color: var(--tk-color-line-strong);
+  }
+
+  .tk-xfade-pop__step[aria-disabled='true'] {
+    color: var(--tk-color-muted);
+    cursor: default;
+  }
+
+  .tk-xfade-pop__value {
+    min-inline-size: calc(var(--tk-space-10) + var(--tk-space-2));
+    font-family: var(--tk-font-family-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+
+  @media (pointer: coarse) {
+    .tk-xfade-pop__step,
+    .tk-xfade-pop__remove {
+      inline-size: var(--tk-size-touch-target);
+    }
+  }
+
+  @media (forced-colors: active) {
+    .tk-join[data-state='add'] {
+      opacity: 1;
+    }
+    .tk-fades__toggle[aria-pressed='true'],
+    .tk-join[aria-expanded='true'] {
+      border-color: Highlight;
+    }
+  }
+}

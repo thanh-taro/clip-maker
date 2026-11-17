@@ -21,6 +21,9 @@
 // the plain title row is gone now that the photo has two tabs). F-008: the Looks tab (COPY-looks.title) holds
 // CMP-LookGallery (./LookGallery.tsx): a video clip's tabs are Edit, Adjust, Looks and Sound; a photo clip's
 // Edit, Adjust and Looks (CMP-Inspector "Anatomy").
+// F-009: the Edit tab ends with Fades (./FadesSection.tsx: Fade in, Fade out, the quick toggles), after Speed
+// for a video clip and after Position for a photo clip (its Duration row is F-004's; build question 150).
+// Implements: F-009.R1, CMP-Inspector "Anatomy" (the Edit tab holds Position, Speed or Duration, and Fades),
 // Implements: F-007 UX notes, CMP-Inspector "clip Adjust", F-012.R1–R3 (the controls), F-012 UX notes, CMP-Inspector "Frame (nothing selected)" and
 // "Accessibility" (tabs are a tablist named COPY-inspector.label; single-section panels use a heading;
 // option groups are radio groups; swatches carry colour names), F-005 UX notes, F-006 UX notes,
@@ -50,6 +53,7 @@ import { LookGallery } from './LookGallery';
 import { soundTarget } from './sound';
 import { SoundSection } from './SoundSection';
 import { SpeedSection } from './SpeedSection';
+import { FadesSection } from './FadesSection';
 
 const aspectLabel = (a: Frame['aspect']): string => (a === 'original' ? t('frame.original') : a);
 const backgroundLabel = (b: Frame['background']): string => (b === 'blur' ? t('frame.blur') : t(`colour.${b}`));
@@ -332,6 +336,7 @@ export function Inspector() {
               <div class="tk-inspector__sections">
                 <PositionSection id="tk-inspector-place" />
                 <SpeedSection id="tk-inspector-speed" />
+                <FadesSection id="tk-inspector-fades" />
               </div>
             ) : tab === 'looks' ? (
               <LookGallery id="tk-inspector-looks" />
