@@ -15,6 +15,7 @@
 // pointer, touch, Space/Enter or \), F-007 UX notes, CMP-Inspector "Behavior" (one undo step per slider
 // movement; the grouping is for reading only) and "Accessibility" (the slider and its field share the
 // label; unavailable actions are disabled; touch targets in sheets meet RULE-21).
+import type { RefObject } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { t } from '../copy';
 import type { AdjustmentName } from '../core';
@@ -36,10 +37,10 @@ import {
   resetOne,
   setAdjustmentOnce,
   signedLabel,
-  type AdjustDrag,
 } from './adjust';
 import { Icon } from './icons';
 import { NumberField } from './NumberField';
+import { useSliderGesture } from './slider-gesture';
 
 /**
  * One adjustment slider: keys are one step each; one pointer movement is one step measured from where it
@@ -51,44 +52,21 @@ function AdjustSlider({
   name,
   value,
   labelledBy,
+  sliderRef,
 }: {
   readonly clipId: string;
   readonly name: AdjustmentName;
   readonly value: number;
   readonly labelledBy: string;
+  readonly sliderRef: RefObject<HTMLInputElement>;
 }) {
-  const drag = useRef<AdjustDrag | null>(null);
-  const held = useRef(false);
-  const endDrag = useRef((): void => {
-    removeEventListener('pointerup', endDrag.current);
-    removeEventListener('pointercancel', endDrag.current);
-    removeEventListener('blur', endDrag.current);
-    held.current = false;
-    drag.current?.end();
-    drag.current = null;
+  const gesture = useSliderGesture({
+    key: clipId,
+    value,
+    begin: () => beginAdjustDrag(clipId, name, () => undefined),
+    step: (v) => setAdjustmentOnce(clipId, name, v),
+    shown: () => adjustTarget.peek()?.adjustments[name] ?? 0,
   });
-  // Another clip becoming the selection mid-drag ends the movement: its moves never reach that clip. The
-  // pointer still down for the previous clip is ignored until it is released.
-  const orphan = useRef(false);
-  useEffect(
-    () => () => {
-      if (held.current) {
-        orphan.current = true;
-        const clear = (): void => {
-          orphan.current = false;
-          removeEventListener('pointerup', clear);
-          removeEventListener('pointercancel', clear);
-          removeEventListener('blur', clear);
-        };
-        addEventListener('pointerup', clear);
-        addEventListener('pointercancel', clear);
-        addEventListener('blur', clear);
-      }
-      endDrag.current();
-    },
-    [clipId],
-  );
-  const end = endDrag.current;
   const { min, max } = rangeOf(name);
   const bipolar = isBipolar(name);
   // The accent fill runs from the default (the centre, or the start) to the value (CSS: ./styles/adjust.css).
@@ -96,6 +74,7 @@ function AdjustSlider({
   const from = bipolar ? 0.5 : 0;
   return (
     <input
+      ref={sliderRef}
       type="range"
       class="tk-adjust__slider"
       min={min}
@@ -107,35 +86,7 @@ function AdjustSlider({
       data-control={`adjust-${name}-slider`}
       data-bipolar={bipolar ? '' : undefined}
       style={{ '--adjust-lo': String(Math.min(from, at)), '--adjust-hi': String(Math.max(from, at)) }}
-      onPointerDown={() => {
-        end();
-        orphan.current = false;
-        addEventListener('pointerup', end);
-        addEventListener('pointercancel', end);
-        addEventListener('blur', end);
-        held.current = true;
-      }}
-      onInput={(e) => {
-        const v = Number(e.currentTarget.value);
-        if (orphan.current) {
-          e.currentTarget.value = String(value);
-          return;
-        }
-        if (held.current) {
-          // The movement starts with its first move. Undo, redo or an outside edit mid-drag cut it (F-014
-          // onCut): the slider is controlled, so it shows the restored value, and the next move starts anew.
-          if (!drag.current?.active) drag.current = beginAdjustDrag(clipId, name, () => undefined);
-          drag.current.set(v);
-        } else {
-          // A key on the slider: one step per key.
-          setAdjustmentOnce(clipId, name, v);
-        }
-        e.currentTarget.value = String(adjustTarget.peek()?.adjustments[name] ?? v);
-      }}
-      onPointerUp={end}
-      onPointerCancel={end}
-      onBlur={end}
-      onChange={end}
+      {...gesture}
     />
   );
 }
@@ -154,6 +105,7 @@ function AdjustRow({
   const labelId = `${prefix}-${name}`;
   const { min, max } = rangeOf(name);
   const changed = value !== 0;
+  const slider = useRef<HTMLInputElement>(null);
   return (
     <div
       class="tk-adjust__row"
@@ -165,7 +117,7 @@ function AdjustRow({
       <span class="tk-adjust__label" id={labelId}>
         {t(`adjust.${name}`)}
       </span>
-      <AdjustSlider clipId={clipId} name={name} value={value} labelledBy={labelId} />
+      <AdjustSlider clipId={clipId} name={name} value={value} labelledBy={labelId} sliderRef={slider} />
       <NumberField
         class="tk-adjust__number"
         control={`adjust-${name}-field`}
@@ -184,7 +136,11 @@ function AdjustRow({
           aria-describedby={labelId}
           title={t('action.reset')}
           data-action="reset-adjustment"
-          onClick={() => resetOne(clipId, name)}
+          onClick={() => {
+            // The Reset goes away with the change: focus moves to the row's slider first, not to the page.
+            slider.current?.focus();
+            resetOne(clipId, name);
+          }}
         >
           <Icon name="reset" size={12} />
         </button>
