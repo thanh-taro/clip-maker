@@ -54,7 +54,7 @@
     "build": {
       "title": "4 Implementation",
       "status": "in_progress",
-      "step": "4 wave 4: W4-prep, F-004..F-008 merged (check 9/9); next F-009 fades, then F-010, F-013, F-015, F-018",
+      "step": "4 wave 4: W4-prep, F-004..F-009 merged (check: 673/674 e2e, F-002.AC7 lengthened, 6/6); next F-010 text, then F-013, F-015, F-018",
       "gate": {
         "status": "pending",
         "at": null,
@@ -739,10 +739,6 @@
     }
   },
   "log": [
-    {
-      "at": "2026-11-03T06:05:37+00:00",
-      "event": "phase product-spec -> in_progress"
-    },
     {
       "at": "2026-11-03T06:06:03+00:00",
       "event": "product-spec step: 1.1 brainstorm: round 1 problem; market-researcher running"
@@ -1538,9 +1534,13 @@
     {
       "at": "2026-11-17T04:32:33+00:00",
       "event": "build step: 4 wave 4: W4-prep, F-004..F-008 merged (check 9/9); next F-009 fades, then F-010, F-013, F-015, F-018"
+    },
+    {
+      "at": "2026-11-17T08:01:07+00:00",
+      "event": "build step: 4 wave 4: W4-prep, F-004..F-009 merged (check: 673/674 e2e, F-002.AC7 lengthened, 6/6); next F-010 text, then F-013, F-015, F-018"
     }
   ],
-  "updated": "2026-11-17T04:32:33+00:00",
+  "updated": "2026-11-17T08:01:07+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",

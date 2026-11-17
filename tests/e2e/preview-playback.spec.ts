@@ -261,7 +261,8 @@ test.describe('F-002 preview playback (app harness)', () => {
 
   test('F-002.AC7 entering and leaving full screen keeps playback running and the playhead', async ({ page }) => {
     await open(page);
-    await addClips(page, ['a.mp4', 'b.mp4', 'c.mp4']);
+    // Twice the clips: under load, playback must not reach the end before full screen is left.
+    await addClips(page, ['a.mp4', 'b.mp4', 'c.mp4', 'a.mp4', 'b.mp4', 'c.mp4']);
     await button(page, 'action.play').click();
     await expect.poll(async () => (await previewOf(page)).time).toBeGreaterThan(0.2);
     const before = await previewOf(page);
