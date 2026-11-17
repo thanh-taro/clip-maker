@@ -1241,7 +1241,7 @@ export interface FadeSpec {
 
 export interface FadeReport {
   readonly ok: boolean;
-  /** Project length (s) of the exported picture and of its decoded sound. */
+  /** Length (s) of the exported file's picture (its duration) and of its sound track (its packets' end). */
   readonly pictureSeconds: number;
   readonly soundSeconds: number;
   /** Centre of each frame (mean of 5 × 5): the exported file decoded, and the compositor's paint (the preview). */
@@ -1475,6 +1475,12 @@ async function fadeExport(spec: FadeSpec): Promise<FadeReport> {
   if (!sound) return { ...empty, pictureSeconds };
   const seconds = Math.max(...layoutOf(sounds).spans.map((s) => s.endFrame)) / 30;
   const [L, R] = await decodeWindow(sound, 0, seconds);
+  // The file's sound track as written: the end of its last packet (not the window decoded above).
+  const read = await openInput(sound);
+  let soundSeconds = 0;
+  for await (const p of read.packets('audio')) soundSeconds = Math.max(soundSeconds, p.timestamp + p.duration);
+  soundSeconds -= read.audio?.firstTimestamp ?? 0;
+  read.close();
   const half = Math.round(0.025 * SR);
   const heard = spec.windows.map((w) => {
     const c = Math.round(w.at * SR);
@@ -1483,7 +1489,7 @@ async function fadeExport(spec: FadeSpec): Promise<FadeReport> {
   return {
     ok: true,
     pictureSeconds,
-    soundSeconds: L.length / SR,
+    soundSeconds,
     exported: spec.frames.map((k) => centre(px.get(k))),
     painted,
     heard,

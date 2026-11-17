@@ -114,6 +114,8 @@ export const HOLD_MS = 400;
 const DRAG_SLOP_PX = 6;
 /** Ruler labels at least this far apart. */
 const LABEL_GAP_PX = 56;
+/** F-009: the add chip shows while the pointer is this close to its join. */
+const JOIN_HOVER_PX = 20;
 /** Ruler labels this close to the playhead hide under its head (D-039). */
 const HEAD_CLEAR_PX = 14;
 
@@ -451,10 +453,16 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const keep = new Set(cf ? p.clips.slice(0, -1).map((c) => c.id) : []);
     for (const [id, j] of joins) {
       if (keep.has(id)) continue;
+      // A focused join that goes (its clip deleted or moved last): focus moves to the nearest clip.
+      const focused = j.button === document.activeElement;
       j.button.remove();
       j.reason.remove();
       joins.delete(id);
+      if (focused) (clips.get(id)?.button ?? [...clips.values()].at(-1)?.button ?? track).focus();
     }
+    // Stacking follows the clip count (clips are 1…n, the overlap bands n + 1): the joins come next and the
+    // main track's trim handles above them (fades.css).
+    track.style.setProperty('--tk-clip-count', String(p.clips.length));
     if (!cf) return;
     const open = cf.open.peek();
     let after: Element | null = null;
@@ -474,6 +482,10 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       const x = info.on ? next.x + (box.crossFadeOut * scale) / 2 : next.x;
       j.button.style.left = `${x}px`;
       j.button.toggleAttribute('data-near', selected.has(clip.id) || selected.has(p.clips[i + 1]!.id));
+      // Next to a clip under 48 px the control takes clicks only with a neighbour selected (or focused), so it
+      // never covers a narrow clip's own clicks and drags.
+      j.button.toggleAttribute('data-cramped', !labelFits(box.width) || !labelFits(next.width));
+      j.button.dataset['x'] = String(x);
       if (info.on) {
         j.button.ariaHasPopup = 'dialog';
         j.button.setAttribute('aria-expanded', String(open === clip.id));
@@ -511,6 +523,31 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const open = deps.crossFade?.open.value ?? null;
     for (const [id, j] of joins) if (j.state === 'marker') j.button.setAttribute('aria-expanded', String(open === id));
   });
+
+  // The add chip shows while the pointer is near its join (within half a chip and a little), not over the
+  // whole track.
+  let hovered: HTMLButtonElement | null = null;
+  const setHover = (b: HTMLButtonElement | null): void => {
+    if (hovered === b) return;
+    hovered?.removeAttribute('data-hover');
+    hovered = b;
+    hovered?.setAttribute('data-hover', '');
+  };
+  const onJoinHover = (e: PointerEvent): void => {
+    if (e.pointerType === 'touch' || drag?.active || trim) return setHover(null);
+    const x = e.clientX - track.getBoundingClientRect().left;
+    let best: HTMLButtonElement | null = null;
+    let bestD = JOIN_HOVER_PX;
+    for (const j of joins.values()) {
+      const d = Math.abs(Number(j.button.dataset['x']) - x);
+      if (d <= bestD) {
+        best = j.button;
+        bestD = d;
+      }
+    }
+    setHover(best);
+  };
+  const onJoinLeave = (): void => setHover(null);
 
   const onJoinClick = (e: MouseEvent): void => {
     const button = (e.target as Element).closest<HTMLButtonElement>('.tk-join');
@@ -904,6 +941,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   window.addEventListener('pointercancel', onUp);
   track.addEventListener('click', onClick);
   track.addEventListener('click', onJoinClick);
+  track.addEventListener('pointermove', onJoinHover);
+  track.addEventListener('pointerleave', onJoinLeave);
   track.addEventListener('contextmenu', onContext);
   document.addEventListener('keydown', onKey, true);
   drop.hidden = true;

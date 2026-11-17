@@ -158,7 +158,9 @@
   .tk-join {
     position: absolute;
     inset-block-start: 50%;
-    z-index: 59; /* under the trim handles (60): an end handle stays grabbable where a chip overlaps it */
+    /* Above the clips (1…n) and their overlap bands (n + 1), under the main track's trim handles (n + 3,
+       below): an end handle stays grabbable where a control overlaps it. */
+    z-index: calc(var(--tk-clip-count, 0) + 2);
     display: grid;
     place-items: center;
     inline-size: var(--tk-size-target-min);
@@ -172,17 +174,33 @@
     transform: translate(-50%, -50%);
   }
 
-  /* The add chip: dashed and muted, shown only on hover, focus or when either clip is selected. */
+  .tk-track .tk-trim {
+    z-index: calc(var(--tk-clip-count, 0) + 3);
+  }
+
+  /* The add chip: dashed and muted, shown (and pressable) only while the pointer is near its join, on focus,
+     or when either clip is selected. */
   .tk-join[data-state='add'] {
     border-style: dashed;
     color: var(--tk-color-muted);
     opacity: 0;
+    pointer-events: none;
   }
 
-  .tk-track:hover .tk-join[data-state='add'],
+  .tk-join[data-state='add'][data-hover],
   .tk-join[data-state='add']:focus-visible,
   .tk-join[data-state='add'][data-near] {
     opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Next to a clip under 48 px: no clicks (it would cover the narrow clip) unless a neighbour is selected. */
+  .tk-join[data-cramped]:not([data-near]) {
+    pointer-events: none;
+  }
+
+  .tk-join[data-state='add'][data-cramped]:not([data-near], :focus-visible) {
+    opacity: 0;
   }
 
   .tk-join[data-state='add'][aria-disabled='true'] {
@@ -205,22 +223,19 @@
     white-space: nowrap;
   }
 
-  /* RULE-21 / CMP-Timeline "Accessibility": a `size.handleHit` hit area on touch; no hover there, so the
-     chip shows (and can be pressed) only with a neighbour selected. */
+  /* RULE-21 / CMP-Timeline "Accessibility": on touch a `size.handleHit` hit area, and the control sits on the
+     track's bottom edge, out of the trim handles' band (their hit areas cover the track's height), above them
+     where the two meet; the handles keep the rest of the track's height. No hover on touch: the chip shows
+     only with a neighbour selected. */
   @media (pointer: coarse) {
+    .tk-join {
+      inset-block-start: 100%;
+      z-index: calc(var(--tk-clip-count, 0) + 4);
+    }
     .tk-join::before {
       content: '';
       position: absolute;
       inset: calc((var(--tk-size-target-min) - var(--tk-size-handle-hit)) / 2);
-    }
-  }
-
-  @media (hover: none) {
-    .tk-track:hover .tk-join[data-state='add']:not([data-near]) {
-      opacity: 0;
-    }
-    .tk-join[data-state='add']:not([data-near]) {
-      pointer-events: none;
     }
   }
 

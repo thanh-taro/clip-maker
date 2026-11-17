@@ -2,14 +2,15 @@
 // board CMP-Timeline "cross-fade"): activating a join's bow-tie marker opens a small dialog titled
 // COPY-crossfade.length with Shorter (COPY-crossfade.shorter), the length in seconds (mono), Longer
 // (COPY-crossfade.longer) and Remove (COPY-action.remove_crossfade). It sits under the marker (above it when
-// there is no room below), inside the window. Esc closes it and returns focus to the marker; a press outside
-// closes it; it closes by itself when its cross-fade is gone (removed, undone).
+// there is no room below), inside the window, and follows the window's size. Esc (with focus in it or on its
+// marker) closes it and returns focus to what opened it (the marker, or the phone sheet's Cross-fade tile); a
+// press outside, or focus moving elsewhere, closes it; it closes by itself when its cross-fade is gone.
 // Implements: F-009.R2 (set its duration, remove it), F-009.R5 (0.1 s steps within RULE-10), F-009.R6
 // (COPY-notice.length_full when a change would pass RULE-03), CMP-Timeline "Behavior" (the popover changes
 // its length within RULE-10 and removes it) and "Accessibility" (the marker exposes an expanded state).
-import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useReducer, useRef } from 'preact/hooks';
 import { t } from '../copy';
-import { openJoin, openJoinState, removeCrossFade, secondsLabel, stepCrossFade } from './fades';
+import { openJoin, openJoinState, popoverOpener, removeCrossFade, secondsLabel, stepCrossFade } from './fades';
 import { Icon } from './icons';
 
 const TITLE_ID = 'tk-xfade-pop-title';
@@ -18,17 +19,27 @@ const TITLE_ID = 'tk-xfade-pop-title';
 const markerOf = (id: string): HTMLElement | null =>
   document.querySelector<HTMLElement>(`.tk-join[data-join-id="${CSS.escape(id)}"]`);
 
-/** Closes the popover; `focusMarker`: focus returns to the join's control (Esc, or the popover's focus going away). */
-export function closeCrossFade(focusMarker: boolean): void {
+/** The control focus returns to: what opened the popover while it is still there and available, else the marker. */
+function returnTarget(id: string): HTMLElement | null {
+  const from = popoverOpener.el;
+  if (from?.isConnected && from.getAttribute('aria-disabled') !== 'true' && from.offsetParent !== null) return from;
+  return markerOf(id);
+}
+
+/** Closes the popover; `returnFocus`: focus goes back to what opened it (Esc, Remove, its cross-fade going). */
+export function closeCrossFade(returnFocus: boolean): void {
   const id = openJoin.peek();
+  const target = returnFocus && id !== null ? returnTarget(id) : null;
   openJoin.value = null;
-  if (focusMarker && id !== null) markerOf(id)?.focus();
+  popoverOpener.el = null;
+  target?.focus();
 }
 
 export function CrossFadePopover() {
   const join = openJoinState.value;
   const id = openJoin.value;
   const root = useRef<HTMLElement>(null);
+  const [, relayout] = useReducer((n: number) => n + 1, 0);
   // Whether focus was inside, noted while rendering (before the popover goes from the DOM).
   const hadFocus = useRef(false);
   hadFocus.current = root.current?.contains(document.activeElement) ?? false;
@@ -59,14 +70,26 @@ export function CrossFadePopover() {
   const opened = join?.id ?? null;
   useEffect(() => {
     if (opened === null) return undefined;
+    // The opener: given by the phone tile, else what has focus (the marker); the marker is the fallback.
+    if (!popoverOpener.el && document.activeElement instanceof HTMLElement && document.activeElement !== document.body)
+      popoverOpener.el = document.activeElement;
     const first = root.current?.querySelector<HTMLElement>('button:not([aria-disabled="true"])');
     first?.focus();
+    const ours = (el: EventTarget | null): boolean =>
+      el instanceof Node &&
+      (root.current?.contains(el) === true ||
+        (el instanceof Element && el.closest(`.tk-join[data-join-id="${CSS.escape(opened)}"]`) !== null));
+    // Esc is the popover's only while focus is in it or on its marker (other overlays keep theirs).
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (e.key !== 'Escape' || e.defaultPrevented || !ours(document.activeElement)) return;
       if (document.querySelector('dialog[open]')) return; // the notices view takes its own Esc
       e.preventDefault();
       e.stopPropagation();
       closeCrossFade(true);
+    };
+    // Focus moving to another control closes it (no focus change of ours).
+    const onFocus = (e: FocusEvent): void => {
+      if (!ours(e.target) && e.target !== popoverOpener.el) closeCrossFade(false);
     };
     const onPointer = (e: PointerEvent): void => {
       const target = e.target as Element | null;
@@ -77,9 +100,13 @@ export function CrossFadePopover() {
     };
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('focusin', onFocus);
+    addEventListener('resize', relayout);
     return () => {
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('pointerdown', onPointer, true);
+      document.removeEventListener('focusin', onFocus);
+      removeEventListener('resize', relayout);
     };
   }, [opened]);
 

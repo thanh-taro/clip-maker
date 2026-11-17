@@ -263,8 +263,8 @@ export function EditSheet() {
                 aria-disabled={available ? undefined : 'true'}
                 aria-describedby={reason ? reasonId : undefined}
                 title={reason ?? undefined}
-                onClick={() => {
-                  if (item.available() || item.reason?.()) item.run();
+                onClick={(e) => {
+                  if (item.available() || item.reason?.()) item.run(e.currentTarget);
                 }}
               >
                 <Icon name={item.icon} size={20} />

@@ -21,7 +21,8 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
 import { CrossFadePopover } from './CrossFadePopover';
-import { addCrossFade, crossFadeTile, joinOf, openJoin, secondsLabel, tileJoin } from './fades';
+import { addCrossFade, crossFadeTile, openJoin, popoverOpener, secondsLabel, tenthsOf, tileJoin } from './fades';
+import { crossFadeAvailability } from '../project';
 import { registry } from '../media';
 import { isEmpty, playhead, project, selection } from '../project';
 import { mountTimeline, type TimelineView } from '../timeline';
@@ -71,7 +72,8 @@ export interface ArrangeItem {
   /** The label for the current selection (an audio clip's moves are Earlier and Later in time). */
   readonly labelNow?: () => ArrangeLabel;
   readonly icon: IconName;
-  readonly run: () => boolean;
+  /** `from`: the control activated (the Cross-fade tile's popover returns focus there). */
+  readonly run: (from?: HTMLElement) => boolean;
   readonly available: () => boolean;
   /**
    * Why an unavailable control is unavailable (F-009.R7), shown with it; activating it then shows the reason
@@ -213,19 +215,24 @@ export function Timeline() {
           t('timeline.ends_at', { time: formatDuration(end) }),
         ],
         crossFade: {
+          // Cheap per layout: the stored length and RULE-10's availability (Longer's limit is the popover's).
           join: (p, id) => {
-            const j = joinOf(p, id);
-            const on = (j?.tenths ?? 0) > 0;
+            const tenths = tenthsOf(p.clips.find((c) => c.id === id)?.crossFadeNext ?? 0);
+            const on = tenths > 0;
+            const { reason } = on ? { reason: null } : crossFadeAvailability(p, id);
             return {
               on,
               // The marker is named by the popover it opens and the length; the chip by its action.
-              label: on ? `${t('crossfade.length')} ${secondsLabel(j!.tenths)}` : t('action.add_crossfade'),
-              reason: j?.reason === 'notice.crossfade_too_short' ? t(j.reason) : null,
+              label: on ? `${t('crossfade.length')} ${secondsLabel(tenths)}` : t('action.add_crossfade'),
+              reason: reason === 'notice.crossfade_too_short' ? t(reason) : null,
             };
           },
           open: openJoin,
           add: (id) => void addCrossFade(id),
-          toggle: (id) => (openJoin.value = openJoin.peek() === id ? null : id),
+          toggle: (id) => {
+            popoverOpener.el = null;
+            openJoin.value = openJoin.peek() === id ? null : id;
+          },
         },
       },
     );

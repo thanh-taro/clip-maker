@@ -220,14 +220,23 @@ async function twoPhotos(page: Page, a: Rgb = RED, b: Rgb = BLUE, seconds = [5, 
   await setClip(page, 1, { seconds: seconds[1]! });
 }
 
+/**
+ * Presses join `nth`: the pointer goes near it first (the add chip shows while the pointer is near its join),
+ * then presses its right half (a selected clip's end handle may cover the left half; it sits above the chip).
+ */
+async function pressJoin(page: Page, nth = 0, force = false): Promise<void> {
+  const j = join(page, nth);
+  await settled(j);
+  const b = (await j.boundingBox())!;
+  await page.mouse.move(b.x + b.width * 0.75, b.y + b.height / 2);
+  await j.click({ position: { x: b.width * 0.75, y: b.height / 2 }, force });
+}
+
 /** Adds the cross-fade at the first join with its chip (hover shows it), then opens its popover. */
 async function addCrossFade(page: Page): Promise<void> {
-  await settled(join(page));
-  await timeline(page).locator('.tk-track').hover();
-  await join(page).click();
+  await pressJoin(page);
   await expect(join(page)).toHaveAttribute('data-state', 'marker');
-  await settled(join(page));
-  await join(page).click();
+  await pressJoin(page);
   await expect(popover(page)).toBeVisible();
   await expect(join(page)).toHaveAttribute('aria-expanded', 'true');
 }
@@ -328,7 +337,7 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     await setPlayhead(page, 5.1);
     await expectCentre(page, (c) => blendOf(c, RED, BLUE, 1, 4));
     // AC3: Remove (one step) — the project is 10 s again and the join shows the add chip.
-    await join(page).click();
+    await pressJoin(page);
     await pop(page, 'action.remove_crossfade').click();
     await expect(popover(page)).toHaveCount(0);
     await expect(join(page)).toHaveAttribute('data-state', 'add');
@@ -455,7 +464,7 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     expect(await projectEnd(page)).toBe(599.5);
     const before = await stateOf(page);
     await settled(join(page));
-    await join(page).click();
+    await pressJoin(page);
     await pop(page, 'action.remove_crossfade').click();
     await expect(page.locator('.tk-notice').filter({ hasText: text('en-US', 'notice.length_full') })).toBeVisible();
     expect(await stateOf(page)).toBe(before);
@@ -496,10 +505,11 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     const before = await stateOf(page);
     const steps = await stepsOf(page);
     await settled(join(page));
-    await timeline(page).locator('.tk-track').hover();
+    // Next to the 0.1 s clip (under 48 px) the chip takes clicks only with a neighbour selected.
+    await clipButton(page, 'B.png').click();
     await expect(join(page)).toHaveAttribute('aria-disabled', 'true');
     await expect(join(page)).toHaveAccessibleDescription(text('en-US', 'notice.crossfade_too_short'));
-    await join(page).click({ force: true });
+    await pressJoin(page, 0, true);
     await expect(
       page.locator('.tk-notice').filter({ hasText: text('en-US', 'notice.crossfade_too_short') }),
     ).toBeVisible();
@@ -542,6 +552,106 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     // RULE-10: 3 s at most; a typed 5 is reduced.
     await typeFade(panel, 'in', '5');
     await expect(fadeField(panel, 'in')).toHaveValue('3.0');
+  });
+
+  test('F-009.R2 RULE-21 on touch at 1280 px, a tap on the chip next to the selected clip adds the cross-fade, and the trim handle still drags', async ({
+    browser,
+    browserName,
+  }) => {
+    // Real touch input with coarse-pointer media needs Chromium's touch emulation (desktop WebKit has none).
+    test.skip(browserName !== 'chromium', 'touch emulation is Chromium-only in Playwright');
+    const context = await browser.newContext({ hasTouch: true, viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await open(page);
+    expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+    await add(page, [await photo(page, 'A.png', RED), await photo(page, 'B.png', BLUE)]);
+    await setClip(page, 0, { seconds: 5 });
+    await setClip(page, 1, { seconds: 5 });
+    await clipButton(page, 'A.png').tap();
+    await expect(join(page)).toHaveAttribute('data-near', '');
+    await settled(join(page));
+    const chip = (await join(page).boundingBox())!;
+    await page.touchscreen.tap(chip.x + chip.width / 2, chip.y + chip.height / 2);
+    await expect.poll(async () => (await clipsOf(page))[0]!.crossFade).toBe(0.5);
+    // The end handle of A (over the overlap) still drags: on touch the join sits on the track's bottom edge.
+    const end = page.locator('.tk-track .tk-trim--end');
+    await settled(end);
+    const b = (await end.boundingBox())!;
+    const px = (await clipButton(page, 'A.png').boundingBox())!.width / 5;
+    const cdp = await context.newCDPSession(page);
+    const x = b.x + b.width / 2;
+    const y = b.y + 10;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
+    for (let i = 1; i <= 8; i++) {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: x - (px * i) / 8, y, id: 1 }],
+      });
+      await page.waitForTimeout(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect.poll(async () => (await clipsOf(page))[0]!.end).toBeLessThan(4.6);
+    await context.close();
+  });
+
+  test('F-003.R1 F-003.R2 F-009 many narrow clips (under 48 px) are still selected and dragged where their joins are; no chip takes the click', async ({
+    page,
+  }) => {
+    await twoPhotos(page);
+    // Thirty 1 s clips of one photo: about 40 px each at 1280 px.
+    const state = JSON.parse(await stateOf(page));
+    const one = state.clips[0];
+    state.clips = Array.from({ length: 30 }, (_, i) => ({ ...one, id: `c${i}`, duration: S }));
+    await page.evaluate((j) => (window as unknown as Harness).appHarness.load(j), JSON.stringify(state));
+    const ids = async () => (JSON.parse(await stateOf(page)).clips as { id: string }[]).map((c) => c.id);
+    const nth = (i: number) => page.locator('.tk-clip').nth(i);
+    await settled(nth(29));
+    const box = (await nth(5).boundingBox())!;
+    expect(box.width).toBeLessThan(48);
+    // Next to the join (3 px inside clip 5): the clip is selected, nothing is added.
+    await page.mouse.move(box.x + 3, box.y + box.height / 2);
+    await page.mouse.click(box.x + 3, box.y + box.height / 2);
+    await expect(nth(5)).toHaveAttribute('aria-pressed', 'true');
+    expect((await clipsOf(page)).every((c) => c.crossFade === 0)).toBe(true);
+    // A drag from near its end moves it two places later.
+    const b = (await nth(5).boundingBox())!;
+    const y = b.y + b.height / 2;
+    await page.mouse.move(b.x + b.width - 3, y);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width - 3 + b.width * 2, y, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(ids).not.toEqual(Array.from({ length: 30 }, (_, i) => `c${i}`));
+    expect((await ids()).indexOf('c5')).toBeGreaterThan(5);
+    expect((await clipsOf(page)).every((c) => c.crossFade === 0)).toBe(true);
+  });
+
+  test('F-009 CMP-Timeline the popover returns focus to what opened it: the phone tile after Esc and after Remove; Tab out closes it', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await open(page);
+    await add(page, [await photo(page, 'A.png', RED), await photo(page, 'B.png', BLUE)]);
+    await clipButton(page, 'A.png').click();
+    await page.getByRole('tab', { name: text('en-US', 'inspector.edit') }).click();
+    const tile = page.locator('.tk-sheet [data-action="cross-fade"]');
+    await tile.click();
+    await expect(popover(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(popover(page)).toHaveCount(0);
+    await expect(tile).toBeFocused();
+    // The sheet is still open (Esc was the popover's).
+    await expect(page.locator('.tk-sheet')).toBeVisible();
+    await tile.click();
+    await pop(page, 'action.remove_crossfade').click();
+    await expect(popover(page)).toHaveCount(0);
+    await expect(tile).toBeFocused();
+    expect((await clipsOf(page))[0]!.crossFade).toBe(0);
+    // Focus leaving the popover closes it; Esc then belongs to the sheet again.
+    await tile.click();
+    await expect(popover(page)).toBeVisible();
+    await pop(page, 'action.remove_crossfade').focus();
+    await page.keyboard.press('Tab');
+    await expect(popover(page)).toHaveCount(0);
   });
 
   for (const lang of ['en-US', 'vi-VN'] as const) {
@@ -593,8 +703,8 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
       // A clip next to the join is selected: the chip shows.
       await expect(join(page)).toHaveAttribute('data-near', '');
       await axe(page);
-      await join(page).click();
-      await join(page).click();
+      await pressJoin(page);
+      await pressJoin(page);
       await expect(popover(page, lang)).toBeVisible();
       await shot(page, `inspector-fades-popover-wide-${lang}`, browserName);
       await axe(page);

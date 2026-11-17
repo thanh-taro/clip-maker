@@ -157,6 +157,9 @@ export function joinOf(p: Project, id: string): CrossFadeJoin | null {
 /** The join whose popover is open (CMP-Timeline "cross-fade"; UI state, not an edit: RULE-13). */
 export const openJoin = signal<string | null>(null);
 
+/** What opened the popover (focus returns there when it closes; the marker when it is gone). */
+export const popoverOpener: { el: HTMLElement | null } = { el: null };
+
 /** The open popover's join as it is now; null (and the popover closes) once its cross-fade is gone. */
 export const openJoinState = computed<CrossFadeJoin | null>(() => {
   const id = openJoin.value;
@@ -208,7 +211,7 @@ export const tileJoin = computed<CrossFadeJoin | null>(() => {
  * The tile: with no cross-fade yet, add one (0.5 s); then open the join's popover to set its length or
  * remove it. Unavailable: show the reason (COPY-notice.crossfade_too_short) and change nothing.
  */
-export function crossFadeTile(): boolean {
+export function crossFadeTile(from: HTMLElement | null = null): boolean {
   const j = tileJoin.peek();
   if (!j) return false;
   if (!j.available) {
@@ -216,6 +219,7 @@ export function crossFadeTile(): boolean {
     return false;
   }
   if (j.tenths === 0 && !addCrossFade(j.id)) return false;
+  popoverOpener.el = from;
   openJoin.value = j.id;
   return true;
 }
