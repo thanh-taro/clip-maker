@@ -40,8 +40,8 @@ Evidence: SP-compositor, SP-hdr, SP-mem-phone, SP-speed (ADR-0009 outcome).
 - The audio clock and mixing (MOD-Audio), drawing details (MOD-Compositor), UI input.
 
 ## Public surface
-- Worker messages (typed as `ToEngine` in MOD-Core, so MOD-Preview and MOD-App never import this module): `canvas(offscreenCanvas, w, h)` once, `resize(w, h)`, `looks(tables)`, `media(files and photo bitmaps)`, `setProject(doc)`, `tick(t, playing)`, `seek(t)`, `setTextBitmaps(...)`, `compare(clipId | null)`, `overlay(overlay | null)`, `effectsCheck()`, `lookThumbnails(clipId)`, `stats()`, `release()`.
-- Events (`FromEngine`): `frameShown(t)`, `stalled`, `sourceError(id)`, `slowSource(id)`, `effects({ ok, fps, slow })`, `contextLost`, `contextRestored`, `contextFailed`, `stats(…)`, `error(message)`.
+- Worker messages (typed as `ToEngine` in MOD-Core, so MOD-Preview and MOD-App never import this module): `canvas(offscreenCanvas, w, h)` once, `resize(w, h)`, `looks(tables)`, `media(files and photo bitmaps)`, `setProject(doc)`, `tick(t, playing)`, `seek(t)`, `setTextBitmaps(...)`, `compare(clipId | null)`, `overlay(overlay | null)`, `effectsCheck()`, `previewLook(clipId | null, look)` (RULE-09 preview, never an undo step), `lookThumbnails(ticket, clipId, t, side)` (drawn on the engine's own small canvas, after any waiting preview render; a newer ticket replaces an older one), `stats()`, `release()`.
+- Events (`FromEngine`): `frameShown(t)`, `stalled`, `sourceError(id)`, `slowSource(id)`, `effects({ ok, fps, slow })`, `contextLost`, `contextRestored`, `contextFailed`, `stats(…)`, `lookThumbnail(ticket, clipId, lookId, bitmap)` (one per loaded look, in looks.md order), `error(message)`.
 - `SequentialFrameReader` for exports.
 
 ## Implements
