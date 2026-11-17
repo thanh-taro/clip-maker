@@ -158,7 +158,7 @@
   .tk-join {
     position: absolute;
     inset-block-start: 50%;
-    z-index: 61;
+    z-index: 59; /* under the trim handles (60): an end handle stays grabbable where a chip overlaps it */
     display: grid;
     place-items: center;
     inline-size: var(--tk-size-target-min);
