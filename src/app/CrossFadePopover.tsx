@@ -29,14 +29,14 @@ export function CrossFadePopover() {
   const join = openJoinState.value;
   const id = openJoin.value;
   const root = useRef<HTMLElement>(null);
+  // Whether focus was inside, noted while rendering (before the popover goes from the DOM).
+  const hadFocus = useRef(false);
+  hadFocus.current = root.current?.contains(document.activeElement) ?? false;
 
-  // The join's cross-fade is gone (removed, undone, its clips moved apart): close; focus inside goes back
-  // to the join's control (now the add chip).
+  // The join's cross-fade is gone (removed, undone, its clips moved apart): close; focus that was inside goes
+  // back to the join's control (now the add chip).
   useEffect(() => {
-    if (id !== null && join === null) {
-      const inside = root.current?.contains(document.activeElement) ?? false;
-      closeCrossFade(inside);
-    }
+    if (id !== null && join === null) closeCrossFade(hadFocus.current);
   }, [id, join]);
 
   // Under the marker, centred and kept inside the window; above it when there is no room below.

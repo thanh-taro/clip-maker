@@ -63,7 +63,7 @@ interface Payload {
 
 const RED: Rgb = [200, 40, 40];
 const BLUE: Rgb = [40, 40, 200];
-const AMBER: Rgb = [200, 120, 40];
+const AMBER: Rgb = [220, 180, 140];
 
 /** A 16:9 flat photo (320 × 180). */
 async function photo(page: Page, name: string, colour: Rgb): Promise<Payload> {
@@ -103,7 +103,7 @@ function wavTone(name: string, freq: number, seconds: number): Payload {
     v.setInt16(44 + i * 4, x, true);
     v.setInt16(46 + i * 4, x, true);
   }
-  return { name, mimeType: 'audio/wav', buffer: b };
+  return { name, mimeType: 'audio/wav', buffer: Buffer.from(Array.from(b)) };
 }
 
 /** Adds files through the empty state's Add media, then closes the media panel (drawer or sheet). */
@@ -131,7 +131,7 @@ const clipButton = (page: Page, name: string, lang: Language = 'en-US') =>
   timeline(page, lang).getByRole('button', { name: new RegExp(`^${name.replace('.', '\\.')} `) });
 const inspector = (page: Page, lang: Language = 'en-US') =>
   page.getByRole('complementary', { name: text(lang, 'inspector.label') });
-const join = (page: Page, nth = 0) => timeline(page).locator('.tk-join').nth(nth);
+const join = (page: Page, nth = 0) => page.locator('.tk-timeline .tk-join').nth(nth);
 const popover = (page: Page, lang: Language = 'en-US') =>
   page.getByRole('dialog', { name: text(lang, 'crossfade.length') });
 const pop = (page: Page, id: CopyId, lang: Language = 'en-US') =>
@@ -350,9 +350,13 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     for (let i = 0; i < 5; i++) await pop(page, 'crossfade.longer').click();
     await expect(popover(page).locator('output')).toHaveText('1.0 s');
     await page.keyboard.press('Escape');
-    expect(await projectEnd(page)).toBe(9);
+    // The tone clips last 5 s and a frame or so (their encoder's last packet): the overlap is 1 s exactly.
+    const [a, b] = await clipsOf(page);
+    expect(a!.end - b!.start).toBeCloseTo(1, 3);
+    expect(await projectEnd(page)).toBeCloseTo(9, 0);
     await playThrough(page);
-    const at = [3.5, 4.5, 5.5];
+    const mid = (a!.end + b!.start) / 2;
+    const at = [mid - 1, mid, mid + 1];
     const r = await page.evaluate(
       (w) => (window as unknown as Harness).appHarness.heardTones(w),
       at.flatMap((t) => [
@@ -428,7 +432,7 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     await expect(popover(page).locator('output')).toHaveText('0.5 s');
     await expect(pop(page, 'crossfade.longer')).toHaveAttribute('aria-disabled', 'true');
     const steps = await stepsOf(page);
-    await pop(page, 'crossfade.longer').click();
+    await pop(page, 'crossfade.longer').click({ force: true });
     expect(await stepsOf(page)).toBe(steps);
     expect((await clipsOf(page))[0]!.crossFade).toBe(0.5);
   });
@@ -495,7 +499,7 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     await timeline(page).locator('.tk-track').hover();
     await expect(join(page)).toHaveAttribute('aria-disabled', 'true');
     await expect(join(page)).toHaveAccessibleDescription(text('en-US', 'notice.crossfade_too_short'));
-    await join(page).click();
+    await join(page).click({ force: true });
     await expect(
       page.locator('.tk-notice').filter({ hasText: text('en-US', 'notice.crossfade_too_short') }),
     ).toBeVisible();
