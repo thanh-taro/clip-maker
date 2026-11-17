@@ -939,15 +939,19 @@ function chartProject(adjustments: Adjustments, seconds = 1): Project {
   };
 }
 
-/** Exports `project` (one chart photo) at `resolution` Balanced through the real export workers; frame `k` decoded (RGBA). */
+/**
+ * Exports `project` (one chart photo) at `resolution` Balanced through the real export workers; frame `k`
+ * decoded (RGBA), and the export worker's composed picture of frame `k` before encoding (its test hook).
+ */
 async function exportChartFrame(
   project: Project,
   chart: GradeChart,
   k: number,
   resolution: 480 | 1080 = 480,
-): Promise<{ width: number; height: number; rgba: Uint8ClampedArray } | null> {
+): Promise<{ width: number; height: number; rgba: Uint8ClampedArray; composed: Uint8Array | null } | null> {
   workers ??= new ExportWorkers();
   let saved: Blob | null = null;
+  let composed: Uint8Array | null = null;
   const handle = await start(
     project,
     { kind: 'video', resolution, quality: 'balanced' },
@@ -965,6 +969,7 @@ async function exportChartFrame(
         saved = blob;
         return URL.createObjectURL(blob);
       },
+      tap: { frame: k, onFrame: (_w, _h, rgba) => (composed = rgba) },
     },
   );
   const result = await handle.result;
@@ -996,7 +1001,7 @@ async function exportChartFrame(
   await dec.flush();
   dec.close();
   input.close();
-  return rgba ? { width: W, height: H, rgba } : null;
+  return rgba ? { width: W, height: H, rgba, composed } : null;
 }
 
 /** The compositor's paint of the chart project's frame `k` at W × H (what the preview shows, INV-02). */
@@ -1077,6 +1082,11 @@ export interface GrainReport {
   /** The next frame differs (grain changes per frame). */
   readonly nextDiffers: boolean;
   /**
+   * The export worker's own composed picture of frame k, before encoding (its `tapFrame` hook), is
+   * byte-identical to the preview's paint at the same size.
+   */
+  readonly workerSame: boolean;
+  /**
    * Correlation of the export's grain (the decoded frame minus the grain-free paint) with frame k's grain,
    * and with frame k + 1's (other grain). Lossy coding softens grain, so the bytes can't match; the
    * pattern does.
@@ -1088,15 +1098,24 @@ export interface GrainReport {
 /**
  * F-007.AC8: the 24-patch chart with Grain 50. Frame k is painted twice by one compositor with another
  * frame between (the preview showing it twice), and once by a second compositor at the export's size
- * (the export worker paints with its own); the export is decoded at the same resolution and compared.
+ * (as the export worker's is); the export worker's own composed frame k (before encoding) is compared byte
+ * for byte, and the encoded file is decoded at the same resolution to show it carries that grain pattern.
  */
 async function grainParity(grain = 50): Promise<GrainReport> {
   const project = chartProject({ grain }, 0.6);
   const k = 15;
   const file = await exportChartFrame(project, 'colours', k, 1080);
   if (!file)
-    return { ok: false, sameTwice: false, sameElsewhere: false, nextDiffers: false, corrSame: 0, corrOther: 0 };
-  const { width: W, height: H, rgba } = file;
+    return {
+      ok: false,
+      sameTwice: false,
+      sameElsewhere: false,
+      nextDiffers: false,
+      workerSame: false,
+      corrSame: 0,
+      corrOther: 0,
+    };
+  const { width: W, height: H, rgba, composed } = file;
   const [a, next, b] = await paintChart(project, 'colours', W, H, [k, k + 1, k]);
   const [c] = await paintChart(project, 'colours', W, H, [k]);
   const [clean] = await paintChart(chartProject({}, 0.6), 'colours', W, H, [k]);
@@ -1127,6 +1146,7 @@ async function grainParity(grain = 50): Promise<GrainReport> {
     sameTwice: equal(a!, b!),
     sameElsewhere: equal(a!, c!),
     nextDiffers: !equal(a!, next!),
+    workerSame: composed !== null && equal(composed, a!),
     corrSame: corr(rgba, a!),
     corrOther: corr(rgba, next!),
   };

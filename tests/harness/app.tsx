@@ -27,6 +27,7 @@
 // page before it loads (the presence check and the codec probe run on the main thread).
 import '../../src/app/styles/index.css';
 import { truePeak } from '../../src/audio';
+import { LUT_BYTES, LUT_N } from '../../src/compositor';
 import { nextItemId, queued } from '../../src/app/adding';
 import { main } from '../../src/app/app';
 import { browserDevice, type DeviceDeps, type EffectsRun } from '../../src/app/device';
@@ -40,6 +41,7 @@ import {
   type FromEngine,
   type Placement,
   type Project,
+  type ToEngine,
 } from '../../src/core';
 import {
   addText,
@@ -108,6 +110,11 @@ declare global {
       frames(): number[];
       /** A W × H PNG, left half red and right half blue. */
       halves(width: number, height: number): Promise<number[]>;
+      /**
+       * F-007: gives the engine worker a look table `id` that turns every colour grey (Rec. 709 luma), so a
+       * look shows in the preview before F-008 loads the bundled tables.
+       */
+      greyLook(id: string): void;
       /** F-007: a W × H PNG of equal vertical stripes in these colours. */
       stripes(width: number, height: number, colours: readonly (readonly number[])[]): Promise<number[]>;
       /** A frame-coded H.264 (or VP8) clip at `rate` fps (tests/harness/video.ts). */
@@ -427,6 +434,21 @@ window.appHarness = {
   frames: () => layoutOf(project.peek()).spans.map((s) => s.frames),
   halves,
   stripes,
+  greyLook(id) {
+    const n = LUT_N;
+    const table = new Uint8Array(LUT_BYTES);
+    for (let b = 0; b < n; b++)
+      for (let g = 0; g < n; g++)
+        for (let r = 0; r < n; r++) {
+          const y = Math.round(((0.2126 * r + 0.7152 * g + 0.0722 * b) * 255) / (n - 1));
+          const i = ((b * n + g) * n + r) * 4;
+          table[i] = y;
+          table[i + 1] = y;
+          table[i + 2] = y;
+          table[i + 3] = 255;
+        }
+    workers.get('engine')?.postMessage({ type: 'engine:looks', tables: { [id]: table } } satisfies ToEngine);
+  },
   async codedClip(rate, frames) {
     return Array.from(new Uint8Array(await (await makeClip({ rate, frames, gop: rate })).arrayBuffer()));
   },

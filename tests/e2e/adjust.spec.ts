@@ -9,7 +9,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
-import { reference } from '../../src/compositor';
+import { gradeUniforms, reference } from '../../src/compositor';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
 import type { ClipSetup, ClipSummary } from '../harness/app';
 import { deRgb, lab, type Rgb } from '../support/colour';
@@ -29,6 +29,7 @@ interface Harness {
     setClip(index: number, setup: ClipSetup): void;
     state(): string;
     stripes(width: number, height: number, colours: readonly (readonly number[])[]): Promise<number[]>;
+    greyLook(id: string): void;
     pixels(png: string, points: readonly Point[]): Promise<{ width: number; height: number; at: number[][] }>;
   };
 }
@@ -187,7 +188,7 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
    * Drags the held thumb until the slider reads `target`, a quarter pixel at a time (engines map the pointer
    * a little differently). The docked inspector's slider is about 93 px for 201 values; WebKit places the
    * pointer on whole CSS pixels (about 2.5 values per pixel), so there some values can't be reached by
-   * pointer (build question 139) and the drag settles on the nearest one it passes.
+   * pointer (build question 140) and the drag settles on the nearest one it passes.
    */
   async function settle(page: Page, s: Locator, from: number, y: number, target: number): Promise<number> {
     let x = from;
@@ -256,7 +257,7 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
   }) => {
     await setUp(page);
     const panel = adjustPanel(page);
-    // Chromium starts at the default (0); WebKit can't point at 0 on this slider (question 139), so it starts
+    // Chromium starts at the default (0); WebKit can't point at 0 on this slider (question 140), so it starts
     // at +39, a value it reaches (Q104's "back at the start" holds for any start; the default case is in
     // tests/unit/app.adjust.test.ts).
     const home = browserName === 'chromium' ? 0 : 39;
@@ -394,19 +395,162 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
     await expect(field(adjustPanel(page), 'adjust.temperature')).toHaveValue('+25');
   });
 
+  /** Selects `name` and duplicates it, then undoes: the copy is gone, so nothing is selected (RULE-13). */
+  async function selectNothing(page: Page, name: string): Promise<void> {
+    await clipButton(page, name).click();
+    await timeline(page)
+      .getByRole('toolbar')
+      .getByRole('button', { name: text('en-US', 'action.duplicate') })
+      .click();
+    await undoButton(page).click();
+    await expect.poll(async () => (await clipsOf(page)).some((c) => c.selected)).toBe(false);
+  }
+  const modOf = (browserName: string) => (browserName === 'webkit' ? 'Meta' : 'ControlOrMeta');
+
   test('RULE-20 F-007.R4 Mod+C and Mod+V copy and paste the selected clip’s colour; with nothing selected they do nothing', async ({
     page,
     browserName,
   }) => {
     await setUp(page, [[MID], [MID]]);
     await type(adjustPanel(page), 'adjust.shadows', '35');
-    const mod = browserName === 'webkit' ? 'Meta' : 'ControlOrMeta';
-    // Focus on the clip in the timeline (no field edited).
+    const mod = modOf(browserName);
+    // Nothing selected: Mod+C copies nothing (Paste colour stays unavailable on p2).
+    await selectNothing(page, 'p1.png');
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await page.keyboard.press(`${mod}+KeyC`);
+    await clipButton(page, 'p2.png').click();
+    await tabs(page)
+      .getByRole('tab', { name: text('en-US', 'inspector.adjust') })
+      .click();
+    await expect(button(adjustPanel(page), 'action.paste_look')).toBeDisabled();
+    // p1 selected, focus on the clip in the timeline (no field edited): copy; then paste onto p2.
+    await clipButton(page, 'p1.png').click();
     await clipButton(page, 'p1.png').focus();
     await page.keyboard.press(`${mod}+KeyC`);
     await clipButton(page, 'p2.png').click();
     await page.keyboard.press(`${mod}+KeyV`);
     await expect.poll(async () => (await adjOf(page, 1)).shadows).toBe(35);
+    // Nothing selected: Mod+V pastes nowhere and makes no step.
+    await type(adjustPanel(page), 'adjust.shadows', '5');
+    await selectNothing(page, 'p2.png');
+    const steps = await stepsOf(page);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await page.keyboard.press(`${mod}+KeyV`);
+    await page.waitForTimeout(100);
+    expect(await stepsOf(page)).toBe(steps);
+    expect((await adjOf(page, 1)).shadows).toBe(5);
+  });
+
+  test('RULE-20 Mod+V outside a field: the browser fires its paste event first (engine check for the media-or-colour rule)', async ({
+    page,
+    browserName,
+  }) => {
+    await setUp(page, [[MID]]);
+    await page.evaluate(() => {
+      (window as unknown as { pastes: number }).pastes = 0;
+      document.addEventListener('paste', () => (window as unknown as { pastes: number }).pastes++);
+    });
+    await clipButton(page, 'p1.png').focus();
+    await page.keyboard.press(`${modOf(browserName)}+KeyV`);
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { pastes: number }).pastes), { timeout: 2000 })
+      .toBe(1);
+  });
+
+  test('RULE-20 Mod+V with files adds them as media and pastes no colour onto the selected clip', async ({ page }) => {
+    await setUp(page, [[MID], [MID]]);
+    await type(adjustPanel(page), 'adjust.shadows', '35');
+    await button(adjustPanel(page), 'action.copy_look').click();
+    await clipButton(page, 'p2.png').click();
+    const bytes = await page.evaluate(() => (window as unknown as Harness).appHarness.stripes(64, 36, [[10, 200, 10]]));
+    // The key, then (as the browser does for Mod+V) its paste event carrying a file.
+    await page.evaluate((png) => {
+      const mac = /mac/i.test(navigator.platform);
+      const target = document.activeElement ?? document.body;
+      target.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          code: 'KeyV',
+          key: 'v',
+          metaKey: mac,
+          ctrlKey: !mac,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      const data = new DataTransfer();
+      data.items.add(new File([new Uint8Array(png)], 'pasted.png', { type: 'image/png' }));
+      const e = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'clipboardData', { value: data });
+      target.dispatchEvent(e);
+    }, bytes);
+    await expect.poll(async () => (await clipsOf(page)).length, { timeout: 20_000 }).toBe(3);
+    await page.waitForTimeout(100);
+    expect(await adjOf(page, 1)).toEqual({});
+  });
+
+  test('RULE-20 inside a number field Mod+C and Mod+V keep the browser’s copy and paste (no colour copied or pasted)', async ({
+    page,
+    browserName,
+  }) => {
+    await setUp(page, [[MID], [MID]]);
+    const panel = adjustPanel(page);
+    await type(panel, 'adjust.brightness', '20');
+    await page.evaluate(() => {
+      const w = window as unknown as { prevented: boolean[] };
+      w.prevented = [];
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'KeyC' || e.code === 'KeyV') w.prevented.push(e.defaultPrevented);
+      });
+    });
+    const steps = await stepsOf(page);
+    const f = field(panel, 'adjust.brightness');
+    await f.focus();
+    await f.selectText();
+    const mod = modOf(browserName);
+    await page.keyboard.press(`${mod}+KeyC`);
+    await page.keyboard.press(`${mod}+KeyV`);
+    expect(await page.evaluate(() => (window as unknown as { prevented: boolean[] }).prevented)).toEqual([
+      false,
+      false,
+    ]);
+    await f.press('Escape');
+    await clipButton(page, 'p2.png').click();
+    await expect(button(adjustPanel(page), 'action.paste_look')).toBeDisabled();
+    expect(await stepsOf(page)).toBe(steps);
+  });
+
+  test('Q144 RULE-20 Mod+C with text selected on the page copies the text, not the colour', async ({
+    page,
+    browserName,
+  }) => {
+    await setUp(page, [[MID], [MID]]);
+    await type(adjustPanel(page), 'adjust.shadows', '35');
+    await clipButton(page, 'p1.png').focus();
+    // Select the status bar's text, as a reader would to copy it.
+    await page.evaluate(() => {
+      const el = document.querySelector('.tk-status-bar')!;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = getSelection()!;
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
+    await page.keyboard.press(`${modOf(browserName)}+KeyC`);
+    await clipButton(page, 'p2.png').click();
+    await expect(button(adjustPanel(page), 'action.paste_look')).toBeDisabled();
+  });
+
+  test('CMP-Inspector "clip Adjust" Enter on a row’s Reset returns the value to 0 and leaves focus on that row’s slider', async ({
+    page,
+  }) => {
+    await setUp(page);
+    const panel = adjustPanel(page);
+    await type(panel, 'adjust.contrast', '20');
+    await button(row(panel, 'adjust.contrast'), 'action.reset').focus();
+    await page.keyboard.press('Enter');
+    expect(await adjOf(page)).toEqual({});
+    await expect(slider(panel, 'adjust.contrast')).toBeFocused();
+    await expect(row(panel, 'adjust.contrast').getByRole('button')).toHaveCount(0);
   });
 
   test('F-007.AC7 F-007.R6 NFR-06 keyboard focus on Saturation: each arrow key changes it by 1; typing 25 sets 25', async ({
@@ -444,13 +588,17 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
     page,
     browserName,
   }) => {
-    await setUp(page, [[MID]]);
+    await setUp(page, [[MUTED]]);
     const panel = adjustPanel(page);
     await type(panel, 'adjust.brightness', '50');
+    // A look that turns colours grey (the bundled tables come with F-008), chosen on the clip.
+    await page.evaluate(() => (window as unknown as Harness).appHarness.greyLook('bw-classic'));
     await page.evaluate(() => (window as unknown as Harness).appHarness.setClip(0, { look: 'bw-classic' }));
     const centre: Point[] = [[0.5, 0.5]];
-    const bright = graded(MID, { brightness: 50 });
-    await expectPreview(page, centre, ([c]) => c![0]! > MID[0]! + 15);
+    /** The look's shift: the warm MUTED colour is grey (and brighter) with the look and Brightness +50. */
+    const graded50 = ([c]: number[][]): boolean => Math.abs(c![0]! - c![2]!) <= 8 && c![1]! > MUTED[1]! + 10;
+    const original = ([c]: number[][]): boolean => near(c!, MUTED, 6);
+    await expectPreview(page, centre, graded50);
     const before = await stateOf(page);
     const steps = await stepsOf(page);
     const pill = page
@@ -462,23 +610,27 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
     await compare.hover();
     await page.mouse.down();
     await expect(pill).toBeVisible();
-    await expectPreview(page, centre, ([c]) => near(c!, MID, 6));
+    // Held: the clip's own colour, without the look's shift and Brightness.
+    await expectPreview(page, centre, original);
     await shot(page, 'preview-holding-compare', browserName);
     await page.mouse.up();
     await expect(pill).toHaveCount(0);
-    await expectPreview(page, centre, ([c]) => c![0]! > MID[0]! + 15 && near(c!, bright, 40));
+    await expectPreview(page, centre, graded50);
     // Hold \ : the same, and Space on the focused control.
     await clipButton(page, 'p1.png').focus();
     await page.keyboard.down('Backslash');
     await expect(pill).toBeVisible();
-    await expectPreview(page, centre, ([c]) => near(c!, MID, 6));
+    await expectPreview(page, centre, original);
     await page.keyboard.up('Backslash');
     await expect(pill).toHaveCount(0);
+    await expectPreview(page, centre, graded50);
     await compare.focus();
     await page.keyboard.down('Space');
     await expect(pill).toBeVisible();
+    await expectPreview(page, centre, original);
     await page.keyboard.up('Space');
     await expect(pill).toHaveCount(0);
+    await expectPreview(page, centre, graded50);
     expect(await stepsOf(page)).toBe(steps);
     expect(await stateOf(page)).toBe(before);
   });
@@ -605,6 +757,13 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
       await sheet.getByRole('heading', { name: text(lang, 'inspector.adjust') }).scrollIntoViewIfNeeded();
       await shot(page, `sheet-adjust-narrow-${lang}`, browserName);
       await axe(page);
+      // The selection stops being a clip (Delete from the sheet's slider): the sheet closes and focus goes
+      // back to the Adjust tab, not to the page.
+      await slider(sheet, 'adjust.brightness', lang).focus();
+      await page.keyboard.press('Delete');
+      await expect(sheet).toHaveCount(0);
+      await expect(tab).toBeFocused();
+      await expect(tab).toHaveAttribute('aria-disabled', 'true');
     });
   }
 });
@@ -655,36 +814,115 @@ test.describe('F-007 adjustments in the export (media harness)', () => {
     expect(worstIn).toBeLessThan(0.5);
   });
 
-  for (const [name, adj] of [
-    ['contrast +100', { contrast: 100 }],
-    ['brightness −100', { brightness: -100 }],
-    ['shadows +100 highlights −100', { shadows: 100, highlights: -100 }],
-    ['fade 100', { fade: 100 }],
+  /**
+   * RULE-08's full-precision result for a grey step `g` (0–255) at clip position `uv`: the grade, then the
+   * finish (Vignette is positional, so it is judged at each position against the reference there; Sharpen is
+   * a no-op on flat patches and on a straight ramp; Grain is held at 0, as AC2 asks).
+   */
+  const rampRef = (g: number, adj: Record<string, number>, uv: readonly [number, number]): Rgb => {
+    const c = reference.grade([g / 255, g / 255, g / 255], adj);
+    return reference.finish(c, gradeUniforms(adj, null), { uv, frag: [0, 0], frame: 0, clip: 0, s: 1080 }) as Rgb;
+  };
+  /** Worst ΔE00 against the reference and worst reversal (ΔL*, ≤ 0) of 256 8-bit steps. */
+  const judge = (
+    got: (i: number) => Rgb,
+    adj: Record<string, number>,
+    uvOf: (i: number) => readonly [number, number],
+  ): { de: number; reverse: number } => {
+    let de = 0;
+    let reverse = 0;
+    let prevL = -Infinity;
+    for (let i = 0; i < 256; i++) {
+      const c = got(i);
+      de = Math.max(de, deRgb(c, rampRef(i, adj, uvOf(i))));
+      const L = lab(c)[0];
+      reverse = Math.min(reverse, L - prevL);
+      prevL = Math.max(prevL, L);
+    }
+    return { de, reverse };
+  };
+  /** Each adjustment at its minimum and its maximum (Grain stays 0: AC2 is judged with Grain at 0). */
+  const EXTREMES: readonly Record<string, number>[] = [
+    ...['brightness', 'contrast', 'highlights', 'shadows', 'saturation', 'vibrance', 'temperature', 'tint'].flatMap(
+      (n) => [{ [n]: -100 }, { [n]: 100 }],
+    ),
+    ...['sharpen', 'vignette', 'fade'].flatMap((n) => [{ [n]: 0 }, { [n]: 100 }]),
+  ];
+
+  test('F-007.AC2 RULE-08 the 8-bit preview of the grey ramp at every adjustment’s minimum and maximum reverses by no more than ΔL* 0.5 and stays within ΔE00 1 of the full-precision result (Vignette judged at each position)', async ({
+    page,
+  }) => {
+    const lines: string[] = [];
+    for (const adj of EXTREMES) {
+      const px = await page.evaluate(
+        (a) =>
+          (
+            window as unknown as { harness: { video: { gpuRamp(a: object): Promise<number[]> } } }
+          ).harness.video.gpuRamp(a),
+        adj,
+      );
+      // The ramp is 256 × 16, one step per column; row 8 is read.
+      const r = judge(
+        (i) => [px[i * 4]! / 255, px[i * 4 + 1]! / 255, px[i * 4 + 2]! / 255],
+        adj,
+        (i) => [(i + 0.5) / 256, 8.5 / 16],
+      );
+      const name = JSON.stringify(adj);
+      lines.push(`${name} ΔE00 ${r.de.toFixed(3)} rev ${r.reverse.toFixed(3)}`);
+      expect(r.de, name).toBeLessThanOrEqual(1);
+      if (!('vignette' in adj)) expect(r.reverse, name).toBeGreaterThanOrEqual(-0.5);
+    }
+    test.info().annotations.push({ type: 'ramp', description: lines.join('; ') });
+  });
+
+  for (const adj of [
+    { brightness: -100 },
+    { contrast: 100 },
+    { highlights: -100 },
+    { shadows: 100 },
+    { saturation: 100 },
+    { vibrance: -100 },
+    { temperature: 100 },
+    { tint: -100 },
+    { sharpen: 100 },
+    { vignette: 100 },
+    { fade: 100 },
   ] as const) {
-    test(`F-007.AC2 RULE-08 INV-02 the 8-bit export of the grey ramp (${name}) reverses by no more than ΔL* 0.5 and stays within ΔE00 1 of the full-precision result`, async ({
+    const name = JSON.stringify(adj);
+    test(`F-007.AC2 RULE-08 INV-02 the 8-bit export of the grey ramp ${name} reverses by no more than ΔL* 0.5 and stays within ΔE00 1 of the full-precision result (Vignette judged at each position)`, async ({
       page,
     }) => {
       const r = await run(page, adj, 'ramp');
       expect(r.ok).toBe(true);
-      let worstDe = 0;
-      let worstReverse = 0;
-      let prevL = -Infinity;
-      for (let i = 0; i < 256; i++) {
-        const got = rgb(r.exported[i]!);
-        const ref = reference.grade([i / 255, i / 255, i / 255], adj) as Rgb;
-        worstDe = Math.max(worstDe, deRgb(got, ref));
-        const L = lab(got)[0];
-        worstReverse = Math.min(worstReverse, L - prevL);
-        prevL = Math.max(prevL, L);
-      }
+      // The chart is a 16 × 16 grid of patches filling the frame; each is read at its centre.
+      const j = judge(
+        (i) => rgb(r.exported[i]!),
+        adj,
+        (i) => [((i % 16) + 0.5) / 16, (Math.floor(i / 16) + 0.5) / 16],
+      );
       test.info().annotations.push({
         type: 'ramp',
-        description: `max ΔE00 ${worstDe.toFixed(3)}, worst reversal ${worstReverse.toFixed(3)}`,
+        description: `max ΔE00 ${j.de.toFixed(3)}, worst reversal ${j.reverse.toFixed(3)}`,
       });
-      expect(worstDe).toBeLessThanOrEqual(1);
-      expect(worstReverse).toBeGreaterThanOrEqual(-0.5);
+      expect(j.de).toBeLessThanOrEqual(1);
+      if (!('vignette' in adj)) expect(j.reverse).toBeGreaterThanOrEqual(-0.5);
     });
   }
+
+  test('F-007.AC2 RULE-08 INV-02 Vignette 100 in the export: the corners darken, the centre keeps its value, each patch within ΔE00 1 of the reference at its position', async ({
+    page,
+  }) => {
+    const r = await run(page, { vignette: 100 }, 'ramp');
+    expect(r.ok).toBe(true);
+    // Fixed positions: patch 0 and 15 (top corners), 240 and 255 (bottom corners), and 119/120/135/136 at the centre.
+    const centre = [119, 120, 135, 136];
+    for (const i of centre) expect(deRgb(rgb(r.exported[i]!), rgb(r.input[i]!)), `centre ${i}`).toBeLessThan(1);
+    for (const i of [15, 255]) expect(r.exported[i]![0]!, `corner ${i}`).toBeLessThan(r.input[i]![0]! * 0.7);
+    for (const i of [0, 15, 240, 255, ...centre]) {
+      const ref = rampRef(i, { vignette: 100 }, [((i % 16) + 0.5) / 16, (Math.floor(i / 16) + 0.5) / 16]);
+      expect(deRgb(rgb(r.exported[i]!), ref), `patch ${i}`).toBeLessThanOrEqual(1);
+    }
+  });
 
   test('F-007.AC6 F-007.R5 NFR-08 INV-02 every adjustment non-zero (Grain 0, as NFR-08 measures): the exported 24-patch chart matches the preview’s paint (mean ΔE00 < 2, max < 4)', async ({
     page,
@@ -716,7 +954,7 @@ test.describe('F-007 adjustments in the export (media harness)', () => {
     expect(Math.max(...moved)).toBeGreaterThan(5);
   });
 
-  test('F-007.AC8 RULE-08 ADR-0006 §4 Grain 50: the same frame painted twice, by a second compositor at the export’s size, and in the export carries the same grain', async ({
+  test('F-007.AC8 RULE-08 ADR-0006 §4 INV-02 Grain 50: the export worker composes frame k byte-identical to the preview’s paint (also painted twice, and by a second compositor), and the encoded file carries that grain pattern', async ({
     page,
   }) => {
     // A 1080p export (grain cells of 2 px survive the coding better than at 480p), on software encoders too.
@@ -731,6 +969,7 @@ test.describe('F-007 adjustments in the export (media harness)', () => {
                 sameTwice: boolean;
                 sameElsewhere: boolean;
                 nextDiffers: boolean;
+                workerSame: boolean;
                 corrSame: number;
                 corrOther: number;
               }>;
@@ -744,6 +983,7 @@ test.describe('F-007 adjustments in the export (media harness)', () => {
     expect(r.sameTwice).toBe(true);
     expect(r.sameElsewhere).toBe(true);
     expect(r.nextDiffers).toBe(true);
+    expect(r.workerSame).toBe(true);
     // The decoded export carries frame k's grain pattern (lossy coding softens it), not frame k + 1's.
     expect(r.corrSame, JSON.stringify(r)).toBeGreaterThan(0.1);
     expect(Math.abs(r.corrOther) * 4, JSON.stringify(r)).toBeLessThan(r.corrSame);
