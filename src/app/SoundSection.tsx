@@ -3,8 +3,9 @@
 // a centre mark at 100 %) as a slider with its paired number field, an inline Mute toggle (COPY-action.mute,
 // pressed while muted); for a video clip, Mute original sound / Unmute original sound (COPY-action.mute_all,
 // COPY-action.unmute_all) with the row dimmed while every main-track clip is muted; for an audio clip, the
-// text-and-icon Earlier and Later (COPY-action.time_earlier, COPY-action.time_later). The audio clip's Fade
-// in and Fade out rows come with F-009. Used by the docked inspector and, at touch size, the phone Audio
+// text-and-icon Earlier and Later (COPY-action.time_earlier, COPY-action.time_later). F-009: an audio
+// clip's Fade in and Fade out rows (0–5 s, ./FadesSection.tsx) follow the volume (board "audio clip";
+// Implements: F-009.R4). Used by the docked inspector and, at touch size, the phone Audio
 // sheet (D-038).
 // Implements: F-011.R3 (volume 0–200 % and mute for any video clip or audio clip), F-011.R4 (Mute original
 // sound as one step, then Unmute), F-011.R8 (Earlier/Later without dragging), CMP-Inspector "Behavior"
@@ -17,6 +18,7 @@ import { RULE_12 } from '../core';
 import { arrangeAvailable, moveSelected } from './arrange';
 import { Icon } from './icons';
 import { NumberField } from './NumberField';
+import { FadeRows } from './FadesSection';
 import { originalMuted, setMute, setVolumeOnce, soundTarget, toggleMuteAll, volumeGesture } from './sound';
 
 export function SoundSection({ id, touch = false }: { readonly id: string; readonly touch?: boolean }) {
@@ -112,6 +114,7 @@ export function SoundSection({ id, touch = false }: { readonly id: string; reado
           </span>
         </span>
       </div>
+      {target.kind === 'audio' ? <FadeRows id={`${id}-fades`} touch={touch} /> : null}
       {target.kind === 'video' ? (
         <button type="button" class="tk-button tk-sound__all" data-action="mute-all" onClick={toggleMuteAll}>
           <Icon name={allMuted ? 'volume' : 'muted'} size={16} />

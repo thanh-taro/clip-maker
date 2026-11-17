@@ -25,7 +25,9 @@ visible equivalents of every gesture (NFR-06).
 - `mountTimeline(element, signals, deps)`: `signals` are MOD-Project's project, selection and playhead;
   `deps` are what MOD-Timeline may not import itself — the words (MOD-Copy formats times and labels),
   the pictures (a source's poster from MOD-Media's registry) and the edit actions (MOD-App commits them
-  and shows their notices). Returns `focusClip(index)` and `dispose()`.
+  and shows their notices). Returns `focusClip(index)` and `dispose()`. F-009: `deps.crossFade` gives
+  each join's state (cross-fade or not, its name, the reason it is unavailable), the open join, and the add
+  and open actions; the view draws the add chip and the bow-tie marker, MOD-App the length popover.
 - Commands `zoomIn/zoomOut/fit`, `scrollToPlayhead`.
 - `itemSpan(project, id)`: where a clip, text layer or audio clip is on the timeline (F-004: MOD-App decides from it when Start here and End here apply).
 

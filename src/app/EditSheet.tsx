@@ -28,6 +28,10 @@
 // Implements: F-007 UX notes on narrow layouts, F-003.R6 (visible controls on touch), F-003.AC5, RULE-21 (move-earlier/later stand in for
 // hold-and-drag; start-here and end-here stand in for the trim drag; touch-size targets), F-004.R2/R6,
 // F-011.R1/R3/R4/R8 on narrow layouts, CMP-MusicPicker "narrow".
+// F-009: the Cross-fade tile ends the first row (CROSSFADE_ITEM: it adds a 0.5 s cross-fade after the selected
+// clip and opens its popover; unavailable with its reason between clips too short), and the Fades row (two
+// toggles, each with its length) with the Fade in / Fade out slider rows follows Speed. Implements: F-009.R1,
+// F-009.R2, F-009.R7 on narrow layouts, CMP-Timeline "narrow / sheet open".
 import { effect, signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
@@ -50,7 +54,8 @@ import { speedTarget } from './speed';
 import { SpeedSection } from './SpeedSection';
 import { placementTarget } from './placement';
 import { PositionSection } from './PositionSection';
-import { ARRANGE_ITEMS, TRIM_ITEMS } from './Timeline';
+import { ARRANGE_ITEMS, CROSSFADE_ITEM, TRIM_ITEMS } from './Timeline';
+import { FadesSection } from './FadesSection';
 
 type Sheet = 'edit' | 'audio' | 'looks' | 'adjust';
 
@@ -209,10 +214,11 @@ export function EditSheet() {
   useSheetEsc(open, ref, TAB_ID);
   if (!open) return null;
   const clip = selectedClip.value ?? selectedAudio.value;
-  // Tile order of the board: Split, Start here, End here, (Cross-fade, F-009) / Move earlier, Move later,
-  // Duplicate, Delete (in danger).
+  // Tile order of the board: Split, Start here, End here, Cross-fade / Move earlier, Move later, Duplicate,
+  // Delete (in danger).
   const tiles = [
     ...TRIM_ITEMS,
+    CROSSFADE_ITEM,
     ...['move-earlier', 'move-later', 'duplicate', 'delete'].map((id) => ARRANGE_ITEMS.find((i) => i.id === id)!),
   ];
   return (
@@ -245,6 +251,9 @@ export function EditSheet() {
         <div class="tk-sheet__grid">
           {tiles.map((item) => {
             const available = item.available();
+            // F-009.R7: an unavailable control with a reason says why (and shows it as a notice when activated).
+            const reason = available ? null : (item.reason?.() ?? null);
+            const reasonId = `tk-sheet-tile-${item.id}-reason`;
             return (
               <button
                 key={item.id}
@@ -252,8 +261,10 @@ export function EditSheet() {
                 class={item.id === 'delete' ? 'tk-tile tk-tile--danger' : 'tk-tile'}
                 data-action={item.id}
                 aria-disabled={available ? undefined : 'true'}
-                onClick={() => {
-                  if (item.available()) item.run();
+                aria-describedby={reason ? reasonId : undefined}
+                title={reason ?? undefined}
+                onClick={(e) => {
+                  if (item.available() || item.reason?.()) item.run(e.currentTarget);
                 }}
               >
                 <Icon name={item.icon} size={20} />
@@ -262,8 +273,17 @@ export function EditSheet() {
             );
           })}
         </div>
+        {tiles.map((item) => {
+          const reason = item.available() ? null : (item.reason?.() ?? null);
+          return reason ? (
+            <span key={item.id} class="tk-join-reason" id={`tk-sheet-tile-${item.id}-reason`}>
+              {reason}
+            </span>
+          ) : null;
+        })}
         {placementTarget.value ? <PositionSection id="tk-sheet-place" touch /> : null}
         {speedTarget.value ? <SpeedSection id="tk-sheet-speed" touch /> : null}
+        <FadesSection id="tk-sheet-fades" touch />
       </div>
     </section>
   );

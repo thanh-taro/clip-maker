@@ -35,6 +35,7 @@ import {
   LoaderCircle,
   Maximize,
   Minimize,
+  Minus,
   MonitorX,
   Music,
   Pause,
@@ -133,6 +134,11 @@ const SOURCES = {
   // F-008: the Looks tab (phone tab bar) and CMP-LookGallery's chosen check
   looks: Contrast,
   check: Check,
+  // F-009: the cross-fade bow-tie (style.md "Cross-fade marker": never an ×; our own shape, as the boards
+  // draw it — CMP-Timeline's marker and the phone Cross-fade tile) and the popover's Shorter / Longer
+  crossFade: '<svg viewBox="0 0 24 24"><path d="M4 6v12l8-6zM20 6v12l-8-6z"/></svg>',
+  shorter: Minus,
+  longer: Plus,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

@@ -646,15 +646,15 @@ test.describe('F-004 trim and split (app harness)', () => {
       await page.getByRole('tab', { name: text(lang, 'inspector.edit') }).click();
       const sheet = page.getByRole('tabpanel', { name: text(lang, 'inspector.edit') });
       await expect(sheet).toBeVisible();
-      // The first row: Split, Start here, End here; the arrange tiles start the second row.
+      // The first row: Split, Start here, End here, Cross-fade (F-009); the arrange tiles start the second row.
       const tiles = sheet.locator('.tk-tile');
-      await expect(tiles).toHaveCount(7);
+      await expect(tiles).toHaveCount(8);
       const first = (await tiles.nth(0).boundingBox())!;
-      const third = (await tiles.nth(2).boundingBox())!;
       const fourth = (await tiles.nth(3).boundingBox())!;
-      expect(third.y).toBeCloseTo(first.y, 0);
-      expect(fourth.y).toBeGreaterThan(first.y + first.height - 1);
-      expect(fourth.x).toBeCloseTo(first.x, 0);
+      const fifth = (await tiles.nth(4).boundingBox())!;
+      expect(fourth.y).toBeCloseTo(first.y, 0);
+      expect(fifth.y).toBeGreaterThan(first.y + first.height - 1);
+      expect(fifth.x).toBeCloseTo(first.x, 0);
       await at(page, 4);
       await axe(page);
       await sheet.getByRole('button', { name: text(lang, 'action.set_out') }).click();
