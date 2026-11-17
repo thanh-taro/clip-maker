@@ -12,7 +12,7 @@
 // "cross-fade" and "Behavior" (add uses 0.5 s), CMP-Inspector "clip Speed" (Fade in, Fade out and the quick
 // toggles), "audio clip" (Fade in and Fade out, 0–5 s), "Behavior" (quick fade sets the rule's quick value).
 import { computed, signal } from '@preact/signals';
-import { formatField, language, type Language } from '../copy';
+import { formatField, language, translate, type Language } from '../copy';
 import { RULE_10, type Micros, type Notice, type Project } from '../core';
 import { beginGesture, crossFadeAvailability, edit, project, setCrossFade, setFade } from '../project';
 import { showResultNotices } from './adding';
@@ -23,9 +23,12 @@ export type FadeEdge = 'in' | 'out';
 /** A duration in µs as the 0.1 s steps RULE-10 picks it in (whole frames read back to the nearest step). */
 export const tenthsOf = (us: Micros): number => Math.round(us / 100_000);
 
-/** Seconds as the fades and cross-fades show them: one decimal in the language's format, then the unit (`0.5 s`). */
+/**
+ * Seconds as the fades and cross-fades show them: one decimal in the language's format, then the unit
+ * COPY-fades.unit (`0.5 s`, vi-VN `0,5 s`).
+ */
 export const secondsLabel = (tenths: number, lang: Language = language.value): string =>
-  `${formatField(tenths / 10, lang, 1, true)} s`;
+  `${formatField(tenths / 10, lang, 1, true)} ${translate(lang, 'fades.unit')}`;
 
 /** The selected clip's or audio clip's fades (CMP-Inspector "clip Speed", "photo clip", "audio clip"). */
 export interface FadeTarget {

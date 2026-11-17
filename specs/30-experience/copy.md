@@ -276,6 +276,7 @@ Rules for every string:
 | **COPY-fades.out** | Fade out | Mờ dần | |
 | **COPY-fades.quick_in** | Quick fade in | Hiện nhanh | |
 | **COPY-fades.quick_out** | Quick fade out | Mờ nhanh | |
+| **COPY-fades.unit** | s | s | The seconds symbol after a fade or cross-fade length ("0.5 s"), its field and its slider's value |
 | **COPY-sound.volume** | Volume | Âm lượng | |
 | **COPY-photo.duration** | Duration | Thời lượng | |
 

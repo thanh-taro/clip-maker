@@ -66,7 +66,7 @@ function FadeRow({ id, edge, touch }: { readonly id: string; readonly edge: Fade
           onCommit={(v) => setFadeOnce(target.id, edge, Math.round(v * 10)) / 10}
         />
         <span class="tk-fades__unit" aria-hidden="true">
-          s
+          {t('fades.unit')}
         </span>
       </span>
     </div>

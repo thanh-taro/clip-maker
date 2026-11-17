@@ -15,6 +15,11 @@
 // and the dashed snap line while the edge snaps (RULE-14, within 8 screen pixels). The scale holds still
 // during a trim, so the edge stays under the pointer. Implements: F-004.R1, F-004.R3 (audio clips; the
 // text lane comes with F-010), F-004.R4, RULE-21 (dragging a trim handle trims; no hold).
+// F-009 adds the join controls (CMP-Timeline "cross-fade"): at each join of two main-track clips, the dashed
+// add chip (shown on hover, focus or with either clip selected; unavailable with its reason between clips too
+// short) or, over a cross-fade's band, the bow-tie marker that opens MOD-App's length popover (its expanded
+// state follows `crossFade.open`). They come after the clips in focus order and keep their element (and focus)
+// across edits. Implements: F-009.R2, F-009.R7, CMP-Timeline "Accessibility" (the marker's expanded state).
 import { effect, signal, type ReadonlySignal, type Signal } from '@preact/signals';
 import { frameStart, nearestFrame, projectEnd, type AudioClip, type Clip, type Micros, type Project } from '../core';
 import {
@@ -470,7 +475,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       j.button.style.left = `${x}px`;
       j.button.toggleAttribute('data-near', selected.has(clip.id) || selected.has(p.clips[i + 1]!.id));
       if (info.on) {
-        j.button.setAttribute('aria-haspopup', 'dialog');
+        j.button.ariaHasPopup = 'dialog';
         j.button.setAttribute('aria-expanded', String(open === clip.id));
       } else {
         j.button.removeAttribute('aria-haspopup');
@@ -478,7 +483,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       }
       j.reason.textContent = info.reason ?? '';
       if (info.reason !== null) {
-        j.button.setAttribute('aria-disabled', 'true');
+        j.button.setAttribute('aria-disabled', String(true));
         j.button.setAttribute('aria-describedby', j.reason.id);
         j.button.title = info.reason;
       } else {

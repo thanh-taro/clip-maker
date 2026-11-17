@@ -119,7 +119,9 @@ export function CrossFadePopover() {
           aria-label={t('action.remove_crossfade')}
           title={t('action.remove_crossfade')}
           data-action="crossfade-remove"
-          onClick={() => removeCrossFade(join.id)}
+          // Removed: the popover closes and focus goes to the join's control (now the add chip), also where a
+          // click does not focus the button (WebKit).
+          onClick={() => removeCrossFade(join.id) && closeCrossFade(true)}
         >
           <Icon name="trash" size={16} />
         </button>

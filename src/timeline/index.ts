@@ -12,6 +12,7 @@ export {
   type TimelineSignals,
   type TimelineView,
   type TrimDrag,
+  type CrossFadeDeps,
 } from './view';
 export { itemSpan, type ItemSpan } from './geometry';
 export const zoomIn = (): void => notImplemented('MOD-Timeline zoomIn');
