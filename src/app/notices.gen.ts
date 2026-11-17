@@ -71,7 +71,7 @@ export const NOTICE_CODE: readonly NoticeRow[] = [
   {
     "title": "Clip Maker looks pack",
     "source": "github.com/thanh-taro/clip-maker",
-    "licence": "Owner's own work"
+    "licence": "Owner's own work: authored 2026-11-17 as parametric colour transforms in `scripts/make-looks.mjs` (no third-party look, table or image; nothing downloaded), which writes the `.cube` sources and converts them"
   }
 ];
 

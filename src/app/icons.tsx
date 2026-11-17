@@ -10,12 +10,14 @@ import {
   ArrowRightToLine,
   ArrowUp,
   AudioLines,
+  Check,
   ChevronLeft,
   ChevronRight,
   CircleCheck,
   CircleX,
   Clipboard,
   Code,
+  Contrast,
   Copy,
   Download,
   EllipsisVertical,
@@ -128,6 +130,9 @@ const SOURCES = {
   copyColour: Pipette,
   pasteColour: Clipboard,
   applyAll: Layers,
+  // F-008: the Looks tab (phone tab bar) and CMP-LookGallery's chosen check
+  looks: Contrast,
+  check: Check,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

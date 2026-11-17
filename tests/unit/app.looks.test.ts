@@ -3,7 +3,17 @@
 // from where it began, Q104), the gallery's group, and the RULE-09 thumbnail frame the gallery asks for.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LOOK_IDS, LOOKS, type Look, type Project } from '../../src/core';
-import { edit, EMPTY_HISTORY, history, playhead, project, redo, selection, setAdjustments, undo } from '../../src/project';
+import {
+  edit,
+  EMPTY_HISTORY,
+  history,
+  playhead,
+  project,
+  redo,
+  selection,
+  setAdjustments,
+  undo,
+} from '../../src/project';
 import { selectClip } from '../../src/app/arrange';
 import {
   beginIntensityDrag,
@@ -41,7 +51,7 @@ describe('F-008 looks in the editor', () => {
     expect(lookTarget.value).toBeNull();
     selectClip('P');
     expect(lookTarget.value).toMatchObject({ id: 'P', look: null });
-    selection.value = [{ kind: 'audio', id: 'M' }];
+    selection.value = ['M'];
     expect(lookTarget.value).toBeNull();
     expect(groupLooks('Film')).toEqual(['film-faded', 'film-retro', 'film-pastel', 'film-instant']);
     for (const id of LOOK_IDS) expect(groupLooks(LOOKS[id].group)).toContain(id);

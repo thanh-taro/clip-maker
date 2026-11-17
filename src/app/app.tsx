@@ -10,6 +10,7 @@ import { embedded, initHost, loadFonts, registerOffline, resolveLanguage, setLan
 import { intake, registry, workerProbe } from '../media';
 import { project } from '../project';
 import { configureAdding, watchSources } from './adding';
+import { ensureLooks } from './looks';
 import { guardDrops } from './MediaInput';
 import { browserDevice, device, finishCheck, openingCheck, type DeviceDeps } from './device';
 import { Shell } from './Shell';
@@ -96,6 +97,8 @@ export async function main(options: MainOptions = {}): Promise<void> {
         : {};
     });
     watchSources(registry);
+    // ADR-0013 §5: the looks are read from the tool's own origin at start-up, after the first render (F-008).
+    void ensureLooks();
   }
   registerOffline();
   void loadFonts();

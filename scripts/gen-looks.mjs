@@ -51,7 +51,8 @@ export function looksPack() {
     const where = `${PACK} ${l.id}`;
     if (l.file !== `${l.id}.png`) throw new Error(`${where}: "file" must be ${l.id}.png`);
     const path = abs(LOOKS_DIR, l.file);
-    if (!fs.existsSync(path)) throw new Error(`${where}: ${LOOKS_DIR}/${l.file} is missing (run scripts/make-looks.mjs)`);
+    if (!fs.existsSync(path))
+      throw new Error(`${where}: ${LOOKS_DIR}/${l.file} is missing (run scripts/make-looks.mjs)`);
     const bytes = fs.readFileSync(path);
     if (bytes.length !== l.bytes) throw new Error(`${where}: ${l.file} is ${bytes.length} bytes, not ${l.bytes}`);
     if (crypto.createHash('sha256').update(bytes).digest('hex') !== l.sha256)

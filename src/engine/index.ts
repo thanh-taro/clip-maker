@@ -9,6 +9,8 @@ export function startEngineWorker(): Worker {
 }
 
 export { createSequentialFrameReader, type SequentialFrameReader } from './sequential';
+/** The look strips' decoder (ADR-0007 §3): MOD-App decodes the tables it hands this worker and the export. */
+export { decodeLookStrip } from '../compositor';
 export { Engine, SLOW_PAINTS, SLOW_WINDOW_MS, WARMUP_US } from './engine';
 export type { EngineDeps, EngineFrame, SlotLike, VideoSourceLike, CoarseBitmap } from './engine';
 export { DecoderSlot, IDLE_MS, JUMP_US, MAX_IN_FLIGHT, PLAY_WAIT_MS } from './decoder';

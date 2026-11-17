@@ -495,7 +495,9 @@ describe('MOD-Engine review fixes (E3)', () => {
 describe('MOD-Engine looks (F-008)', () => {
   const tables = (ids: readonly string[]) => Object.fromEntries(ids.map((id) => [id, new Uint8Array(4)]));
   const thumbs = (r: Rig) =>
-    r.events.filter((e): e is Extract<FromEngine, { type: 'engine:lookThumbnail' }> => e.type === 'engine:lookThumbnail');
+    r.events.filter(
+      (e): e is Extract<FromEngine, { type: 'engine:lookThumbnail' }> => e.type === 'engine:lookThumbnail',
+    );
 
   it('F-008.R1 RULE-09 one thumbnail per loaded look, in looks.md order: the clip at the playhead frame with the look at 100, on its own canvas', async () => {
     const r = rig(proj({ clips: [video('a', 2), video('b', 6, {}, 1)] }));

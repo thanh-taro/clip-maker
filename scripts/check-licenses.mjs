@@ -206,7 +206,8 @@ else if (!isApproved(looksRow)) {
   console.log(
     `LOOKS PACK — ${looks.looks.length} strips, ${looks.total} bytes; ${looksRow.id} is ${looksRow.status}${RELEASE ? '' : ' (warning; --release fails)'}`,
   );
-  if (RELEASE) problems.push(`${looksRow.id} (looks pack) is not approved: the owner's look sign-off is pending (release mode)`);
+  if (RELEASE)
+    problems.push(`${looksRow.id} (looks pack) is not approved: the owner's look sign-off is pending (release mode)`);
 }
 
 const DIST = abs('dist');

@@ -29,7 +29,12 @@ describe('MOD-Plan look thumbnails', () => {
   it('RULE-09 the thumbnail includes the adjustments, with the look at intensity 100, and only that clip', () => {
     const p = proj({
       clips: [
-        video('A', 4, { crossFadeNext: S, fadeIn: S, adjustments: { brightness: 30 }, look: { id: 'film-faded', intensity: 40 } }),
+        video('A', 4, {
+          crossFadeNext: S,
+          fadeIn: S,
+          adjustments: { brightness: 30 },
+          look: { id: 'film-faded', intensity: 40 },
+        }),
         video('B', 4),
       ],
       textLayers: [text('T', 0, 8)],

@@ -372,4 +372,36 @@ test.describe('F-021 offline', () => {
     // Nothing but the worker's own version check (WebKit repeats it); the track came from the offline copy.
     expect(onlyVersionCheck(await requestLog(request, tool))).toEqual([]);
   });
+
+  test('F-008 ADR-0013 §5 NFR-01 the 16 look strips are precached on the first online visit; reopened offline, the tool reads them at start-up from the offline copy with no request', async ({
+    page,
+    context,
+    browserName,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    const tool = offlineServer(browserName);
+    const first = await openTool(page, 'standalone', tool);
+    const { keys, files } = await offlineReady(first);
+    const looks = files.filter((f) => f.endsWith('.png'));
+    expect(looks).toHaveLength(16);
+    for (const f of looks) expect(keys).toContain(f);
+
+    await offline(context, request, tool, browserName);
+    await resetLog(request, tool);
+    const frame = await reopen(page, 'standalone', tool);
+    expect(await controlled(frame)).toBe(true);
+    // MOD-Assets reads every strip after the first render (each read shows in the page's resource timing).
+    await expect
+      .poll(
+        () =>
+          frame.evaluate(
+            () =>
+              performance.getEntriesByType('resource').filter((e) => new URL(e.name).pathname.endsWith('.png')).length,
+          ),
+        { timeout: 60_000 },
+      )
+      .toBe(16);
+    expect(onlyVersionCheck(await requestLog(request, tool))).toEqual([]);
+  });
 });

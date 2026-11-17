@@ -36,8 +36,15 @@ interface PackEntry {
   storageDeMax: number;
 }
 const pack = (): { looks: PackEntry[]; total: number } => looksPack();
-const file = (name: string): Buffer => fs.readFileSync(new URL(`../../src/assets/looks/${name}`, import.meta.url));
+const file = (name: string): Uint8Array => fs.readFileSync(new URL(`../../src/assets/looks/${name}`, import.meta.url));
 const decoded = (name: string): Uint8Array => (decodePng(file(name)) as { rgba: Uint8Array }).rgba;
+const same = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
+const u32 = (b: Uint8Array, at: number): number => new DataView(b.buffer, b.byteOffset).getUint32(at);
+const has = (b: Uint8Array, text: string): boolean => {
+  const t = Array.from(text, (c) => c.charCodeAt(0));
+  for (let i = 0; i + t.length <= b.length; i++) if (t.every((c, k) => b[i + k] === c)) return true;
+  return false;
+};
 
 describe('MOD-Build looks pack (DEP-13)', () => {
   it('RULE-09 the pack holds the 16 looks of looks.md in four groups, each a parametric definition of our own', () => {
@@ -62,8 +69,8 @@ describe('MOD-Build looks pack (DEP-13)', () => {
 
   it('DEP-13 each committed strip is exactly what its parameters give (pixels), and its .cube source matches its checksum', () => {
     for (const l of pack().looks) {
-      const built = buildLook(l.id) as { png: Buffer; entry: PackEntry };
-      expect(Buffer.from(decoded(l.file)).equals(Buffer.from(decodePng(built.png).rgba)), l.id).toBe(true);
+      const built = buildLook(l.id) as { png: Uint8Array; entry: PackEntry };
+      expect(same(decoded(l.file), (decodePng(built.png) as { rgba: Uint8Array }).rgba), l.id).toBe(true);
       expect(built.entry.cubeSha256, l.id).toBe(l.cubeSha256);
     }
   });
@@ -87,11 +94,13 @@ describe('MOD-Build looks pack (DEP-13)', () => {
   it('ADR-0007 §3 a strip is a plain 1089 × 33 RGB PNG with no colour chunk (browsers decode its values untouched)', () => {
     for (const l of pack().looks) {
       const b = file(l.file);
-      expect(b.readUInt32BE(16)).toBe(STRIP_W);
-      expect(b.readUInt32BE(20)).toBe(STRIP_H);
-      for (const chunk of ['gAMA', 'cHRM', 'sRGB', 'iCCP']) expect(b.includes(Buffer.from(chunk)), chunk).toBe(false);
+      expect(u32(b, 16)).toBe(STRIP_W);
+      expect(u32(b, 20)).toBe(STRIP_H);
+      for (const chunk of ['gAMA', 'cHRM', 'sRGB', 'iCCP']) expect(has(b, chunk), chunk).toBe(false);
     }
-    expect(() => decodePng(Buffer.concat([file('bw-classic.png').subarray(0, 40), Buffer.alloc(8)]))).toThrow();
+    const cut = new Uint8Array(48);
+    cut.set(file('bw-classic.png').subarray(0, 40));
+    expect(() => decodePng(cut)).toThrow();
   });
 
   it('RULE-09 the identity strip is no change: through .cube, PNG and the strip layout it is the identity table', () => {

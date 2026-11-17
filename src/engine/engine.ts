@@ -403,10 +403,9 @@ export class Engine {
       if (!plan) return;
       thumbs.comp.paint(plan, [frame]);
       const bitmap = surface.bitmap(thumbs.canvas);
-      this.deps.post(
-        { type: 'engine:lookThumbnail', ticket: req.ticket, clipId: req.clipId, lookId, bitmap },
-        [bitmap],
-      );
+      this.deps.post({ type: 'engine:lookThumbnail', ticket: req.ticket, clipId: req.clipId, lookId, bitmap }, [
+        bitmap,
+      ]);
     }
   }
 

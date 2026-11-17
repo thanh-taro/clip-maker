@@ -111,7 +111,8 @@ export async function looks(decode: StripDecoder, fetcher: Fetcher = getOwn): Pr
     if (!got) {
       const path = LOOK_FILES[id];
       got = manifestFiles(fetcher).then(async (files) => {
-        if (!path || !mayFetch(path, files)) throw new Error(`NotFoundError: ${path ?? id} is not in the asset manifest`);
+        if (!path || !mayFetch(path, files))
+          throw new Error(`NotFoundError: ${path ?? id} is not in the asset manifest`);
         const r = await fetcher(path);
         if (!r.ok) throw new Error(`NetworkError: ${path} answered ${r.status}`);
         return { id, group: LOOKS[id].group, table: await decode(await r.blob()) };

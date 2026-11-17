@@ -89,10 +89,12 @@ const op = {
     return c.map((v) => y + (v - y) * s);
   },
   /** Black and white (Rec. 709 weights), then a tone ramp black → mid → white (quadratic Bézier). */
-  mono: (black = [0, 0, 0], mid = [0.5, 0.5, 0.5], white = [1, 1, 1]) => (c) => {
-    const y = clamp01(luma(c));
-    return [0, 1, 2].map((i) => (1 - y) ** 2 * black[i] + 2 * y * (1 - y) * mid[i] + y ** 2 * white[i]);
-  },
+  mono:
+    (black = [0, 0, 0], mid = [0.5, 0.5, 0.5], white = [1, 1, 1]) =>
+    (c) => {
+      const y = clamp01(luma(c));
+      return [0, 1, 2].map((i) => (1 - y) ** 2 * black[i] + 2 * y * (1 - y) * mid[i] + y ** 2 * white[i]);
+    },
   /** Pulls warm (skin) hues toward orange and the rest toward teal, by how colourful they are. */
   tealOrange: (amount) => (c) => {
     const y = luma(c);
@@ -118,12 +120,7 @@ const chain =
  */
 export const LOOK_DEFINITIONS = {
   // Slightly brighter, cleaner whites, a bit more vibrance
-  'natural-fresh': chain(
-    op.gamma(0.92),
-    op.vibrance(0.3),
-    op.split([0, 0, 0], [-0.012, 0, 0.012]),
-    op.contrast(1.06),
-  ),
+  'natural-fresh': chain(op.gamma(0.92), op.vibrance(0.3), op.split([0, 0, 0], [-0.012, 0, 0.012]), op.contrast(1.06)),
   // Golden-hour warmth, soft skin tones
   'natural-warm': chain(
     op.balance(1.07, 1.02, 0.9),
@@ -132,15 +129,15 @@ export const LOOK_DEFINITIONS = {
     op.saturation(1.02),
   ),
   // Clean blue-leaning daylight
-  'natural-cool': chain(op.balance(0.92, 0.99, 1.1), op.split([-0.01, 0, 0.015], [-0.01, 0.002, 0.012]), op.contrast(1.04)),
+  'natural-cool': chain(
+    op.balance(0.92, 0.99, 1.1),
+    op.split([-0.01, 0, 0.015], [-0.01, 0.002, 0.012]),
+    op.contrast(1.04),
+  ),
   // Punchy colour for food and travel
   'natural-vivid': chain(op.saturation(1.3), op.vibrance(0.25), op.contrast(1.14)),
   // Lifted blacks, muted colour
-  'film-faded': chain(
-    op.contrast(0.9),
-    op.saturation(0.68),
-    op.levels([0.09, 0.085, 0.08], [0.95, 0.945, 0.93]),
-  ),
+  'film-faded': chain(op.contrast(0.9), op.saturation(0.68), op.levels([0.09, 0.085, 0.08], [0.95, 0.945, 0.93])),
   // Warm 1970s print: yellowed highlights, green-teal shadows
   'film-retro': chain(
     op.contrast(1.04),
@@ -341,9 +338,7 @@ export function de00(c1, c2) {
   const Sc = 1 + 0.045 * Cbp;
   const Sh = 1 + 0.015 * Cbp * T;
   const Rt = -Math.sin(2 * dTheta * rad) * Rc;
-  return Math.sqrt(
-    (dLp / Sl) ** 2 + (dCp / Sc) ** 2 + (dHp / Sh) ** 2 + Rt * (dCp / Sc) * (dHp / Sh),
-  );
+  return Math.sqrt((dLp / Sl) ** 2 + (dCp / Sc) ** 2 + (dHp / Sh) ** 2 + Rt * (dCp / Sc) * (dHp / Sh));
 }
 
 /** ADR-0007 outcome rule 3: the strip's largest and mean ΔE00 against the float table, over every node. */
@@ -417,7 +412,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         // zlib output may differ between Node versions: compare pixels, not bytes.
         const a = decodePng(fs.readFileSync(pngPath)).rgba;
         const b = decodePng(png).rgba;
-        if (Buffer.compare(Buffer.from(a), Buffer.from(b)) !== 0) problems.push(`${entry.file} differs from its parameters`);
+        if (Buffer.compare(Buffer.from(a), Buffer.from(b)) !== 0)
+          problems.push(`${entry.file} differs from its parameters`);
       }
       continue;
     }

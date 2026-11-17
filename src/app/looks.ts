@@ -11,6 +11,7 @@
 import { computed, effect, signal } from '@preact/signals';
 import { looks as readLooks, type StripDecoder } from '../assets';
 import {
+  frameAspect,
   frameIndexAt,
   layoutOf,
   LOOK_IDS,
@@ -23,8 +24,11 @@ import {
   type Project,
   type ToEngine,
 } from '../core';
-import { beginGesture, edit, project, setLook, type EditResult } from '../project';
+import { beginGesture, edit, playhead, project, setLook, type EditResult } from '../project';
 import { selectedClip } from './arrange';
+import { playback } from './playback';
+import { workers } from './workers';
+import { decodeLookStrip } from '../engine';
 
 // ── the bundled tables (ADR-0013 §5) ─────────────────────────────────────────────────────────────
 
@@ -36,7 +40,10 @@ export const lookTables = signal<Readonly<Record<string, Uint8Array>>>({});
  * tables to the engine worker. Called at start-up after the first render; called again (the gallery opening)
  * it reads only the looks that failed before.
  */
-export async function loadLooks(engine: { postMessage(m: ToEngine): void } | undefined, decode: StripDecoder): Promise<void> {
+export async function loadLooks(
+  engine: { postMessage(m: ToEngine): void } | undefined,
+  decode: StripDecoder,
+): Promise<void> {
   const have = lookTables.peek();
   if (LOOK_IDS.every((id) => have[id])) return;
   const got = await readLooks(decode);
@@ -46,6 +53,10 @@ export async function loadLooks(engine: { postMessage(m: ToEngine): void } | und
   lookTables.value = { ...lookTables.peek(), ...tables };
   engine?.postMessage({ type: 'engine:looks', tables });
 }
+
+/** Loads the looks for the session's engine worker (start-up, and again when the gallery opens). */
+export const ensureLooks = (): Promise<void> =>
+  loadLooks(workers.get('engine'), decodeLookStrip).catch(() => undefined);
 
 // ── the gallery ──────────────────────────────────────────────────────────────────────────────────
 
@@ -176,11 +187,10 @@ export function beginIntensityDrag(clipId: string, onCut: () => void): Intensity
     set(value) {
       if (ended || !gesture.active || !origin || !Number.isFinite(value)) return;
       const v = clampIntensity(value);
-      gesture.edit(
-        (): EditResult =>
-          v === origin.intensity
-            ? { project: base, notices: [], changed: [] }
-            : setLook(base, clipId, { ...origin, intensity: v }),
+      gesture.edit((): EditResult =>
+        v === origin.intensity
+          ? { project: base, notices: [], changed: [] }
+          : setLook(base, clipId, { ...origin, intensity: v }),
       );
     },
     end() {
@@ -206,4 +216,68 @@ export function thumbnailFrame(p: Project, clipId: string, playheadUs: Micros): 
   if (i < 0 || !span) return null;
   const k = frameIndexAt(Math.max(0, playheadUs), p.frame.frameRate);
   return k >= span.startFrame && k < span.endFrame ? k : span.startFrame;
+}
+
+/** The gallery's thumbnails of one clip (RULE-09), by look id; a look not yet drawn has none (placeholder). */
+export const thumbnails = signal<{
+  readonly clipId: string | null;
+  readonly bitmaps: ReadonlyMap<string, ImageBitmap>;
+}>({
+  clipId: null,
+  bitmaps: new Map(),
+});
+
+/** How long the thumbnails' inputs must stay put before they are drawn again (a slider movement, stepping). */
+export const THUMBNAIL_SETTLE_MS = 120;
+
+/**
+ * Implements: F-008.R1, RULE-09 *Thumbnails* — while the gallery is shown, asks the engine (MOD-Preview
+ * `lookThumbnails`) for the selected clip's thumbnails whenever what they show changes: the clip (its source
+ * range, speed, placement and adjustments), the frame, the RULE-09 frame index, or the looks loaded. Not while
+ * playing (the paused frame is drawn). New pictures replace the old ones look by look; another clip starts
+ * from placeholders. Returns the stop function.
+ */
+export function watchThumbnails(side: number): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let stop: (() => void) | null = null;
+  let lastKey = '';
+  const dispose = effect(() => {
+    const target = lookTarget.value;
+    const pb = playback.value;
+    const p = project.value;
+    const head = playhead.value;
+    const loaded = Object.keys(lookTables.value).length;
+    const playing = pb?.ctl.state.value === 'playing';
+    if (!target || !pb) return;
+    const current = thumbnails.peek();
+    if (current.clipId !== target.id) {
+      for (const b of current.bitmaps.values()) b.close();
+      thumbnails.value = { clipId: target.id, bitmaps: new Map() };
+      lastKey = '';
+    }
+    const clip = p.clips.find((c) => c.id === target.id);
+    const k = thumbnailFrame(p, target.id, head);
+    if (!clip || k === null || playing) return;
+    const key = JSON.stringify([{ ...clip, look: null }, p.frame, frameAspect(p), k, loaded, side]);
+    if (key === lastKey) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      lastKey = key;
+      stop?.();
+      const clipId = target.id;
+      stop = pb.ctl.lookThumbnails(clipId, head, side, (lookId, bitmap) => {
+        const now = thumbnails.peek();
+        if (now.clipId !== clipId) return bitmap.close();
+        const next = new Map(now.bitmaps);
+        next.get(lookId)?.close();
+        next.set(lookId, bitmap);
+        thumbnails.value = { clipId, bitmaps: next };
+      });
+    }, THUMBNAIL_SETTLE_MS);
+  });
+  return () => {
+    dispose();
+    clearTimeout(timer);
+    stop?.();
+  };
 }
