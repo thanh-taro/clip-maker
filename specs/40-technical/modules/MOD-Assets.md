@@ -19,7 +19,7 @@ duration) and the looks catalogue.
 - Decoding music (MOD-Audio) or applying looks (MOD-Compositor); caching (service worker).
 
 ## Public surface
-- `looks()` → look ids, groups and table bytes; `musicTracks()` → ENT-MusicTrack list (compiled in from the
+- `looks(decode)` → look ids, groups and table bytes, read once per session from the hashed strips the manifest lists (`LOOK_FILES`), in looks.md order; a look that fails is left out and read again on the next call (`decode` is MOD-Compositor's strip decoder, passed by MOD-App); `musicTracks()` → ENT-MusicTrack list (compiled in from the
   checked pack); `musicBlob(id)` / `musicBytes(id)` → the track's packaged file.
 
 ## Implements

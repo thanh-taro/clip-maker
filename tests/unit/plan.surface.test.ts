@@ -5,9 +5,9 @@ import { SAMPLE_RATE, framePlan, gifFramePlan, thumbnailPlan } from '../../src/p
 import { EMPTY_PROJECT } from '../../src/project';
 import { proj, video } from '../support/project';
 
-it('MOD-Plan mixes at 48 kHz (architecture.md A4) and fails loudly for what is not built yet', () => {
+it('MOD-Plan mixes at 48 kHz (architecture.md A4); a thumbnail of a clip not on the track has no plan', () => {
   expect(SAMPLE_RATE).toBe(48_000);
-  expect(() => thumbnailPlan(EMPTY_PROJECT, 'x')).toThrow(/not implemented/);
+  expect(thumbnailPlan(EMPTY_PROJECT, 'x', 0)).toBeNull();
 });
 
 describe('MOD-Plan GIF frames', () => {

@@ -17,7 +17,7 @@ const scope = self as unknown as WorkerScope<ToEngine, FromEngine>;
 const cls = deviceClass(platformHints());
 
 const engine = new Engine({
-  post: (m) => scope.postMessage(m),
+  post: (m, transfer) => scope.postMessage(m, transfer ?? []),
   createCompositor,
   // VideoFrame is an EngineFrame; the slot's callbacks only ever receive the frames it decoded.
   openVideo: openVideoSource as unknown as EngineDeps['openVideo'],
@@ -38,6 +38,11 @@ const engine = new Engine({
   budget: BUDGETS[cls],
   phone: cls === 'phone',
   now: () => performance.now(),
+  // F-008.R1: the look thumbnails' own small canvas (a second context, so the preview's picture never changes).
+  thumbnails: {
+    canvas: (width, height) => new OffscreenCanvas(width, height),
+    bitmap: (canvas) => canvas.transferToImageBitmap(),
+  },
 });
 
 /** The sources' files for the sound feed (video and audio sources), by id. */

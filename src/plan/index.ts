@@ -7,7 +7,6 @@ import {
   framesOf,
   layoutOf,
   nearestFrame,
-  notImplemented,
   speedOf,
   textFadeFrames,
   type Clip,
@@ -238,6 +237,31 @@ export function gifFramePlan(project: Project, settings: GifTiming, i: number): 
   return framePlan(project, frameIndexAt(t, project.frame.frameRate));
 }
 
-// Built with F-008 (look thumbnails, RULE-09).
-export const thumbnailPlan = (_project: Project, _clipId: string, _lookId?: string): FramePlan =>
-  notImplemented('MOD-Plan thumbnailPlan');
+/**
+ * Implements: RULE-09 *Thumbnails*, F-008.R1 — the recipe of a look-gallery thumbnail: the selected clip
+ * alone (no other clip, no text; fully shown, as no cross-fade or fade dims it) at the playhead frame when
+ * the playhead is inside the clip, otherwise at the clip's first frame; with the clip's adjustments and
+ * placement in the project's frame, and the look `lookId` at intensity 100 (null: None; left out: the
+ * clip's own look). Null when the clip is not on the main track.
+ */
+export function thumbnailPlan(
+  project: Project,
+  clipId: string,
+  playhead: Micros,
+  lookId?: string | null,
+): FramePlan | null {
+  const i = project.clips.findIndex((c) => c.id === clipId);
+  const span = layoutOf(project).spans[i];
+  if (i < 0 || !span) return null;
+  const k = frameIndexAt(Math.max(0, playhead), project.frame.frameRate);
+  const frameIndex = k >= span.startFrame && k < span.endFrame ? k : span.startFrame;
+  const plan = framePlan(project, frameIndex);
+  const layer = plan.layers.find((l) => l.clip.id === clipId);
+  if (!layer) return null;
+  const look = lookId === undefined ? layer.clip.look : lookId === null ? null : { id: lookId, intensity: 100 };
+  return {
+    ...plan,
+    layers: [{ ...layer, clip: { ...layer.clip, look }, weight: 1, opacity: 1 }],
+    texts: [],
+  };
+}

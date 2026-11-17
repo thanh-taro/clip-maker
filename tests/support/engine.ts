@@ -184,6 +184,9 @@ export interface PaintRecord {
   readonly frames: readonly (number | null)[];
   readonly compare: string | null | undefined;
   readonly texts: number;
+  /** Each layer's clip and look id as planned (F-008 thumbnails). */
+  readonly layers: readonly { readonly clipId: string; readonly look: string | null }[];
+  readonly lookPreview: { readonly clipId: string; readonly look: { readonly id: string } | null } | null | undefined;
 }
 
 /** A compositor that records paints; `loseContext()` fires the loss handlers. */
@@ -205,13 +208,15 @@ export class FakeCompositor implements Compositor {
     plan: FramePlan,
     frames: readonly (PaintFrame | null)[],
     texts?: ReadonlyMap<string, unknown>,
-    o?: { compare?: string | null },
+    o?: { compare?: string | null; lookPreview?: PaintRecord['lookPreview'] },
   ) {
     this.paints.push({
       frameIndex: plan.frameIndex,
       frames: frames.map((f) => (f ? ((f.image as unknown as { timestamp?: number }).timestamp ?? -1) : null)),
       compare: o?.compare,
       texts: texts?.size ?? 0,
+      layers: plan.layers.map((l) => ({ clipId: l.clip.id, look: l.clip.look?.id ?? null })),
+      lookPreview: o?.lookPreview,
     });
     return {} as ReturnType<Compositor['paint']>;
   }
@@ -242,5 +247,8 @@ export class FakeCompositor implements Compositor {
   readPixels(): Uint8Array {
     return new Uint8Array(0);
   }
-  dispose(): void {}
+  disposed = false;
+  dispose(): void {
+    this.disposed = true;
+  }
 }

@@ -21,6 +21,10 @@
 // F-007: the Adjust tab (COPY-inspector.adjust, last in the bar as style.md orders it) and its sheet
 // (`AdjustSheet`); the tab is unavailable unless a video or photo clip is selected (board SCR-Editor default
 // narrow), and the sheet closes when the selection stops being one.
+// F-008: the Looks tab (COPY-looks.title, before Adjust as style.md orders it; Text joins before it with F-010)
+// and its sheet (`LooksSheet`: CMP-LookGallery "narrow / chosen" — grabber, the touch-size group pills, one row
+// of None and the four looks, the touch-size Intensity row); like Adjust, the tab is unavailable unless a
+// video or photo clip is selected, and the sheet closes when the selection stops being one.
 // Implements: F-007 UX notes on narrow layouts, F-003.R6 (visible controls on touch), F-003.AC5, RULE-21 (move-earlier/later stand in for
 // hold-and-drag; start-here and end-here stand in for the trim drag; touch-size targets), F-004.R2/R6,
 // F-011.R1/R3/R4/R8 on narrow layouts, CMP-MusicPicker "narrow".
@@ -32,6 +36,8 @@ import { project } from '../project';
 import { MUSIC_TRACKS } from '../core';
 import { adjustTarget } from './adjust';
 import { AdjustFooter, AdjustSection } from './AdjustSection';
+import { LookGallery } from './LookGallery';
+import { lookTarget } from './looks';
 import { selectedAudio, selectedClip } from './arrange';
 import { Icon } from './icons';
 import { frameSectionShown } from './frame';
@@ -46,7 +52,7 @@ import { placementTarget } from './placement';
 import { PositionSection } from './PositionSection';
 import { ARRANGE_ITEMS, TRIM_ITEMS } from './Timeline';
 
-type Sheet = 'edit' | 'audio' | 'adjust';
+type Sheet = 'edit' | 'audio' | 'looks' | 'adjust';
 
 /** The open sheet of the narrow tab bar (null: none, the default). */
 export const openSheet = signal<Sheet | null>(null);
@@ -56,15 +62,21 @@ effect(() => {
   if (openSheet.value !== 'audio') stopPreview();
 });
 
-// The Adjust sheet acts on the selected video or photo clip: when there is none any more (deselected,
-// deleted, an audio clip selected), the sheet closes (its tab is then unavailable, SCR-Editor default narrow).
+// The Adjust and Looks sheets act on the selected video or photo clip: when there is none any more
+// (deselected, deleted, an audio clip selected), the sheet closes (its tab is then unavailable, SCR-Editor
+// default narrow).
 effect(() => {
-  if (openSheet.value !== 'adjust' || adjustTarget.value !== null) return;
-  // Focus inside the closing sheet goes back to its tab, not to the page.
-  const inSheet = document.getElementById(ADJUST_SHEET_ID)?.contains(document.activeElement) ?? false;
-  openSheet.value = null;
-  if (inSheet) document.getElementById(ADJUST_TAB_ID)?.focus();
+  const open = openSheet.value;
+  if (open === 'adjust' && adjustTarget.value === null) closeTo(ADJUST_SHEET_ID, ADJUST_TAB_ID);
+  else if (open === 'looks' && lookTarget.value === null) closeTo(LOOKS_SHEET_ID, LOOKS_TAB_ID);
 });
+
+/** Closes the open sheet; focus inside it goes back to its tab, not to the page. */
+function closeTo(sheetId: string, tabId: string): void {
+  const inSheet = document.getElementById(sheetId)?.contains(document.activeElement) ?? false;
+  openSheet.value = null;
+  if (inSheet) document.getElementById(tabId)?.focus();
+}
 
 const TAB_ID = 'tk-tab-edit';
 const SHEET_ID = 'tk-sheet-edit';
@@ -75,19 +87,29 @@ const FRAME_HEAD_ID = 'tk-sheet-frame-title';
 const SOUND_HEAD_ID = 'tk-sheet-sound-title';
 const ADJUST_TAB_ID = 'tk-tab-adjust';
 const ADJUST_SHEET_ID = 'tk-sheet-adjust';
+const LOOKS_TAB_ID = 'tk-tab-looks';
+const LOOKS_SHEET_ID = 'tk-sheet-looks';
 
-/** The tab bar's tabs in style.md order (Edit, Audio, Text, Looks, Adjust; Text and Looks join with F-010/F-008). */
+/** The tab bar's tabs in style.md order (Edit, Audio, Text, Looks, Adjust; Text joins with F-010). */
 const TABS: readonly {
   sheet: Sheet;
   id: string;
   panel: string;
-  icon: 'edit' | 'music' | 'adjust';
-  label: 'inspector.edit' | 'tab.audio' | 'inspector.adjust';
+  icon: 'edit' | 'music' | 'looks' | 'adjust';
+  label: 'inspector.edit' | 'tab.audio' | 'looks.title' | 'inspector.adjust';
   /** The tab can open its sheet now (SCR-Editor default narrow: Adjust needs a video or photo clip). */
   available: () => boolean;
 }[] = [
   { sheet: 'edit', id: TAB_ID, panel: SHEET_ID, icon: 'edit', label: 'inspector.edit', available: () => true },
   { sheet: 'audio', id: AUDIO_TAB_ID, panel: AUDIO_SHEET_ID, icon: 'music', label: 'tab.audio', available: () => true },
+  {
+    sheet: 'looks',
+    id: LOOKS_TAB_ID,
+    panel: LOOKS_SHEET_ID,
+    icon: 'looks',
+    label: 'looks.title',
+    available: () => lookTarget.value !== null,
+  },
   {
     sheet: 'adjust',
     id: ADJUST_TAB_ID,
@@ -328,6 +350,32 @@ export function AdjustSheet() {
         <AdjustSection id="tk-sheet-adjust" touch />
       </div>
       <AdjustFooter id="tk-sheet-adjust" touch />
+    </section>
+  );
+}
+
+/**
+ * The Looks sheet (style.md "Layouts" narrow; CMP-LookGallery "narrow / chosen"): grabber, the touch-size
+ * group pills, one row of None and the group's four looks, and the touch-size Intensity row. Only while a
+ * video or photo clip is selected.
+ */
+export function LooksSheet() {
+  const open = openSheet.value === 'looks';
+  const ref = useRef<HTMLElement>(null);
+  useSheetEsc(open, ref, LOOKS_TAB_ID);
+  if (!open || !lookTarget.value) return null;
+  return (
+    <section
+      ref={ref}
+      id={LOOKS_SHEET_ID}
+      class="tk-sheet tk-sheet--looks"
+      role="tabpanel"
+      aria-labelledby={LOOKS_TAB_ID}
+    >
+      <span class="tk-sheet__grabber" aria-hidden="true" />
+      <div class="tk-sheet__body">
+        <LookGallery id="tk-sheet-looks" touch />
+      </div>
     </section>
   );
 }

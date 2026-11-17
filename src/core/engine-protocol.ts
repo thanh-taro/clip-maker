@@ -3,7 +3,7 @@
 // public surface). Typed here so MOD-Preview (main thread) and MOD-Engine (worker) share one protocol
 // without importing each other. Types only; no runtime code.
 import type { Micros } from './time';
-import type { Project } from './project.gen';
+import type { Look, Project } from './project.gen';
 
 /** A source the engine can draw: a video file read in pieces, or a decoded photo (ADR-0009 §1–2). */
 export type EngineMedia =
@@ -66,7 +66,28 @@ export type ToEngine =
   | { readonly type: 'engine:overlay'; readonly overlay: Overlay | null }
   /** RULE-22 effects check, run in this worker (platform-mapping "Start-up check"). */
   | { readonly type: 'engine:effectsCheck' }
-  | { readonly type: 'engine:lookThumbnails'; readonly clipId: string }
+  /**
+   * RULE-09 look preview (pointer hover or keyboard focus on a look): the clip drawn with `look` in place of its
+   * own (null: None), without changing the project; `clipId` null ends it. Preview only, never an undo step.
+   */
+  | { readonly type: 'engine:previewLook'; readonly clipId: string | null; readonly look: Look }
+  /**
+   * RULE-09 thumbnails (F-008.R1): the clip at the playhead frame `t` when it is inside the clip, otherwise its
+   * first frame, with its adjustments and each loaded look at 100, drawn in the project's frame at the
+   * smallest size that covers a `width` × `height` device-pixel tile. Answered by one `engine:lookThumbnail`
+   * per look, in looks.md order, then `engine:lookThumbnailsDone`; a newer request (`ticket`) replaces an older
+   * one.
+   */
+  | {
+      readonly type: 'engine:lookThumbnails';
+      readonly ticket: number;
+      readonly clipId: string;
+      readonly t: Micros;
+      readonly width: number;
+      readonly height: number;
+    }
+  /** The gallery closed: drop any thumbnail request and free the thumbnails' canvas and context (NFR-05). */
+  | { readonly type: 'engine:releaseThumbnails' }
   /** Statistics of the playback so far (tests and NFR-03 measurement). */
   | { readonly type: 'engine:stats' }
   /** Releases every decoder, decoded frame and coarse copy (before an export, ADR-0003 §5); the compositor and its context stay. */
@@ -108,4 +129,17 @@ export type FromEngine =
   /** The preview could not be recovered after the retries (ADR-0006 outcome item 6). */
   | { readonly type: 'engine:contextFailed' }
   | { readonly type: 'engine:stats'; readonly stats: EngineStats }
+  /** One look-gallery thumbnail of request `ticket` (RULE-09), transferred. */
+  | {
+      readonly type: 'engine:lookThumbnail';
+      readonly ticket: number;
+      readonly clipId: string;
+      readonly lookId: string;
+      readonly bitmap: ImageBitmap;
+    }
+  /**
+   * Request `ticket` ended: `complete` when every loaded look was drawn; false when it stopped without them (no
+   * picture yet, a source failed, or what the thumbnails show changed), so the gallery asks again.
+   */
+  | { readonly type: 'engine:lookThumbnailsDone'; readonly ticket: number; readonly complete: boolean }
   | { readonly type: 'engine:error'; readonly message: string };

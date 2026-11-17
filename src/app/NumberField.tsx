@@ -29,6 +29,8 @@ export interface NumberFieldProps {
   readonly labelledBy: string;
   readonly class?: string;
   readonly control?: string;
+  /** Unavailable (F-008: Intensity while None is chosen). */
+  readonly disabled?: boolean;
 }
 
 const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v));
@@ -83,8 +85,10 @@ export function NumberField(props: NumberFieldProps) {
     <input
       ref={ref}
       type="text"
-      // iOS's decimal keypad has no minus key: a signed field (F-007's bipolar adjustments) gets the text keyboard.
-      inputMode={props.signed === true ? 'text' : 'decimal'}
+      // iOS's decimal keypad has no minus key: a field that takes negative values (F-007's bipolar adjustments,
+      // F-006's Offset X and Y) gets the text keyboard.
+      inputMode={props.signed === true || min < 0 ? 'text' : 'decimal'}
+      disabled={props.disabled === true}
       role="spinbutton"
       autoComplete="off"
       spellcheck={false}

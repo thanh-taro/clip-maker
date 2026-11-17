@@ -18,7 +18,9 @@
 // from `size.inspector` up to 40 % of the tool's width) and no Close (build question 105, decided).
 // F-007: the Adjust tab (./AdjustSection.tsx: the rows scroll under a sticky footer). A video clip's tabs are
 // Edit, Adjust and Sound; a photo clip's Edit and Adjust (CMP-Inspector "photo clip"; build question 134 —
-// the plain title row is gone now that the photo has two tabs). Looks joins with F-008.
+// the plain title row is gone now that the photo has two tabs). F-008: the Looks tab (COPY-looks.title) holds
+// CMP-LookGallery (./LookGallery.tsx): a video clip's tabs are Edit, Adjust, Looks and Sound; a photo clip's
+// Edit, Adjust and Looks (CMP-Inspector "Anatomy").
 // Implements: F-007 UX notes, CMP-Inspector "clip Adjust", F-012.R1–R3 (the controls), F-012 UX notes, CMP-Inspector "Frame (nothing selected)" and
 // "Accessibility" (tabs are a tablist named COPY-inspector.label; single-section panels use a heading;
 // option groups are radio groups; swatches carry colour names), F-005 UX notes, F-006 UX notes,
@@ -44,6 +46,7 @@ import { OptionGroup, type Option } from './OptionGroup';
 import { placementTarget } from './placement';
 import { PositionSection } from './PositionSection';
 import { AdjustFooter, AdjustSection } from './AdjustSection';
+import { LookGallery } from './LookGallery';
 import { soundTarget } from './sound';
 import { SoundSection } from './SoundSection';
 import { SpeedSection } from './SpeedSection';
@@ -113,24 +116,25 @@ export function useKeepFocus(container: RefObject<HTMLElement>, fallback: RefObj
   }, [key]);
 }
 
-type ClipTab = 'edit' | 'adjust' | 'sound';
+type ClipTab = 'edit' | 'adjust' | 'looks' | 'sound';
 
 /** The clip tab chosen (UI state, not an edit: RULE-13). It stays when another clip is selected. */
 export const clipTab = signal<ClipTab>('edit');
 
-type TabLabel = 'inspector.edit' | 'inspector.adjust' | 'inspector.sound';
+type TabLabel = 'inspector.edit' | 'inspector.adjust' | 'looks.title' | 'inspector.sound';
 const TAB_LABELS: Readonly<Record<ClipTab, TabLabel>> = {
   edit: 'inspector.edit',
   adjust: 'inspector.adjust',
+  looks: 'looks.title',
   sound: 'inspector.sound',
 };
 
 /**
- * CMP-Inspector "Anatomy": a video clip's tabs Edit, Adjust, (Looks, F-008) and Sound; a photo clip's Edit,
- * Adjust (and Looks) — no Sound (build question 134, now with tabs).
+ * CMP-Inspector "Anatomy": a video clip's tabs Edit, Adjust, Looks and Sound; a photo clip's Edit, Adjust and
+ * Looks — no Sound (build question 134, now with tabs).
  */
 const tabsOf = (kind: 'video' | 'photo'): readonly ClipTab[] =>
-  kind === 'video' ? ['edit', 'adjust', 'sound'] : ['edit', 'adjust'];
+  kind === 'video' ? ['edit', 'adjust', 'looks', 'sound'] : ['edit', 'adjust', 'looks'];
 
 const tabId = (tab: ClipTab): string => `tk-inspector-tab-${tab}`;
 const PANEL_ID = 'tk-inspector-panel';
@@ -329,6 +333,8 @@ export function Inspector() {
                 <PositionSection id="tk-inspector-place" />
                 <SpeedSection id="tk-inspector-speed" />
               </div>
+            ) : tab === 'looks' ? (
+              <LookGallery id="tk-inspector-looks" />
             ) : (
               <SoundSection id="tk-inspector-sound" />
             )}

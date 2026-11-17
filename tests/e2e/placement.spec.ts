@@ -70,7 +70,7 @@ const timeline = (page: Page, lang: Language = 'en-US') =>
   page.getByRole('region', { name: text(lang, 'timeline.label') });
 const clipButton = (page: Page, name: string, lang: Language = 'en-US') =>
   timeline(page, lang).getByRole('button', { name: new RegExp(`^${name.replace('.', '\\.')} `) });
-/** A selected photo's inspector: its clip tabs Edit and Adjust, Edit shown (build question 134, F-007). */
+/** A selected photo's inspector: its clip tabs Edit, Adjust and Looks, Edit shown (build question 134, F-007, F-008). */
 const inspector = (page: Page, lang: Language = 'en-US') =>
   page.getByRole('complementary', { name: text(lang, 'inspector.label') });
 const frameInspector = (page: Page, lang: Language = 'en-US') =>
@@ -331,6 +331,22 @@ test.describe('F-006 place, rotate and flip (app harness)', () => {
       ],
       ([l, r]) => near(l!, BLUE, 40) && near(r!, RED, 40),
     );
+  });
+
+  test('F-006 UX notes the Offset X and Y fields take negative values: they ask for the text keyboard (the iOS decimal pad has no minus key) and accept a typed minus', async ({
+    page,
+  }) => {
+    await setUp(page, '9:16');
+    const pos = position(inspector(page));
+    for (const id of ['placement.offset_x', 'placement.offset_y'] as const)
+      await expect(field(pos, id)).toHaveAttribute('inputmode', 'text');
+    // Scale takes no negative value: it keeps the decimal keypad.
+    await expect(field(pos, 'placement.scale')).toHaveAttribute('inputmode', 'decimal');
+    const x = field(pos, 'placement.offset_x');
+    await x.fill('-5');
+    await x.press('Enter');
+    expect((await placementOf(page)).offsetX).toBeCloseTo(-0.05, 6);
+    await expect(x).toHaveValue('-5');
   });
 
   test('F-006.AC4 F-006.R4 a clip at 200 % and moved: Reset makes it Fit, 100 % and centred, in one step', async ({

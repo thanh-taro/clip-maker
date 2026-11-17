@@ -12,6 +12,8 @@
 //  - every bundled music track (DEP-14, ADR-0013 §4) has its own registry row; placeholder tracks (generated
 //    stand-ins until the owner picks the real ones, F-011) are a warning, and fail with `--release` (or
 //    LICENCE_RELEASE=1), which the release phase runs as `pnpm check:release` (docs/deploy/release-checklist.md);
+//  - the looks pack (DEP-13, ADR-0013 §1) has its registry row; until the owner's look sign-off approves it,
+//    a warning, and with `--release` a failure (F-008, build question 146);
 //  - then the dist/ scan (scripts/check-dist.mjs, rule 7) proves what actually ships.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -19,6 +21,7 @@ import path from 'node:path';
 import { abs } from './lib/util.mjs';
 import { scanDist } from './check-dist.mjs';
 import { musicPack } from './gen-music-manifest.mjs';
+import { looksPack } from './gen-looks.mjs';
 import { findInstalled, isActive, isApproved, isShipped, readRegistry, REGISTRY } from './lib/registry.mjs';
 
 const STRICT = process.argv.includes('--strict') || process.env.LICENCE_STRICT === '1';
@@ -194,6 +197,18 @@ if (pack.tracks.length < 8)
   console.log(`MUSIC — ${pack.tracks.length} bundled tracks; RULE-12 needs at least 8 (build question 114)`);
 if (RELEASE && pack.tracks.length < 8)
   problems.push(`RULE-12 needs at least 8 bundled tracks; the pack has ${pack.tracks.length} (release mode)`);
+
+// DEP-13 / ADR-0013 §1: the looks pack ships under its own row; the owner signs the looks off before release.
+const looks = looksPack();
+const looksRow = registry.find((r) => /asset/i.test(r.kind) && /looks pack/i.test(r.label));
+if (!looksRow || !isActive(looksRow)) problems.push(`the looks pack has no active row in ${REGISTRY} (DEP-13)`);
+else if (!isApproved(looksRow)) {
+  console.log(
+    `LOOKS PACK — ${looks.looks.length} strips, ${looks.total} bytes; ${looksRow.id} is ${looksRow.status}${RELEASE ? '' : ' (warning; --release fails)'}`,
+  );
+  if (RELEASE)
+    problems.push(`${looksRow.id} (looks pack) is not approved: the owner's look sign-off is pending (release mode)`);
+}
 
 const DIST = abs('dist');
 if (!fs.existsSync(DIST)) problems.push('dist/ missing: run `pnpm build` first (the dist/ scan of ADR-0001 rule 6)');

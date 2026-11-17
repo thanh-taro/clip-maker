@@ -3,7 +3,9 @@
 // file is counted and must be either loaded by dist/index.html, or one of the module workers / the
 // audio worklet of ADR-0003. Compressed with gzip level 9; 1 KB = 1,000 bytes. WOFF2 is already
 // compressed, so font files count as they are. Bundled music (AAC, already compressed) counts as it is in
-// its own group, outside the code total (NFR-10: ≤ 10 MB; F-011). Looks join when they are packed.
+// its own group, outside the code total (NFR-10: ≤ 10 MB; F-011). The looks pack's PNG strips (already
+// compressed) count as they are in their own group, outside the code total (architecture.md "Size": ≤ 0.5 MB;
+// with the fonts ≤ 1.5 MB, NFR-10; F-008, DEP-13).
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -27,6 +29,8 @@ export const BUDGET = {
   code: 560_000, // code and styles total
   fonts: 200_000, // "≈ 200 KB" for the five font packages
   music: 10_000_000, // NFR-10: bundled music ≤ 10 MB in total (F-011, DEP-14); outside the code total
+  looks: 500_000, // architecture.md: 16 look tables ≤ 0.5 MB (F-008, DEP-13); outside the code total
+  'fonts+looks': 1_500_000, // NFR-10 / architecture.md: typefaces plus look data ≤ 1.5 MB
 };
 /** Worker / worklet chunks (Vite names them after their source file). */
 const CHUNK_GROUP = [
@@ -67,6 +71,7 @@ for (const f of assets) {
     else problems.push(`${f}: JS chunk not loaded at start-up and not a worker/worklet (no lazy chunks, ADR-0002)`);
   } else if (FONT.test(f)) groups.fonts.push([f, buf.length]);
   else if (f.endsWith('.m4a')) groups.music.push([f, buf.length]);
+  else if (f.endsWith('.png')) groups.looks.push([f, buf.length]);
   else if (/\.woff2?$/.test(f)) problems.push(`${f}: font file outside the latin/vietnamese subsets (ADR-0012)`);
 }
 // A dynamic import() leaves a trace in the Vite manifest (ADR-0002: none allowed).
@@ -80,9 +85,11 @@ if (fs.existsSync(manifestFile)) {
 
 const sum = (g) => groups[g].reduce((s, [, n]) => s + n, 0);
 const sums = Object.fromEntries(Object.keys(BUDGET).map((g) => [g, sum(g)]));
+const OUTSIDE_CODE = ['code', 'fonts', 'music', 'looks', 'fonts+looks'];
 sums.code = Object.keys(BUDGET)
-  .filter((g) => !['code', 'fonts', 'music'].includes(g))
+  .filter((g) => !OUTSIDE_CODE.includes(g))
   .reduce((s, g) => s + sums[g], 0);
+sums['fonts+looks'] = sums.fonts + sums.looks;
 for (const rows of Object.values(groups)) for (const [f, n] of rows) console.log(`${kb(n).padStart(9)}  ${f}`);
 console.log('');
 for (const g of Object.keys(BUDGET)) {

@@ -20,7 +20,7 @@ mute and gain curves (straight-line fades, equal-power cross-fades). Nothing pas
 ## Public surface
 - `framePlan(project, frameIndex)` → `FramePlan`.
 - `audioPlan(project, fromSample, count)` → `AudioPlan` at 48 kHz.
-- `gifFramePlan(project, gifSettings, i)`; `thumbnailPlan(project, clipId, lookId?)` for RULE-09 thumbnails.
+- `gifFramePlan(project, gifSettings, i)`; `thumbnailPlan(project, clipId, playhead, lookId?)` for RULE-09 thumbnails (the clip alone at the playhead frame when the playhead is inside it, else its first frame; the look at 100; null for a clip not on the track).
 
 ## Implements
 F-002.R1/R6, F-005.R2/R3 (timing), F-009 (weights and curves), F-010 (text timing and fades), F-011.R5 (mix recipe), F-016.R1; RULE-04 background behaviour, RULE-06, RULE-09 thumbnails, RULE-10, RULE-12 mix; INV-02, INV-07. Decided by ADR-0006, ADR-0008.

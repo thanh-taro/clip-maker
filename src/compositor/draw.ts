@@ -4,8 +4,9 @@
 // Implements: RULE-04 (background colour or Blur; fades to the background colour, or to black with
 // Blur), RULE-07 (Fit/Fill on the rotated clip, scale, position, 90° rotation, flips), RULE-08 (grade
 // uniforms; sharpen radius and grain cell relative to s), RULE-10 (fade opacity, cross-fade weights),
-// F-010.R5 (text bitmaps drawn at the output scale), F-007.R7 (compare: one clip without grade or look).
-import { PALETTE_HEX, placedRect, type Frame, type Placement } from '../core';
+// F-010.R5 (text bitmaps drawn at the output scale), F-007.R7 (compare: one clip without grade or look),
+// F-008.R2 (a look previewed on one clip, preview only).
+import { PALETTE_HEX, placedRect, type Frame, type Look, type Placement } from '../core';
 import type { FramePlan } from '../plan';
 import { clipHash, gradeUniforms, grainCell, NEUTRAL, type GradeUniforms, type Rgb } from './grade';
 
@@ -73,6 +74,11 @@ export interface DrawList {
 export interface DrawOptions {
   /** RULE-08 compare hold: this clip is drawn without adjustments and look (preview only). */
   readonly compare?: string | null;
+  /**
+   * RULE-09 look preview (pointer hover or keyboard focus on a look, preview only): this clip is drawn with
+   * `look` in place of its own (null: None), with its adjustments; compare wins.
+   */
+  readonly lookPreview?: { readonly clipId: string; readonly look: Look } | null;
 }
 
 const BLACK: Rgb = [0, 0, 0];
@@ -180,7 +186,8 @@ export function drawList(
       return;
     }
     const placed = placeQuad(W, H, size, clip.placement);
-    const grade = options.compare === clip.id ? NEUTRAL : gradeUniforms(clip.adjustments, clip.look);
+    const look = options.lookPreview?.clipId === clip.id ? options.lookPreview.look : clip.look;
+    const grade = options.compare === clip.id ? NEUTRAL : gradeUniforms(clip.adjustments, look);
     const r = SHARPEN_RADIUS * s;
     layers.push({
       clipId: clip.id,

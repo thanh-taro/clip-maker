@@ -11,7 +11,8 @@
 // F-007: while compare is held, the frame shows the clip without adjustments and look (MOD-Preview
 // `setCompare`) and the pill COPY-preview.comparing sits in the top-left corner (CMP-Preview "holding
 // compare"); the F-007 keys (Mod+C, Mod+V, hold \) are bound while the editor is mounted. Implements:
-// F-007.R7, F-007.AC9, RULE-08 *Compare*, RULE-20.
+// F-007.R7, F-007.AC9, RULE-08 *Compare*, RULE-20. F-008: a look previewed in the gallery is drawn on the
+// selected clip (MOD-Preview `setLookPreview`; F-008.R2, RULE-09).
 import { computed, effect, signal } from '@preact/signals';
 import type { Ref } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
@@ -19,6 +20,7 @@ import { formatDuration, formatTimecode, t } from '../copy';
 import { isEmpty, project } from '../project';
 import { bindAdjustKeys, comparing } from './adjust';
 import { EmptyState } from './EmptyState';
+import { previewing } from './looks';
 import { Icon, type IconName } from './icons';
 import { Notices } from './NoticeStack';
 import { PlacementOverlay } from './PlacementOverlay';
@@ -191,6 +193,15 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
   // F-007: Mod+C / Mod+V / hold \ (RULE-20), and the compare hold sent to MOD-Preview (RULE-08).
   useEffect(() => bindAdjustKeys(), []);
   useEffect(() => effect(() => playback.value?.ctl.setCompare(comparing.value)), []);
+  // F-008.R2: a look previewed on the selected clip (hover or focus in the gallery), never an undo step.
+  useEffect(
+    () =>
+      effect(() => {
+        const p = previewing.value;
+        playback.value?.ctl.setLookPreview(p?.clipId ?? null, p?.look ?? null);
+      }),
+    [],
+  );
 
   // Announce the time when playback stops (CMP-Preview accessibility).
   useEffect(() => {

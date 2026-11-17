@@ -82,6 +82,8 @@ export interface ClipSummary {
   readonly crossFade: number;
   readonly speed: number;
   readonly look: string | null;
+  /** F-008: the look's intensity (null: None). */
+  readonly intensity: number | null;
   readonly selected: boolean;
   /** F-006: the clip's placement (RULE-07). */
   readonly placement: Placement;
@@ -293,6 +295,7 @@ function clipsSummary(): ClipSummary[] {
     crossFade: round(c.crossFadeNext),
     speed: c.speedPct ?? 100,
     look: c.look?.id ?? null,
+    intensity: c.look?.intensity ?? null,
     selected: selection.value.includes(c.id),
     placement: c.placement,
     adjustments: c.adjustments,
