@@ -83,7 +83,8 @@ export function NumberField(props: NumberFieldProps) {
     <input
       ref={ref}
       type="text"
-      inputMode="decimal"
+      // iOS's decimal keypad has no minus key: a signed field (F-007's bipolar adjustments) gets the text keyboard.
+      inputMode={props.signed === true ? 'text' : 'decimal'}
       role="spinbutton"
       autoComplete="off"
       spellcheck={false}

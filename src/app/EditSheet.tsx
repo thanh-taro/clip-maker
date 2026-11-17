@@ -59,7 +59,11 @@ effect(() => {
 // The Adjust sheet acts on the selected video or photo clip: when there is none any more (deselected,
 // deleted, an audio clip selected), the sheet closes (its tab is then unavailable, SCR-Editor default narrow).
 effect(() => {
-  if (openSheet.value === 'adjust' && adjustTarget.value === null) openSheet.value = null;
+  if (openSheet.value !== 'adjust' || adjustTarget.value !== null) return;
+  // Focus inside the closing sheet goes back to its tab, not to the page.
+  const inSheet = document.getElementById(ADJUST_SHEET_ID)?.contains(document.activeElement) ?? false;
+  openSheet.value = null;
+  if (inSheet) document.getElementById(ADJUST_TAB_ID)?.focus();
 });
 
 const TAB_ID = 'tk-tab-edit';

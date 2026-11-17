@@ -223,6 +223,8 @@ export function bindAdjustKeys(doc: Document = document): () => void {
         e.preventDefault();
         return;
       case 'copy-colour':
+        // Text selected on the page (a notice, the licence list) copies as text (build question 144).
+        if (!(doc.getSelection()?.isCollapsed ?? true)) return;
         if (!e.repeat) copyColour(target.id);
         e.preventDefault();
         return;
