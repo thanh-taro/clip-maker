@@ -160,7 +160,7 @@
     inset-block-start: 50%;
     /* Above the clips (1…n) and their overlap bands (n + 1), under the main track's trim handles (n + 3,
        below): an end handle stays grabbable where a control overlaps it. */
-    z-index: calc(var(--tk-clip-count, 0) + 2);
+    z-index: calc(var(--clip-count, 0) + 2);
     display: grid;
     place-items: center;
     inline-size: var(--tk-size-target-min);
@@ -175,7 +175,7 @@
   }
 
   .tk-track .tk-trim {
-    z-index: calc(var(--tk-clip-count, 0) + 3);
+    z-index: calc(var(--clip-count, 0) + 3);
   }
 
   /* The add chip: dashed and muted, shown (and pressable) only while the pointer is near its join, on focus,
@@ -230,7 +230,7 @@
   @media (pointer: coarse) {
     .tk-join {
       inset-block-start: 100%;
-      z-index: calc(var(--tk-clip-count, 0) + 4);
+      z-index: calc(var(--clip-count, 0) + 4);
     }
     .tk-join::before {
       content: '';

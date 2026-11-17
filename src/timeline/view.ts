@@ -465,7 +465,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     }
     // Stacking follows the clip count (clips are 1…n, the overlap bands n + 1): the joins come next and the
     // main track's trim handles above them (fades.css).
-    track.style.setProperty('--tk-clip-count', String(p.clips.length));
+    track.style.setProperty('--clip-count', String(p.clips.length));
     if (!cf) return;
     const open = cf.open.peek();
     let after: Element | null = null;
