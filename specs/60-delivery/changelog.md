@@ -3,7 +3,7 @@
 Entries are needed only for items that are `building` or `shipped`.
 
 ## 2026-11-16 — F-007 building
-- F-007 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 138–142 (the phone Adjust sheet's layout, Apply to all with one clip, the slider resolution on WebKit, AC8's export wording, the compare hold details) and AC6's NFR-03 half is measured on the reference phone.
+- F-007 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 138–141 (the phone Adjust sheet, Apply to all with one clip, the slider’s pointer resolution, AC8’s export wording) and AC6's NFR-03 half is measured on the reference phone.
 - SCR-Editor "Unavailable controls": the phone tab bar's Adjust tab is unavailable unless a video or photo clip is selected (as the SCR-Editor default narrow board draws it).
 - CMP-Inspector "photo clip" is now built as written: a photo has the tabs Edit and Adjust (Looks with F-008), replacing the interim plain title row (build question 134).
 

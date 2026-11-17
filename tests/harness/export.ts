@@ -1094,7 +1094,8 @@ async function grainParity(grain = 50): Promise<GrainReport> {
   const project = chartProject({ grain }, 0.6);
   const k = 15;
   const file = await exportChartFrame(project, 'colours', k, 1080);
-  if (!file) return { ok: false, sameTwice: false, sameElsewhere: false, nextDiffers: false, corrSame: 0, corrOther: 0 };
+  if (!file)
+    return { ok: false, sameTwice: false, sameElsewhere: false, nextDiffers: false, corrSame: 0, corrOther: 0 };
   const { width: W, height: H, rgba } = file;
   const [a, next, b] = await paintChart(project, 'colours', W, H, [k, k + 1, k]);
   const [c] = await paintChart(project, 'colours', W, H, [k]);
