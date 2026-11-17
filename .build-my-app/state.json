@@ -54,7 +54,7 @@
     "build": {
       "title": "4 Implementation",
       "status": "in_progress",
-      "step": "4 wave 4: W4-prep, F-004, F-005, F-006 merged (check 9/9); next F-007 adjust colour (Q104 default normalisation), then F-008, F-009, F-010, F-013, F-015, F-018",
+      "step": "4 wave 4: W4-prep, F-004, F-005, F-006, F-007 merged (check 9/9); next F-008 looks (+ signed offset fields inputMode text), then F-009, F-010, F-013, F-015, F-018",
       "gate": {
         "status": "pending",
         "at": null,
@@ -739,10 +739,6 @@
     }
   },
   "log": [
-    {
-      "at": "2026-11-03T06:05:25+00:00",
-      "event": "phase setup -> gate"
-    },
     {
       "at": "2026-11-03T06:05:34+00:00",
       "event": "gate setup passed: Greenfield; profile reused from image-annotator; balanced autonomy; tooling OK"
@@ -1538,9 +1534,13 @@
     {
       "at": "2026-11-16T13:45:12+00:00",
       "event": "build step: 4 wave 4: W4-prep, F-004, F-005, F-006 merged (check 9/9); next F-007 adjust colour (Q104 default normalisation), then F-008, F-009, F-010, F-013, F-015, F-018"
+    },
+    {
+      "at": "2026-11-17T03:11:51+00:00",
+      "event": "build step: 4 wave 4: W4-prep, F-004, F-005, F-006, F-007 merged (check 9/9); next F-008 looks (+ signed offset fields inputMode text), then F-009, F-010, F-013, F-015, F-018"
     }
   ],
-  "updated": "2026-11-16T13:45:12+00:00",
+  "updated": "2026-11-17T03:11:51+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
