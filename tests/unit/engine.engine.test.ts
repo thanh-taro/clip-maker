@@ -27,6 +27,10 @@ const ts30 = (k: number): number => Math.floor((k * 1_000_000) / 30);
 interface Rig {
   engine: Engine;
   comp: FakeCompositor;
+  /** The look thumbnails' compositor, once one was made (F-008). */
+  thumbComp(): FakeCompositor | undefined;
+  /** Thumbnail canvases made, as [width, height]. */
+  canvases: [number, number][];
   events: FromEngine[];
   send(m: ToEngine): Promise<void>;
   shown(): Extract<FromEngine, { type: 'engine:frameShown' }>[];
@@ -52,10 +56,23 @@ function rig(
   } = {},
 ): Rig {
   const comp = new FakeCompositor();
+  const comps: FakeCompositor[] = [];
+  const canvases: [number, number][] = [];
   const events: FromEngine[] = [];
   const engine = new Engine({
     post: (m) => events.push(m),
-    createCompositor: () => comp,
+    createCompositor: () => {
+      const c = comps.length === 0 ? comp : new FakeCompositor();
+      comps.push(c);
+      return c;
+    },
+    thumbnails: {
+      canvas: (w, h) => {
+        canvases.push([w, h]);
+        return { width: w, height: h } as unknown as OffscreenCanvas;
+      },
+      bitmap: () => ({ close: () => undefined }) as unknown as ImageBitmap,
+    },
     openVideo: opts.open ?? (async () => source({ rate: 30, frames: 300, gop: 30 })),
     effectsCheck: async (onDrawn) => {
       onDrawn?.(true);
@@ -86,6 +103,8 @@ function rig(
   return {
     engine,
     comp,
+    thumbComp: () => comps[1],
+    canvases,
     events,
     send,
     shown: () =>
@@ -470,5 +489,64 @@ describe('MOD-Engine review fixes (E3)', () => {
     await sleep(80);
     expect(made).toBeGreaterThan(0);
     expect(closed).toBe(made);
+  });
+});
+
+describe('MOD-Engine looks (F-008)', () => {
+  const tables = (ids: readonly string[]) => Object.fromEntries(ids.map((id) => [id, new Uint8Array(4)]));
+  const thumbs = (r: Rig) =>
+    r.events.filter((e): e is Extract<FromEngine, { type: 'engine:lookThumbnail' }> => e.type === 'engine:lookThumbnail');
+
+  it('F-008.R1 RULE-09 one thumbnail per loaded look, in looks.md order: the clip at the playhead frame with the look at 100, on its own canvas', async () => {
+    const r = rig(proj({ clips: [video('a', 2), video('b', 6, {}, 1)] }));
+    await r.send({ type: 'engine:looks', tables: tables(['bw-classic', 'natural-warm', 'film-faded']) });
+    await r.send({ type: 'engine:seek', t: 3 * S });
+    const previewPaints = r.comp.paints.length;
+    await r.send({ type: 'engine:lookThumbnails', ticket: 7, clipId: 'b', t: 3 * S, side: 60 });
+    expect(thumbs(r).map((e) => [e.ticket, e.clipId, e.lookId])).toEqual([
+      [7, 'b', 'natural-warm'],
+      [7, 'b', 'film-faded'],
+      [7, 'b', 'bw-classic'],
+    ]);
+    // The preview's canvas is not painted for thumbnails; the thumbnails' own compositor is.
+    expect(r.comp.paints.length).toBe(previewPaints);
+    const painted = r.thumbComp()!.paints;
+    expect(painted.map((p) => p.layers)).toEqual([
+      [{ clipId: 'b', look: 'natural-warm' }],
+      [{ clipId: 'b', look: 'film-faded' }],
+      [{ clipId: 'b', look: 'bw-classic' }],
+    ]);
+    // The playhead at 3 s is 1 s into b (in point 1 s): source frame at 2 s.
+    expect(painted[0]!.frames).toEqual([2 * S]);
+    expect(painted[0]!.frameIndex).toBe(90);
+    // A 16:9 frame (Original, the first clip's shape) with its shorter side 60 px.
+    expect(r.canvases).toEqual([[107, 60]]);
+  });
+
+  it("RULE-09 with the playhead outside the clip the thumbnails show the clip's first frame", async () => {
+    const r = rig(proj({ clips: [video('a', 2), video('b', 6, {}, 1)] }));
+    await r.send({ type: 'engine:looks', tables: tables(['bw-classic']) });
+    await r.send({ type: 'engine:lookThumbnails', ticket: 1, clipId: 'b', t: 0, side: 60 });
+    expect(r.thumbComp()!.paints[0]!.frames).toEqual([S]);
+  });
+
+  it('F-008.R1 a newer thumbnail request replaces an older one not yet drawn (latest wins)', async () => {
+    const r = rig(twoClips());
+    await r.send({ type: 'engine:looks', tables: tables(['bw-classic', 'bw-soft']) });
+    r.engine.handle({ type: 'engine:lookThumbnails', ticket: 1, clipId: 'a', t: 0, side: 60 });
+    r.engine.handle({ type: 'engine:lookThumbnails', ticket: 2, clipId: 'b', t: 0, side: 60 });
+    await r.engine.settled();
+    expect(thumbs(r).every((e) => e.ticket === 2 && e.clipId === 'b')).toBe(true);
+    expect(thumbs(r)).toHaveLength(2);
+  });
+
+  it('F-008.R2 RULE-09 a look preview repaints the preview with the look on that clip; ending it repaints without', async () => {
+    const r = rig(twoClips());
+    await r.send({ type: 'engine:seek', t: 0 });
+    const look = { id: 'bw-classic', intensity: 100 };
+    await r.send({ type: 'engine:previewLook', clipId: 'a', look });
+    expect(r.comp.paints.at(-1)!.lookPreview).toEqual({ clipId: 'a', look });
+    await r.send({ type: 'engine:previewLook', clipId: null, look: null });
+    expect(r.comp.paints.at(-1)!.lookPreview).toBeNull();
   });
 });

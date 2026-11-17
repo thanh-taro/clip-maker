@@ -218,6 +218,34 @@ describe('MOD-Preview playback (F-002.R2)', () => {
     expect(r.of('engine:compare').map((m) => m.clipId)).toEqual(['a', null]);
   });
 
+  it('F-008.R2 RULE-09 a look preview is sent to the engine', () => {
+    const r = setup();
+    const look = { id: 'bw-soft', intensity: 100 };
+    r.ctl.setLookPreview('a', look);
+    r.ctl.setLookPreview(null, null);
+    expect(r.of('engine:previewLook').map((m) => [m.clipId, m.look])).toEqual([
+      ['a', look],
+      [null, null],
+    ]);
+  });
+
+  it('F-008.R1 look thumbnails reach the latest request only; a replaced or stopped request’s bitmaps are closed', () => {
+    const r = setup();
+    const got: string[] = [];
+    let closed = 0;
+    const bitmap = () => ({ close: () => closed++ }) as unknown as ImageBitmap;
+    r.ctl.lookThumbnails('a', 0, 96, (id) => got.push(`1:${id}`));
+    const stop = r.ctl.lookThumbnails('a', 5, 96, (id) => got.push(`2:${id}`));
+    const [first, second] = r.of('engine:lookThumbnails');
+    expect([first!.t, second!.t, second!.side]).toEqual([0, 5, 96]);
+    r.emit({ type: 'engine:lookThumbnail', ticket: first!.ticket, clipId: 'a', lookId: 'bw-soft', bitmap: bitmap() });
+    r.emit({ type: 'engine:lookThumbnail', ticket: second!.ticket, clipId: 'a', lookId: 'bw-high', bitmap: bitmap() });
+    stop();
+    r.emit({ type: 'engine:lookThumbnail', ticket: second!.ticket, clipId: 'a', lookId: 'bw-sepia', bitmap: bitmap() });
+    expect(got).toEqual(['2:bw-high']);
+    expect(closed).toBe(2);
+  });
+
   it('MOD-Preview a shorter project pulls the playhead in', () => {
     const r = setup();
     r.ctl.seek(3 * S);

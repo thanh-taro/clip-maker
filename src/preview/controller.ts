@@ -6,13 +6,15 @@
 // Implements: F-002.R1 (the preview surface), F-002.R2 (play from the playhead with sound, stop at the
 // end; pause keeps the playhead), F-002.R3 (scrub → seeks, latest wins), F-002.R4 (step, start, end),
 // F-002 edge cases (play at the end starts from 0; frames are skipped to keep sound in sync), RULE-22
-// (slow device signal), NFR-03.
+// (slow device signal), NFR-03. F-008: a look previewed on a clip (`setLookPreview`, RULE-09) and the
+// look-gallery thumbnails (`lookThumbnails`, F-008.R1).
 import { computed, effect, signal, type ReadonlySignal } from '@preact/signals';
 import {
   frameAspect,
   projectEnd,
   type EngineStats,
   type FromEngine,
+  type Look,
   type Micros,
   type Project,
   type ToEngine,
@@ -104,6 +106,19 @@ export interface PreviewController {
   toEnd(): void;
   /** RULE-08 compare hold on a clip (null releases it). */
   setCompare(clipId: string | null): void;
+  /** RULE-09 look preview: the clip drawn with `look` (null: None) without changing the project; null clipId ends it. */
+  setLookPreview(clipId: string | null, look: Look): void;
+  /**
+   * RULE-09 thumbnails of `clipId` (F-008.R1) at playhead `t`, shorter side `side` device pixels: each look's
+   * bitmap goes to `onThumb` as it is drawn. A later request replaces this one; the returned function stops
+   * it. Bitmaps of a replaced request are closed.
+   */
+  lookThumbnails(
+    clipId: string,
+    t: Micros,
+    side: number,
+    onThumb: (lookId: string, bitmap: ImageBitmap) => void,
+  ): () => void;
   /** Engine statistics (NFR-03 measurement and tests). */
   stats(): Promise<EngineStats>;
   dispose(): void;
@@ -128,6 +143,8 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
   const duration = computed(() => projectEnd(signals.project.value));
   const statsWaiters: ((s: EngineStats) => void)[] = [];
   let frameId: number | null = null;
+  let thumbTicket = 0;
+  let onThumb: ((lookId: string, bitmap: ImageBitmap) => void) | null = null;
 
   const onMessage = (e: MessageEvent<FromEngine>): void => {
     const m = e.data;
@@ -153,6 +170,10 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
         return;
       case 'engine:stats':
         for (const w of statsWaiters.splice(0)) w(m.stats);
+        return;
+      case 'engine:lookThumbnail':
+        if (m.ticket === thumbTicket && onThumb) onThumb(m.lookId, m.bitmap);
+        else m.bitmap.close();
         return;
       default:
         return;
@@ -287,6 +308,20 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
     toEnd: () => seekTo(duration.peek()),
     setCompare(clipId) {
       engine.postMessage({ type: 'engine:compare', clipId });
+    },
+    setLookPreview(clipId, look) {
+      engine.postMessage({ type: 'engine:previewLook', clipId, look });
+    },
+    lookThumbnails(clipId, t, side, fn) {
+      const ticket = ++thumbTicket;
+      onThumb = fn;
+      engine.postMessage({ type: 'engine:lookThumbnails', ticket, clipId, t, side });
+      return () => {
+        if (thumbTicket === ticket) {
+          thumbTicket++;
+          onThumb = null;
+        }
+      };
     },
     stats() {
       return new Promise((resolve) => {

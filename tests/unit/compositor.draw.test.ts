@@ -242,6 +242,28 @@ describe('ADR-0012 text and RULE-08 compare in the draw list', () => {
     expect(graded.lookMix).toBeCloseTo(0.8, 9);
   });
 
+  it('F-008.R2 RULE-09 a look preview draws that clip with the previewed look (None too) and its adjustments; compare wins', () => {
+    const p = proj({
+      clips: [
+        video('a', 4, { adjustments: { contrast: 50 }, look: { id: 'cine-moody', intensity: 80 } }),
+        video('b', 4, { crossFadeNext: 0 }),
+      ],
+    });
+    const plan = framePlan(p, 0);
+    const preview = { clipId: 'a', look: { id: 'bw-classic', intensity: 100 } };
+    const shown = drawList(plan, 1920, 1080, [HD], NO_TEXT, { lookPreview: preview }).layers[0]!.grade;
+    expect(shown.look).toBe('bw-classic');
+    expect(shown.lookMix).toBe(1);
+    expect(shown.contrast).toBe(drawList(plan, 1920, 1080, [HD], NO_TEXT).layers[0]!.grade.contrast);
+    const none = drawList(plan, 1920, 1080, [HD], NO_TEXT, { lookPreview: { clipId: 'a', look: null } }).layers[0]!;
+    expect(none.grade.look).toBeNull();
+    // Another clip's preview leaves this one as it is; compare shows the clip without adjustments and look.
+    const other = drawList(plan, 1920, 1080, [HD], NO_TEXT, { lookPreview: { ...preview, clipId: 'b' } }).layers[0]!;
+    expect(other.grade.look).toBe('cine-moody');
+    const both = drawList(plan, 1920, 1080, [HD], NO_TEXT, { compare: 'a', lookPreview: preview }).layers[0]!;
+    expect(both.grade).toEqual(NEUTRAL);
+  });
+
   it('RULE-08 sharpen radius and grain cell are relative to s', () => {
     const p = proj({ clips: [video('a', 4)] });
     const a = drawList(framePlan(p, 0), 1920, 1080, [HD], NO_TEXT);

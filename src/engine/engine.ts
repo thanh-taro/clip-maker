@@ -7,22 +7,26 @@
 // F-002 edge case "frames are skipped to keep sound in sync", RULE-22 (slow source → slowSource once;
 // the newest frame is shown while sound plays on), NFR-03 (coarse-then-exact seeks), NFR-05 (bounded
 // decoders, frames and coarse copies), ADR-0006 outcome rule 6 (the preview always recovers from a
-// WebGL context loss).
+// WebGL context loss), F-008.R1 (look thumbnails, RULE-09) and F-008.R2 (a look previewed on the selected
+// clip without an undo step).
 import {
+  frameAspect,
   frameIndexAt,
+  LOOK_IDS,
   frameStart,
   layoutOf,
   projectFrames,
   type EngineMedia,
   type EngineStats,
   type FromEngine,
+  type Look,
   type Micros,
   type Overlay,
   type Project,
   type TextBitmap,
   type ToEngine,
 } from '../core';
-import { framePlan, type FramePlan } from '../plan';
+import { framePlan, thumbnailPlan, type FramePlan } from '../plan';
 import type { Compositor, CompositorOptions, EffectsResult, LookTable, PaintFrame, Rotation } from '../compositor';
 import type { Budget } from './budget';
 import { CoarseCache, keepsCoarse } from './coarse';
@@ -62,8 +66,15 @@ export interface CoarseBitmap {
   close(): void;
 }
 
+/** Look-gallery thumbnails (RULE-09): their own small canvas, and its picture taken as a bitmap. */
+export interface ThumbnailSurface {
+  canvas(width: number, height: number): OffscreenCanvas;
+  /** The canvas's current picture (OffscreenCanvas.transferToImageBitmap in the worker). */
+  bitmap(canvas: OffscreenCanvas): ImageBitmap;
+}
+
 export interface EngineDeps {
-  post(m: FromEngine): void;
+  post(m: FromEngine, transfer?: Transferable[]): void;
   createCompositor(canvas: OffscreenCanvas, looks: ReadonlyMap<string, LookTable>, o: CompositorOptions): Compositor;
   openVideo(id: string, file: Blob): Promise<VideoSourceLike>;
   /** `onDrawn` is called once the chain compiled and drew its first frame (MOD-Compositor). */
@@ -73,7 +84,11 @@ export interface EngineDeps {
   readonly budget: Budget;
   readonly phone: boolean;
   now(): number;
+  /** Look thumbnails (F-008.R1); without it a request is answered with an error. */
+  readonly thumbnails?: ThumbnailSurface;
 }
+
+type ThumbRequest = Extract<ToEngine, { type: 'engine:lookThumbnails' }>;
 
 /** A source reported slow after this many inexact paints within SLOW_WINDOW_MS (RULE-22). */
 export const SLOW_PAINTS = 10;
@@ -106,7 +121,11 @@ export class Engine {
   private coarse = new Map<string, CoarseCache<CoarseBitmap>>();
   private texts = new Map<string, TextBitmap>();
   private compare: string | null = null;
+  private lookPreview: { readonly clipId: string; readonly look: Look } | null = null;
   private overlay: Overlay | null = null;
+  /** The latest look-thumbnail request not yet drawn (latest wins). */
+  private thumbRequest: ThumbRequest | null = null;
+  private thumbs: { comp: Compositor; canvas: OffscreenCanvas } | null = null;
   private pending: Request | null = null;
   private busy = false;
   private idle: Promise<void> = Promise.resolve();
@@ -143,6 +162,7 @@ export class Engine {
       case 'engine:looks':
         for (const [k, v] of Object.entries(m.tables)) this.looks.set(k, v);
         this.comp?.setLooks(this.looks);
+        this.thumbs?.comp.setLooks(this.looks);
         return this.repaint();
       case 'engine:media':
         this.setMedia(m.media);
@@ -173,10 +193,16 @@ export class Engine {
           .effectsCheck((ok) => this.deps.post({ type: 'engine:effectsDrawn', ok }))
           .then((r) => this.deps.post({ type: 'engine:effects', ...r }));
         return;
+      case 'engine:previewLook':
+        this.lookPreview = m.clipId === null ? null : { clipId: m.clipId, look: m.look };
+        return this.repaint();
       case 'engine:lookThumbnails':
-        // RULE-09 thumbnails need MOD-Plan's thumbnailPlan, built with F-008.
-        this.deps.post({ type: 'engine:error', message: 'lookThumbnails: built with F-008' });
-        return;
+        if (!this.deps.thumbnails) {
+          this.deps.post({ type: 'engine:error', message: 'lookThumbnails: no thumbnail surface' });
+          return;
+        }
+        this.thumbRequest = m;
+        return this.kick();
       case 'engine:stats':
         this.deps.post({ type: 'engine:stats', stats: this.stats() });
         return;
@@ -296,24 +322,91 @@ export class Engine {
   private request(r: Request): void {
     // A tick replacing a queued seek keeps it a seek: the decoder may restart for it.
     this.pending = { ...r, seek: r.seek || (this.pending?.seek ?? false) };
+    this.kick();
+  }
+
+  private kick(): void {
     if (this.busy) return;
     this.busy = true;
     this.idle = this.loop();
   }
 
+  /** Preview renders first; look thumbnails when no render waits (they never hold the preview back). */
   private async loop(): Promise<void> {
     try {
-      while (this.pending) {
-        const r = this.pending;
-        this.pending = null;
+      while (this.pending || this.thumbRequest) {
         try {
-          await this.render(r);
+          if (this.pending) {
+            const r = this.pending;
+            this.pending = null;
+            await this.render(r);
+          } else if (this.thumbRequest) {
+            const t = this.thumbRequest;
+            this.thumbRequest = null;
+            await this.renderThumbnails(t);
+          }
         } catch (e) {
           this.deps.post({ type: 'engine:error', message: e instanceof Error ? e.message : String(e) });
         }
       }
     } finally {
       this.busy = false;
+    }
+  }
+
+  /**
+   * Implements: RULE-09 *Thumbnails*, F-008.R1 — the selected clip's RULE-09 frame (MOD-Plan
+   * `thumbnailPlan`) decoded once and painted with each loaded look at 100 on the thumbnail canvas, its
+   * shorter side `side` pixels in the project's frame; each picture is posted as it is drawn, so the gallery
+   * fills in. A newer request, a preview render waiting, or a source change stops this one.
+   */
+  private async renderThumbnails(req: ThumbRequest): Promise<void> {
+    const project = this.project;
+    const surface = this.deps.thumbnails;
+    if (!project || !surface) return;
+    const base = thumbnailPlan(project, req.clipId, req.t, null);
+    const layer = base?.layers[0];
+    if (!base || !layer) return;
+    const gen = this.gen;
+    const superseded = (): boolean => gen !== this.gen || this.thumbRequest !== null || this.project !== project;
+    let frame: PaintFrame | null;
+    if (layer.clip.kind === 'photo') frame = this.photoFrame(layer.clip.sourceId);
+    else {
+      const [slot] = await this.slotsFor(project, base.layers);
+      const r = slot
+        ? await this.decodeWithRetry(slot, layer.sourceTime, 'exact', undefined, false, layer.clip.sourceId, superseded)
+        : null;
+      const rotation = (await this.video(layer.clip.sourceId))?.rotation ?? 0;
+      frame = r?.frame ? this.paintFrame(r.frame, rotation) : null;
+      // The preview's decoder may have moved for the thumbnail: the next paint decodes its own frame again.
+      this.lastK = -1;
+    }
+    if (!frame || superseded()) return;
+    const aspect = frameAspect(project);
+    const side = Math.max(1, Math.round(req.side));
+    const width = Math.max(1, Math.round(aspect >= 1 ? side * aspect : side));
+    const height = Math.max(1, Math.round(aspect >= 1 ? side : side / aspect));
+    let thumbs = this.thumbs;
+    if (!thumbs || thumbs.comp.lost) {
+      thumbs?.comp.dispose();
+      const canvas = surface.canvas(width, height);
+      thumbs = { canvas, comp: this.deps.createCompositor(canvas, this.looks, { phone: this.deps.phone }) };
+      this.thumbs = thumbs;
+    }
+    if (thumbs.comp.width !== width || thumbs.comp.height !== height) thumbs.comp.resize(width, height);
+    for (const lookId of LOOK_IDS) {
+      if (!this.looks.has(lookId)) continue;
+      // A waiting preview render goes first; this request carries on after it unless replaced.
+      if (this.pending) await Promise.resolve();
+      if (superseded() || thumbs.comp.lost) return;
+      const plan = thumbnailPlan(project, req.clipId, req.t, lookId);
+      if (!plan) return;
+      thumbs.comp.paint(plan, [frame]);
+      const bitmap = surface.bitmap(thumbs.canvas);
+      this.deps.post(
+        { type: 'engine:lookThumbnail', ticket: req.ticket, clipId: req.clipId, lookId, bitmap },
+        [bitmap],
+      );
     }
   }
 
@@ -419,7 +512,7 @@ export class Engine {
   private paint(plan: FramePlan, frames: readonly (PaintFrame | null)[], exact: boolean): void {
     const comp = this.comp;
     if (!comp || comp.lost) return;
-    comp.paint(plan, frames, this.texts, { compare: this.compare });
+    comp.paint(plan, frames, this.texts, { compare: this.compare, lookPreview: this.lookPreview });
     if (this.overlay) comp.paintOverlay(this.overlay);
     this.counts.painted++;
     this.deps.post({ type: 'engine:frameShown', t: plan.time, frameIndex: plan.frameIndex, exact });
