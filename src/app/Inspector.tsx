@@ -16,7 +16,10 @@
 // row COPY-inspector.edit, since a lone tab is not wanted (build question 134). On compact layouts
 // (700–999 px) the panel has a resize grip on its left edge (COPY-inspector.resize; drag or the arrow keys,
 // from `size.inspector` up to 40 % of the tool's width) and no Close (build question 105, decided).
-// Implements: F-012.R1–R3 (the controls), F-012 UX notes, CMP-Inspector "Frame (nothing selected)" and
+// F-007: the Adjust tab (./AdjustSection.tsx: the rows scroll under a sticky footer). A video clip's tabs are
+// Edit, Adjust and Sound; a photo clip's Edit and Adjust (CMP-Inspector "photo clip"; build question 134 —
+// the plain title row is gone now that the photo has two tabs). Looks joins with F-008.
+// Implements: F-007 UX notes, CMP-Inspector "clip Adjust", F-012.R1–R3 (the controls), F-012 UX notes, CMP-Inspector "Frame (nothing selected)" and
 // "Accessibility" (tabs are a tablist named COPY-inspector.label; single-section panels use a heading;
 // option groups are radio groups; swatches carry colour names), F-005 UX notes, F-006 UX notes,
 // CMP-Inspector "clip Position" and "compact".
@@ -40,9 +43,9 @@ import { Icon } from './icons';
 import { OptionGroup, type Option } from './OptionGroup';
 import { placementTarget } from './placement';
 import { PositionSection } from './PositionSection';
+import { AdjustFooter, AdjustSection } from './AdjustSection';
 import { soundTarget } from './sound';
 import { SoundSection } from './SoundSection';
-import { speedTarget } from './speed';
 import { SpeedSection } from './SpeedSection';
 
 const aspectLabel = (a: Frame['aspect']): string => (a === 'original' ? t('frame.original') : a);
@@ -110,15 +113,24 @@ export function useKeepFocus(container: RefObject<HTMLElement>, fallback: RefObj
   }, [key]);
 }
 
-type ClipTab = 'edit' | 'sound';
+type ClipTab = 'edit' | 'adjust' | 'sound';
 
-/** The clip tab shown (UI state, not an edit: RULE-13). It stays when another clip is selected. */
+/** The clip tab chosen (UI state, not an edit: RULE-13). It stays when another clip is selected. */
 export const clipTab = signal<ClipTab>('edit');
 
-const CLIP_TABS: readonly { tab: ClipTab; label: 'inspector.edit' | 'inspector.sound' }[] = [
-  { tab: 'edit', label: 'inspector.edit' },
-  { tab: 'sound', label: 'inspector.sound' },
-];
+type TabLabel = 'inspector.edit' | 'inspector.adjust' | 'inspector.sound';
+const TAB_LABELS: Readonly<Record<ClipTab, TabLabel>> = {
+  edit: 'inspector.edit',
+  adjust: 'inspector.adjust',
+  sound: 'inspector.sound',
+};
+
+/**
+ * CMP-Inspector "Anatomy": a video clip's tabs Edit, Adjust, (Looks, F-008) and Sound; a photo clip's Edit,
+ * Adjust (and Looks) — no Sound (build question 134, now with tabs).
+ */
+const tabsOf = (kind: 'video' | 'photo'): readonly ClipTab[] =>
+  kind === 'video' ? ['edit', 'adjust', 'sound'] : ['edit', 'adjust'];
 
 const tabId = (tab: ClipTab): string => `tk-inspector-tab-${tab}`;
 const PANEL_ID = 'tk-inspector-panel';
@@ -127,17 +139,23 @@ const PANEL_ID = 'tk-inspector-panel';
  * CMP-Inspector "Accessibility": the clip tabs, a tablist named COPY-inspector.label (ARIA tabs pattern:
  * only the selected tab is in the Tab order; Left/Right, Home/End move and select, wrapping).
  */
-function ClipTabs({ selectedRef }: { readonly selectedRef: RefObject<HTMLButtonElement> }) {
-  const current = clipTab.value;
+function ClipTabs({
+  tabs,
+  current,
+  selectedRef,
+}: {
+  readonly tabs: readonly ClipTab[];
+  readonly current: ClipTab;
+  readonly selectedRef: RefObject<HTMLButtonElement>;
+}) {
   const pick = (i: number, list: HTMLElement | null): void => {
-    const n = CLIP_TABS.length;
-    const next = CLIP_TABS[(i + n) % n]!;
-    clipTab.value = next.tab;
+    const n = tabs.length;
+    clipTab.value = tabs[(i + n) % n]!;
     list?.querySelectorAll<HTMLElement>('[role="tab"]')[(i + n) % n]?.focus();
   };
   return (
     <div class="tk-inspector__tabs" role="tablist" aria-label={t('inspector.label')}>
-      {CLIP_TABS.map(({ tab, label }, i) => {
+      {tabs.map((tab, i) => {
         const on = tab === current;
         return (
           <button
@@ -162,14 +180,14 @@ function ClipTabs({ selectedRef }: { readonly selectedRef: RefObject<HTMLButtonE
                     : e.key === 'Home'
                       ? 0
                       : e.key === 'End'
-                        ? CLIP_TABS.length - 1
+                        ? tabs.length - 1
                         : null;
               if (to === null) return;
               e.preventDefault();
               pick(to, list);
             }}
           >
-            {t(label)}
+            {t(TAB_LABELS[tab])}
           </button>
         );
       })}
@@ -268,47 +286,57 @@ function ResizeGrip({ panel }: { readonly panel: RefObject<HTMLElement> }) {
 
 /**
  * CMP-Inspector on wide and compact layouts (hidden on narrow layouts by CSS). A selected video clip shows
- * the clip tabs (Edit with Position and Speed, F-006/F-005; Sound, F-011); a selected photo clip its Edit
- * section (Position) under a plain title row (build question 134); a selected audio clip the sound section
- * under a plain title row (COPY-inspector.sound, F-011); nothing selected, the frame.
+ * the clip tabs Edit (Position and Speed, F-006/F-005), Adjust (F-007) and Sound (F-011); a selected photo
+ * clip Edit (Position) and Adjust (build question 134); a selected audio clip the sound section under a
+ * plain title row (COPY-inspector.sound, F-011); nothing selected, the frame.
  */
 export function Inspector() {
   const frame = frameSectionShown.value;
-  const tabs = !frame && speedTarget.value !== null;
-  const photo = !frame && !tabs && placementTarget.value?.kind === 'photo';
-  const sound = !frame && !tabs && !photo && soundTarget.value !== null;
-  const tab = clipTab.value;
+  const clip = frame ? null : placementTarget.value;
+  const tabs = clip ? tabsOf(clip.kind) : null;
+  const sound = !frame && !tabs && soundTarget.value !== null;
+  // A tab the clip doesn't have (Sound on a photo) shows its Edit tab; the choice stays for the next video.
+  const tab: ClipTab = tabs?.includes(clipTab.value) ? clipTab.value : 'edit';
   const panel = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const selectedTab = useRef<HTMLButtonElement>(null);
-  const section = frame ? 'frame' : tabs ? `clip-${tab}` : photo ? 'photo-edit' : sound ? 'sound' : 'selection';
+  const section = frame ? 'frame' : tabs ? `clip-${tab}` : sound ? 'sound' : 'selection';
   useKeepFocus(panel, tabs ? selectedTab : heading, section);
   if (tabs)
     return (
       <aside ref={panel} class="tk-inspector" aria-label={t('inspector.label')} data-section={section}>
         <ResizeGrip panel={panel} />
         <header class="tk-inspector__head tk-inspector__head--tabs">
-          <ClipTabs selectedRef={selectedTab} />
+          <ClipTabs tabs={tabs} current={tab} selectedRef={selectedTab} />
         </header>
-        <div class="tk-inspector__body" role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(tab)}>
-          {tab === 'edit' ? (
-            <div class="tk-inspector__sections">
-              <PositionSection id="tk-inspector-place" />
-              <SpeedSection id="tk-inspector-speed" />
+        {tab === 'adjust' ? (
+          // The body scrolls under a sticky footer (CMP-Inspector "clip Adjust", style.md "Inspector body").
+          <div
+            class="tk-inspector__body tk-inspector__body--footed"
+            role="tabpanel"
+            id={PANEL_ID}
+            aria-labelledby={tabId(tab)}
+          >
+            <div class="tk-inspector__scroll">
+              <AdjustSection id="tk-inspector-adjust" />
             </div>
-          ) : (
-            <SoundSection id="tk-inspector-sound" />
-          )}
-        </div>
+            <AdjustFooter id="tk-inspector-adjust" />
+          </div>
+        ) : (
+          <div class="tk-inspector__body" role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(tab)}>
+            {tab === 'edit' ? (
+              <div class="tk-inspector__sections">
+                <PositionSection id="tk-inspector-place" />
+                <SpeedSection id="tk-inspector-speed" />
+              </div>
+            ) : (
+              <SoundSection id="tk-inspector-sound" />
+            )}
+          </div>
+        )}
       </aside>
     );
-  const title = frame
-    ? t('inspector.frame')
-    : photo
-      ? t('inspector.edit')
-      : sound
-        ? t('inspector.sound')
-        : t('inspector.label');
+  const title = frame ? t('inspector.frame') : sound ? t('inspector.sound') : t('inspector.label');
   return (
     <aside ref={panel} class="tk-inspector" aria-labelledby={HEAD_ID} data-section={section}>
       <ResizeGrip panel={panel} />
@@ -318,13 +346,7 @@ export function Inspector() {
         </h2>
       </header>
       <div class="tk-inspector__body">
-        {frame ? (
-          <FrameSection id="tk-inspector" />
-        ) : photo ? (
-          <PositionSection id="tk-inspector-place" />
-        ) : sound ? (
-          <SoundSection id="tk-inspector-sound" />
-        ) : null}
+        {frame ? <FrameSection id="tk-inspector" /> : sound ? <SoundSection id="tk-inspector-sound" /> : null}
       </div>
     </aside>
   );

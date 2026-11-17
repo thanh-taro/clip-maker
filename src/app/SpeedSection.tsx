@@ -10,54 +10,27 @@
 // typed values and clamp to the rule's range; quick speed sets the rule's quick values; RULE-03 stops
 // with COPY-notice.length_limited) and "Accessibility" (the speed choices are a radio group; the slider
 // and its field share the label Exact).
-import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
 import { RULE_06 } from '../core';
 import { NumberField } from './NumberField';
 import { OptionGroup, type Option } from './OptionGroup';
-import { beginSpeedDrag, QUICK_SPEEDS, setSpeedOnce, speedLabel, speedTarget, type SpeedDrag } from './speed';
+import { useSliderGesture } from './slider-gesture';
+import { beginSpeedDrag, QUICK_SPEEDS, setSpeedOnce, speedLabel, speedTarget } from './speed';
 
 export function SpeedSection({ id, touch = false }: { readonly id: string; readonly touch?: boolean }) {
   const target = speedTarget.value;
-  const drag = useRef<SpeedDrag | null>(null);
-  /** A pointer went down on the slider and has not been released: its moves are one movement. */
-  const held = useRef(false);
-  /**
-   * Ends the slider movement (one undo step). Also bound to the window's pointerup and pointercancel while
-   * a movement is open, so a release outside the slider ends it too (the F-011 volume slider's pattern).
-   */
-  const endDrag = useRef((): void => {
-    removeEventListener('pointerup', endDrag.current);
-    removeEventListener('pointercancel', endDrag.current);
-    held.current = false;
-    drag.current?.end();
-    drag.current = null;
+  // One slider movement is one step; leaving the section or another clip becoming the selection mid-drag
+  // ends it (./slider-gesture.ts).
+  const gesture = useSliderGesture({
+    key: target?.id ?? null,
+    value: target?.speedPct ?? RULE_06.defaultPct,
+    begin: () => beginSpeedDrag(target!.id, () => undefined),
+    step: (v) => setSpeedOnce(target!.id, v),
+    shown: () => speedTarget.peek()?.speedPct,
   });
-  // Leaving the section (deselecting, another tab, closing the sheet) or another clip becoming the selection
-  // mid-drag ends an open movement: its moves never reach the newly selected clip.
-  const targetId = target?.id ?? null;
-  /** The pointer that was dragging for the previous clip is still down: its moves are ignored until release. */
-  const orphan = useRef(false);
-  useEffect(
-    () => () => {
-      if (held.current) {
-        orphan.current = true;
-        const clear = (): void => {
-          orphan.current = false;
-          removeEventListener('pointerup', clear);
-          removeEventListener('pointercancel', clear);
-        };
-        addEventListener('pointerup', clear);
-        addEventListener('pointercancel', clear);
-      }
-      endDrag.current();
-    },
-    [targetId],
-  );
   if (!target) return null;
   const headId = `${id}-title`;
   const exactId = `${id}-exact`;
-  const end = endDrag.current;
   const options: Option<number>[] = QUICK_SPEEDS.map((pct) => ({
     value: pct,
     key: String(pct),
@@ -114,37 +87,7 @@ export function SpeedSection({ id, touch = false }: { readonly id: string; reado
           aria-labelledby={exactId}
           aria-valuetext={speedLabel(target.speedPct)}
           data-control="speed-slider"
-          onPointerDown={() => {
-            end();
-            orphan.current = false;
-            // A release anywhere (outside the slider or the page) ends the movement. No pointer capture:
-            // in WebKit a captured range input no longer drags its thumb.
-            addEventListener('pointerup', end);
-            addEventListener('pointercancel', end);
-            held.current = true;
-          }}
-          onInput={(e) => {
-            const v = Number(e.currentTarget.value);
-            if (orphan.current) {
-              e.currentTarget.value = String(target.speedPct);
-              return;
-            }
-            if (held.current) {
-              // The movement starts with its first move. Undo or redo mid-drag cut it (F-014 onCut): the
-              // slider is controlled, so it shows the restored speed, and the next move starts a new step.
-              if (!drag.current?.active) drag.current = beginSpeedDrag(target.id, () => undefined);
-              drag.current.set(v);
-            } else {
-              // A key on the slider: one step per key.
-              setSpeedOnce(target.id, v);
-            }
-            // Controlled: when a stop held the speed, the thumb goes back to the speed in effect.
-            e.currentTarget.value = String(speedTarget.peek()?.speedPct ?? v);
-          }}
-          onPointerUp={end}
-          onPointerCancel={end}
-          onBlur={end}
-          onChange={end}
+          {...gesture}
         />
         <span class="tk-speed__field">
           <NumberField

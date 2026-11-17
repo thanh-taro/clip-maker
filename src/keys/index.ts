@@ -2,8 +2,8 @@
 // Pure core: `scopeOf` says where focus is for a key, `resolveKey` maps a key event in that scope to an
 // action. MOD-App's binder executes actions. Built so far: the playback keys (F-002: Space, Left/Right
 // with Shift, Home/End), Esc, the arrange keys of F-003 (Delete/Backspace, Mod+D, Alt+Left/Right), the
-// history keys of F-014 (Mod+Z, Mod+Shift+Z, Ctrl+Y), M (F-011) and the trim keys of F-004 (S or Mod+B,
-// I, O); the other edit, view, file and help keys come with their features and F-017.
+// history keys of F-014 (Mod+Z, Mod+Shift+Z, Ctrl+Y), M (F-011), the trim keys of F-004 (S or Mod+B,
+// I, O) and F-007's Mod+C / Mod+V (copy and paste colour) and hold \ (compare); the other edit, view, file and help keys come with their features and F-017.
 // Implements: RULE-20 Scope, Playback, Edit (delete, duplicate, move) and History, F-017.R5 (a focused
 // control that uses a key gets it), F-003.R6, F-014.R1.
 
@@ -38,6 +38,11 @@ export type Action =
   /** I / O: start / end the selected item here (RULE-20; F-004.R6). */
   | 'set-in'
   | 'set-out'
+  /** Mod+C / Mod+V: copy / paste the selected clip's adjustments and look (RULE-20; F-007.R4). */
+  | 'copy-colour'
+  | 'paste-colour'
+  /** Hold \: compare (RULE-08; F-007.R7). Released on key-up (MOD-App's binder). */
+  | 'compare'
   /** Mod+Z: undo (F-014.R1). */
   | 'undo'
   /** Mod+Shift+Z or Ctrl+Y: redo (F-014.R1). */
@@ -165,5 +170,9 @@ function editKey(
   if (code === 'KeyB' && mod && !altKey && !shiftKey) return 'split';
   if (code === 'KeyI' && plain && !shiftKey) return 'set-in';
   if (code === 'KeyO' && plain && !shiftKey) return 'set-out';
+  // RULE-20: Mod+C / Mod+V copy and paste a clip's adjustments and look; hold \ to compare (F-007).
+  if (code === 'KeyC' && mod && !altKey && !shiftKey) return 'copy-colour';
+  if (code === 'KeyV' && mod && !altKey && !shiftKey) return 'paste-colour';
+  if (code === 'Backslash' && plain && !shiftKey) return 'compare';
   return undefined;
 }

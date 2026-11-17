@@ -8,11 +8,16 @@
 // time, COPY-time.position with the frame suffix, D-039), F-002.R7 (full screen / maximised), RULE-20
 // playback keys (bound while the editor is mounted), RULE-21 (frame step and play stand in for scrub).
 // F-006: the selected clip's placement outline and handles over the frame (./PlacementOverlay.tsx).
+// F-007: while compare is held, the frame shows the clip without adjustments and look (MOD-Preview
+// `setCompare`) and the pill COPY-preview.comparing sits in the top-left corner (CMP-Preview "holding
+// compare"); the F-007 keys (Mod+C, Mod+V, hold \) are bound while the editor is mounted. Implements:
+// F-007.R7, F-007.AC9, RULE-08 *Compare*, RULE-20.
 import { computed, effect, signal } from '@preact/signals';
 import type { Ref } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, formatTimecode, t } from '../copy';
 import { isEmpty, project } from '../project';
+import { bindAdjustKeys, comparing } from './adjust';
 import { EmptyState } from './EmptyState';
 import { Icon, type IconName } from './icons';
 import { Notices } from './NoticeStack';
@@ -172,6 +177,7 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
   const exitRef = useRef<HTMLButtonElement>(null);
   const ready = workersReady.value.includes('engine') && workersReady.value.includes('audio');
   const mode = fsMode.value;
+  const holding = comparing.value !== null;
 
   // The preview mounts once the engine and audio workers answer; SCR-Unsupported stops them (unmount).
   useEffect(() => {
@@ -182,6 +188,9 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
   }, [ready]);
 
   useEffect(() => bindPlaybackKeys(), []);
+  // F-007: Mod+C / Mod+V / hold \ (RULE-20), and the compare hold sent to MOD-Preview (RULE-08).
+  useEffect(() => bindAdjustKeys(), []);
+  useEffect(() => effect(() => playback.value?.ctl.setCompare(comparing.value)), []);
 
   // Announce the time when playback stops (CMP-Preview accessibility).
   useEffect(() => {
@@ -250,6 +259,15 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
       <div class="tk-stage" ref={stageRef}>
         <div class="tk-frame" ref={frameRef} role="img" aria-label={frameLabel} data-empty={empty ? '' : undefined} />
         {empty ? null : <PlacementOverlay stage={stageRef} />}
+        {/* CMP-Preview "holding compare": a quiet pill, a status message (CMP-Preview "Accessibility"). */}
+        <p class="tk-preview-pill" role="status" data-shown={holding ? '' : undefined}>
+          {holding ? (
+            <>
+              <Icon name="compare" size={14} />
+              {t('preview.comparing')}
+            </>
+          ) : null}
+        </p>
         {empty ? <EmptyState addRef={addRef} /> : null}
         {mode !== 'off' ? <FullscreenBar exitRef={exitRef} /> : null}
         <Notices />

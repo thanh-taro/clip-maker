@@ -80,6 +80,11 @@ export interface ExportJob {
   readonly audio: MessagePort | null;
   /** The sound feed to the export-audio worker: this worker reads the sources' sound (null without sound). */
   readonly soundFeed?: MessagePort | null;
+  /**
+   * Test hook (F-007.AC8, INV-02): the project frame whose composed picture (RGBA, top-down, before
+   * encoding) the worker posts as `export:tap`. The app never sets it.
+   */
+  readonly tapFrame?: number;
 }
 
 /** Why an export stopped. `kind` decides the message: interrupted/failed/no_space (main side). */
@@ -127,6 +132,14 @@ export type FromExport =
   | { readonly type: 'export:progress'; readonly done: number; readonly total: number }
   /** Liveness during phases without frame progress (waiting for the sound, replay, index). */
   | { readonly type: 'export:alive' }
+  /** Test hook: the composed picture of `job.tapFrame` before encoding (RGBA, top-down). */
+  | {
+      readonly type: 'export:tap';
+      readonly frame: number;
+      readonly width: number;
+      readonly height: number;
+      readonly rgba: Uint8Array;
+    }
   | {
       readonly type: 'export:done';
       readonly bytes: number;

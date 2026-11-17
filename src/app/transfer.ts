@@ -47,3 +47,9 @@ export function pasteTargetsField(target: EventTarget | null): boolean {
   if (el.tagName === 'TEXTAREA') return true;
   return el.tagName === 'INPUT' && !['file', 'button', 'checkbox', 'radio', 'range', 'submit'].includes(el.type ?? '');
 }
+
+/**
+ * RULE-20 Mod+V: how many pastes have brought files so far. The F-007 key binder (./adjust.ts) pastes the
+ * copied colour only when its key's own `paste` event brought none (files are added as media instead).
+ */
+export const pastes = { files: 0 };

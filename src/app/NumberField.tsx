@@ -20,7 +20,8 @@ export interface NumberFieldProps {
   readonly fractionDigits?: number;
   /** Always show `fractionDigits` decimals (the speed field reads `2.00`, CMP-Inspector "clip Speed"). */
   readonly fixedDigits?: boolean;
-  /**
+  /** Show a plus sign on positive values (F-007's bipolar adjustments read "+12"). */
+  readonly signed?: boolean; /**
    * Called once per commit with the typed value, clamped to min–max, only when it differs from `value`.
    * Returns the value now in effect (the rule may round it), which the field then shows.
    */
@@ -41,20 +42,23 @@ export function NumberField(props: NumberFieldProps) {
   const latest = useRef(props);
   latest.current = props;
   const show = (v: number): void => {
-    if (ref.current)
-      ref.current.value = formatField(
-        v,
-        language.peek(),
-        latest.current.fractionDigits ?? 0,
-        latest.current.fixedDigits === true,
-      );
+    if (!ref.current) return;
+    const signed = latest.current.signed === true;
+    const text = formatField(
+      signed ? Math.abs(v) : v,
+      language.peek(),
+      latest.current.fractionDigits ?? 0,
+      latest.current.fixedDigits === true,
+    );
+    // A signed field reads "+12" and "−8" (U+2212, board CMP-Inspector "clip Adjust"); both read back.
+    ref.current.value = !signed || v === 0 ? text : v < 0 ? `−${text}` : `+${text}`;
   };
 
   // Uncontrolled: a re-render while the user types never overwrites the text; a new value or language
   // from elsewhere (the slider, undo, a language switch) is shown when the field is not being edited.
   useLayoutEffect(() => {
     if (!editing.current) show(value);
-  }, [value, lang, fractionDigits, props.fixedDigits]);
+  }, [value, lang, fractionDigits, props.fixedDigits, props.signed]);
 
   const commitValue = (typed: number): void => {
     editing.current = false;
@@ -79,7 +83,8 @@ export function NumberField(props: NumberFieldProps) {
     <input
       ref={ref}
       type="text"
-      inputMode="decimal"
+      // iOS's decimal keypad has no minus key: a signed field (F-007's bipolar adjustments) gets the text keyboard.
+      inputMode={props.signed === true ? 'text' : 'decimal'}
       role="spinbutton"
       autoComplete="off"
       spellcheck={false}

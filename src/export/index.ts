@@ -203,6 +203,14 @@ export interface ExportContext {
   readonly save?: (blob: Blob, fileName: string) => string;
   readonly setInterval?: (f: () => void, ms: number) => unknown;
   readonly clearInterval?: (id: unknown) => void;
+  /**
+   * Test hook (F-007.AC8, INV-02): receives the export worker's composed picture of project frame
+   * `tap.frame` before encoding. The app never sets it.
+   */
+  readonly tap?: {
+    readonly frame: number;
+    readonly onFrame: (width: number, height: number, rgba: Uint8Array) => void;
+  };
 }
 
 export interface VisibilitySource {
@@ -588,6 +596,7 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
     if (settled || handing) return;
     if (m.type === 'export:progress' && out.kind !== 'audio') progress(m.done, m.total);
     else if (m.type === 'export:progress' || m.type === 'export:alive') alive();
+    else if (m.type === 'export:tap') ctx.tap?.onFrame(m.width, m.height, m.rgba);
     else if (m.type === 'export:failed') fail(m.error.kind, m.error.message);
     else if (m.type === 'export:done') void handOver(m.blob, m.bytes, m.stats, m.trim);
   });
@@ -679,6 +688,7 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
           : { kind: 'memory' },
         audio: channel ? channel.port1 : null,
         soundFeed: feed && audioCodec ? feed.port1 : null,
+        ...(ctx.tap ? { tapFrame: ctx.tap.frame } : {}),
       },
     } satisfies ToExport,
     [...(channel ? [channel.port1] : []), ...(feed && audioCodec ? [feed.port1] : [])],

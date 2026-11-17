@@ -27,12 +27,22 @@
 // page before it loads (the presence check and the codec probe run on the main thread).
 import '../../src/app/styles/index.css';
 import { truePeak } from '../../src/audio';
+import { LUT_BYTES, LUT_N } from '../../src/compositor';
 import { nextItemId, queued } from '../../src/app/adding';
 import { main } from '../../src/app/app';
 import { browserDevice, type DeviceDeps, type EffectsRun } from '../../src/app/device';
 import { playback } from '../../src/app/playback';
 import { workers } from '../../src/app/workers';
-import { frameStart, layoutOf, type Frame, type FromEngine, type Placement, type Project } from '../../src/core';
+import {
+  frameStart,
+  layoutOf,
+  type Adjustments,
+  type Frame,
+  type FromEngine,
+  type Placement,
+  type Project,
+  type ToEngine,
+} from '../../src/core';
 import {
   addText,
   beginGesture,
@@ -75,6 +85,8 @@ export interface ClipSummary {
   readonly selected: boolean;
   /** F-006: the clip's placement (RULE-07). */
   readonly placement: Placement;
+  /** F-007: the clip's adjustments (RULE-08; values at their default are not stored). */
+  readonly adjustments: Adjustments;
 }
 
 /** Settings the editor has no control for yet (F-004 photo length, F-005 speed, F-008 look, F-009 cross-fade). */
@@ -98,6 +110,13 @@ declare global {
       frames(): number[];
       /** A W × H PNG, left half red and right half blue. */
       halves(width: number, height: number): Promise<number[]>;
+      /**
+       * F-007: gives the engine worker a look table `id` that turns every colour grey (Rec. 709 luma), so a
+       * look shows in the preview before F-008 loads the bundled tables.
+       */
+      greyLook(id: string): void;
+      /** F-007: a W × H PNG of equal vertical stripes in these colours. */
+      stripes(width: number, height: number, colours: readonly (readonly number[])[]): Promise<number[]>;
       /** A frame-coded H.264 (or VP8) clip at `rate` fps (tests/harness/video.ts). */
       codedClip(rate: number, frames: number): Promise<number[]>;
       /** RGB of a PNG screenshot (base64) at fractional points. */
@@ -276,6 +295,7 @@ function clipsSummary(): ClipSummary[] {
     look: c.look?.id ?? null,
     selected: selection.value.includes(c.id),
     placement: c.placement,
+    adjustments: c.adjustments,
   }));
 }
 
@@ -374,6 +394,19 @@ async function halves(width: number, height: number): Promise<number[]> {
   return Array.from(new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer()));
 }
 
+/** F-007: a W × H PNG of equal vertical stripes in these colours (RGB 0–255), left to right. */
+async function stripes(width: number, height: number, colours: readonly (readonly number[])[]): Promise<number[]> {
+  const c = new OffscreenCanvas(width, height);
+  const g = c.getContext('2d')!;
+  colours.forEach(([r, gr, b], i) => {
+    const x0 = Math.round((i * width) / colours.length);
+    const x1 = Math.round(((i + 1) * width) / colours.length);
+    g.fillStyle = `rgb(${r},${gr},${b})`;
+    g.fillRect(x0, 0, x1 - x0, height);
+  });
+  return Array.from(new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer()));
+}
+
 /** RGB (0–255) of a PNG (a Playwright screenshot, base64) at points given as fractions of its size. */
 async function pixels(
   png: string,
@@ -400,6 +433,22 @@ window.appHarness = {
   },
   frames: () => layoutOf(project.peek()).spans.map((s) => s.frames),
   halves,
+  stripes,
+  greyLook(id) {
+    const n = LUT_N;
+    const table = new Uint8Array(LUT_BYTES);
+    for (let b = 0; b < n; b++)
+      for (let g = 0; g < n; g++)
+        for (let r = 0; r < n; r++) {
+          const y = Math.round(((0.2126 * r + 0.7152 * g + 0.0722 * b) * 255) / (n - 1));
+          const i = ((b * n + g) * n + r) * 4;
+          table[i] = y;
+          table[i + 1] = y;
+          table[i + 2] = y;
+          table[i + 3] = 255;
+        }
+    workers.get('engine')?.postMessage({ type: 'engine:looks', tables: { [id]: table } } satisfies ToEngine);
+  },
   async codedClip(rate, frames) {
     return Array.from(new Uint8Array(await (await makeClip({ rate, frames, gop: rate })).arrayBuffer()));
   },

@@ -449,10 +449,21 @@ async function videoExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
           : Promise.resolve();
         soundIn.catch(() => undefined);
         const pass = await Promise.race([
-          encodePass(job, v, bitrate, comp, canvas, texts, mux, stats, () => {
-            doneFrames++;
-            progress();
-          }),
+          encodePass(
+            job,
+            v,
+            bitrate,
+            comp,
+            canvas,
+            texts,
+            mux,
+            stats,
+            () => {
+              doneFrames++;
+              progress();
+            },
+            deps.post,
+          ),
           ...(sound ? [sound.watchdog] : []),
         ]);
         // Phases without frame progress post liveness beats (ADR-0010 outcome item 10).
@@ -509,6 +520,8 @@ async function encodePass(
   mux: LateAudioMux,
   stats: { wrapMs: number; paintMs: number; decodeMs: number; encodeWaitMs: number; gap: number; restarts: number },
   onFrame: () => void,
+  /** The worker's channel (the `job.tapFrame` test hook posts on it). */
+  post?: PipelineDeps['post'],
 ): Promise<{ videoBytes: number }> {
   const frames = projectFrames(job.project);
   let source = new FrameSource(job.media);
@@ -527,6 +540,11 @@ async function encodePass(
         const pictures = await source.frames(plan);
         let t = performance.now();
         paintFrame(comp, plan, pictures, texts);
+        if (job.tapFrame === k) {
+          // Test hook (F-007.AC8): the composed picture before it is wrapped and encoded.
+          const rgba = comp.readPixels();
+          post?.({ type: 'export:tap', frame: k, width: canvas.width, height: canvas.height, rgba }, [rgba.buffer]);
+        }
         const t2 = performance.now();
         stats.paintMs += t2 - t;
         const f = scheduledFrame(k, v.rate);

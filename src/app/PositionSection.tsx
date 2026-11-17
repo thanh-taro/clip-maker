@@ -14,11 +14,11 @@
 // "Accessibility" (Fit/Fill is a radio group; the flips expose a pressed state; the slider and its field
 // share the label Scale), RULE-21 (preview drag and pinch → these placement controls).
 import type { JSX } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
 import { t } from '../copy';
 import { RULE_07, type Placement } from '../core';
 import { Icon, type IconName } from './icons';
 import { NumberField } from './NumberField';
+import { useSliderGesture } from './slider-gesture';
 import { OptionGroup, type Option } from './OptionGroup';
 import {
   beginPlacementDrag,
@@ -30,7 +30,6 @@ import {
   rotateClip,
   setPlacementOnce,
   type NudgeDirection,
-  type PlacementDrag,
 } from './placement';
 
 const NUDGES: readonly { dir: NudgeDirection; icon: IconName; label: `placement.nudge_${NudgeDirection}` }[] = [
@@ -81,36 +80,22 @@ function IconButton({
 
 /** The Scale slider: keys are one step each; one pointer movement is one step (F-014 gesture, Q104). */
 function ScaleSlider({ id, scale, labelledBy }: { id: string; scale: number; labelledBy: string }) {
-  const drag = useRef<PlacementDrag | null>(null);
-  const held = useRef(false);
-  /** Ends the movement; also bound to the window's pointerup / pointercancel while one is open. */
-  const endDrag = useRef((): void => {
-    removeEventListener('pointerup', endDrag.current);
-    removeEventListener('pointercancel', endDrag.current);
-    held.current = false;
-    drag.current?.end();
-    drag.current = null;
-  });
-  // Another clip becoming the selection mid-drag ends the movement: its moves never reach that clip. The
-  // pointer still down for the previous clip is ignored until it is released.
-  const orphan = useRef(false);
-  useEffect(
-    () => () => {
-      if (held.current) {
-        orphan.current = true;
-        const clear = (): void => {
-          orphan.current = false;
-          removeEventListener('pointerup', clear);
-          removeEventListener('pointercancel', clear);
-        };
-        addEventListener('pointerup', clear);
-        addEventListener('pointercancel', clear);
-      }
-      endDrag.current();
+  const gesture = useSliderGesture({
+    key: id,
+    value: scale,
+    begin: () => {
+      const d = beginPlacementDrag(id, () => undefined);
+      return {
+        set: (v) => d.set({ scale: v }),
+        end: () => d.end(),
+        get active() {
+          return d.active;
+        },
+      };
     },
-    [id],
-  );
-  const end = endDrag.current;
+    step: (v) => setPlacementOnce(id, { scale: v }),
+    shown: () => placementTarget.peek()?.placement.scale,
+  });
   return (
     <input
       type="range"
@@ -122,33 +107,7 @@ function ScaleSlider({ id, scale, labelledBy }: { id: string; scale: number; lab
       aria-labelledby={labelledBy}
       aria-valuetext={`${scale} %`}
       data-control="scale-slider"
-      onPointerDown={() => {
-        end();
-        orphan.current = false;
-        // A release anywhere ends the movement. No pointer capture: in WebKit a captured range input no
-        // longer drags its thumb.
-        addEventListener('pointerup', end);
-        addEventListener('pointercancel', end);
-        held.current = true;
-      }}
-      onInput={(e) => {
-        const v = Number(e.currentTarget.value);
-        if (orphan.current) {
-          e.currentTarget.value = String(scale);
-          return;
-        }
-        if (held.current) {
-          if (!drag.current?.active) drag.current = beginPlacementDrag(id, () => undefined);
-          drag.current.set({ scale: v });
-        } else {
-          setPlacementOnce(id, { scale: v });
-        }
-        e.currentTarget.value = String(placementTarget.peek()?.placement.scale ?? v);
-      }}
-      onPointerUp={end}
-      onPointerCancel={end}
-      onBlur={end}
-      onChange={end}
+      {...gesture}
     />
   );
 }

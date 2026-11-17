@@ -18,7 +18,10 @@
 // and the six quick segments, then the Exact slider and field at touch size (the fine control, F-005.R1).
 // F-006: with a video or photo clip selected, the placement rows come first, as in the inspector: the Position row (label on the left, Fit/Fill, the four
 // nudges), the Scale slider row, then Rotate, the flips and Reset at touch size (build question 135); then Speed.
-// Implements: F-003.R6 (visible controls on touch), F-003.AC5, RULE-21 (move-earlier/later stand in for
+// F-007: the Adjust tab (COPY-inspector.adjust, last in the bar as style.md orders it) and its sheet
+// (`AdjustSheet`); the tab is unavailable unless a video or photo clip is selected (board SCR-Editor default
+// narrow), and the sheet closes when the selection stops being one.
+// Implements: F-007 UX notes on narrow layouts, F-003.R6 (visible controls on touch), F-003.AC5, RULE-21 (move-earlier/later stand in for
 // hold-and-drag; start-here and end-here stand in for the trim drag; touch-size targets), F-004.R2/R6,
 // F-011.R1/R3/R4/R8 on narrow layouts, CMP-MusicPicker "narrow".
 import { effect, signal } from '@preact/signals';
@@ -27,6 +30,8 @@ import { formatDuration, t } from '../copy';
 import { layoutOf, frameStart } from '../core';
 import { project } from '../project';
 import { MUSIC_TRACKS } from '../core';
+import { adjustTarget } from './adjust';
+import { AdjustFooter, AdjustSection } from './AdjustSection';
 import { selectedAudio, selectedClip } from './arrange';
 import { Icon } from './icons';
 import { frameSectionShown } from './frame';
@@ -41,7 +46,7 @@ import { placementTarget } from './placement';
 import { PositionSection } from './PositionSection';
 import { ARRANGE_ITEMS, TRIM_ITEMS } from './Timeline';
 
-type Sheet = 'edit' | 'audio';
+type Sheet = 'edit' | 'audio' | 'adjust';
 
 /** The open sheet of the narrow tab bar (null: none, the default). */
 export const openSheet = signal<Sheet | null>(null);
@@ -51,6 +56,16 @@ effect(() => {
   if (openSheet.value !== 'audio') stopPreview();
 });
 
+// The Adjust sheet acts on the selected video or photo clip: when there is none any more (deselected,
+// deleted, an audio clip selected), the sheet closes (its tab is then unavailable, SCR-Editor default narrow).
+effect(() => {
+  if (openSheet.value !== 'adjust' || adjustTarget.value !== null) return;
+  // Focus inside the closing sheet goes back to its tab, not to the page.
+  const inSheet = document.getElementById(ADJUST_SHEET_ID)?.contains(document.activeElement) ?? false;
+  openSheet.value = null;
+  if (inSheet) document.getElementById(ADJUST_TAB_ID)?.focus();
+});
+
 const TAB_ID = 'tk-tab-edit';
 const SHEET_ID = 'tk-sheet-edit';
 const AUDIO_TAB_ID = 'tk-tab-audio';
@@ -58,16 +73,29 @@ const AUDIO_SHEET_ID = 'tk-sheet-audio';
 const AUDIO_TITLE_ID = 'tk-sheet-audio-title';
 const FRAME_HEAD_ID = 'tk-sheet-frame-title';
 const SOUND_HEAD_ID = 'tk-sheet-sound-title';
+const ADJUST_TAB_ID = 'tk-tab-adjust';
+const ADJUST_SHEET_ID = 'tk-sheet-adjust';
 
+/** The tab bar's tabs in style.md order (Edit, Audio, Text, Looks, Adjust; Text and Looks join with F-010/F-008). */
 const TABS: readonly {
   sheet: Sheet;
   id: string;
   panel: string;
-  icon: 'edit' | 'music';
-  label: 'inspector.edit' | 'tab.audio';
+  icon: 'edit' | 'music' | 'adjust';
+  label: 'inspector.edit' | 'tab.audio' | 'inspector.adjust';
+  /** The tab can open its sheet now (SCR-Editor default narrow: Adjust needs a video or photo clip). */
+  available: () => boolean;
 }[] = [
-  { sheet: 'edit', id: TAB_ID, panel: SHEET_ID, icon: 'edit', label: 'inspector.edit' },
-  { sheet: 'audio', id: AUDIO_TAB_ID, panel: AUDIO_SHEET_ID, icon: 'music', label: 'tab.audio' },
+  { sheet: 'edit', id: TAB_ID, panel: SHEET_ID, icon: 'edit', label: 'inspector.edit', available: () => true },
+  { sheet: 'audio', id: AUDIO_TAB_ID, panel: AUDIO_SHEET_ID, icon: 'music', label: 'tab.audio', available: () => true },
+  {
+    sheet: 'adjust',
+    id: ADJUST_TAB_ID,
+    panel: ADJUST_SHEET_ID,
+    icon: 'adjust',
+    label: 'inspector.adjust',
+    available: () => adjustTarget.value !== null,
+  },
 ];
 
 /** The phone tab bar (D-038). Hidden on wide and compact layouts (CSS). */
@@ -77,6 +105,7 @@ export function TabBar() {
       <div class="tk-tabbar__tabs" role="tablist">
         {TABS.map((tab) => {
           const open = openSheet.value === tab.sheet;
+          const available = tab.available();
           return (
             <button
               key={tab.sheet}
@@ -86,7 +115,11 @@ export function TabBar() {
               role="tab"
               aria-selected={open ? 'true' : 'false'}
               aria-controls={open ? tab.panel : undefined}
-              onClick={() => (openSheet.value = open ? null : tab.sheet)}
+              aria-disabled={available ? undefined : 'true'}
+              onClick={() => {
+                if (open) openSheet.value = null;
+                else if (tab.available()) openSheet.value = tab.sheet;
+              }}
             >
               <Icon name={tab.icon} size={20} />
               <span>{t(tab.label)}</span>
@@ -267,6 +300,34 @@ export function AudioSheet() {
           <MusicBody touch titleId={AUDIO_TITLE_ID} />
         </div>
       </div>
+    </section>
+  );
+}
+
+/**
+ * The Adjust sheet (style.md "Layouts" narrow: the 12 adjustments, Hold to compare, Apply to all and
+ * copy/paste colour; CMP-Inspector "narrow sheets"): grabber, the Adjust rows at touch size under the title
+ * Adjust with Reset all, and a sticky footer of one touch-size row — Hold to compare (fills the row), Apply
+ * to all clips, and More with Copy colour and Paste colour. Only while a video or photo clip is selected.
+ */
+export function AdjustSheet() {
+  const open = openSheet.value === 'adjust';
+  const ref = useRef<HTMLElement>(null);
+  useSheetEsc(open, ref, ADJUST_TAB_ID);
+  if (!open || !adjustTarget.value) return null;
+  return (
+    <section
+      ref={ref}
+      id={ADJUST_SHEET_ID}
+      class="tk-sheet tk-sheet--adjust"
+      role="tabpanel"
+      aria-labelledby={ADJUST_TAB_ID}
+    >
+      <span class="tk-sheet__grabber" aria-hidden="true" />
+      <div class="tk-sheet__body">
+        <AdjustSection id="tk-sheet-adjust" touch />
+      </div>
+      <AdjustFooter id="tk-sheet-adjust" touch />
     </section>
   );
 }
