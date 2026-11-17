@@ -234,16 +234,29 @@ describe('MOD-Preview playback (F-002.R2)', () => {
     const got: string[] = [];
     let closed = 0;
     const bitmap = () => ({ close: () => closed++ }) as unknown as ImageBitmap;
-    r.ctl.lookThumbnails('a', 0, 96, (id) => got.push(`1:${id}`));
-    const stop = r.ctl.lookThumbnails('a', 5, 96, (id) => got.push(`2:${id}`));
+    const size = { width: 96, height: 48 };
+    const ended: boolean[] = [];
+    r.ctl.lookThumbnails('a', 0, size, (id) => got.push(`1:${id}`));
+    const stop = r.ctl.lookThumbnails(
+      'a',
+      5,
+      size,
+      (id) => got.push(`2:${id}`),
+      (complete) => ended.push(complete),
+    );
     const [first, second] = r.of('engine:lookThumbnails');
-    expect([first!.t, second!.t, second!.side]).toEqual([0, 5, 96]);
+    expect([first!.t, second!.t, second!.width, second!.height]).toEqual([0, 5, 96, 48]);
+    r.emit({ type: 'engine:lookThumbnailsDone', ticket: first!.ticket, complete: true });
+    r.emit({ type: 'engine:lookThumbnailsDone', ticket: second!.ticket, complete: false });
+    expect(ended).toEqual([false]);
     r.emit({ type: 'engine:lookThumbnail', ticket: first!.ticket, clipId: 'a', lookId: 'bw-soft', bitmap: bitmap() });
     r.emit({ type: 'engine:lookThumbnail', ticket: second!.ticket, clipId: 'a', lookId: 'bw-high', bitmap: bitmap() });
     stop();
     r.emit({ type: 'engine:lookThumbnail', ticket: second!.ticket, clipId: 'a', lookId: 'bw-sepia', bitmap: bitmap() });
     expect(got).toEqual(['2:bw-high']);
     expect(closed).toBe(2);
+    r.ctl.releaseThumbnails();
+    expect(r.of('engine:releaseThumbnails')).toHaveLength(1);
   });
 
   it('MOD-Preview a shorter project pulls the playhead in', () => {

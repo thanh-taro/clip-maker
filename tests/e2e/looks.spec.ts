@@ -57,6 +57,8 @@ interface Harness {
     state(): string;
     stripes(width: number, height: number, colours: readonly (readonly number[])[]): Promise<number[]>;
     pixels(png: string, points: readonly Point[]): Promise<{ width: number; height: number; at: number[][] }>;
+    codedClip(rate: number, frames: number): Promise<number[]>;
+    setPlayhead(seconds: number): void;
   };
 }
 const clipsOf = (page: Page) => page.evaluate(() => (window as unknown as Harness).appHarness.clips());
@@ -179,10 +181,18 @@ async function shot(page: Page, name: string, browserName: string, target?: Loca
 }
 
 /** Opens the app at 1280 px with a flat MUTED photo, selects it and opens its Looks tab. */
-async function setUp(page: Page, lang: Language = 'en-US'): Promise<Locator> {
+async function setUp(
+  page: Page,
+  lang: Language = 'en-US',
+  more: readonly (readonly number[])[] = [],
+): Promise<Locator> {
   await page.setViewportSize({ width: 1280, height: 800 });
   await open(page, lang);
-  await add(page, [await photo(page, 'p1.png', MUTED)], lang);
+  await add(
+    page,
+    [await photo(page, 'p1.png', MUTED), ...(await Promise.all(more.map((c, i) => photo(page, `p${i + 2}.png`, c))))],
+    lang,
+  );
   await clipButton(page, 'p1.png', lang).click();
   await tabs(page, lang)
     .getByRole('tab', { name: text(lang, 'looks.title'), exact: true })
@@ -352,7 +362,7 @@ test.describe('F-008 apply a look (app harness)', () => {
   test('CMP-LookGallery the group control switches the visible looks; the chosen look stays chosen across groups; the group shown follows it', async ({
     page,
   }) => {
-    const g = await setUp(page);
+    const g = await setUp(page, 'en-US', [[90, 120, 150]]);
     await tile(g, 'natural-cool').click();
     await groupPill(g, 'Film').click();
     await expect(tiles(g).getByRole('radio', { checked: true })).toHaveCount(0);
@@ -363,7 +373,89 @@ test.describe('F-008 apply a look (app harness)', () => {
     await page.keyboard.press('ArrowRight');
     await expect(groupPill(g, 'Film')).toBeFocused();
     await expect(groupPill(g, 'Film')).toHaveAttribute('aria-selected', 'true');
-    expect(await madeSince(page)).toBe(1);
+    // Another clip: the group picked for p1 is not kept; p2 has no look, so Natural shows.
+    await clipButton(page, 'p2.png').click();
+    await expect(groupPill(g, 'Natural')).toHaveAttribute('aria-selected', 'true');
+    await expect(tile(g, null)).toHaveAttribute('aria-checked', 'true');
+    await groupPill(g, 'Cinematic').click();
+    await tile(g, 'cine-moody').click();
+    // Back on p1: its chosen look's group (Natural); on p2 again: Cinematic, its chosen look's.
+    await clipButton(page, 'p1.png').click();
+    await expect(groupPill(g, 'Natural')).toHaveAttribute('aria-selected', 'true');
+    await expect(tile(g, 'natural-cool')).toHaveAttribute('aria-checked', 'true');
+    await clipButton(page, 'p2.png').click();
+    await expect(groupPill(g, 'Cinematic')).toHaveAttribute('aria-selected', 'true');
+    await expect(tile(g, 'cine-moody')).toHaveAttribute('aria-checked', 'true');
+    expect(await madeSince(page)).toBe(2);
+  });
+
+  test('F-008.R1 choosing a look while the thumbnails are being drawn: every tile of every group is drawn', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    await add(page, [await photo(page, 'p1.png', MUTED)]);
+    await clipButton(page, 'p1.png').click();
+    await tabs(page)
+      .getByRole('tab', { name: text('en-US', 'looks.title'), exact: true })
+      .click();
+    const g = gallery(inspector(page));
+    // Choose at once, while the first thumbnails are on their way.
+    await tile(g, 'natural-warm').click();
+    for (const group of LOOK_GROUPS) {
+      await groupPill(g, group).click();
+      await expect(tiles(g).locator('canvas[data-drawn]')).toHaveCount(4, { timeout: 20_000 });
+    }
+    // An adjustment changes what they show: they are drawn again, with it.
+    await tabs(page)
+      .getByRole('tab', { name: text('en-US', 'inspector.adjust') })
+      .click();
+    const b = inspector(page).getByRole('group', { name: text('en-US', 'adjust.brightness'), exact: true });
+    await b.getByRole('spinbutton').fill('40');
+    await b.getByRole('spinbutton').press('Enter');
+    await tabs(page)
+      .getByRole('tab', { name: text('en-US', 'looks.title'), exact: true })
+      .click();
+    await groupPill(g, 'Film').click();
+    await expect
+      .poll(async () => dE(await thumbCentre(tile(g, 'film-faded')), graded(MUTED, { brightness: 40 }, 'film-faded')), {
+        timeout: 20_000,
+      })
+      .toBeLessThan(2.5);
+  });
+
+  test('F-008.AC1 RULE-09 on a video clip the thumbnails show the playhead frame when the playhead is inside the clip, else the first frame', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    const bytes = await page.evaluate(() => (window as unknown as Harness).appHarness.codedClip(30, 60));
+    await add(page, [{ name: 'coded.mp4', mimeType: 'video/mp4', buffer: Buffer.from(bytes) }]);
+    await clipButton(page, 'coded.mp4').click();
+    await tabs(page)
+      .getByRole('tab', { name: text('en-US', 'looks.title'), exact: true })
+      .click();
+    const g = gallery(inspector(page));
+    /** The frame number coded in a thumbnail (tests/harness/video.ts `drawCoded`: 10 bits across the top half). */
+    const codeOf = (t: Locator) =>
+      t.locator('canvas[data-drawn]').evaluate((el: HTMLCanvasElement) => {
+        const d = el.getContext('2d')!.getImageData(0, 0, el.width, el.height).data;
+        let k = 0;
+        for (let bit = 0; bit < 10; bit++) {
+          const i = (Math.floor(el.height / 4) * el.width + Math.floor(((bit + 0.5) * el.width) / 10)) * 4;
+          if (d[i]! + d[i + 1]! + d[i + 2]! > 3 * 128) k |= 1 << bit;
+        }
+        return k;
+      });
+    const vivid = tile(g, 'natural-vivid');
+    await page.evaluate(() => (window as unknown as Harness).appHarness.setPlayhead(1));
+    await expect.poll(() => codeOf(vivid), { timeout: 20_000 }).toBe(30);
+    await page.evaluate(() => (window as unknown as Harness).appHarness.setPlayhead(0.5));
+    await expect.poll(() => codeOf(vivid), { timeout: 20_000 }).toBe(15);
+    // At the project end the playhead is past the clip: its first frame.
+    await page.evaluate(() => (window as unknown as Harness).appHarness.setPlayhead(2));
+    await expect.poll(() => codeOf(vivid), { timeout: 20_000 }).toBe(0);
   });
 
   for (const lang of ['en-US', 'vi-VN'] as const) {

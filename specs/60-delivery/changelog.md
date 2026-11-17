@@ -8,6 +8,7 @@ Entries are needed only for items that are `building` or `shipped`.
 - MOD-Plan `thumbnailPlan` takes the playhead; MOD-Engine `previewLook` / `lookThumbnails` / `lookThumbnail`; MOD-Preview `setLookPreview` / `lookThumbnails`; MOD-Assets `looks(decode)` (module "Public surface" sections).
 - Size gate: the look strips are their own group (≤ 0.5 MB) and fonts + looks ≤ 1.5 MB (architecture.md "Size", NFR-10); the dist scan admits a PNG only as a strip of the checked looks pack.
 - F-006: the Offset X and Y fields (negative values) use the text keyboard, as F-007's signed fields do.
+- F-008 review: MOD-Engine `lookThumbnails` takes the tile size and reports `lookThumbnailsDone`; `releaseThumbnails` frees the thumbnails' context when the gallery closes (NFR-05). Build question 149 proposes a state for a look that could not be loaded.
 
 ## 2026-11-16 — F-007 building
 - F-007 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 138–141, 144 and 145 (Mod+C over selected text, the 8-bit export bound on tinted greys, the phone Adjust sheet, Apply to all with one clip, the slider’s pointer resolution, AC8’s export wording) and AC6's NFR-03 half is measured on the reference phone.

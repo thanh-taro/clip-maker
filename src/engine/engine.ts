@@ -404,14 +404,21 @@ export class Engine {
     const gen = this.gen;
     const replaced = (): boolean => this.thumbJob !== null;
     const changed = (): boolean =>
-      gen !== this.gen || (this.project !== project && (!this.project || thumbKey(this.project, req.clipId, req.t) !== key));
+      gen !== this.gen ||
+      (this.project !== project && (!this.project || thumbKey(this.project, req.clipId, req.t) !== key));
     let frame: PaintFrame | null;
     if (layer.clip.kind === 'photo') frame = this.photoFrame(layer.clip.sourceId);
     else {
       const [slot] = await this.slotsFor(project, base.layers);
       const r = slot
-        ? await this.decodeWithRetry(slot, layer.sourceTime, 'exact', undefined, false, layer.clip.sourceId, () =>
-            replaced() || changed(),
+        ? await this.decodeWithRetry(
+            slot,
+            layer.sourceTime,
+            'exact',
+            undefined,
+            false,
+            layer.clip.sourceId,
+            () => replaced() || changed(),
           )
         : null;
       const rotation = (await this.video(layer.clip.sourceId))?.rotation ?? 0;

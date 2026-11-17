@@ -1,7 +1,8 @@
 // MOD-App — looks (F-008): choosing a look (or None) as one RULE-13 step that keeps the adjustments, previews
 // without a step, the intensity (typed values and keys one step each, one slider movement one step measured
 // from where it began, Q104), the gallery's group, and the RULE-09 thumbnail frame the gallery asks for.
-import { beforeEach, describe, expect, it } from 'vitest';
+import { signal } from '@preact/signals';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LOOK_IDS, LOOKS, type Look, type Project } from '../../src/core';
 import {
   edit,
@@ -21,13 +22,19 @@ import {
   endLookPreview,
   galleryGroup,
   groupLooks,
+  lookTables,
   lookTarget,
   previewLook,
   previewing,
   setIntensityOnce,
   shownGroup,
+  THUMBNAIL_RETRY_MS,
+  THUMBNAIL_SETTLE_MS,
   thumbnailFrame,
+  thumbnails,
+  watchThumbnails,
 } from '../../src/app/looks';
+import { playback } from '../../src/app/playback';
 import { audio, photo, proj, S, video } from '../support/project';
 
 function start(p: Project): void {
@@ -37,6 +44,8 @@ function start(p: Project): void {
   playhead.value = 0;
   galleryGroup.value = null;
   endLookPreview();
+  // Every bundled look loaded (stand-in tables; the tables themselves are MOD-Compositor's business).
+  lookTables.value = Object.fromEntries(LOOK_IDS.map((id) => [id, new Uint8Array(4)]));
 }
 const steps = () => history.value.past.length;
 const clip = (id: string) => project.value.clips.find((c) => c.id === id)!;
@@ -186,5 +195,149 @@ describe('F-008 looks in the editor', () => {
     expect(thumbnailFrame(project.value, 'P', playhead.value)).toBe(150);
     expect(thumbnailFrame(project.value, 'B', playhead.value)).toBe(210);
     expect(thumbnailFrame(project.value, 'nope', 0)).toBeNull();
+  });
+  it('F-008.R2 question 149 a look whose table did not load is not previewed (it would draw as None)', () => {
+    selectClip('A');
+    const { 'bw-high': _gone, ...rest } = lookTables.value;
+    lookTables.value = rest;
+    previewLook('bw-high');
+    expect(previewing.value).toBeNull();
+    previewLook('bw-soft');
+    expect(previewing.value?.lookId).toBe('bw-soft');
+  });
+
+  it('CMP-LookGallery a group picked for one clip is not kept for the next: the next clip shows its own look’s group', () => {
+    selectClip('A');
+    chooseLook('A', 'cine-moody');
+    galleryGroup.value = 'Film';
+    expect(shownGroup.value).toBe('Film');
+    selectClip('B');
+    expect(galleryGroup.value).toBeNull();
+    expect(shownGroup.value).toBe('Natural');
+    selectClip('A');
+    expect(shownGroup.value).toBe('Cinematic');
+  });
+});
+
+/** A stand-in preview controller: records thumbnail requests; the test answers them. */
+function fakePlayback() {
+  const requests: {
+    clipId: string;
+    t: number;
+    done?: ((complete: boolean) => void) | undefined;
+    thumb: (id: string, b: ImageBitmap) => void;
+  }[] = [];
+  let released = 0;
+  const state = signal<'paused' | 'playing'>('paused');
+  playback.value = {
+    ctl: {
+      state,
+      lookThumbnails: (
+        clipId: string,
+        t: number,
+        _size: unknown,
+        thumb: (id: string, b: ImageBitmap) => void,
+        done?: (c: boolean) => void,
+      ) => {
+        requests.push({ clipId, t, thumb, done });
+        return () => undefined;
+      },
+      releaseThumbnails: () => void released++,
+    },
+  } as unknown as typeof playback.value;
+  return { requests, state, released: () => released };
+}
+
+describe('F-008 the gallery’s thumbnails (RULE-09)', () => {
+  const SIZE = { width: 96, height: 48 };
+  let stop: (() => void) | null = null;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    start(proj({ clips: [video('A', 4), photo('P', 3), video('B', 2)] }));
+  });
+  afterEach(() => {
+    stop?.();
+    stop = null;
+    playback.value = null;
+    vi.useRealTimers();
+  });
+
+  it('F-008.R1 the thumbnails are asked for once the inputs settle; choosing a look asks for nothing new; an adjustment or the playhead does', () => {
+    const f = fakePlayback();
+    selectClip('A');
+    stop = watchThumbnails(SIZE);
+    expect(f.requests).toHaveLength(0);
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS);
+    expect(f.requests.map((r) => r.clipId)).toEqual(['A']);
+    chooseLook('A', 'film-faded');
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS);
+    expect(f.requests).toHaveLength(1);
+    edit((p) => setAdjustments(p, 'A', { brightness: 30 }));
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS);
+    expect(f.requests).toHaveLength(2);
+    playhead.value = 2 * S;
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS);
+    expect(f.requests.map((r) => r.t)).toEqual([0, 0, 2 * S]);
+  });
+
+  it('F-008.R1 a request still waiting is dropped when playback starts (it never takes the preview’s decoder while playing)', () => {
+    const f = fakePlayback();
+    selectClip('A');
+    stop = watchThumbnails(SIZE);
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS / 2);
+    f.state.value = 'playing';
+    playhead.value = S;
+    vi.advanceTimersByTime(10 * THUMBNAIL_SETTLE_MS);
+    expect(f.requests).toHaveLength(0);
+    f.state.value = 'paused';
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS);
+    expect(f.requests.map((r) => r.t)).toEqual([S]);
+  });
+
+  it('F-008.R1 A → B → A within the settle time asks for A’s thumbnails, not B’s', () => {
+    const f = fakePlayback();
+    selectClip('A');
+    stop = watchThumbnails(SIZE);
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS);
+    selectClip('B');
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS / 2);
+    selectClip('A');
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS * 3);
+    expect(f.requests.map((r) => r.clipId)).toEqual(['A', 'A']);
+  });
+
+  it('F-008.R1 a request that ends without every thumbnail (no picture yet) is asked again', () => {
+    const f = fakePlayback();
+    selectClip('A');
+    stop = watchThumbnails(SIZE);
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS);
+    f.requests[0]!.done?.(false);
+    vi.advanceTimersByTime(THUMBNAIL_RETRY_MS + THUMBNAIL_SETTLE_MS);
+    expect(f.requests).toHaveLength(2);
+    f.requests[1]!.done?.(true);
+    vi.advanceTimersByTime(10 * THUMBNAIL_RETRY_MS);
+    expect(f.requests).toHaveLength(2);
+  });
+
+  it('NFR-05 the thumbnails are closed when the clip goes away or the gallery closes, and the engine frees their context', () => {
+    const f = fakePlayback();
+    selectClip('A');
+    stop = watchThumbnails(SIZE);
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS);
+    let closed = 0;
+    const bitmap = () => ({ close: () => void closed++ }) as unknown as ImageBitmap;
+    f.requests[0]!.thumb('bw-high', bitmap());
+    f.requests[0]!.thumb('bw-soft', bitmap());
+    expect(thumbnails.value.bitmaps.size).toBe(2);
+    selection.value = [];
+    expect(closed).toBe(2);
+    expect(thumbnails.value.bitmaps.size).toBe(0);
+    selectClip('A');
+    vi.advanceTimersByTime(THUMBNAIL_SETTLE_MS);
+    f.requests.at(-1)!.thumb('bw-classic', bitmap());
+    stop();
+    stop = null;
+    expect(closed).toBe(3);
+    expect(f.released()).toBe(1);
   });
 });
