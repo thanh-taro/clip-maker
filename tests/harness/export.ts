@@ -17,6 +17,7 @@ import { createCompositor, decodeLookStrip } from '../../src/compositor';
 import { createOutput, openInput, type OutPacket } from '../../src/container';
 import {
   DEFAULT_PLACEMENT,
+  layoutOf,
   frameStart,
   projectFrames,
   type Adjustments,
@@ -1207,6 +1208,288 @@ async function photoLike(): Promise<ImageBitmap> {
   return createImageBitmap(c);
 }
 
+/** F-009: one main-track clip of a fade export (times in seconds). */
+export interface FadeClipSpec {
+  /** The photo's flat colour (the picture run). */
+  readonly colour: Sample;
+  /** The tone of the clip's sound (the sound run), Hz, at amplitude 0.25. */
+  readonly freq: number;
+  readonly seconds: number;
+  readonly fadeIn?: number;
+  readonly fadeOut?: number;
+  /** The cross-fade into the next clip. */
+  readonly crossFade?: number;
+}
+
+export interface FadeSpec {
+  readonly clips: readonly FadeClipSpec[];
+  /** An audio clip with its own tone (amplitude 0.25) on the audio track (sound run only). */
+  readonly audio?: {
+    readonly freq: number;
+    readonly start: number;
+    readonly seconds: number;
+    readonly fadeIn?: number;
+    readonly fadeOut?: number;
+  };
+  /** Frames whose centre is read in the exported file and in the compositor's paint. */
+  readonly frames: readonly number[];
+  /** Tones measured in the decoded export: each frequency's amplitude over 50 ms centred at `at` seconds. */
+  readonly windows: readonly { readonly at: number; readonly freq: number }[];
+  /** The background (RULE-04), black by default. */
+  readonly background?: Frame['background'];
+}
+
+export interface FadeReport {
+  readonly ok: boolean;
+  /** Project length (s) of the exported picture and of its decoded sound. */
+  readonly pictureSeconds: number;
+  readonly soundSeconds: number;
+  /** Centre of each frame (mean of 5 × 5): the exported file decoded, and the compositor's paint (the preview). */
+  readonly exported: Sample[];
+  readonly painted: Sample[];
+  /** Each window's tone amplitude in the decoded export (linear; a full tone reads about 0.25). */
+  readonly heard: number[];
+}
+
+const SR = 48_000;
+
+/** A tone's amplitude over [a, b) samples of L and R (one bin of the DFT; whole cycles keep it exact). */
+export function toneAmplitude(L: Float32Array, R: Float32Array, a: number, b: number, freq: number): number {
+  let re = 0;
+  let im = 0;
+  for (let i = Math.max(0, a); i < Math.min(b, L.length); i++) {
+    const x = (L[i]! + R[i]!) / 2;
+    const w = (2 * Math.PI * freq * i) / SR;
+    re += x * Math.cos(w);
+    im -= x * Math.sin(w);
+  }
+  return (2 * Math.hypot(re, im)) / Math.max(1, b - a);
+}
+
+function tonePcm(sourceId: string, freq: number, seconds: number): PcmSource {
+  const n = Math.ceil(seconds * SR);
+  const L = Float32Array.from({ length: n }, (_, i) => 0.25 * Math.sin((2 * Math.PI * freq * i) / SR));
+  return { sourceId, L, R: L.slice() };
+}
+
+async function flatBitmap([r, g, b]: Sample): Promise<ImageBitmap> {
+  const c = new OffscreenCanvas(320, 180);
+  const x = c.getContext('2d')!;
+  x.fillStyle = `rgb(${r},${g},${b})`;
+  x.fillRect(0, 0, 320, 180);
+  return createImageBitmap(c);
+}
+
+/** Exports `project` with `ctx` parts and returns the saved file, or null when the export failed. */
+async function exportFile(
+  project: Project,
+  settings: ExportSettings,
+  parts: Pick<ExportContext, 'media' | 'pcm'>,
+): Promise<Blob | null> {
+  workers ??= new ExportWorkers();
+  let saved: Blob | null = null;
+  const handle = await start(project, settings, {
+    workers,
+    scratch,
+    caps: await caps(),
+    ...parts,
+    looks: {},
+    texts: () => ({}),
+    phone: false,
+    gains: new Map(),
+    save: (blob) => {
+      saved = blob;
+      return URL.createObjectURL(blob);
+    },
+  });
+  const result = await handle.result;
+  await handle.cleaned;
+  return result.ok ? (saved as Blob | null) : null;
+}
+
+/** Frames `ks` of an exported file, decoded to RGBA at its size. */
+async function decodeFrames(
+  blob: Blob,
+  ks: readonly number[],
+  rate: number,
+): Promise<{ W: number; H: number; px: Map<number, Uint8ClampedArray> }> {
+  const input = await openInput(blob);
+  const v = input.video!;
+  const W = v.displayWidth;
+  const H = v.displayHeight;
+  const g = new OffscreenCanvas(W, H).getContext('2d', { willReadFrequently: true })!;
+  const px = new Map<number, Uint8ClampedArray>();
+  const dec = new VideoDecoder({
+    output: (f) => {
+      const k = Math.round((f.timestamp * rate) / 1e6);
+      if (ks.includes(k)) {
+        g.drawImage(f, 0, 0, W, H);
+        px.set(k, g.getImageData(0, 0, W, H).data);
+      }
+      f.close();
+    },
+    error: () => undefined,
+  });
+  dec.configure(v.decoderConfig);
+  for await (const p of input.packets('video'))
+    dec.decode(
+      new EncodedVideoChunk({ type: p.key ? 'key' : 'delta', timestamp: Math.round(p.timestamp * 1e6), data: p.data }),
+    );
+  await dec.flush();
+  dec.close();
+  input.close();
+  return { W, H, px };
+}
+
+/**
+ * F-009.AC1/AC2/AC4/AC7 (export halves), INV-02, NFR-08: the clips as flat photos with their fades and
+ * cross-fades, exported at 480p Balanced through the real export workers — frame `k`'s centre decoded from
+ * the file next to the compositor's paint of the same frame (the preview's picture); and the same timing
+ * as video clips (and an audio clip) each sounding its own tone, exported with sound, the file's sound
+ * decoded and each tone's amplitude measured over 50 ms windows (MOD-Plan's fades and equal-power
+ * cross-fades, mixed by MOD-Audio as the preview mixes them).
+ */
+async function fadeExport(spec: FadeSpec): Promise<FadeReport> {
+  const us = (s = 0): number => Math.round(s * 1e6);
+  const frame: Frame = { aspect: '16:9', frameRate: 30, background: spec.background ?? 'black' };
+  const timing = (c: FadeClipSpec) => ({
+    placement: DEFAULT_PLACEMENT,
+    adjustments: {},
+    look: null,
+    fadeIn: us(c.fadeIn),
+    fadeOut: us(c.fadeOut),
+    crossFadeNext: us(c.crossFade),
+  });
+  // The picture: flat photos.
+  const pictures: Project = {
+    frame,
+    sources: spec.clips.map((_, i) => ({
+      id: `src-p${i}`,
+      kind: 'photo',
+      name: `p${i}`,
+      bytes: 1,
+      width: 320,
+      height: 180,
+    })),
+    clips: spec.clips.map((c, i) => ({
+      id: `p${i}`,
+      sourceId: `src-p${i}`,
+      kind: 'photo',
+      duration: us(c.seconds),
+      ...timing(c),
+    })),
+    textLayers: [],
+    audioClips: [],
+  };
+  const photos = await Promise.all(spec.clips.map((c) => flatBitmap(c.colour)));
+  const media: EngineMedia[] = photos.map((bitmap, i) => ({ id: `src-p${i}`, kind: 'photo', bitmap }));
+  const video = await exportFile(pictures, { kind: 'video', resolution: 480, quality: 'balanced' }, { media, pcm: [] });
+  const empty = { ok: false, pictureSeconds: 0, soundSeconds: 0, exported: [], painted: [], heard: [] };
+  if (!video) return empty;
+  const { W, H, px } = await decodeFrames(video, spec.frames, 30);
+  const centre = (p: ArrayLike<number> | undefined): Sample => {
+    if (!p) return [Number.NaN, Number.NaN, Number.NaN];
+    const sum = [0, 0, 0];
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -2; dx <= 2; dx++) {
+        const o = ((Math.floor(H / 2) + dy) * W + Math.floor(W / 2) + dx) * 4;
+        for (let c = 0; c < 3; c++) sum[c]! += p[o + c]!;
+      }
+    return [sum[0]! / 25, sum[1]! / 25, sum[2]! / 25];
+  };
+  const comp = createCompositor(new OffscreenCanvas(W, H), new Map(), { preserve: true });
+  const source = new FrameSource(media);
+  const painted: Sample[] = [];
+  for (const k of spec.frames) {
+    const plan = framePlan(pictures, k);
+    comp.paint(plan, await source.frames(plan));
+    painted.push(centre(comp.readPixels()));
+  }
+  await source.close();
+  comp.dispose();
+  const input = await openInput(video);
+  const pictureSeconds = input.duration;
+  input.close();
+
+  // The sound: the same timing as video clips with tones (and an audio clip).
+  const longest = Math.max(...spec.clips.map((c) => c.seconds), spec.audio?.seconds ?? 0);
+  const file = await makeClip({ rate: 30, frames: Math.ceil(longest * 30) + 1, gop: 30 });
+  const a = spec.audio;
+  const sounds: Project = {
+    frame,
+    sources: [
+      ...spec.clips.map((_, i) => ({
+        id: `src-v${i}`,
+        kind: 'video' as const,
+        name: `v${i}`,
+        bytes: 1,
+        duration: us(longest),
+        width: CLIP_W,
+        height: CLIP_H,
+        frameRate: 30,
+        hasSound: true,
+      })),
+      ...(a
+        ? [{ id: 'src-m', kind: 'audio' as const, name: 'm', bytes: 1, duration: us(a.seconds), hasSound: true }]
+        : []),
+    ],
+    clips: spec.clips.map((c, i) => ({
+      id: `v${i}`,
+      sourceId: `src-v${i}`,
+      kind: 'video',
+      in: 0,
+      out: us(c.seconds),
+      speedPct: 100,
+      volume: 100,
+      muted: false,
+      ...timing(c),
+    })),
+    textLayers: [],
+    audioClips: a
+      ? [
+          {
+            id: 'm',
+            sourceId: 'src-m',
+            start: us(a.start),
+            in: 0,
+            out: us(a.seconds),
+            volume: 100,
+            muted: false,
+            fadeIn: us(a.fadeIn),
+            fadeOut: us(a.fadeOut),
+          },
+        ]
+      : [],
+  };
+  const sound = await exportFile(
+    sounds,
+    { kind: 'video', resolution: 480, quality: 'balanced' },
+    {
+      media: spec.clips.map((_, i) => ({ id: `src-v${i}`, kind: 'video' as const, file })),
+      pcm: [
+        ...spec.clips.map((c, i) => tonePcm(`src-v${i}`, c.freq, longest + 1)),
+        ...(a ? [tonePcm('src-m', a.freq, a.seconds + 1)] : []),
+      ],
+    },
+  );
+  if (!sound) return { ...empty, pictureSeconds };
+  const seconds = Math.max(...layoutOf(sounds).spans.map((s) => s.endFrame)) / 30;
+  const [L, R] = await decodeWindow(sound, 0, seconds);
+  const half = Math.round(0.025 * SR);
+  const heard = spec.windows.map((w) => {
+    const c = Math.round(w.at * SR);
+    return toneAmplitude(L, R, c - half, c + half, w.freq);
+  });
+  return {
+    ok: true,
+    pictureSeconds,
+    soundSeconds: L.length / SR,
+    exported: spec.frames.map((k) => centre(px.get(k))),
+    painted,
+    heard,
+  };
+}
+
 /**
  * F-008 look sign-off (an owner check): a contact sheet of the 16 bundled looks at 100 — each cell the
  * 24-patch chart above the photo-like picture, painted by the real compositor with the real tables — plus
@@ -1256,6 +1539,7 @@ async function lookContactSheet(
 
 export const exportHarness = {
   lookContactSheet,
+  fadeExport,
   caps,
   run,
   runTone,

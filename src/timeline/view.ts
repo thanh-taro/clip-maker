@@ -504,8 +504,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   // F-009: the open popover's marker shows the expanded state (no relayout).
   const stopOpen = effect(() => {
     const open = deps.crossFade?.open.value ?? null;
-    for (const [id, j] of joins)
-      if (j.state === 'marker') j.button.setAttribute('aria-expanded', String(open === id));
+    for (const [id, j] of joins) if (j.state === 'marker') j.button.setAttribute('aria-expanded', String(open === id));
   });
 
   const onJoinClick = (e: MouseEvent): void => {

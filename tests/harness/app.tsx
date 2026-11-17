@@ -146,8 +146,46 @@ declare global {
       heard(spec: ToneSpec, hashed: number): HeardSummary;
       /** F-011.AC5: the true peak (dBTP) and RMS (dBFS) of the sound the worklet was sent in the last generation. */
       heardLevels(): { truePeakDb: number; rmsDb: number; seconds: number };
+      /**
+       * F-009: tone amplitudes in the sound the worklet was sent in the last generation (?tap=1), each over 50 ms
+       * of project time centred at `at` seconds (NaN where nothing was sent), and the project times sent.
+       */
+      heardTones(windows: readonly { at: number; freq: number }[]): { amplitudes: number[]; from: number; to: number };
     };
   }
+}
+
+function heardTones(windows: readonly { at: number; freq: number }[]): {
+  amplitudes: number[];
+  from: number;
+  to: number;
+} {
+  const gen = Math.max(...tapped.map((b) => b.gen));
+  const blocks = tapped.filter((b) => b.gen === gen).sort((a, b) => a.from - b.from);
+  const from = blocks[0]?.from ?? 0;
+  const to = blocks.reduce((m, b) => Math.max(m, b.from + b.L.length), from);
+  const L = new Float32Array(to - from);
+  const R = new Float32Array(to - from);
+  for (const b of blocks) {
+    L.set(b.L, b.from - from);
+    R.set(b.R, b.from - from);
+  }
+  const half = Math.round(0.025 * 48_000);
+  const amplitudes = windows.map(({ at, freq }) => {
+    const c = Math.round(at * 48_000);
+    if (c - half < from || c + half > to) return Number.NaN;
+    // The window's samples sit at project samples c - half … c + half: the DFT bin uses project time.
+    let re = 0;
+    let im = 0;
+    for (let s = c - half; s < c + half; s++) {
+      const x = (L[s - from]! + R[s - from]!) / 2;
+      const w = (2 * Math.PI * freq * s) / 48_000;
+      re += x * Math.cos(w);
+      im -= x * Math.sin(w);
+    }
+    return (2 * Math.hypot(re, im)) / (2 * half);
+  });
+  return { amplitudes, from: from / 48_000, to: to / 48_000 };
 }
 
 /** The preview's playback state as a test reads it (times in seconds). */
@@ -500,6 +538,7 @@ window.appHarness = {
   },
   heard,
   heardLevels,
+  heardTones,
 };
 
 const fixed = (ok: boolean, slow: boolean): EffectsRun => ({

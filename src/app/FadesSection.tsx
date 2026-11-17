@@ -116,11 +116,7 @@ export function FadesSection({ id, touch = false }: { readonly id: string; reado
     );
   };
   return (
-    <section
-      class={touch ? 'tk-fades tk-fades--touch' : 'tk-fades'}
-      data-section="fades"
-      aria-labelledby={headId}
-    >
+    <section class={touch ? 'tk-fades tk-fades--touch' : 'tk-fades'} data-section="fades" aria-labelledby={headId}>
       {touch ? (
         <div class="tk-fades__line">
           <h3 class="tk-fades__line-label" id={headId}>
