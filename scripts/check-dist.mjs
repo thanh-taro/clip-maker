@@ -5,7 +5,8 @@
 // `mediabunny`, ADR-0005). Font files must trace to a registered font asset package and be a latin or
 // vietnamese subset (ADR-0012); bundled music files (.m4a) must trace to the checked music pack and a
 // registered track row (DEP-14, ADR-0013, F-011), and with `--release` (or LICENCE_RELEASE=1; `pnpm
-// check:release`) a placeholder track (`"placeholder": true`) fails; unknown binary file types fail.
+// check:release`) a placeholder track (`"placeholder": true`) fails; look strips (.png) must trace to the
+// checked looks pack and its registry row (DEP-13, ADR-0013 §1, F-008); unknown binary file types fail.
 // Copied from the sibling image-annotator.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { abs } from './lib/util.mjs';
 import { findInstalled, isActive, isShipped, readRegistry } from './lib/registry.mjs';
 import { musicPack } from './gen-music-manifest.mjs';
+import { looksPack } from './gen-looks.mjs';
 
 const CODE_MAP = /\.(?:js|css)\.map$/;
 const NODE_MODULES = /node_modules\/((?:@[^/]+\/)?[^/@][^/]*)/g;
@@ -22,6 +24,10 @@ const FONT_SUBSET = /-(latin|vietnamese)-(wght|\d{3})-normal-[\w-]+\.woff2$/;
 const KNOWN_EXT = new Set(['.js', '.css', '.map', '.html', '.txt', '.json', '.svg', '.webmanifest', '.ico']);
 /** A bundled music file as Vite emits it: the pack's file name with a content hash (`name-HASH.m4a`). */
 const MUSIC_FILE = /^(.+)-[\w-]{8}\.m4a$/;
+/** A look strip as Vite emits it: the pack's file name with a content hash (`name-HASH.png`). */
+const LOOK_FILE = /^(.+)-[\w-]{8}\.png$/;
+/** The looks pack's registry row (DEP-13): its name names the pack. */
+const LOOKS_ROW = /looks pack/i;
 
 /** Every file under a directory, as paths relative to it. */
 function walk(dir, base = dir) {
@@ -59,6 +65,7 @@ export function scanDist(distDir, registry, { release = false } = {}) {
   const files = walk(distDir);
   const registered = new Map(registry.flatMap((r) => r.names.map((n) => [n, r])));
   const musicTracks = musicPack().tracks;
+  const looks = looksPack().looks;
 
   // Packages whose code reached a shipped chunk, read from the hidden source maps.
   const shipped = new Map();
@@ -123,6 +130,13 @@ export function scanDist(distDir, registry, { release = false } = {}) {
         problems.push(`placeholder music track ${track.file} ships in a release (DEP-14, build question 114): ${f}`);
       else if (!registry.some((r) => isActive(r) && /asset/i.test(r.kind) && r.label.includes(track.file)))
         problems.push(`music track ${track.file} ships without its registry row (DEP-14, ADR-0013 §4): ${f}`);
+    } else if (ext === '.png') {
+      // F-008 / DEP-13: a PNG ships only as a strip of the checked looks pack, with the pack's registry row.
+      const base = path.basename(f);
+      const look = looks.find((l) => LOOK_FILE.exec(base)?.[1] === l.file.replace(/\.png$/, ''));
+      if (!look) problems.push(`image ships outside the checked looks pack (DEP-13): ${f}`);
+      else if (!registry.some((r) => isActive(r) && /asset/i.test(r.kind) && LOOKS_ROW.test(r.label)))
+        problems.push(`look strip ${look.file} ships without the looks pack's registry row (DEP-13): ${f}`);
     } else if (ext && !KNOWN_EXT.has(ext)) {
       problems.push(`unexpected shipped file type: ${f}`);
     }
