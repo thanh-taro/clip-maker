@@ -13,7 +13,7 @@ import { isEmpty } from '../project';
 import { panelOpen, progress } from './adding';
 import { selectedAudio, selectedClip } from './arrange';
 import { device } from './device';
-import { AudioSheet, EditSheet, openSheet, TabBar } from './EditSheet';
+import { AdjustSheet, AudioSheet, EditSheet, openSheet, TabBar } from './EditSheet';
 import { Inspector } from './Inspector';
 import { DropOverlay, dragging, FilePicker, useMediaInput } from './MediaInput';
 import { MediaPanel } from './MediaPanel';
@@ -91,6 +91,7 @@ export function Shell({ addRef }: { addRef: (el: HTMLButtonElement | null) => vo
       <Timeline />
       <EditSheet />
       <AudioSheet />
+      <AdjustSheet />
       <TabBar />
       <StatusBar />
       <DropOverlay />

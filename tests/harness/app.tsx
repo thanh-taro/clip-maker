@@ -32,7 +32,15 @@ import { main } from '../../src/app/app';
 import { browserDevice, type DeviceDeps, type EffectsRun } from '../../src/app/device';
 import { playback } from '../../src/app/playback';
 import { workers } from '../../src/app/workers';
-import { frameStart, layoutOf, type Frame, type FromEngine, type Placement, type Project } from '../../src/core';
+import {
+  frameStart,
+  layoutOf,
+  type Adjustments,
+  type Frame,
+  type FromEngine,
+  type Placement,
+  type Project,
+} from '../../src/core';
 import {
   addText,
   beginGesture,
@@ -75,6 +83,8 @@ export interface ClipSummary {
   readonly selected: boolean;
   /** F-006: the clip's placement (RULE-07). */
   readonly placement: Placement;
+  /** F-007: the clip's adjustments (RULE-08; values at their default are not stored). */
+  readonly adjustments: Adjustments;
 }
 
 /** Settings the editor has no control for yet (F-004 photo length, F-005 speed, F-008 look, F-009 cross-fade). */
@@ -98,6 +108,8 @@ declare global {
       frames(): number[];
       /** A W × H PNG, left half red and right half blue. */
       halves(width: number, height: number): Promise<number[]>;
+      /** F-007: a W × H PNG of equal vertical stripes in these colours. */
+      stripes(width: number, height: number, colours: readonly (readonly number[])[]): Promise<number[]>;
       /** A frame-coded H.264 (or VP8) clip at `rate` fps (tests/harness/video.ts). */
       codedClip(rate: number, frames: number): Promise<number[]>;
       /** RGB of a PNG screenshot (base64) at fractional points. */
@@ -276,6 +288,7 @@ function clipsSummary(): ClipSummary[] {
     look: c.look?.id ?? null,
     selected: selection.value.includes(c.id),
     placement: c.placement,
+    adjustments: c.adjustments,
   }));
 }
 
@@ -374,6 +387,19 @@ async function halves(width: number, height: number): Promise<number[]> {
   return Array.from(new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer()));
 }
 
+/** F-007: a W × H PNG of equal vertical stripes in these colours (RGB 0–255), left to right. */
+async function stripes(width: number, height: number, colours: readonly (readonly number[])[]): Promise<number[]> {
+  const c = new OffscreenCanvas(width, height);
+  const g = c.getContext('2d')!;
+  colours.forEach(([r, gr, b], i) => {
+    const x0 = Math.round((i * width) / colours.length);
+    const x1 = Math.round(((i + 1) * width) / colours.length);
+    g.fillStyle = `rgb(${r},${gr},${b})`;
+    g.fillRect(x0, 0, x1 - x0, height);
+  });
+  return Array.from(new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer()));
+}
+
 /** RGB (0–255) of a PNG (a Playwright screenshot, base64) at points given as fractions of its size. */
 async function pixels(
   png: string,
@@ -400,6 +426,7 @@ window.appHarness = {
   },
   frames: () => layoutOf(project.peek()).spans.map((s) => s.frames),
   halves,
+  stripes,
   async codedClip(rate, frames) {
     return Array.from(new Uint8Array(await (await makeClip({ rate, frames, gop: rate })).arrayBuffer()));
   },

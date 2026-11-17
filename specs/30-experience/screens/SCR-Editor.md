@@ -36,7 +36,7 @@ The desktop and phone layouts are designed in phase 2 (PRN-06, NFR-07).
 | result | After adding media or an edit hits a limit | CMP-Notice with the result (COPY-notice.added, COPY-notice.length_limited, COPY-error.refused_list); dismissible. |
 | export-error | Export failed, was interrupted, or has no space | CMP-ExportProgress error variants (COPY-error.export_failed, COPY-error.export_interrupted, COPY-error.no_space); the project is unchanged |
 
-**Unavailable controls.** With nothing selected: delete, duplicate, move, split (unless a main-track clip is under the playhead) and the clip tabs of the inspector. In the empty state: export, undo/redo (until there is history), timeline zoom and snapping.
+**Unavailable controls.** With nothing selected: delete, duplicate, move, split (unless a main-track clip is under the playhead) and the clip tabs of the inspector; the phone tab bar's Adjust tab unless a video or photo clip is selected (F-007). In the empty state: export, undo/redo (until there is history), timeline zoom and snapping.
 
 **Phone editing-text.** The on-screen keyboard replaces the timeline and the tab bar. COPY-action.done sits in the top bar (as in CMP-TextEditor); a quick style bar (typeface, colour, style) sits above the keyboard.
 

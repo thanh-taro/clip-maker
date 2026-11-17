@@ -13,7 +13,7 @@ import { useEffect } from 'preact/hooks';
 import { t } from '../copy';
 import { addFiles, openPanel, pickerClosed } from './adding';
 import { Icon } from './icons';
-import { carriesFiles, filesFromPaste, itemsFromDrop, pasteTargetsField } from './transfer';
+import { carriesFiles, filesFromPaste, itemsFromDrop, pasteTargetsField, pastes } from './transfer';
 
 let input: HTMLInputElement | null = null;
 const ACCEPT_ALL = 'video/*,image/*,audio/*';
@@ -131,6 +131,7 @@ export function useMediaInput(): void {
       const files = filesFromPaste(e.clipboardData);
       if (!files.length) return;
       e.preventDefault();
+      pastes.files++;
       void addFiles(files);
     };
     document.addEventListener('dragenter', onEnter);

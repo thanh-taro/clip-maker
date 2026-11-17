@@ -16,8 +16,10 @@ import {
 import { createCompositor } from '../../src/compositor';
 import { createOutput, openInput, type OutPacket } from '../../src/container';
 import {
+  DEFAULT_PLACEMENT,
   frameStart,
   projectFrames,
+  type Adjustments,
   type EngineMedia,
   type ExportSettings,
   type Frame,
@@ -857,12 +859,286 @@ async function frameFill(
   return { ok: true, width: W, height: H, exported, painted };
 }
 
+/**
+ * The classic 24-patch colour chart (sRGB, 0–255; NFR-08 "colour on a 24-patch test chart"), six by four.
+ */
+const CHART_24: readonly Sample[] = [
+  [115, 82, 68],
+  [194, 150, 130],
+  [98, 122, 157],
+  [87, 108, 67],
+  [133, 128, 177],
+  [103, 189, 170],
+  [214, 126, 44],
+  [80, 91, 166],
+  [193, 90, 99],
+  [94, 60, 108],
+  [157, 188, 64],
+  [224, 163, 46],
+  [56, 61, 150],
+  [70, 148, 73],
+  [175, 54, 60],
+  [231, 199, 31],
+  [187, 86, 149],
+  [8, 133, 161],
+  [243, 243, 242],
+  [200, 200, 200],
+  [160, 160, 160],
+  [122, 122, 121],
+  [85, 85, 85],
+  [52, 52, 52],
+];
+
+/** F-007 test charts: `ramp`, the 256-step grey ramp as a 16 × 16 grid of patches (row by row, black first); `colours`, the 24-patch chart. */
+export type GradeChart = 'ramp' | 'colours';
+
+function chartPatches(chart: GradeChart): { cols: number; rows: number; patches: readonly Sample[] } {
+  if (chart === 'colours') return { cols: 6, rows: 4, patches: CHART_24 };
+  return { cols: 16, rows: 16, patches: Array.from({ length: 256 }, (_, i): Sample => [i, i, i]) };
+}
+
+/** A 1920 × 1080 chart photo (16:9) with flat patches. */
+async function chartBitmap(chart: GradeChart): Promise<ImageBitmap> {
+  const { cols, rows, patches } = chartPatches(chart);
+  const W = 1920;
+  const H = 1080;
+  const c = new OffscreenCanvas(W, H);
+  const g = c.getContext('2d')!;
+  patches.forEach(([r, gr, b], i) => {
+    const x0 = Math.round(((i % cols) * W) / cols);
+    const x1 = Math.round((((i % cols) + 1) * W) / cols);
+    const y0 = Math.round((Math.floor(i / cols) * H) / rows);
+    const y1 = Math.round(((Math.floor(i / cols) + 1) * H) / rows);
+    g.fillStyle = `rgb(${r},${gr},${b})`;
+    g.fillRect(x0, y0, x1 - x0, y1 - y0);
+  });
+  return createImageBitmap(c);
+}
+
+/** A one-second project of one chart photo (Original aspect, so 16:9), with these adjustments. */
+function chartProject(adjustments: Adjustments, seconds = 1): Project {
+  return {
+    frame: { aspect: 'original', frameRate: 30, background: 'black' },
+    sources: [{ id: 'src-c', kind: 'photo', name: 'chart', bytes: 1, width: 1920, height: 1080 }],
+    clips: [
+      {
+        id: 'chart',
+        sourceId: 'src-c',
+        kind: 'photo',
+        duration: Math.round(seconds * 1_000_000),
+        placement: DEFAULT_PLACEMENT,
+        adjustments,
+        look: null,
+        fadeIn: 0,
+        fadeOut: 0,
+        crossFadeNext: 0,
+      },
+    ],
+    textLayers: [],
+    audioClips: [],
+  };
+}
+
+/** Exports `project` (one chart photo) at `resolution` Balanced through the real export workers; frame `k` decoded (RGBA). */
+async function exportChartFrame(
+  project: Project,
+  chart: GradeChart,
+  k: number,
+  resolution: 480 | 1080 = 480,
+): Promise<{ width: number; height: number; rgba: Uint8ClampedArray } | null> {
+  workers ??= new ExportWorkers();
+  let saved: Blob | null = null;
+  const handle = await start(
+    project,
+    { kind: 'video', resolution, quality: 'balanced' },
+    {
+      workers,
+      scratch,
+      caps: await caps(),
+      media: [{ id: 'src-c', kind: 'photo', bitmap: await chartBitmap(chart) }],
+      pcm: [],
+      looks: {},
+      texts: () => ({}),
+      phone: false,
+      gains: new Map(),
+      save: (blob) => {
+        saved = blob;
+        return URL.createObjectURL(blob);
+      },
+    },
+  );
+  const result = await handle.result;
+  await handle.cleaned;
+  const blob = saved as Blob | null;
+  if (!result.ok || !blob) return null;
+  const input = await openInput(blob);
+  const v = input.video!;
+  const W = v.displayWidth;
+  const H = v.displayHeight;
+  const canvas = new OffscreenCanvas(W, H);
+  const g = canvas.getContext('2d', { willReadFrequently: true })!;
+  let rgba: Uint8ClampedArray | null = null;
+  const dec = new VideoDecoder({
+    output: (f) => {
+      if (Math.round((f.timestamp * 30) / 1e6) === k) {
+        g.drawImage(f, 0, 0, W, H);
+        rgba = g.getImageData(0, 0, W, H).data;
+      }
+      f.close();
+    },
+    error: () => undefined,
+  });
+  dec.configure(v.decoderConfig);
+  for await (const p of input.packets('video'))
+    dec.decode(
+      new EncodedVideoChunk({ type: p.key ? 'key' : 'delta', timestamp: Math.round(p.timestamp * 1e6), data: p.data }),
+    );
+  await dec.flush();
+  dec.close();
+  input.close();
+  return rgba ? { width: W, height: H, rgba } : null;
+}
+
+/** The compositor's paint of the chart project's frame `k` at W × H (what the preview shows, INV-02). */
+async function paintChart(
+  project: Project,
+  chart: GradeChart,
+  W: number,
+  H: number,
+  ks: readonly number[],
+  comp = createCompositor(new OffscreenCanvas(W, H), new Map(), { preserve: true }),
+): Promise<Uint8Array[]> {
+  const bitmap = await chartBitmap(chart);
+  const source = new FrameSource([{ id: 'src-c', kind: 'photo', bitmap }]);
+  const out: Uint8Array[] = [];
+  for (const k of ks) {
+    const plan = framePlan(project, k);
+    comp.paint(plan, await source.frames(plan));
+    out.push(comp.readPixels().slice());
+  }
+  await source.close();
+  comp.dispose();
+  return out;
+}
+
+/** F-007.AC2 / AC6 / NFR-08: the chart's patch centres in the exported video, in the paint, and as made. */
+export interface GradeExportReport {
+  readonly ok: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly input: readonly Sample[];
+  readonly exported: Sample[];
+  readonly painted: Sample[];
+}
+
+/**
+ * F-007.AC2, AC6 (export halves), INV-02, NFR-08: a chart photo with `adjustments`, exported at 480p
+ * Balanced through the real export workers; frame 15 of the file is decoded and each patch's centre
+ * (mean of a 5 × 5 block) read, next to the compositor's paint of the same frame and size (the
+ * preview's picture) and the chart's own values.
+ */
+async function gradeExport(adjustments: Adjustments, chart: GradeChart): Promise<GradeExportReport> {
+  const project = chartProject(adjustments);
+  const k = 15;
+  const file = await exportChartFrame(project, chart, k);
+  const { cols, rows, patches } = chartPatches(chart);
+  if (!file) return { ok: false, width: 0, height: 0, input: patches, exported: [], painted: [] };
+  const { width: W, height: H, rgba } = file;
+  const [paint] = await paintChart(project, chart, W, H, [k]);
+  // Both read top-down (`Compositor.readPixels` flips GL's rows).
+  const centre = (px: ArrayLike<number>, i: number): Sample => {
+    const cx = Math.floor((((i % cols) + 0.5) * W) / cols);
+    const cy = Math.floor(((Math.floor(i / cols) + 0.5) * H) / rows);
+    const sum = [0, 0, 0];
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -2; dx <= 2; dx++) {
+        const o = ((cy + dy) * W + cx + dx) * 4;
+        for (let c = 0; c < 3; c++) sum[c]! += px[o + c]!;
+      }
+    return [sum[0]! / 25, sum[1]! / 25, sum[2]! / 25];
+  };
+  return {
+    ok: true,
+    width: W,
+    height: H,
+    input: patches,
+    exported: patches.map((_, i) => centre(rgba, i)),
+    painted: patches.map((_, i) => centre(paint!, i)),
+  };
+}
+
+/** F-007.AC8: grain repeatability between two paints, a second compositor and the export, at one size. */
+export interface GrainReport {
+  readonly ok: boolean;
+  /** The same frame painted twice by one compositor (shown twice in the preview): identical bytes. */
+  readonly sameTwice: boolean;
+  /** The same frame painted by a second compositor at the same size (the export's own): identical bytes. */
+  readonly sameElsewhere: boolean;
+  /** The next frame differs (grain changes per frame). */
+  readonly nextDiffers: boolean;
+  /**
+   * Correlation of the export's grain (the decoded frame minus the grain-free paint) with frame k's grain,
+   * and with frame k + 1's (other grain). Lossy coding softens grain, so the bytes can't match; the
+   * pattern does.
+   */
+  readonly corrSame: number;
+  readonly corrOther: number;
+}
+
+/**
+ * F-007.AC8: the 24-patch chart with Grain 50. Frame k is painted twice by one compositor with another
+ * frame between (the preview showing it twice), and once by a second compositor at the export's size
+ * (the export worker paints with its own); the export is decoded at the same resolution and compared.
+ */
+async function grainParity(grain = 50): Promise<GrainReport> {
+  const project = chartProject({ grain }, 0.6);
+  const k = 15;
+  const file = await exportChartFrame(project, 'colours', k, 1080);
+  if (!file) return { ok: false, sameTwice: false, sameElsewhere: false, nextDiffers: false, corrSame: 0, corrOther: 0 };
+  const { width: W, height: H, rgba } = file;
+  const [a, next, b] = await paintChart(project, 'colours', W, H, [k, k + 1, k]);
+  const [c] = await paintChart(project, 'colours', W, H, [k]);
+  const [clean] = await paintChart(chartProject({}, 0.6), 'colours', W, H, [k]);
+  const equal = (x: Uint8Array, y: Uint8Array): boolean => x.length === y.length && x.every((v, i) => v === y[i]);
+  /** Pearson correlation of (x − clean) and (y − clean) over the green channel. */
+  const corr = (x: ArrayLike<number>, y: ArrayLike<number>): number => {
+    let sx = 0;
+    let sy = 0;
+    let sxx = 0;
+    let syy = 0;
+    let sxy = 0;
+    let n = 0;
+    for (let i = 1; i < x.length; i += 4) {
+      const u = x[i]! - clean![i]!;
+      const v = y[i]! - clean![i]!;
+      sx += u;
+      sy += v;
+      sxx += u * u;
+      syy += v * v;
+      sxy += u * v;
+      n++;
+    }
+    const cov = sxy / n - (sx / n) * (sy / n);
+    return cov / Math.sqrt((sxx / n - (sx / n) ** 2) * (syy / n - (sy / n) ** 2));
+  };
+  return {
+    ok: true,
+    sameTwice: equal(a!, b!),
+    sameElsewhere: equal(a!, c!),
+    nextDiffers: !equal(a!, next!),
+    corrSame: corr(rgba, a!),
+    corrOther: corr(rgba, next!),
+  };
+}
+
 export const exportHarness = {
   caps,
   run,
   runTone,
   runMix,
   frameFill,
+  gradeExport,
+  grainParity,
   /** The last export's file as bytes (Playwright saves it for manual checks). */
   async lastFile(): Promise<number[]> {
     return lastBlob ? Array.from(new Uint8Array(await lastBlob.arrayBuffer()).subarray(0, 16)) : [];
