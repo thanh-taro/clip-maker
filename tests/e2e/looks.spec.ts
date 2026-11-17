@@ -62,6 +62,9 @@ interface Harness {
 const clipsOf = (page: Page) => page.evaluate(() => (window as unknown as Harness).appHarness.clips());
 const stepsOf = async (page: Page) =>
   (await page.evaluate(() => (window as unknown as Harness).appHarness.project())).steps;
+/** Undo steps made since `setUp` (adding the photo is one). */
+let base = 0;
+const madeSince = async (page: Page) => (await stepsOf(page)) - base;
 const stateOf = (page: Page) => page.evaluate(() => (window as unknown as Harness).appHarness.state());
 
 async function open(page: Page, lang: Language = 'en-US'): Promise<void> {
@@ -187,6 +190,7 @@ async function setUp(page: Page, lang: Language = 'en-US'): Promise<Locator> {
   const g = gallery(inspector(page, lang), lang);
   await expect(g).toBeVisible();
   await expectPreview(page, MUTED);
+  base = await stepsOf(page);
   return g;
 }
 
@@ -215,7 +219,7 @@ test.describe('F-008 apply a look (app harness)', () => {
       if (group === 'Natural') await shot(page, 'inspector-looks-wide-en-US', browserName, inspector(page));
     }
     // Choosing nothing changed the project.
-    expect(await stepsOf(page)).toBe(0);
+    expect(await madeSince(page)).toBe(0);
   });
 
   test('F-008.AC2 F-008.R2 RULE-13 pointing at a look or focusing it previews it with a status line; leaving returns the preview and leaves no undo step', async ({
@@ -247,9 +251,10 @@ test.describe('F-008 apply a look (app harness)', () => {
     );
     // Focus leaves the tiles without choosing: the preview returns.
     await page.keyboard.press('Tab');
-    await expect(tiles(g).getByRole('radio', { checked: true })).toHaveCount(0);
+    await expect(tiles(g).getByRole('radio', { checked: true })).toHaveText([text('en-US', 'looks.none')]);
+    expect((await clipsOf(page))[0]!.look).toBeNull();
     await expectPreview(page, MUTED);
-    expect(await stepsOf(page)).toBe(0);
+    expect(await madeSince(page)).toBe(0);
     expect(await stateOf(page)).toBe(before);
   });
 
@@ -264,7 +269,7 @@ test.describe('F-008 apply a look (app harness)', () => {
     await expect(tile(g, 'cine-moody')).toBeFocused();
     await page.keyboard.press('Enter');
     expect((await clipsOf(page))[0]!.look).toBe('cine-moody');
-    expect(await stepsOf(page)).toBe(1);
+    expect(await madeSince(page)).toBe(1);
     await expect(tile(g, 'cine-moody')).toHaveAttribute('aria-checked', 'true');
     await expect(tile(g, null)).toHaveAttribute('aria-checked', 'false');
     await expectPreview(page, graded(MUTED, {}, 'cine-moody'));
@@ -295,7 +300,7 @@ test.describe('F-008 apply a look (app harness)', () => {
     await field.press('Enter');
     expect((await clipsOf(page))[0]!.intensity).toBe(100);
     await expect(intensity(g).getByRole('slider')).toHaveValue('100');
-    expect(await stepsOf(page)).toBe(4);
+    expect(await madeSince(page)).toBe(4);
   });
 
   test('F-008.AC4 F-008.R4 a clip with Brightness +30: choosing a look keeps Brightness +30 and both apply', async ({
@@ -336,7 +341,7 @@ test.describe('F-008 apply a look (app harness)', () => {
     await tile(g, null).click();
     await page.mouse.move(5, 5);
     expect((await clipsOf(page))[0]!.look).toBeNull();
-    expect(await stepsOf(page)).toBe(2);
+    expect(await madeSince(page)).toBe(2);
     await expectPreview(page, MUTED);
     await expect(tile(g, null)).toHaveAttribute('aria-checked', 'true');
     await expect(intensity(g).getByRole('slider')).toBeDisabled();
@@ -358,7 +363,7 @@ test.describe('F-008 apply a look (app harness)', () => {
     await page.keyboard.press('ArrowRight');
     await expect(groupPill(g, 'Film')).toBeFocused();
     await expect(groupPill(g, 'Film')).toHaveAttribute('aria-selected', 'true');
-    expect(await stepsOf(page)).toBe(1);
+    expect(await madeSince(page)).toBe(1);
   });
 
   for (const lang of ['en-US', 'vi-VN'] as const) {

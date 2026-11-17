@@ -150,7 +150,8 @@
     white-space: nowrap;
   }
 
-  /* The previewing status line: empty (no height) unless a look is previewed. */
+  /* The previewing status line: empty (no height, its gap taken back) unless a look is previewed; it stays in the
+     accessibility tree so the status is announced when it fills. */
   .tk-looks__status {
     display: flex;
     align-items: center;
@@ -161,7 +162,7 @@
   }
 
   .tk-looks__status:empty {
-    display: none;
+    margin-block-start: calc(-1 * var(--tk-space-2));
   }
 
   /* The Intensity row's slider and field while None is chosen. */
