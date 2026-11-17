@@ -68,20 +68,22 @@ export function CrossFadePopover() {
 
   // Opening focuses the first available control; Esc and a press outside close it.
   const opened = join?.id ?? null;
-  useEffect(() => {
+  // A layout effect: focus moves in as the popover appears (an Esc right after opening is already its own).
+  useLayoutEffect(() => {
     if (opened === null) return undefined;
-    // The opener: given by the phone tile, else what has focus (the marker); the marker is the fallback.
-    if (!popoverOpener.el && document.activeElement instanceof HTMLElement && document.activeElement !== document.body)
-      popoverOpener.el = document.activeElement;
+    // The opener is the phone tile when it opened it (`popoverOpener`), else the marker (returnTarget).
     const first = root.current?.querySelector<HTMLElement>('button:not([aria-disabled="true"])');
     first?.focus();
     const ours = (el: EventTarget | null): boolean =>
       el instanceof Node &&
       (root.current?.contains(el) === true ||
         (el instanceof Element && el.closest(`.tk-join[data-join-id="${CSS.escape(opened)}"]`) !== null));
-    // Esc is the popover's only while focus is in it or on its marker (other overlays keep theirs).
+    // Esc is the popover's only while focus is in it, on its marker, or nowhere (WebKit leaves focus on the
+    // page after a click on a button); other overlays with focus keep theirs.
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape' || e.defaultPrevented || !ours(document.activeElement)) return;
+      const at = document.activeElement;
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (at && at !== document.body && !ours(at)) return;
       if (document.querySelector('dialog[open]')) return; // the notices view takes its own Esc
       e.preventDefault();
       e.stopPropagation();

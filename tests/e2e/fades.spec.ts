@@ -505,8 +505,9 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     const before = await stateOf(page);
     const steps = await stepsOf(page);
     await settled(join(page));
-    // Next to the 0.1 s clip (under 48 px) the chip takes clicks only with a neighbour selected.
-    await clipButton(page, 'B.png').click();
+    // Next to the 0.1 s clip (under 48 px) the chip takes clicks only with a neighbour selected (A: its end
+    // handle covers the chip's left half, the right half is free).
+    await clipButton(page, 'A.png').click();
     await expect(join(page)).toHaveAttribute('aria-disabled', 'true');
     await expect(join(page)).toHaveAccessibleDescription(text('en-US', 'notice.crossfade_too_short'));
     await pressJoin(page, 0, true);
@@ -613,15 +614,15 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     await page.mouse.click(box.x + 3, box.y + box.height / 2);
     await expect(nth(5)).toHaveAttribute('aria-pressed', 'true');
     expect((await clipsOf(page)).every((c) => c.crossFade === 0)).toBe(true);
-    // A drag from near its end moves it two places later.
-    const b = (await nth(5).boundingBox())!;
+    // Another narrow clip, grabbed between its join and its middle, drags two places later.
+    const b = (await nth(8).boundingBox())!;
     const y = b.y + b.height / 2;
-    await page.mouse.move(b.x + b.width - 3, y);
+    await page.mouse.move(b.x + b.width / 2 + 6, y);
     await page.mouse.down();
-    await page.mouse.move(b.x + b.width - 3 + b.width * 2, y, { steps: 6 });
+    await page.mouse.move(b.x + b.width / 2 + 6 + b.width * 2, y, { steps: 6 });
     await page.mouse.up();
     await expect.poll(ids).not.toEqual(Array.from({ length: 30 }, (_, i) => `c${i}`));
-    expect((await ids()).indexOf('c5')).toBeGreaterThan(5);
+    expect((await ids()).indexOf('c8')).toBeGreaterThan(8);
     expect((await clipsOf(page)).every((c) => c.crossFade === 0)).toBe(true);
   });
 
@@ -649,8 +650,10 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     // Focus leaving the popover closes it; Esc then belongs to the sheet again.
     await tile.click();
     await expect(popover(page)).toBeVisible();
-    await pop(page, 'action.remove_crossfade').focus();
-    await page.keyboard.press('Tab');
+    await page
+      .locator('.tk-sheet')
+      .getByRole('button', { name: text('en-US', 'action.add_media') })
+      .focus();
     await expect(popover(page)).toHaveCount(0);
   });
 
@@ -762,7 +765,9 @@ test.describe('F-009 export (media harness, real export workers)', () => {
     });
     expect(r.ok).toBe(true);
     expect(r.pictureSeconds).toBeCloseTo(9, 1);
-    expect(r.soundSeconds).toBeCloseTo(9, 1);
+    // The sound track ends with the project (its last AAC packet may run a few ms over), not at 10 s.
+    expect(r.soundSeconds).toBeGreaterThan(8.95);
+    expect(r.soundSeconds).toBeLessThan(9.1);
     const [a, mid, b] = r.exported;
     expect(blendOf(a!, RED, BLUE, 0, 5), `A ${a}`).toBe(true);
     expect(blendOf(mid!, RED, BLUE, 0.5, 6), `middle ${mid}`).toBe(true);

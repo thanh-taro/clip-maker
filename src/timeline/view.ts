@@ -240,6 +240,9 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const handles = (['start', 'end'] as const).map((edge) => {
     const h = el('span', `tk-trim tk-trim--${edge}`);
     h.dataset['edge'] = edge;
+    // F-009: a handle answers clicks (it does nothing with them), so the browser's touch adjustment counts it as
+    // a target and a touch on it is not moved to a join control nearby (CMP-Timeline "Accessibility").
+    h.addEventListener('click', (e) => e.stopPropagation());
     decorative(h);
     return h;
   });
