@@ -279,7 +279,7 @@ test.describe('F-005 speed (app harness)', () => {
     expect((await previewOf(page)).playhead).toBe(playhead);
   });
 
-  test('CMP-Inspector the clip tabs: a tablist with one tab stop; Left/Right (wrapping), Home and End switch Edit, Adjust and Sound without stepping the preview', async ({
+  test('CMP-Inspector the clip tabs: a tablist with one tab stop; Left/Right (wrapping), Home and End switch Edit, Adjust, Looks and Sound without stepping the preview', async ({
     page,
   }) => {
     await open(page);
@@ -288,16 +288,20 @@ test.describe('F-005 speed (app harness)', () => {
     const tabs = inspector(page).getByRole('tablist', { name: text('en-US', 'inspector.label') });
     const edit = tabs.getByRole('tab', { name: text('en-US', 'inspector.edit') });
     const adjust = tabs.getByRole('tab', { name: text('en-US', 'inspector.adjust') });
+    const looks = tabs.getByRole('tab', { name: text('en-US', 'looks.title'), exact: true });
     const sound = tabs.getByRole('tab', { name: text('en-US', 'inspector.sound') });
     await expect(edit).toHaveAttribute('tabindex', '0');
     await expect(sound).toHaveAttribute('tabindex', '-1');
     await expect(inspector(page).getByRole('tabpanel', { name: text('en-US', 'inspector.edit') })).toBeVisible();
     await edit.focus();
     const playhead = (await previewOf(page)).playhead;
-    // F-007: Adjust sits between Edit and Sound.
+    // F-007/F-008: Adjust and Looks sit between Edit and Sound.
     await page.keyboard.press('ArrowRight');
     await expect(adjust).toBeFocused();
     await expect(adjust).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('ArrowRight');
+    await expect(looks).toBeFocused();
+    await expect(looks).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('ArrowRight');
     await expect(sound).toBeFocused();
     await expect(sound).toHaveAttribute('aria-selected', 'true');
