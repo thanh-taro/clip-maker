@@ -26,6 +26,7 @@ import {
   galleryGroup,
   GROUPS,
   groupLooks,
+  lookTables,
   lookTarget,
   previewing,
   previewLook,
@@ -39,11 +40,19 @@ import { useSliderGesture } from './slider-gesture';
 
 const lookName = (id: string): string => (id in LOOKS ? t(LOOKS[id as LookId].copyId as 'look.natural_fresh') : id);
 
-/** CSS pixels of a thumbnail's longer tile side; the engine draws at up to twice that (device pixels). */
-const THUMB_CSS = 80;
+/**
+ * The largest tile a thumbnail fills, in CSS pixels (the inspector's three columns: about 80 × 48; phones
+ * smaller). The engine draws the frame at the smallest size that covers it at up to 2× device pixels, so a
+ * 16:9 frame is 96 × 54 CSS px and a 9:16 frame 96 × 171 (the tile shows its middle, `object-fit: cover`).
+ */
+const THUMB_TILE = { width: 96, height: 48 } as const;
 
-/** A thumbnail: the engine's bitmap drawn into a canvas (kept, so switching groups redraws at once). */
-function Thumb({ bitmap }: { readonly bitmap: ImageBitmap | undefined }) {
+/**
+ * A thumbnail: the engine's bitmap drawn into a canvas (kept, so switching groups redraws at once). Not drawn
+ * yet: a placeholder, with a progress icon while the look's table is loaded and its picture is on its way
+ * (CMP-LookGallery "drawing"); without the spinner when the look could not be loaded (question 149).
+ */
+function Thumb({ bitmap, loaded }: { readonly bitmap: ImageBitmap | undefined; readonly loaded: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useLayoutEffect(() => {
     const c = ref.current;
@@ -54,10 +63,12 @@ function Thumb({ bitmap }: { readonly bitmap: ImageBitmap | undefined }) {
   }, [bitmap]);
   if (!bitmap)
     // CMP-LookGallery "drawing": a placeholder with a progress icon; the name and choosing stay available.
-    return (
+    return loaded ? (
       <span class="tk-looks__thumb tk-looks__thumb--drawing" data-drawing="">
         <Icon name="loader" size={16} class="tk-looks__spinner" />
       </span>
+    ) : (
+      <span class="tk-looks__thumb tk-looks__thumb--drawing" data-unavailable="" />
     );
   return <canvas ref={ref} class="tk-looks__thumb" aria-hidden="true" data-drawn="" />;
 }
@@ -96,6 +107,13 @@ interface TileProps {
 
 function Tile({ lookId, chosen, focusable, bitmap, onChoose }: TileProps) {
   const name = lookId === null ? t('looks.none') : lookName(lookId);
+  // A tile that goes (another group shown) takes its hover or focus preview with it.
+  useEffect(
+    () => () => {
+      if (lookId !== null && previewing.peek()?.lookId === lookId) endLookPreview();
+    },
+    [],
+  );
   return (
     <button
       type="button"
@@ -132,7 +150,7 @@ function Tile({ lookId, chosen, focusable, bitmap, onChoose }: TileProps) {
             <Icon name="close" size={16} />
           </span>
         ) : (
-          <Thumb bitmap={bitmap} />
+          <Thumb bitmap={bitmap} loaded={lookTables.value[lookId] !== undefined} />
         )}
         {chosen ? (
           <span class="tk-looks__check" aria-hidden="true">
@@ -260,12 +278,20 @@ function IntensityRow({
 export function LookGallery({ id, touch = false }: { readonly id: string; readonly touch?: boolean }) {
   const target = lookTarget.value;
   // RULE-09 thumbnails are drawn while the gallery is shown; looks that failed to load are read again.
-  useEffect(() => watchThumbnails(Math.round(THUMB_CSS * Math.min(2, window.devicePixelRatio || 1))), []);
+  useEffect(() => {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    return watchThumbnails({ width: Math.round(THUMB_TILE.width * dpr), height: Math.round(THUMB_TILE.height * dpr) });
+  }, []);
   useEffect(() => void ensureLooks(), []);
   // Leaving the gallery ends a preview it started.
   useEffect(() => () => endLookPreview(), []);
-  if (!target) return null;
   const group = shownGroup.value;
+  // Another group shown: a preview of a look no longer on screen ends.
+  useEffect(() => {
+    const p = previewing.peek();
+    if (p && p.lookId !== null && !groupLooks(group).includes(p.lookId as LookId)) endLookPreview();
+  }, [group]);
+  if (!target) return null;
   const ids = groupLooks(group);
   const chosen = target.look?.id ?? null;
   const shown: (string | null)[] = [null, ...ids];

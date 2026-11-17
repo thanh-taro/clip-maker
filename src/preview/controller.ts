@@ -109,16 +109,19 @@ export interface PreviewController {
   /** RULE-09 look preview: the clip drawn with `look` (null: None) without changing the project; null clipId ends it. */
   setLookPreview(clipId: string | null, look: Look): void;
   /**
-   * RULE-09 thumbnails of `clipId` (F-008.R1) at playhead `t`, shorter side `side` device pixels: each look's
-   * bitmap goes to `onThumb` as it is drawn. A later request replaces this one; the returned function stops
-   * it. Bitmaps of a replaced request are closed.
+   * RULE-09 thumbnails of `clipId` (F-008.R1) at playhead `t`, covering a `width` × `height` device-pixel tile:
+   * each look's bitmap goes to `onThumb` as it is drawn, then `onDone(complete)`. A later request replaces this
+   * one; the returned function stops it. Bitmaps of a replaced request are closed.
    */
   lookThumbnails(
     clipId: string,
     t: Micros,
-    side: number,
+    size: { readonly width: number; readonly height: number },
     onThumb: (lookId: string, bitmap: ImageBitmap) => void,
+    onDone?: (complete: boolean) => void,
   ): () => void;
+  /** The gallery closed: the engine drops thumbnail work and frees their context (NFR-05). */
+  releaseThumbnails(): void;
   /** Engine statistics (NFR-03 measurement and tests). */
   stats(): Promise<EngineStats>;
   dispose(): void;
@@ -145,6 +148,7 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
   let frameId: number | null = null;
   let thumbTicket = 0;
   let onThumb: ((lookId: string, bitmap: ImageBitmap) => void) | null = null;
+  let onThumbsDone: ((complete: boolean) => void) | null = null;
 
   const onMessage = (e: MessageEvent<FromEngine>): void => {
     const m = e.data;
@@ -174,6 +178,9 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
       case 'engine:lookThumbnail':
         if (m.ticket === thumbTicket && onThumb) onThumb(m.lookId, m.bitmap);
         else m.bitmap.close();
+        return;
+      case 'engine:lookThumbnailsDone':
+        if (m.ticket === thumbTicket) onThumbsDone?.(m.complete);
         return;
       default:
         return;
@@ -312,16 +319,24 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
     setLookPreview(clipId, look) {
       engine.postMessage({ type: 'engine:previewLook', clipId, look });
     },
-    lookThumbnails(clipId, t, side, fn) {
+    lookThumbnails(clipId, t, size, fn, done) {
       const ticket = ++thumbTicket;
       onThumb = fn;
-      engine.postMessage({ type: 'engine:lookThumbnails', ticket, clipId, t, side });
+      onThumbsDone = done ?? null;
+      engine.postMessage({ type: 'engine:lookThumbnails', ticket, clipId, t, width: size.width, height: size.height });
       return () => {
         if (thumbTicket === ticket) {
           thumbTicket++;
           onThumb = null;
+          onThumbsDone = null;
         }
       };
+    },
+    releaseThumbnails() {
+      thumbTicket++;
+      onThumb = null;
+      onThumbsDone = null;
+      engine.postMessage({ type: 'engine:releaseThumbnails' });
     },
     stats() {
       return new Promise((resolve) => {

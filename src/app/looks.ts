@@ -8,7 +8,7 @@
 // Implements: F-008.R1 (groups; thumbnails of the RULE-09 frame), F-008.R2 (preview without a step; choose as
 // one step), F-008.R3 (intensity), F-008.R4 (adjustments kept), F-008.R5 (None), F-008.R6 (one set of
 // tables for preview and export), RULE-09, RULE-13.
-import { computed, effect, signal } from '@preact/signals';
+import { computed, effect, signal, untracked } from '@preact/signals';
 import { looks as readLooks, type StripDecoder } from '../assets';
 import {
   frameAspect,
@@ -55,8 +55,22 @@ export async function loadLooks(
 }
 
 /** Loads the looks for the session's engine worker (start-up, and again when the gallery opens). */
+let loading: Promise<void> | null = null;
 export const ensureLooks = (): Promise<void> =>
-  loadLooks(workers.get('engine'), decodeLookStrip).catch(() => undefined);
+  (loading ??= loadLooks(workers.get('engine'), decodeLookStrip)
+    .catch(() => undefined)
+    .finally(() => (loading = null)));
+
+/**
+ * Looks that failed to load are read again when the gallery opens (./LookGallery.tsx) and when the project
+ * uses a look whose table is missing (a paste, an undo, Apply to all), so its clip is not drawn as None for
+ * long (build question 149). Only while the workers run (start-up has read the pack once by then).
+ */
+effect(() => {
+  const tables = lookTables.value;
+  const missing = project.value.clips.some((c) => c.look && c.look.id in LOOKS && !tables[c.look.id]);
+  if (missing && workers.has('engine')) untracked(() => void ensureLooks());
+});
 
 // ── the gallery ──────────────────────────────────────────────────────────────────────────────────
 
@@ -84,6 +98,16 @@ export const lookTarget = computed<LookTarget | null>(() => {
 
 /** The group the user picked in the gallery (UI state, not an undo step); null: follow the chosen look. */
 export const galleryGroup = signal<LookGroup | null>(null);
+
+// Another clip selected (or none): the gallery shows that clip's chosen look's group again.
+let groupFor: string | null = null;
+effect(() => {
+  const id = lookTarget.value?.id ?? null;
+  if (id !== groupFor) {
+    groupFor = id;
+    untracked(() => (galleryGroup.value = null));
+  }
+});
 
 /** CMP-LookGallery "Behavior": the group shown — the one picked, else the chosen look's, else Natural. */
 export const shownGroup = computed<LookGroup>(() => {
@@ -128,6 +152,8 @@ export const previewing = signal<LookPreview | null>(null);
 export function previewLook(lookId: string | null): void {
   const target = lookTarget.peek();
   if (!target) return;
+  // A look whose table has not loaded would draw as None: there is nothing to preview (question 149).
+  if (lookId !== null && !lookTables.peek()[lookId]) return endLookPreview();
   if ((target.look?.id ?? null) === lookId) return endLookPreview();
   const now = previewing.peek();
   if (now?.clipId === target.id && now.lookId === lookId) return;
@@ -229,55 +255,96 @@ export const thumbnails = signal<{
 
 /** How long the thumbnails' inputs must stay put before they are drawn again (a slider movement, stepping). */
 export const THUMBNAIL_SETTLE_MS = 120;
+/** After a request ended without every thumbnail (no picture yet, a source failed), it is asked again this late… */
+export const THUMBNAIL_RETRY_MS = 500;
+/** …this many times for one set of inputs. */
+export const THUMBNAIL_RETRIES = 10;
+
+const closeAll = (bitmaps: ReadonlyMap<string, ImageBitmap>): void => {
+  for (const b of bitmaps.values()) b.close();
+};
+
+/** Drops the gallery's thumbnails (another clip, none selected, the gallery closed: NFR-05). */
+function clearThumbnails(clipId: string | null): void {
+  const now = thumbnails.peek();
+  if (now.clipId === clipId && now.bitmaps.size === 0) return;
+  closeAll(now.bitmaps);
+  thumbnails.value = { clipId, bitmaps: new Map() };
+}
 
 /**
  * Implements: F-008.R1, RULE-09 *Thumbnails* — while the gallery is shown, asks the engine (MOD-Preview
- * `lookThumbnails`) for the selected clip's thumbnails whenever what they show changes: the clip (its source
- * range, speed, placement and adjustments), the frame, the RULE-09 frame index, or the looks loaded. Not while
- * playing (the paused frame is drawn). New pictures replace the old ones look by look; another clip starts
- * from placeholders. Returns the stop function.
+ * `lookThumbnails`) for the selected clip's thumbnails, covering a `size` device-pixel tile, whenever what they
+ * show changes: the clip (its source range, speed, placement and adjustments; not its look), the frame, the
+ * RULE-09 frame index, or the looks loaded. Not while playing (the paused frame is drawn): a request still
+ * waiting to be sent is dropped then. A request that ends without every thumbnail is asked again
+ * (THUMBNAIL_RETRY_MS, up to THUMBNAIL_RETRIES times). New pictures replace the old ones look by look; another
+ * clip, or no clip, starts from nothing. The stop function (the gallery closing) closes every thumbnail and
+ * lets the engine free their context (NFR-05).
  */
-export function watchThumbnails(side: number): () => void {
+export function watchThumbnails(size: { readonly width: number; readonly height: number }): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stop: (() => void) | null = null;
   let lastKey = '';
+  const retry = signal(0);
+  let retriedFor = '';
   const dispose = effect(() => {
     const target = lookTarget.value;
     const pb = playback.value;
     const p = project.value;
     const head = playhead.value;
     const loaded = Object.keys(lookTables.value).length;
+    const again = retry.value;
     const playing = pb?.ctl.state.value === 'playing';
-    if (!target || !pb) return;
-    const current = thumbnails.peek();
-    if (current.clipId !== target.id) {
-      for (const b of current.bitmaps.values()) b.close();
-      thumbnails.value = { clipId: target.id, bitmaps: new Map() };
+    // Whatever happens next, a request waiting to be sent is for inputs that no longer hold.
+    clearTimeout(timer);
+    if (!target) {
+      clearThumbnails(null);
+      lastKey = '';
+      return;
+    }
+    if (thumbnails.peek().clipId !== target.id) {
+      clearThumbnails(target.id);
       lastKey = '';
     }
     const clip = p.clips.find((c) => c.id === target.id);
     const k = thumbnailFrame(p, target.id, head);
-    if (!clip || k === null || playing) return;
-    const key = JSON.stringify([{ ...clip, look: null }, p.frame, frameAspect(p), k, loaded, side]);
+    if (!pb || !clip || k === null || playing) return;
+    const inputs = JSON.stringify([{ ...clip, look: null }, p.frame, frameAspect(p), k, loaded, size]);
+    const key = `${inputs}#${again}`;
     if (key === lastKey) return;
-    clearTimeout(timer);
     timer = setTimeout(() => {
       lastKey = key;
       stop?.();
       const clipId = target.id;
-      stop = pb.ctl.lookThumbnails(clipId, head, side, (lookId, bitmap) => {
-        const now = thumbnails.peek();
-        if (now.clipId !== clipId) return bitmap.close();
-        const next = new Map(now.bitmaps);
-        next.get(lookId)?.close();
-        next.set(lookId, bitmap);
-        thumbnails.value = { clipId, bitmaps: next };
-      });
+      stop = pb.ctl.lookThumbnails(
+        clipId,
+        head,
+        size,
+        (lookId, bitmap) => {
+          const now = thumbnails.peek();
+          if (now.clipId !== clipId) return bitmap.close();
+          const next = new Map(now.bitmaps);
+          next.get(lookId)?.close();
+          next.set(lookId, bitmap);
+          thumbnails.value = { clipId, bitmaps: next };
+        },
+        (complete) => {
+          if (complete) return;
+          // Not every look drawn (no picture yet, a source failed, the inputs moved meanwhile): ask again.
+          const tries = retriedFor === inputs ? again : 0;
+          if (tries >= THUMBNAIL_RETRIES) return;
+          retriedFor = inputs;
+          timer = setTimeout(() => (retry.value = tries + 1), THUMBNAIL_RETRY_MS);
+        },
+      );
     }, THUMBNAIL_SETTLE_MS);
   });
   return () => {
     dispose();
     clearTimeout(timer);
     stop?.();
+    clearThumbnails(null);
+    playback.peek()?.ctl.releaseThumbnails();
   };
 }

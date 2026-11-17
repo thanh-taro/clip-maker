@@ -247,5 +247,8 @@ export class FakeCompositor implements Compositor {
   readPixels(): Uint8Array {
     return new Uint8Array(0);
   }
-  dispose(): void {}
+  disposed = false;
+  dispose(): void {
+    this.disposed = true;
+  }
 }

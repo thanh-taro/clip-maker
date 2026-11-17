@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { EngineMedia, FromEngine, Project, ToEngine } from '../../src/core';
 import {
   BUDGETS,
+  coverSize,
   Engine,
   runKeys,
   SLOW_PAINTS,
@@ -504,7 +505,7 @@ describe('MOD-Engine looks (F-008)', () => {
     await r.send({ type: 'engine:looks', tables: tables(['bw-classic', 'natural-warm', 'film-faded']) });
     await r.send({ type: 'engine:seek', t: 3 * S });
     const previewPaints = r.comp.paints.length;
-    await r.send({ type: 'engine:lookThumbnails', ticket: 7, clipId: 'b', t: 3 * S, side: 60 });
+    await r.send({ type: 'engine:lookThumbnails', ticket: 7, clipId: 'b', t: 3 * S, width: 96, height: 48 });
     expect(thumbs(r).map((e) => [e.ticket, e.clipId, e.lookId])).toEqual([
       [7, 'b', 'natural-warm'],
       [7, 'b', 'film-faded'],
@@ -521,22 +522,95 @@ describe('MOD-Engine looks (F-008)', () => {
     // The playhead at 3 s is 1 s into b (in point 1 s): source frame at 2 s.
     expect(painted[0]!.frames).toEqual([2 * S]);
     expect(painted[0]!.frameIndex).toBe(90);
-    // A 16:9 frame (Original, the first clip's shape) with its shorter side 60 px.
-    expect(r.canvases).toEqual([[107, 60]]);
+    // A 16:9 frame (Original, the first clip's shape) at the smallest size covering the 96 × 48 tile.
+    expect(r.canvases).toEqual([[96, 54]]);
+    expect(r.events.at(-1)).toEqual({ type: 'engine:lookThumbnailsDone', ticket: 7, complete: true });
+  });
+
+  it('F-008.R1 choosing a look while the thumbnails are drawn does not stop them: every look is drawn', async () => {
+    const p = twoClips();
+    const r = rig(p);
+    await r.send({ type: 'engine:looks', tables: tables(['bw-classic', 'bw-high', 'bw-soft']) });
+    r.engine.handle({ type: 'engine:lookThumbnails', ticket: 3, clipId: 'a', t: 0, width: 96, height: 48 });
+    // The clip's look changes (a choice in the gallery) while the frame is being decoded.
+    const withLook = {
+      ...p,
+      clips: p.clips.map((c, i) => (i === 0 ? { ...c, look: { id: 'bw-soft', intensity: 100 } } : c)),
+    };
+    r.engine.handle({ type: 'engine:setProject', project: withLook });
+    await r.engine.settled();
+    expect(thumbs(r).map((e) => e.lookId)).toEqual(['bw-classic', 'bw-high', 'bw-soft']);
+    expect(r.events.filter((e) => e.type === 'engine:lookThumbnailsDone')).toEqual([
+      { type: 'engine:lookThumbnailsDone', ticket: 3, complete: true },
+    ]);
+  });
+
+  it('F-008.R1 a change in what the thumbnails show (an adjustment) stops them and says so, so the gallery asks again', async () => {
+    const p = twoClips();
+    const r = rig(p);
+    await r.send({ type: 'engine:looks', tables: tables(['bw-classic', 'bw-high']) });
+    r.engine.handle({ type: 'engine:lookThumbnails', ticket: 4, clipId: 'a', t: 0, width: 96, height: 48 });
+    const brighter = {
+      ...p,
+      clips: p.clips.map((c, i) => (i === 0 ? { ...c, adjustments: { brightness: 20 } } : c)),
+    };
+    r.engine.handle({ type: 'engine:setProject', project: brighter });
+    await r.engine.settled();
+    expect(thumbs(r)).toEqual([]);
+    expect(r.events.filter((e) => e.type === 'engine:lookThumbnailsDone')).toEqual([
+      { type: 'engine:lookThumbnailsDone', ticket: 4, complete: false },
+    ]);
+  });
+
+  it('F-008.R1 NFR-03 a preview render waiting goes first: the thumbnails pause and resume at the next look', async () => {
+    const r = rig(twoClips());
+    await r.send({ type: 'engine:looks', tables: tables(['bw-classic', 'bw-high', 'bw-soft']) });
+    await r.send({ type: 'engine:seek', t: 0 });
+    const order: string[] = [];
+    const post = r.events.push.bind(r.events);
+    r.events.push = (...e: FromEngine[]) => {
+      for (const x of e) {
+        if (x.type === 'engine:lookThumbnail') {
+          order.push(x.lookId);
+          // A seek arrives just after the first thumbnail is posted.
+          if (order.length === 1) r.engine.handle({ type: 'engine:seek', t: ts30(20) });
+        }
+        if (x.type === 'engine:frameShown') order.push(`preview ${x.frameIndex}`);
+      }
+      return post(...e);
+    };
+    r.engine.handle({ type: 'engine:lookThumbnails', ticket: 5, clipId: 'a', t: 0, width: 96, height: 48 });
+    await r.engine.settled();
+    expect(order).toEqual(['bw-classic', 'preview 20', 'bw-high', 'bw-soft']);
+  });
+
+  it('NFR-05 releasing the thumbnails drops the request and frees their context', async () => {
+    const r = rig(twoClips());
+    await r.send({ type: 'engine:looks', tables: tables(['bw-classic']) });
+    await r.send({ type: 'engine:lookThumbnails', ticket: 6, clipId: 'a', t: 0, width: 96, height: 48 });
+    const comp = r.thumbComp()!;
+    await r.send({ type: 'engine:releaseThumbnails' });
+    expect(comp.disposed).toBe(true);
+  });
+
+  it('F-008.R1 coverSize: the smallest frame size that covers the tile', () => {
+    expect(coverSize(16 / 9, 96, 48)).toEqual({ width: 96, height: 54 });
+    expect(coverSize(9 / 16, 96, 48)).toEqual({ width: 96, height: 171 });
+    expect(coverSize(1, 96, 48)).toEqual({ width: 96, height: 96 });
   });
 
   it("RULE-09 with the playhead outside the clip the thumbnails show the clip's first frame", async () => {
     const r = rig(proj({ clips: [video('a', 2), video('b', 6, {}, 1)] }));
     await r.send({ type: 'engine:looks', tables: tables(['bw-classic']) });
-    await r.send({ type: 'engine:lookThumbnails', ticket: 1, clipId: 'b', t: 0, side: 60 });
+    await r.send({ type: 'engine:lookThumbnails', ticket: 1, clipId: 'b', t: 0, width: 96, height: 48 });
     expect(r.thumbComp()!.paints[0]!.frames).toEqual([S]);
   });
 
   it('F-008.R1 a newer thumbnail request replaces an older one not yet drawn (latest wins)', async () => {
     const r = rig(twoClips());
     await r.send({ type: 'engine:looks', tables: tables(['bw-classic', 'bw-soft']) });
-    r.engine.handle({ type: 'engine:lookThumbnails', ticket: 1, clipId: 'a', t: 0, side: 60 });
-    r.engine.handle({ type: 'engine:lookThumbnails', ticket: 2, clipId: 'b', t: 0, side: 60 });
+    r.engine.handle({ type: 'engine:lookThumbnails', ticket: 1, clipId: 'a', t: 0, width: 96, height: 48 });
+    r.engine.handle({ type: 'engine:lookThumbnails', ticket: 2, clipId: 'b', t: 0, width: 96, height: 48 });
     await r.engine.settled();
     expect(thumbs(r).every((e) => e.ticket === 2 && e.clipId === 'b')).toBe(true);
     expect(thumbs(r)).toHaveLength(2);

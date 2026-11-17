@@ -73,17 +73,21 @@ export type ToEngine =
   | { readonly type: 'engine:previewLook'; readonly clipId: string | null; readonly look: Look }
   /**
    * RULE-09 thumbnails (F-008.R1): the clip at the playhead frame `t` when it is inside the clip, otherwise its
-   * first frame, with its adjustments and each loaded look at 100, drawn in the project's frame with its
-   * shorter side `side` device pixels. Answered by one `engine:lookThumbnail` per look, in looks.md order;
-   * a newer request (`ticket`) replaces an older one.
+   * first frame, with its adjustments and each loaded look at 100, drawn in the project's frame at the
+   * smallest size that covers a `width` × `height` device-pixel tile. Answered by one `engine:lookThumbnail`
+   * per look, in looks.md order, then `engine:lookThumbnailsDone`; a newer request (`ticket`) replaces an older
+   * one.
    */
   | {
       readonly type: 'engine:lookThumbnails';
       readonly ticket: number;
       readonly clipId: string;
       readonly t: Micros;
-      readonly side: number;
+      readonly width: number;
+      readonly height: number;
     }
+  /** The gallery closed: drop any thumbnail request and free the thumbnails' canvas and context (NFR-05). */
+  | { readonly type: 'engine:releaseThumbnails' }
   /** Statistics of the playback so far (tests and NFR-03 measurement). */
   | { readonly type: 'engine:stats' }
   /** Releases every decoder, decoded frame and coarse copy (before an export, ADR-0003 §5); the compositor and its context stay. */
@@ -133,4 +137,9 @@ export type FromEngine =
       readonly lookId: string;
       readonly bitmap: ImageBitmap;
     }
+  /**
+   * Request `ticket` ended: `complete` when every loaded look was drawn; false when it stopped without them (no
+   * picture yet, a source failed, or what the thumbnails show changed), so the gallery asks again.
+   */
+  | { readonly type: 'engine:lookThumbnailsDone'; readonly ticket: number; readonly complete: boolean }
   | { readonly type: 'engine:error'; readonly message: string };
