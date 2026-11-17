@@ -3,7 +3,7 @@
 // is added to git. Exports run through MOD-Export's main-thread side and its two real workers; results
 // are read back with MOD-Container and compared with the compositor's paint (the preview's picture).
 import { endSampleOf, pcmSource, truePeak, TruePeakMeter, type SoundSource } from '../../src/audio';
-import { musicBlob } from '../../src/assets';
+import { looks as readLooks, musicBlob } from '../../src/assets';
 import {
   chooseAudioFormat,
   chooseVideoFormat,
@@ -13,7 +13,7 @@ import {
   videoEncoderConfig,
   withNormalisedDescription,
 } from '../../src/codec';
-import { createCompositor } from '../../src/compositor';
+import { createCompositor, decodeLookStrip } from '../../src/compositor';
 import { createOutput, openInput, type OutPacket } from '../../src/container';
 import {
   DEFAULT_PLACEMENT,
@@ -21,6 +21,7 @@ import {
   projectFrames,
   type Adjustments,
   type EngineMedia,
+  type Look,
   type ExportSettings,
   type Frame,
   type PcmSource,
@@ -915,8 +916,13 @@ async function chartBitmap(chart: GradeChart): Promise<ImageBitmap> {
   return createImageBitmap(c);
 }
 
-/** A one-second project of one chart photo (Original aspect, so 16:9), with these adjustments. */
-function chartProject(adjustments: Adjustments, seconds = 1): Project {
+/** The bundled look tables (F-008), read through MOD-Assets as the app reads them (dev server: compiled-in paths). */
+let tablesRead: Promise<Record<string, Uint8Array>> | null = null;
+const lookTables = (): Promise<Record<string, Uint8Array>> =>
+  (tablesRead ??= readLooks(decodeLookStrip).then((all) => Object.fromEntries(all.map((l) => [l.id, l.table]))));
+
+/** A one-second project of one chart photo (Original aspect, so 16:9), with these adjustments and look. */
+function chartProject(adjustments: Adjustments, seconds = 1, look: Look = null): Project {
   return {
     frame: { aspect: 'original', frameRate: 30, background: 'black' },
     sources: [{ id: 'src-c', kind: 'photo', name: 'chart', bytes: 1, width: 1920, height: 1080 }],
@@ -928,7 +934,7 @@ function chartProject(adjustments: Adjustments, seconds = 1): Project {
         duration: Math.round(seconds * 1_000_000),
         placement: DEFAULT_PLACEMENT,
         adjustments,
-        look: null,
+        look,
         fadeIn: 0,
         fadeOut: 0,
         crossFadeNext: 0,
@@ -961,7 +967,7 @@ async function exportChartFrame(
       caps: await caps(),
       media: [{ id: 'src-c', kind: 'photo', bitmap: await chartBitmap(chart) }],
       pcm: [],
-      looks: {},
+      looks: await lookTables(),
       texts: () => ({}),
       phone: false,
       gains: new Map(),
@@ -1011,8 +1017,11 @@ async function paintChart(
   W: number,
   H: number,
   ks: readonly number[],
-  comp = createCompositor(new OffscreenCanvas(W, H), new Map(), { preserve: true }),
+  compositor?: ReturnType<typeof createCompositor>,
 ): Promise<Uint8Array[]> {
+  const comp =
+    compositor ??
+    createCompositor(new OffscreenCanvas(W, H), new Map(Object.entries(await lookTables())), { preserve: true });
   const bitmap = await chartBitmap(chart);
   const source = new FrameSource([{ id: 'src-c', kind: 'photo', bitmap }]);
   const out: Uint8Array[] = [];
@@ -1037,13 +1046,14 @@ export interface GradeExportReport {
 }
 
 /**
- * F-007.AC2, AC6 (export halves), INV-02, NFR-08: a chart photo with `adjustments`, exported at 480p
+ * F-007.AC2, AC6 and F-008.AC6 (export halves), INV-02, NFR-08: a chart photo with `adjustments` and `look`
+ * (the bundled tables, read through MOD-Assets), exported at 480p
  * Balanced through the real export workers; frame 15 of the file is decoded and each patch's centre
  * (mean of a 5 × 5 block) read, next to the compositor's paint of the same frame and size (the
  * preview's picture) and the chart's own values.
  */
-async function gradeExport(adjustments: Adjustments, chart: GradeChart): Promise<GradeExportReport> {
-  const project = chartProject(adjustments);
+async function gradeExport(adjustments: Adjustments, chart: GradeChart, look: Look = null): Promise<GradeExportReport> {
+  const project = chartProject(adjustments, 1, look);
   const k = 15;
   const file = await exportChartFrame(project, chart, k);
   const { cols, rows, patches } = chartPatches(chart);
@@ -1152,7 +1162,100 @@ async function grainParity(grain = 50): Promise<GrainReport> {
   };
 }
 
+/** A photo-like test picture: sky, sun, a skin-tone patch, foliage, water and a grey ramp (1920 × 1080). */
+async function photoLike(): Promise<ImageBitmap> {
+  const W = 1920;
+  const H = 1080;
+  const c = new OffscreenCanvas(W, H);
+  const g = c.getContext('2d')!;
+  const sky = g.createLinearGradient(0, 0, 0, H * 0.62);
+  sky.addColorStop(0, 'rgb(246,161,94)');
+  sky.addColorStop(0.45, 'rgb(229,115,95)');
+  sky.addColorStop(0.75, 'rgb(123,74,124)');
+  sky.addColorStop(1, 'rgb(43,58,99)');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = 'rgb(255,227,163)';
+  g.beginPath();
+  g.arc(W * 0.28, H * 0.36, H * 0.11, 0, Math.PI * 2);
+  g.fill();
+  // Skin tones, light to dark.
+  [
+    [241, 194, 167],
+    [224, 172, 138],
+    [198, 134, 103],
+    [141, 85, 62],
+  ].forEach(([r, gr, b], i) => {
+    g.fillStyle = `rgb(${r},${gr},${b})`;
+    g.fillRect(W * (0.55 + i * 0.1), H * 0.18, W * 0.09, H * 0.3);
+  });
+  const leaves = g.createLinearGradient(0, H * 0.55, W, H * 0.55);
+  leaves.addColorStop(0, 'rgb(46,92,40)');
+  leaves.addColorStop(1, 'rgb(140,190,80)');
+  g.fillStyle = leaves;
+  g.fillRect(0, H * 0.55, W, H * 0.17);
+  const water = g.createLinearGradient(0, H * 0.72, 0, H * 0.88);
+  water.addColorStop(0, 'rgb(34,48,77)');
+  water.addColorStop(1, 'rgb(15,23,38)');
+  g.fillStyle = water;
+  g.fillRect(0, H * 0.72, W, H * 0.16);
+  const ramp = g.createLinearGradient(0, 0, W, 0);
+  ramp.addColorStop(0, 'black');
+  ramp.addColorStop(1, 'white');
+  g.fillStyle = ramp;
+  g.fillRect(0, H * 0.88, W, H * 0.12);
+  return createImageBitmap(c);
+}
+
+/**
+ * F-008 look sign-off (an owner check): a contact sheet of the 16 bundled looks at 100 — each cell the
+ * 24-patch chart above the photo-like picture, painted by the real compositor with the real tables — plus
+ * the originals, appended to the page as one canvas (`#look-sheet`) for a screenshot. Returns its size.
+ */
+async function lookContactSheet(
+  names: Readonly<Record<string, string>>,
+): Promise<{ width: number; height: number; looks: number }> {
+  const tables = await lookTables();
+  const ids = Object.keys(tables);
+  const cellW = 384;
+  const cellH = 216;
+  const label = 28;
+  const cols = 4;
+  const cells: (string | null)[] = [null, ...ids];
+  const rows = Math.ceil(cells.length / cols);
+  const sheet = document.createElement('canvas');
+  sheet.id = 'look-sheet';
+  sheet.width = cols * cellW;
+  sheet.height = rows * (2 * cellH + label);
+  const out = sheet.getContext('2d')!;
+  out.fillStyle = '#0b0812';
+  out.fillRect(0, 0, sheet.width, sheet.height);
+  const comp = createCompositor(new OffscreenCanvas(cellW, cellH), new Map(Object.entries(tables)), {
+    preserve: true,
+  });
+  const pictures = [await chartBitmap('colours'), await photoLike()];
+  for (const [i, id] of cells.entries()) {
+    const x = (i % cols) * cellW;
+    const y = Math.floor(i / cols) * (2 * cellH + label);
+    const project = chartProject({}, 1, id ? { id, intensity: 100 } : null);
+    for (const [j, bitmap] of pictures.entries()) {
+      const source = new FrameSource([{ id: 'src-c', kind: 'photo', bitmap }]);
+      const plan = framePlan(project, 0);
+      comp.paint(plan, await source.frames(plan));
+      const px = comp.readPixels();
+      out.putImageData(new ImageData(new Uint8ClampedArray(px), cellW, cellH), x, y + label + j * cellH);
+    }
+    out.fillStyle = '#efeaf8';
+    out.font = '600 16px sans-serif';
+    out.fillText(id ? `${names[id] ?? id} (${id})` : 'Original (no look)', x + 8, y + 20);
+  }
+  comp.dispose();
+  document.body.append(sheet);
+  return { width: sheet.width, height: sheet.height, looks: ids.length };
+}
+
 export const exportHarness = {
+  lookContactSheet,
   caps,
   run,
   runTone,

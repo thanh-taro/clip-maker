@@ -631,7 +631,7 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
     expect(await stateOf(page)).toBe(before);
   });
 
-  test('CMP-Inspector "photo clip" Q134 a photo has the tabs Edit and Adjust (no Sound); a video Edit, Adjust and Sound', async ({
+  test('CMP-Inspector "photo clip" Q134 a photo has the tabs Edit, Adjust and Looks (no Sound); a video Edit, Adjust, Looks and Sound', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -649,11 +649,13 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
     await expect(tabs(page).getByRole('tab')).toHaveText([
       text('en-US', 'inspector.edit'),
       text('en-US', 'inspector.adjust'),
+      text('en-US', 'looks.title'),
     ]);
     await clipButton(page, 'coded.mp4').click();
     await expect(tabs(page).getByRole('tab')).toHaveText([
       text('en-US', 'inspector.edit'),
       text('en-US', 'inspector.adjust'),
+      text('en-US', 'looks.title'),
       text('en-US', 'inspector.sound'),
     ]);
     // The Sound tab chosen on the video shows the photo's Edit tab, and comes back on the video.

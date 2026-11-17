@@ -2,8 +2,8 @@
 // app harness (tests/harness/app.html), with real decoders, the timeline (F-003) and the preview (F-002).
 // Edits whose controls are not built yet are made through the harness with the same MOD-Project
 // operations and gesture API those features will use, and are marked below:
-//   AC1 — the look (F-008) and Add text with typing (F-010); the split is F-004's real Split control
-//         (re-run with it per build question 100);
+//   AC1 — Add text with typing (F-010); the split is F-004's real Split control and the look F-008's real
+//         look gallery (re-run with them per build question 100);
 //   AC4 — now the real Exact speed slider of F-005 (re-run per build question 100);
 //   AC6 — the text layer typed in CMP-TextEditor (F-010).
 // Undo and Redo themselves are always the toolbar buttons or the keys. Axe at 320 and 1280 px in en-US
@@ -127,7 +127,7 @@ test.describe('F-014 undo and redo (app harness)', () => {
     await expect(clipButtons(page)).toHaveCount(2);
   });
 
-  test('F-014.AC1 undoing a split, a look change and a text added three times restores the project; redoing three times brings all back (Split control; look F-008, text F-010 via the harness)', async ({
+  test('F-014.AC1 undoing a split, a look change and a text added three times restores the project; redoing three times brings all back (Split control and F-008 look gallery; text F-010 via the harness)', async ({
     page,
     browserName,
   }) => {
@@ -138,7 +138,16 @@ test.describe('F-014 undo and redo (app harness)', () => {
     await page.evaluate(() => (window as unknown as Harness).appHarness.setPlayhead(1));
     await timelineTool(page, 'action.split').click();
     await expect(clipButtons(page)).toHaveCount(2);
-    await page.evaluate(() => (window as unknown as Harness).appHarness.setClip(0, { look: 'film-warm' }));
+    // F-008's look gallery (the inspector's Looks tab) on the first clip: Warm, one step.
+    await clipButtons(page).first().click();
+    const inspector = page.getByRole('complementary', { name: text('en-US', 'inspector.label') });
+    await inspector.getByRole('tab', { name: text('en-US', 'looks.title'), exact: true }).click();
+    await inspector
+      .getByRole('radiogroup', { name: text('en-US', 'looks.title') })
+      .getByRole('radio', { name: text('en-US', 'look.natural_warm'), exact: true })
+      .click();
+    expect((await clipsOf(page))[0]!.look).toBe('natural-warm');
+    await page.mouse.move(0, 0);
     await page.evaluate(() => (window as unknown as Harness).appHarness.typeText(0, 'Hi'));
     const after = await state(page);
     expect((await summary(page)).texts).toEqual(['Hi']);

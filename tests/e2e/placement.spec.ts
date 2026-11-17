@@ -70,7 +70,7 @@ const timeline = (page: Page, lang: Language = 'en-US') =>
   page.getByRole('region', { name: text(lang, 'timeline.label') });
 const clipButton = (page: Page, name: string, lang: Language = 'en-US') =>
   timeline(page, lang).getByRole('button', { name: new RegExp(`^${name.replace('.', '\\.')} `) });
-/** A selected photo's inspector: its clip tabs Edit and Adjust, Edit shown (build question 134, F-007). */
+/** A selected photo's inspector: its clip tabs Edit, Adjust and Looks, Edit shown (build question 134, F-007, F-008). */
 const inspector = (page: Page, lang: Language = 'en-US') =>
   page.getByRole('complementary', { name: text(lang, 'inspector.label') });
 const frameInspector = (page: Page, lang: Language = 'en-US') =>
