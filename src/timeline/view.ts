@@ -573,7 +573,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   function rulerFollow(): void {
     if (scale <= 0) return;
     const [l, r] = inView();
-    if (l / scale >= rulerWin[0] && Math.min(rulerSpan, r / scale) <= rulerWin[1]) return;
+    // Both ends clamped as the made part is (left of 0 is padding: centred, the view often starts there).
+    if (Math.max(0, l / scale) >= rulerWin[0] && Math.min(rulerSpan, r / scale) <= rulerWin[1]) return;
     renderRuler(rulerSpan, rulerClear);
   }
 
@@ -1029,12 +1030,15 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     }
     placeHead(t);
     if (!project.peek().clips.length || scale <= 0) return;
+    const busy = scrubbing !== null || !!drag?.active || !!trim || !!pan?.moved;
     if (playing.peek()) {
+      // A scrub, drag, trim or scroll in progress owns the view (no page turn per pointer move).
+      if (busy) return;
       const x = headX(t);
       const visible = x >= host.scrollLeft && x <= host.scrollLeft + viewW;
       if (following) reveal(t);
       else if (visible) following = true;
-    } else if (scrubbing === null && !drag?.active && !trim && !pan) {
+    } else if (!busy && !pan) {
       reveal(t);
     }
   });
@@ -1162,18 +1166,27 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
         // RULE-14: a manual scroll stops following until playback restarts or the playhead is back in view.
         following = false;
       }
+      afterScroll();
+    } else if (now !== expected) {
+      afterScroll();
     }
-    afterScroll();
+    // Else the view's own scroll, already followed by `setScroll`.
   };
 
   const onGestureDown = (e: PointerEvent): void => {
-    stopGlide();
+    // A touch that stops a glide leaves the view on a frame start (D-013).
+    if (glide) {
+      stopGlide();
+      settle();
+    }
     const touch = e.pointerType === 'touch';
     // The first finger of a new touch starts afresh (a lost touchend must not make the next touch a pinch).
     if (touch && e.isPrimary) touches.clear();
     if (touch) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const onRuler = !!(e.target as Element).closest('.tk-ruler');
     if (!project.peek().clips.length || scale <= 0) return;
+    // Outside the centred layout the ruler scrubs (F-002.R3), on touch too: no scroll from it.
+    if ((onRuler && !centred) || scrubbing === e.pointerId) return;
     // A mouse drags the project only on the centred ruler (elsewhere it selects, drags and trims).
     if (!touch && !(centred && onRuler && e.button === 0)) return;
     if (trim?.pointerId === e.pointerId) return;
@@ -1370,15 +1383,18 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
 
   /** Ctrl/⌘ + wheel (and a trackpad pinch) zooms around the pointer; a vertical wheel scrolls along time. */
   const onWheel = (e: WheelEvent): void => {
+    // Ctrl/⌘ + wheel over the timeline never zooms the page, even with nothing to zoom.
+    if (e.ctrlKey || e.metaKey) e.preventDefault();
     if (!project.peek().clips.length || scale <= 0) return;
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? viewW : 1;
     if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
       stopGlide();
       zoomAt(scale * Math.exp(-e.deltaY * unit * WHEEL_ZOOM), e.clientX - viewLeft());
       return;
     }
-    if (!e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX) && maxScroll() > 0) {
+    // A vertical wheel scrolls along time while the view can move that way; at an end the page scrolls.
+    const canMove = e.deltaY > 0 ? host.scrollLeft < maxScroll() - 0.5 : host.scrollLeft > 0.5;
+    if (!e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX) && canMove) {
       e.preventDefault();
       host.scrollLeft += e.deltaY * unit;
     }

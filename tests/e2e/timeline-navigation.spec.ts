@@ -361,8 +361,10 @@ test.describe('F-013 timeline navigation with a pointer (app harness)', () => {
       }
       seen.disconnect();
       const canvases = [...document.querySelectorAll<HTMLCanvasElement>('.tk-clip__strip')];
+      const sorted = [...frames].sort((a, b) => a - b);
       return {
         clipStyles,
+        p95: sorted[Math.floor(sorted.length * 0.95)]!,
         widest: Math.max(...canvases.map((c) => c.width)),
         ticks: document.querySelectorAll('.tk-ruler > *').length,
         view: lanes.clientWidth,
@@ -372,6 +374,52 @@ test.describe('F-013 timeline navigation with a pointer (app harness)', () => {
     expect(report.clipStyles).toBe(0);
     expect(report.widest).toBeLessThanOrEqual(3 * report.view * 2 + 2);
     expect(report.ticks).toBeLessThan(2000);
+    // NFR-03: 30 fps is 33 ms a frame; the 95th percentile scrolled frame stays within twice that under test load.
+    expect(report.p95).toBeLessThan(67);
+  });
+
+  test('F-013.R2 a mouse scrub on the ruler during playback, near the view’s edge, does not turn pages', async ({
+    page,
+  }) => {
+    await open(page);
+    await photos(page, 60);
+    for (let i = 0; i < 3; i++) await control(page, 'action.zoom_in').click();
+    const lanes = (await scroller(page).boundingBox())!;
+    const ruler = (await timeline(page).locator('.tk-ruler').boundingBox())!;
+    await at(page, 1);
+    await page.getByRole('button', { name: text('en-US', 'action.play') }).click();
+    await expect.poll(async () => (await preview(page)).state).toBe('playing');
+    const x = lanes.x + lanes.width - 10;
+    await page.mouse.move(lanes.x + lanes.width / 2, ruler.y + ruler.height / 2);
+    await page.mouse.down();
+    for (let i = 0; i < 6; i++) await page.mouse.move(x - i, ruler.y + ruler.height / 2);
+    expect(await scrollLeft(page)).toBe(0);
+    await page.mouse.up();
+    await page.getByRole('button', { name: text('en-US', 'action.pause') }).click();
+  });
+
+  test('F-013.R2 a vertical wheel at the view’s end leaves it to the page; Ctrl/⌘ + wheel never zooms the page, even when empty', async ({
+    page,
+  }) => {
+    await open(page);
+    const wheel = (opts: WheelEventInit) =>
+      scroller(page).evaluate(
+        (e, o) => {
+          const ev = new WheelEvent('wheel', { ...o, bubbles: true, cancelable: true });
+          e.dispatchEvent(ev);
+          return ev.defaultPrevented;
+        },
+        opts as Record<string, unknown>,
+      );
+    expect(await wheel({ deltaY: 50, ctrlKey: true })).toBe(true);
+    expect(await wheel({ deltaY: 50 })).toBe(false);
+    await photos(page, 60);
+    // At the fit there is nothing to scroll: the page takes the wheel.
+    expect(await wheel({ deltaY: 50 })).toBe(false);
+    await control(page, 'action.zoom_in').click();
+    // At the start, a wheel back has nowhere to go; forward scrolls the timeline.
+    expect(await wheel({ deltaY: -50 })).toBe(false);
+    expect(await wheel({ deltaY: 50 })).toBe(true);
   });
 
   for (const lang of ['en-US', 'vi-VN'] as const) {
@@ -440,6 +488,72 @@ test.describe('F-013 snapping in the preview (app harness)', () => {
     const { textLayers } = await stateOf<{ textLayers: { x: number }[] }>(page);
     expect(textLayers[0]!.x).not.toBe(0.5);
     expect(Math.abs(textLayers[0]!.x - (0.5 + 4 / frame.width))).toBeLessThan(0.01);
+  });
+});
+
+test.describe('F-013 narrow playback (app harness)', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('NFR-03 F-013.R2 at 390 px, playback keeps the playhead centred without rebuilding the ruler every frame', async ({
+    page,
+  }) => {
+    await open(page);
+    await photos(page, 60);
+    await at(page, 1);
+    await expect(scroller(page)).toHaveAttribute('data-centred', '');
+    await page.evaluate(() => {
+      const ruler = document.querySelector('.tk-ruler')!;
+      const w = window as unknown as { rebuilds: number; frames: number[] };
+      w.rebuilds = 0;
+      w.frames = [];
+      new MutationObserver((list) => {
+        for (const m of list) if (m.removedNodes.length > 1) w.rebuilds++;
+      }).observe(ruler, { childList: true });
+      let last = performance.now();
+      const tick = (now: number): void => {
+        w.frames.push(now - last);
+        last = now;
+        if (w.frames.length < 1000) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await page.getByRole('button', { name: text('en-US', 'action.play') }).click();
+    await expect.poll(async () => (await preview(page)).playhead, { timeout: 15_000 }).toBeGreaterThan(4);
+    await page.getByRole('button', { name: text('en-US', 'action.pause') }).click();
+    const { rebuilds, frames } = await page.evaluate(() => window as unknown as { rebuilds: number; frames: number[] });
+    // 3 s at the fit moves the view a fraction of the made part: a few rebuilds at most, not one a frame.
+    expect(rebuilds).toBeLessThanOrEqual(3);
+    const sorted = [...frames].sort((a, b) => a - b);
+    expect(sorted[Math.floor(sorted.length * 0.95)]!).toBeLessThan(67);
+    const lanes = (await scroller(page).boundingBox())!;
+    expect(Math.abs((await headX(page)) - (lanes.x + lanes.width / 2))).toBeLessThan(1.5);
+  });
+});
+
+test.describe('F-013 wider touch screens (app harness, touch)', () => {
+  test.use({ viewport: { width: 768, height: 1024 }, hasTouch: true });
+
+  test('F-002.R3 F-013.R2 at 768 px zoomed in, a touch drag on the ruler scrubs and does not scroll the view', async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'CDP touch input');
+    await open(page);
+    await photos(page, 60);
+    await expect(scroller(page)).not.toHaveAttribute('data-centred', '');
+    for (let i = 0; i < 3; i++) await control(page, 'action.zoom_in').click();
+    const ruler = (await timeline(page).locator('.tk-ruler').boundingBox())!;
+    const track = (await timeline(page).locator('.tk-track').boundingBox())!;
+    const px = await pxPerSecond(page);
+    const cdp = await page.context().newCDPSession(page);
+    const y = ruler.y + ruler.height / 2;
+    const send = (type: 'touchStart' | 'touchMove' | 'touchEnd', x?: number) =>
+      cdp.send('Input.dispatchTouchEvent', { type, touchPoints: x === undefined ? [] : [{ x, y, id: 1 }] });
+    await send('touchStart', track.x + 2 * px);
+    for (let i = 1; i <= 6; i++) await send('touchMove', track.x + 2 * px + (i * px) / 2);
+    await send('touchEnd');
+    expect(await scrollLeft(page)).toBe(0);
+    await expect.poll(async () => (await preview(page)).playhead).toBeCloseTo(5, 1);
   });
 });
 
@@ -606,6 +720,33 @@ test.describe('F-013 on a phone: the centred playhead (app harness, touch)', () 
     await send('touchEnd', []);
     await expect(timeline(page).locator('.tk-lanes')).toHaveAttribute('data-empty', '');
     expect(errors).toEqual([]);
+  });
+
+  test('F-013.R2 D-013 a tap that stops the momentum leaves the view on a frame start', async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'CDP touch input');
+    await open(page);
+    await photos(page, 60);
+    await control(page, 'action.zoom_in').click();
+    await control(page, 'action.zoom_in').click();
+    await at(page, 30);
+    const send = await touch(page);
+    const track = (await timeline(page).locator('.tk-track').boundingBox())!;
+    const y = track.y + track.height / 2;
+    const x0 = (await centreX(page)) + 60;
+    // A quick flick, then a tap while it glides.
+    await send('touchStart', [{ x: x0, y, id: 1 }]);
+    for (let i = 1; i <= 5; i++) await send('touchMove', [{ x: x0 - 25 * i, y, id: 1 }]);
+    await send('touchEnd', []);
+    await send('touchStart', [{ x: x0, y, id: 2 }]);
+    await send('touchEnd', []);
+    const px = await pxPerSecond(page);
+    const head = (await preview(page)).playhead;
+    // The playhead is a frame start (30 fps) and the scroll puts exactly it under the centre line.
+    expect(Math.abs(head * 30 - Math.round(head * 30))).toBeLessThan(1e-3);
+    expect(Math.abs((await scrollLeft(page)) - head * px)).toBeLessThan(1);
   });
 
   for (const lang of ['en-US', 'vi-VN'] as const) {
