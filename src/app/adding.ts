@@ -60,6 +60,8 @@ let chain: Promise<void> = Promise.resolve();
 let current: AbortController | null = null;
 /** Bumped by Cancel: batches queued before it are dropped (F-001.R6 "and the rest"). */
 let generation = 0;
+/** Bumped by New project (RULE-23): the batch being checked then is dropped whole, its checked files freed. */
+let dropped = 0;
 
 /** Resolves true once media is accepted, false if the device turns out unsupported (RULE-22). */
 function whenAccepting(): Promise<boolean> {
@@ -177,6 +179,7 @@ async function runBatch(items: readonly IntakeItem[], gen: number): Promise<void
     },
   });
   let result: IntakeResult | null = null;
+  const drop = dropped;
   queued.value = Math.max(0, queued.value - 1);
   try {
     const p = project.peek();
@@ -205,6 +208,11 @@ async function runBatch(items: readonly IntakeItem[], gen: number): Promise<void
     progress.value = null;
     closeNotice(key);
   }
+  if (result && drop !== dropped) {
+    // RULE-23: a new project started while this batch was checked; nothing of it joins the new project.
+    for (const a of result.accepted) deps?.release(a.source.id);
+    return;
+  }
   if (result) apply(result);
 }
 
@@ -230,6 +238,16 @@ export function addFiles(items: readonly IntakeItem[]): Promise<void> {
 export function cancelAdding(): void {
   generation++;
   current?.abort();
+}
+
+/**
+ * Implements: RULE-23, F-018.R3 (build question 192) — New project drops every batch, the one being checked
+ * included: files already checked are released instead of joining the new project.
+ */
+export function dropAdding(): void {
+  dropped++;
+  cancelAdding();
+  refusedFiles.value = [];
 }
 
 /** Implements: F-001.R4, AC14 — Add to timeline: a new clip of the whole source, as one undo step. */

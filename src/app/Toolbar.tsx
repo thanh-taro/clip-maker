@@ -2,8 +2,9 @@
 // The buttons and their labels in both languages. Wired so far: Add media (F-001), Music (F-011: opens
 // CMP-MusicPicker as a popover under it), Undo and Redo (F-014: unavailable when there is nothing to undo
 // or redo, and the RULE-20 history keys), Add text (F-010.R1: a layer at the playhead with CMP-TextEditor open on
-// it; while editing, the narrow top bar collapses to Undo, Redo and Done), Export (F-015: opens CMP-ExportPanel); the
-// other actions come with F-017 and F-018. Labels collapse to icons (compact) and the narrow top bar of D-038 is CSS on the tool's width
+// it; while editing, the narrow top bar collapses to Undo, Redo and Done), Export (F-015: opens CMP-ExportPanel), New
+// project (F-018.R2: CMP-ConfirmDialog asks first with unexported changes) and the narrow More menu (./MoreMenu.tsx,
+// F-018); Keyboard shortcuts comes with F-017. Labels collapse to icons (compact) and the narrow top bar of D-038 is CSS on the tool's width
 // (layout.css, text.css).
 import { useEffect } from 'preact/hooks';
 import { t, type MessageId, type MessageParams } from '../copy';
@@ -23,6 +24,8 @@ import { MusicPopover } from './MusicPicker';
 import { closePicker, openPicker, pickerOpen } from './sound';
 import { addTextAndEdit, editingText } from './text';
 import { DoneButton } from './TextEditor';
+import { MoreButton } from './MoreMenu';
+import { requestNewProject } from './new-project';
 
 /** Toolbar's Music button (the picker's anchor; Esc and Close return focus to it). */
 let musicButton: HTMLButtonElement | null = null;
@@ -78,7 +81,10 @@ function ToolButton({ item }: { item: Item }) {
         : item.id === 'add-text'
           ? // F-010.R1: Add text adds a layer at the playhead and opens CMP-TextEditor on it.
             () => void addTextAndEdit()
-          : undefined;
+          : item.id === 'new-project'
+            ? // F-018.R2: asks first (CMP-ConfirmDialog) only when there are unexported changes.
+              (e: MouseEvent) => void requestNewProject(e.currentTarget as HTMLElement)
+            : undefined;
   return (
     <button
       ref={(el: HTMLButtonElement | null) => {
@@ -110,17 +116,7 @@ export function Toolbar() {
   return (
     <header class="tk-toolbar-region">
       <div class="tk-toolbar" role="toolbar" aria-label={t('toolbar.label')}>
-        <button
-          type="button"
-          class="tk-tool tk-tool--more"
-          data-action="more"
-          aria-label={t('action.more')}
-          title={t('action.more')}
-          aria-haspopup="menu"
-          aria-expanded="false"
-        >
-          <Icon name="more" size={20} />
-        </button>
+        <MoreButton />
         {ITEMS.slice(0, 5).map((item) => (
           <ToolButton key={item.id} item={item} />
         ))}

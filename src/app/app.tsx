@@ -12,6 +12,7 @@ import { project } from '../project';
 import { configureAdding, watchSources } from './adding';
 import { ensureLooks } from './looks';
 import { guardDrops } from './MediaInput';
+import { bindLeaveWarning } from './new-project';
 import { browserDevice, device, finishCheck, openingCheck, type DeviceDeps } from './device';
 import { Shell } from './Shell';
 import { Unsupported } from './Unsupported';
@@ -69,6 +70,8 @@ export async function main(options: MainOptions = {}): Promise<void> {
 
   // F-001.R5: no dropped file or link ever navigates the page, on any screen.
   guardDrops();
+  // Implements: F-018.R1 — the browser warns before leaving while there are unexported changes (RULE-19).
+  bindLeaveWarning();
   const root = document.getElementById('app');
   if (root) render(<App remember={remember} />, root);
 
