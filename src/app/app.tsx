@@ -100,8 +100,6 @@ export async function main(options: MainOptions = {}): Promise<void> {
         : {};
     });
     watchSources(registry);
-    // ADR-0013 §5: the looks are read from the tool's own origin at start-up, after the first render (F-008).
-    void ensureLooks();
   }
   registerOffline();
   void loadFonts();
@@ -125,4 +123,8 @@ export async function main(options: MainOptions = {}): Promise<void> {
     focusAfterRender();
   }
   performance.mark(MARK_DONE);
+  // ADR-0013 §5: the looks are read from the tool's own origin at start-up, after the first render (F-008),
+  // and only once the device check is done, so the check itself requests nothing (F-023.R4/AC4) and
+  // doesn't compete with it for the start-up time (NFR-02).
+  if (status.status !== 'unsupported' && opening.status === 'drawing-check') void ensureLooks();
 }
