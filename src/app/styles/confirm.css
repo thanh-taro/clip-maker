@@ -188,7 +188,7 @@
     background: var(--tk-color-surface2);
   }
 
-  /* Unavailable (Keyboard shortcuts until F-017): legible, muted, still focusable. */
+  /* Unavailable: legible, muted, still focusable. */
   .tk-more__item[aria-disabled='true'] {
     color: var(--tk-color-muted);
     cursor: default;

@@ -219,7 +219,7 @@ export function bindAdjustKeys(doc: Document = document): () => void {
   const view = doc.defaultView ?? window;
   const onKey = (e: KeyboardEvent): void => {
     if (e.defaultPrevented || e.isComposing) return;
-    const action = resolveKey(e, scopeOf(focusInfo(doc.activeElement), e.code), mac);
+    const action = resolveKey(e, scopeOf(focusInfo(doc.activeElement), e.code, e), mac);
     const target = adjustTarget.peek();
     if (!target) return;
     switch (action) {

@@ -355,7 +355,9 @@
   .tk-switch::before {
     content: '';
     position: absolute;
-    inset-inline: 0;
+    /* The track keeps its width when the touch hit area is wider (RULE-21, F-017). */
+    inset-inline-start: 0;
+    inline-size: var(--tk-space-10);
     inset-block-start: 50%;
     block-size: var(--tk-space-5);
     border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
@@ -427,6 +429,11 @@
   .tk-text--touch .tk-switch,
   .tk-text--touch .tk-place__button {
     min-block-size: var(--tk-size-touch-target);
+  }
+
+  /* RULE-21: the Fade toggle's hit area is touch size both ways (F-017 audit; the track stays 40 px). */
+  .tk-text--touch .tk-switch {
+    min-inline-size: var(--tk-size-touch-target);
   }
 
   .tk-text--touch .tk-place__number {

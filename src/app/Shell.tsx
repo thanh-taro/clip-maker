@@ -3,7 +3,7 @@
 // the frame's place while empty), inspector (CMP-Inspector, F-012; wide and compact only), timeline
 // (CMP-Timeline, F-003), on narrow layouts the open tab sheet and the tab bar (D-038), status bar; then
 // the overlays: CMP-Notice stack (in the preview area), CMP-ExportPanel (F-015: docked in the inspector column,
-// a sheet on narrow layouts), CMP-ExportProgress, CMP-ConfirmDialog (F-018) and CMP-DropOverlay. The other overlays arrive
+// a sheet on narrow layouts), CMP-ExportProgress, CMP-ConfirmDialog (F-018), CMP-ShortcutHelp (F-017) and CMP-DropOverlay. The other overlays arrive
 // with their features (phase 4). Layout
 // widths (style.md "Layouts": wide ≥ 1000, compact 700–999, narrow < 700) are container queries on the
 // tool root (NFR-07). `data-device` shows the RULE-22 check (F-023): media is accepted only once it
@@ -25,6 +25,7 @@ import { DropOverlay, dragging, FilePicker, useMediaInput } from './MediaInput';
 import { MediaPanel } from './MediaPanel';
 import { playback } from './playback';
 import { PreviewArea } from './Preview';
+import { ShortcutHelp } from './ShortcutHelp';
 import { StatusBar } from './StatusBar';
 import { Timeline } from './Timeline';
 import { editingText, selectedText } from './text';
@@ -114,6 +115,7 @@ export function Shell({ addRef }: { addRef: (el: HTMLButtonElement | null) => vo
       <StatusBar />
       <ExportProgress />
       <ConfirmDialog />
+      <ShortcutHelp />
       <DropOverlay />
       <FilePicker />
     </div>

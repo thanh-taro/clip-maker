@@ -121,7 +121,11 @@ export function useKeepFocus(container: RefObject<HTMLElement>, fallback: RefObj
   had.current = container.current?.contains(document.activeElement) ?? false;
   useEffect(() => {
     if (!had.current) return;
-    if (!container.current?.contains(document.activeElement)) fallback.current?.focus();
+    // Only focus that fell to the page is caught: focus moved on purpose (T opening CMP-TextEditor from an
+    // inspector control, F-017 audit) stays where it went.
+    const active = document.activeElement;
+    const lost = active === null || active === document.body || !active.isConnected;
+    if (lost && !container.current?.contains(active)) fallback.current?.focus();
     // Runs when the shown section changes.
   }, [key]);
 }

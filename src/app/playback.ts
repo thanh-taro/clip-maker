@@ -319,6 +319,8 @@ export function focusInfo(el: Element | null): FocusInfo | null {
       scrolls(style.overflowY, el.scrollHeight, el.clientHeight) ||
       scrolls(style.overflowX, el.scrollWidth, el.clientWidth),
     inDialog: el.closest('dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"]') !== null,
+    // CMP-Toolbar / CMP-Timeline: a toolbar's Left and Right move between its buttons (./roving.ts, F-017).
+    inToolbar: el.closest('[role="toolbar"]') !== null,
   };
 }
 
@@ -341,7 +343,7 @@ export function bindPlaybackKeys(doc: Document = document): () => void {
     if (e.defaultPrevented || e.isComposing) return;
     const p = playback.peek();
     if (!p) return;
-    const action = resolveKey(e, scopeOf(focusInfo(doc.activeElement), e.code));
+    const action = resolveKey(e, scopeOf(focusInfo(doc.activeElement), e.code, e));
     if (!action) return;
     if (action === 'escape') {
       // One Esc does one thing: an open overlay (drop overlay, dialog, sheet, popover, menu) takes it.
