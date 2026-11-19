@@ -3,7 +3,7 @@
 // COPY-export.format_note in place of COPY-export.saves_as. Built with F-023 (R3); CMP-ExportPanel
 // (F-015, F-016) shows it. Format names are technical names, the same in every language
 // (build-spec-questions 60).
-// Implements: F-023.R3, F-015.R2/R3 (UI text).
+// Implements: F-023.R3, F-015.R2/R3, F-016 (UI text).
 import { translate, type Language } from '../copy';
 import type { AudioFormat, VideoFormat } from '../codec';
 
@@ -57,4 +57,29 @@ const AUDIO_NAME: Record<AudioFormat['id'], string> = { 'm4a-aac': 'M4A', 'ogg-o
 export function audioFormatNote(f: AudioFormat, lang: Language): string | null {
   if (!f.fallback || f.id === 'wav') return null;
   return translate(lang, 'export.format_note', { format: AUDIO_NAME[f.id], preferred: AUDIO_NAME['m4a-aac'] });
+}
+
+/** The technical name of the compressed audio-only format (COPY-export.audio_compressed's `{format}`). */
+export const audioFormatName = (f: AudioFormat): string => AUDIO_NAME[f.id];
+
+/**
+ * Implements: F-016 CMP-ExportPanel "audio" / "fallback" — the footer's format line of an audio-only export:
+ * COPY-export.saves_as with M4A or WAV, or COPY-export.format_note naming the compressed fallback (Ogg).
+ * WAV never gets a note (Q60, F-023.R5).
+ */
+export function audioFormatLine(
+  compressed: AudioFormat,
+  choice: 'compressed' | 'wav',
+  lang: Language,
+): { readonly text: string; readonly fallback: boolean } {
+  const f = choice === 'wav' ? ({ id: 'wav', fallback: false } as const) : compressed;
+  const note = audioFormatNote(f, lang);
+  return note
+    ? { text: note, fallback: true }
+    : { text: translate(lang, 'export.saves_as', { format: AUDIO_NAME[f.id] }), fallback: false };
+}
+
+/** Implements: F-016 CMP-ExportPanel "gif" — COPY-export.saves_as GIF (the same name in every language). */
+export function gifFormatLine(lang: Language): { readonly text: string; readonly fallback: boolean } {
+  return { text: translate(lang, 'export.saves_as', { format: 'GIF' }), fallback: false };
 }

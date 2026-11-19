@@ -17,7 +17,7 @@
 | F-013 | Navigate the timeline | M-1 | P1 | building |
 | F-014 | Undo and redo | M-1 | P0 | building |
 | F-015 | Export video | M-1 | P0 | building |
-| F-016 | Export an animated image or audio | M-1 | P2 | ready |
+| F-016 | Export an animated image or audio | M-1 | P2 | building |
 | F-017 | Control by keyboard and touch | M-1 | P1 | ready |
 | F-018 | Warn before losing work | M-1 | P1 | building |
 | F-019 | Fit into the host portal | M-1 | P0 | building |

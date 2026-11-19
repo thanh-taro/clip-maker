@@ -8,9 +8,12 @@
 // While an export runs the editor is locked (SCR-Editor "exporting", Q96/Q100): ./lock.ts.
 // A successful video export marks the project exported (RULE-19) as it was when the export started, so an
 // edit landing meanwhile (a media batch that was already being checked) stays unexported.
-// Implements: F-015.R1–R3, F-015.R5–R7, F-015.R9, RULE-15 (offers, default, size target), RULE-19 (signal),
-// RULE-23 (settings kept for the session), D-018, D-020, CMP-ExportPanel "Behavior", CMP-ExportProgress
-// "Behavior".
+// F-016 adds the GIF and Audio only kinds (RULE-16): the GIF's range (defaulting from the playhead when GIF is
+// picked), size and rate, and the audio format; both run through the same dialog, cancel, failure handling,
+// Share and scratch clean-up (F-016.R3). A GIF export never clears unexported changes (RULE-19, D-019).
+// Implements: F-015.R1–R3, F-015.R5–R7, F-015.R9, F-016.R1–R4, RULE-15 (offers, default, size target), RULE-16,
+// RULE-19 (signal), RULE-23 (settings kept for the session), D-018, D-019, D-020, CMP-ExportPanel "Behavior",
+// CMP-ExportProgress "Behavior".
 import { computed, effect, signal, untracked } from '@preact/signals';
 import { musicBlob } from '../assets';
 import {
@@ -21,17 +24,27 @@ import {
   trialAudioEncode,
   trialVideoEncode,
   videoEncoderConfig,
+  type AudioFormat,
   type Capabilities,
   type GridCell,
   type VideoCodecId,
   type VideoTrial,
 } from '../codec';
+import { formatDuration, type Language } from '../copy';
 import {
   frameAspect,
+  frameAtOrAfter,
+  frameIndexAt,
+  frameStart,
+  gifOutputSize,
+  minDuration,
+  projectFrames,
   videoOutputSize,
   type EngineMedia,
   type ExportQuality,
   type ExportSettings,
+  type FrameRate,
+  type Micros,
   type Project,
   type TextBitmap,
   type VideoResolution,
@@ -40,8 +53,9 @@ import { deviceClass, platformHints } from '../engine';
 import {
   downloadBlob,
   estimate as estimateExport,
+  GIF_MAX_US,
   hasSound,
-  start as startExport,
+  start as startExportRun,
   type EstimateResult,
   type ExportCaps,
   type ExportContext,
@@ -49,7 +63,7 @@ import {
   type ExportResult,
 } from '../export';
 import { canShareFile } from '../host';
-import { markExported, exportMark, project } from '../project';
+import { markExported, exportMark, playhead, project } from '../project';
 import { textBitmaps } from '../preview';
 import { needsClip } from './adding';
 import { capabilities } from './device';
@@ -160,9 +174,110 @@ export function targetAdvice(e: EstimateResult | 'failed' | null): TargetAdvice 
   return { kind: 'unknown' };
 }
 
-/** The MIME type of a finished file, for the File given to the share sheet (RULE-15 formats). */
+const MIME: Readonly<Record<string, string>> = {
+  webm: 'video/webm',
+  mp4: 'video/mp4',
+  gif: 'image/gif',
+  m4a: 'audio/mp4',
+  ogg: 'audio/ogg',
+  wav: 'audio/wav',
+};
+/** The MIME type of a finished file, for the File given to the share sheet (RULE-15, RULE-16 formats). */
 export const mimeOf = (fileName: string): string =>
-  fileName.endsWith('.webm') ? 'video/webm' : fileName.endsWith('.mp4') ? 'video/mp4' : 'application/octet-stream';
+  MIME[/\.(\w+)$/.exec(fileName)?.[1] ?? ''] ?? 'application/octet-stream';
+
+// ── RULE-16 GIF and audio-only choices (pure) ──────────────────────────────────────────────────────
+
+export type ExportKind = ExportSettings['kind'];
+/** The kind tabs, in order (CMP-ExportPanel anatomy). */
+export const KINDS: readonly ExportKind[] = ['video', 'gif', 'audio'];
+export type GifSize = 320 | 480 | 640;
+export type GifRate = 10 | 15;
+/** RULE-16: 320, 480 or 640 pixels on the longer side. */
+export const GIF_SIZES: readonly GifSize[] = [320, 480, 640];
+/** RULE-16: 10 or 15 frames per second. */
+export const GIF_RATES: readonly GifRate[] = [10, 15];
+export interface GifChoice {
+  readonly size: GifSize;
+  readonly rate: GifRate;
+}
+/** RULE-16 defaults: 480 and 15 fps. */
+export const DEFAULT_GIF: GifChoice = { size: 480, rate: 15 };
+export interface GifRange {
+  readonly from: Micros;
+  readonly to: Micros;
+}
+
+/**
+ * Implements: RULE-16 GIF range, F-016.AC1 — a project of 15 s or less is exported whole; otherwise the 15 s
+ * from the frame the playhead is in, or the last 15 s when fewer than 15 s remain.
+ */
+export function defaultGifRange(length: Micros, at: Micros, rate: FrameRate): GifRange {
+  if (length <= GIF_MAX_US) return { from: 0, to: length };
+  const last = frameStart(frameAtOrAfter(length - GIF_MAX_US, rate), rate);
+  const from = Math.min(frameStart(frameIndexAt(Math.max(0, at), rate), rate), last);
+  return { from, to: Math.min(length, from + GIF_MAX_US) };
+}
+
+const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
+
+/**
+ * Implements: RULE-16, CMP-ExportPanel "Behavior" (GIF range) — a new start: the end follows only as far as
+ * needed to keep the range within 15 s, inside the project and at least RULE-05's minimum length.
+ */
+export function setGifFrom(r: GifRange, from: Micros, length: Micros, rate: FrameRate): GifRange {
+  if (length <= GIF_MAX_US) return { from: 0, to: length };
+  const min = minDuration(rate);
+  const f = clamp(from, 0, length - min);
+  return { from: f, to: clamp(r.to, f + min, Math.min(length, f + GIF_MAX_US)) };
+}
+
+/** Implements: RULE-16 — a new end: the start follows only as far as needed (as `setGifFrom`). */
+export function setGifTo(r: GifRange, to: Micros, length: Micros, rate: FrameRate): GifRange {
+  if (length <= GIF_MAX_US) return { from: 0, to: length };
+  const min = minDuration(rate);
+  const t = clamp(to, min, length);
+  return { from: clamp(r.from, Math.max(0, t - GIF_MAX_US), t - min), to: t };
+}
+
+/**
+ * RULE-16, CMP-ExportPanel "Behavior": a range kept within the project as it is now (the project may change
+ * while the panel is open). It keeps its length (at most the project's) and slides to fit, rather than
+ * shrinking.
+ */
+export function clampGifRange(r: GifRange, length: Micros, rate: FrameRate): GifRange {
+  if (length <= GIF_MAX_US) return { from: 0, to: length };
+  const len = Math.min(Math.max(r.to - r.from, minDuration(rate)), length, GIF_MAX_US);
+  const from = clamp(r.from, 0, length - len);
+  return { from, to: from + len };
+}
+
+/**
+ * CMP-ExportPanel "gif": From/To accept m:ss with optional frames after "·", "." or ":" (the transport shows
+ * "0:10 ·15"), or whole seconds; the time is that frame's start at the project's rate. Null when not a time.
+ */
+export function parseGifTime(text: string, rate: FrameRate): Micros | null {
+  const m = /^\s*(?:(\d{1,2}):)?(\d{1,2})(?:\s*[·.:]\s*(\d{1,2}))?\s*$/.exec(text);
+  if (!m) return null;
+  const minutes = Number(m[1] ?? 0);
+  const seconds = Number(m[2]);
+  const frame = Number(m[3] ?? 0);
+  if (seconds >= 60 || frame >= rate) return null;
+  return frameStart((minutes * 60 + seconds) * rate + frame, rate);
+}
+
+/** A GIF range time as m:ss, with the frame inside that second as a "·ff" suffix when it isn't 0. */
+export function formatGifTime(t: Micros, rate: FrameRate, lang: Language): string {
+  const k = frameIndexAt(Math.max(0, t), rate);
+  const second = Math.floor(k / rate);
+  const frame = k - second * rate;
+  const time = formatDuration(second * 1_000_000, lang);
+  return frame === 0 ? time : `${time}·${String(frame).padStart(2, '0')}`;
+}
+
+/** The audio-only format choice (RULE-16): the compressed format the device can encode, or WAV. */
+export type AudioChoice = 'compressed' | 'wav';
+const WAV: AudioFormat = { id: 'wav', fallback: false };
 
 // ── The session's export capability record (ADR-0004 outcome) ───────────────────────────────────
 
@@ -195,9 +310,11 @@ const soundTrials = (caps: Capabilities): Promise<ExportCaps['audio']> =>
 /**
  * Implements: RULE-15 *Output*, ADR-0004 §3/§5 — the first format of the fallback order whose encoders pass
  * the start-up probe and whose video trial encode works (a failed trial drops that codec for the session,
- * MOD-Codec), with the trial's latency mode, acceleration and bitrate modes. Null: no video format works.
+ * MOD-Codec), with the trial's latency mode, acceleration and bitrate modes. The audio-only compressed format
+ * follows the sound trials too (RULE-16). When no video format works (`videoFormat` null), the GIF and WAV
+ * exports, which need no video or sound encoder, stay available (F-023.R5).
  */
-export async function exportCaps(caps: Capabilities, sound: boolean): Promise<ExportCaps | null> {
+export async function exportCaps(caps: Capabilities, sound: boolean): Promise<ExportCaps> {
   // A sound encoder whose trial failed leaves the formats that need it out (RULE-22, F-023.R5).
   const audio = sound ? await soundTrials(caps) : {};
   const failed = new Set<VideoCodecId>();
@@ -209,26 +326,26 @@ export async function exportCaps(caps: Capabilities, sound: boolean): Promise<Ex
     };
     for (const c of failed) usable.encode[c] = false;
     const f = chooseVideoFormat(usable, sound);
-    if (!f) return null;
+    if (!f) return capsOf(null, usable, null, audio);
     const trial = await videoTrial(f.video).catch(() => null);
-    if (trial?.ok) return capsOf(f, caps, trial, audio);
+    if (trial?.ok) return capsOf(f, usable, trial, audio);
     failed.add(f.video);
   }
 }
 
 function capsOf(
-  f: NonNullable<ReturnType<typeof chooseVideoFormat>>,
-  caps: Capabilities,
-  trial: VideoTrial,
+  f: ReturnType<typeof chooseVideoFormat>,
+  caps: Pick<Capabilities, 'audioEncode'>,
+  trial: VideoTrial | null,
   audio: ExportCaps['audio'],
 ): ExportCaps {
   return {
     videoFormat: f,
     audioFormat: chooseAudioFormat(caps),
     video: {
-      latencyMode: trial.latencyMode ?? 'realtime',
-      acceleration: trial.acceleration ?? 'no-preference',
-      bitrateModes: trial.bitrateModes,
+      latencyMode: trial?.latencyMode ?? 'realtime',
+      acceleration: trial?.acceleration ?? 'no-preference',
+      bitrateModes: trial?.bitrateModes ?? [],
     },
     audio,
   };
@@ -281,16 +398,115 @@ export type EstimateView =
 /** The panel's estimate for the current settings (COPY-export.estimate, F-015.R2). */
 export const estimateView = signal<EstimateView>({ status: 'pending' });
 
+/** The chosen kind tab (ENT-ExportSettings: kept for the session and across new projects, RULE-23). */
+export const exportKind = signal<ExportKind>('video');
+/** The session's GIF size and rate (RULE-16, RULE-23). */
+export const gifChoice = signal<GifChoice>(DEFAULT_GIF);
+/** The range of this opening of the panel: set from the playhead when GIF is picked (RULE-16). */
+const gifPicked = signal<GifRange | null>(null);
+/** The project's length (µs) and frame rate. */
+const lengthNow = computed(() => frameStart(projectFrames(project.value), project.value.frame.frameRate));
+/** The GIF range as offered: the one picked, kept within the project as it is now (RULE-16). */
+export const gifRange = computed<GifRange>(() => {
+  const rate = project.value.frame.frameRate;
+  const length = lengthNow.value;
+  return clampGifRange(gifPicked.value ?? defaultGifRange(length, 0, rate), length, rate);
+});
+/** RULE-16: a project of 15 s or less is exported whole; both fields are read-only (CMP-ExportPanel). */
+export const gifRangeFixed = computed(() => lengthNow.value <= GIF_MAX_US);
+/** The session's audio-only format choice (RULE-16; compressed by default). */
+export const audioChoice = signal<AudioChoice>('compressed');
 /**
- * Implements: CMP-ExportPanel "Behavior" — Export is possible when there is a clip (RULE-03), a format and a
- * resolution, and a size target is known to be reachable at the chosen size.
+ * Implements: RULE-16, F-023.R5 / AC8 — the audio-only formats offered: the compressed one the device can
+ * encode (after the sound trial encodes, once known), and WAV always; without a sound encoder, WAV only.
+ */
+export const audioOffers = computed<readonly AudioFormat[]>(() => {
+  const ec = sessionCaps.value;
+  if (ec && capsSound.value) return ec.audioFormat.id === 'wav' ? [WAV] : [ec.audioFormat, WAV];
+  const caps = capabilities.value;
+  return caps ? audioFormatOffers(caps) : [WAV];
+});
+/** The audio choice in effect: WAV when no compressed format is offered. */
+export const chosenAudio = computed<AudioChoice>(() => (audioOffers.value.length > 1 ? audioChoice.value : 'wav'));
+
+/** The settings the panel would export now (null: no resolution can be offered for a video). */
+export const exportSettings = computed<ExportSettings | null>(() => {
+  const kind = exportKind.value;
+  if (kind === 'gif') {
+    const { size, rate } = gifChoice.value;
+    const { from, to } = gifRange.value;
+    return { kind: 'gif', size, rate, from, to };
+  }
+  if (kind === 'audio') return { kind: 'audio', format: chosenAudio.value };
+  const r = resolution.value;
+  return r === null ? null : settingsOf(videoChoice.value, r);
+});
+
+/**
+ * Why Export is unavailable for every setting of the kind (CMP-ExportPanel "needs clip", "no sound"): an empty
+ * main track (RULE-03), or, for audio only, no unmuted, non-silent sound (RULE-16). Null: neither.
+ */
+export const exportBlock = computed<'needs_clip' | 'no_sound' | null>(() => {
+  if (needsClip.value) return 'needs_clip';
+  if (exportKind.value === 'audio' && !hasSound(project.value)) return 'no_sound';
+  return null;
+});
+
+/**
+ * Implements: CMP-ExportPanel "Behavior" — Export is possible when there is a clip (RULE-03) and the capability
+ * record for the project's sound is known; for a video, a format and a resolution, and a size target known to
+ * be reachable at the chosen size; for audio only, sound to export (RULE-16).
  */
 export const canExport = computed(() => {
-  if (needsClip.value || noFormat.value || resolution.value === null || !capsReady.value) return false;
+  if (exportBlock.value !== null || !capsReady.value || exportSettings.value === null) return false;
+  if (exportKind.value !== 'video') return true;
+  if (noFormat.value) return false;
   if (videoChoice.value.targetMB === null) return true;
   const e = estimateView.value;
   return e.status === 'ready' && e.result.reachable;
 });
+
+/** Picks a kind tab; GIF's range starts from the playhead the first time it is picked in this opening. */
+export function chooseKind(kind: ExportKind): void {
+  exportKind.value = kind;
+  if (kind === 'gif' && gifPicked.peek() === null) pickDefaultRange();
+}
+function pickDefaultRange(): void {
+  const p = project.peek();
+  gifPicked.value = defaultGifRange(lengthNow.peek(), playhead.peek(), p.frame.frameRate);
+}
+
+// RULE-16: a range picked while the project was 15 s or less (the whole project) doesn't carry over once the
+// project grows past 15 s: the default from the playhead applies again (and the other way round).
+let wasFixed = gifRangeFixed.peek();
+effect(() => {
+  const fixed = gifRangeFixed.value;
+  if (fixed === wasFixed) return;
+  wasFixed = fixed;
+  untracked(() => {
+    gifPicked.value = null;
+    if (panelOpen.peek() && exportKind.peek() === 'gif') pickDefaultRange();
+  });
+});
+export function chooseGifSize(size: GifSize): void {
+  gifChoice.value = { ...gifChoice.value, size };
+}
+export function chooseGifRate(rate: GifRate): void {
+  gifChoice.value = { ...gifChoice.value, rate };
+}
+/** A From typed in the panel (RULE-16: the end follows within 15 s). */
+export function chooseGifFrom(from: Micros): void {
+  const p = project.peek();
+  gifPicked.value = setGifFrom(gifRange.peek(), from, lengthNow.peek(), p.frame.frameRate);
+}
+/** A To typed in the panel (RULE-16: the start follows within 15 s). */
+export function chooseGifTo(to: Micros): void {
+  const p = project.peek();
+  gifPicked.value = setGifTo(gifRange.peek(), to, lengthNow.peek(), p.frame.frameRate);
+}
+export function chooseAudio(choice: AudioChoice): void {
+  audioChoice.value = choice;
+}
 
 /** Chooses a resolution (UI state). A size target's advice is worked out again. */
 export function chooseResolution(r: VideoResolution): void {
@@ -315,11 +531,17 @@ export const focusOpener = (): void => {
   if (opener?.isConnected) opener.focus();
 };
 
-/** Opens CMP-ExportPanel (COPY-action.export; Mod+E with F-017). */
-export function openPanel(): void {
+/** Opens CMP-ExportPanel (COPY-action.export; Mod+E with F-017). `keepRange`: Change settings. */
+export function openPanel(keepRange = false): void {
   if (editorLocked.peek()) return;
   // Only one panel at a time: a running playback keeps going, an open text editor ends (one step).
   if (editingText.peek() !== null) finishEditing();
+  // RULE-16: the GIF range is worked out from the playhead for each opening (its size and rate are kept);
+  // Change settings comes back to the range that was exported.
+  if (!keepRange || gifPicked.peek() === null) {
+    gifPicked.value = null;
+    if (exportKind.peek() === 'gif') pickDefaultRange();
+  }
   panelOpen.value = true;
 }
 
@@ -367,13 +589,21 @@ const closeTexts = (t: Texts): void => {
   for (const b of Object.values(t)) b.bitmap.close();
 };
 
-/** The output size of a video export of `p` at `r` (RULE-15, ADR-0010 outcome item 9). */
-const outputSize = (p: Project, r: VideoResolution) => videoOutputSize(frameAspect(p), r);
+/**
+ * The picture size an export draws its text layers at (Q170): a video's output size (RULE-15, ADR-0010 outcome
+ * item 9) or a GIF's (RULE-16); null for audio only, which draws nothing.
+ */
+const drawnSize = (p: Project, s: ExportSettings): { width: number; height: number } | null =>
+  s.kind === 'video'
+    ? videoOutputSize(frameAspect(p), s.resolution)
+    : s.kind === 'gif'
+      ? gifOutputSize(frameAspect(p), s.size)
+      : null;
 
 /** Test seam: what the export does besides MOD-Export (the app passes none; unit tests fake it). */
 export interface ExportDeps {
   readonly estimate: typeof estimateExport;
-  readonly start: typeof startExport;
+  readonly start: typeof startExportRun;
   readonly context: (p: Project, caps: ExportCaps, texts: Texts) => Promise<ExportContext>;
   readonly texts: (p: Project, width: number, height: number) => Promise<Texts>;
   readonly now: () => number;
@@ -404,7 +634,7 @@ export async function browserContext(p: Project, caps: ExportCaps, texts: Texts)
 
 let deps: ExportDeps = {
   estimate: estimateExport,
-  start: startExport,
+  start: startExportRun,
   context: browserContext,
   texts: (p, w, h) => textBitmaps(p.textLayers, w, h),
   now: () => Date.now(),
@@ -438,7 +668,7 @@ async function refreshCaps(p: Project): Promise<void> {
   if (capsFor.caps !== caps || capsFor.sound !== sound) return;
   sessionCaps.value = ec;
   capsSound.value = sound;
-  noFormat.value = ec === null;
+  noFormat.value = ec === null || ec.videoFormat === null; // F-023.R5: GIF and WAV stay
   if (ec?.videoFormat) exportGrid.value = await deps.grid(ec.videoFormat.video);
 }
 
@@ -449,11 +679,10 @@ let estimateTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Implements: F-015.R2, CMP-ExportPanel "Behavior" — the estimate and the target's advice follow every change. */
 async function runEstimate(seq: number, p: Project, settings: ExportSettings, caps: ExportCaps): Promise<void> {
-  if (settings.kind !== 'video') return;
   let texts: Texts = {};
   try {
-    const { width, height } = outputSize(p, settings.resolution);
-    texts = await deps.texts(p, width, height);
+    const size = drawnSize(p, settings);
+    if (size) texts = await deps.texts(p, size.width, size.height);
     if (seq !== estimateSeq) return;
     const ctx = await deps.context(p, caps, texts);
     if (seq !== estimateSeq) return;
@@ -481,9 +710,9 @@ function scheduleEstimate(): void {
     estimateTimer = null;
     const p = project.peek();
     const caps = sessionCaps.peek();
-    const r = resolution.peek();
-    if (!panelOpen.peek() || !caps || r === null || p.clips.length === 0) return;
-    void runEstimate(seq, p, settingsOf(videoChoice.peek(), r), caps);
+    const s = exportSettings.peek();
+    if (!panelOpen.peek() || !caps || s === null || exportBlock.peek() !== null) return;
+    void runEstimate(seq, p, s, caps);
   }, ESTIMATE_DEBOUNCE_MS);
 }
 
@@ -497,8 +726,7 @@ effect(() => {
 effect(() => {
   if (!panelOpen.value) return;
   void project.value;
-  void videoChoice.value;
-  void resolution.value;
+  void exportSettings.value;
   void sessionCaps.value;
   untracked(scheduleEstimate);
 });
@@ -538,16 +766,19 @@ const ENDS: Readonly<Record<string, 'failed' | 'interrupted' | 'no_space'>> = {
 };
 
 /**
- * Implements: F-015.R1/R3/R5/R6/R7, RULE-19, SCR-Editor "exporting" — starts the export of the project as it
- * is now with the panel's settings: the editor locks (an open text editor ends first, as one step), the text
- * layers are rasterised at the output size, and CMP-ExportProgress follows the run to its end.
+ * Implements: F-015.R1/R3/R5/R6/R7, F-016.R1–R3, RULE-19, SCR-Editor "exporting" — starts the export of the
+ * project as it is now with the panel's settings (or `settings`): the editor locks (an open text editor ends
+ * first, as one step), the text layers are rasterised at the output size (none for audio only), and
+ * CMP-ExportProgress follows the run to its end.
  */
-export async function startVideoExport(settings?: ExportSettings): Promise<void> {
+export async function startExport(settings?: ExportSettings): Promise<void> {
   if (editorLocked.peek()) return;
   const caps = capsReady.peek() ? sessionCaps.peek() : null;
-  const r = resolution.peek();
-  const s = settings ?? (r !== null ? settingsOf(videoChoice.peek(), r) : null);
-  if (!caps || !s || s.kind !== 'video' || project.peek().clips.length === 0) return;
+  const s = settings ?? exportSettings.peek();
+  const p0 = project.peek();
+  if (!caps || !s || p0.clips.length === 0) return;
+  // RULE-16: audio only needs unmuted, non-silent sound (the panel says so; nothing starts).
+  if (s.kind === 'audio' && !hasSound(p0)) return;
   if (editingText.peek() !== null) finishEditing();
   playback.peek()?.ctl.pause();
   releaseHeld();
@@ -563,8 +794,8 @@ export async function startVideoExport(settings?: ExportSettings): Promise<void>
   let texts: Texts = {};
   let h: ExportHandle;
   try {
-    const { width, height } = outputSize(p, s.resolution);
-    texts = await deps.texts(p, width, height);
+    const size = drawnSize(p, s);
+    if (size) texts = await deps.texts(p, size.width, size.height);
     if (stale()) return closeTexts(texts);
     const base = await deps.context(p, caps, texts);
     if (stale()) return closeTexts(texts);
@@ -601,13 +832,14 @@ export async function startVideoExport(settings?: ExportSettings): Promise<void>
   const result = await h.result;
   if (handle === h) handle = null;
   if (stale()) return;
-  finish(result, mark);
+  finish(result, mark, s.kind);
 }
 
-function finish(result: ExportResult, mark: number): void {
+function finish(result: ExportResult, mark: number, kind: ExportKind): void {
   if (result.ok) {
-    // RULE-19, D-018: handed to the browser to save is success; the project as it was at the start counts.
-    if (result.fullProject) markExported('video', mark);
+    // RULE-19, D-018, D-019: handed to the browser is success; the project as it was at the start counts (a
+    // video or audio export; a GIF never clears unexported changes).
+    if (result.fullProject) markExported(kind, mark);
     const saved = handedOver?.fileName === result.fileName ? handedOver : null;
     const file = saved ? new File([saved.blob], saved.fileName, { type: mimeOf(saved.fileName) }) : null;
     const share = file && canShareFile(file) ? file : null;
@@ -680,7 +912,7 @@ export function closeRun(): void {
 /** COPY-action.change_settings: back to CMP-ExportPanel with the same settings. */
 export function changeSettings(): void {
   closeRun();
-  openPanel();
+  openPanel(true);
 }
 
 /** COPY-action.try_again: the same export again (CMP-ExportProgress "interrupted"). */
@@ -690,7 +922,7 @@ export function tryAgain(): void {
   handedOver = null;
   runToken++;
   run.value = null;
-  if (s) void startVideoExport(s);
+  if (s) void startExport(s);
 }
 
 /** Implements: F-015.R9 / AC15 — the finished file to the device's share sheet (inside the user's tap). */
@@ -723,4 +955,11 @@ export function resetExportSession(): void {
   heldFile = null;
   handleScratch = null;
   lastSettings = null;
+  exportKind.value = 'video';
+  gifChoice.value = DEFAULT_GIF;
+  gifPicked.value = null;
+  audioChoice.value = 'compressed';
 }
+
+/** The video export of the panel or of `settings` (F-015's name for `startExport`). */
+export const startVideoExport = startExport;

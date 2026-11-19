@@ -1,39 +1,58 @@
 // MOD-App — CMP-ExportPanel (specs/30-experience/components/CMP-ExportPanel.md; boards CMP-ExportPanel and
-// SCR-Editor "exporting-setup" wide and narrow), the video kind (F-015). Wide and compact: docked in the
-// inspector column in place of the inspector's content; narrow: a bottom sheet above the tab bar, under the
-// transport and the timeline peek (CSS, export.css). The GIF and Audio only kinds join the tab list with
-// F-016. A non-modal dialog named by COPY-export.title: the editor stays usable (SCR-Editor
-// "exporting-setup"); Esc, Cancel or Close closes it without exporting and focus returns to the toolbar's
-// Export.
-// Implements: F-015.R1/R2, F-015.AC1/AC2/AC9, RULE-15 (offers, default, quality or size target, D-020),
-// CMP-ExportPanel "video · wide", "resolution unavailable", "lower res", "fallback", "needs clip", "narrow",
-// "Behavior" and "Accessibility".
+// SCR-Editor "exporting-setup" wide and narrow): the kinds Video (F-015), GIF and Audio only (F-016). Wide and
+// compact: docked in the inspector column in place of the inspector's content; narrow: a bottom sheet above
+// the tab bar, under the transport and the timeline peek (CSS, export.css). A non-modal dialog named by
+// COPY-export.title: the editor stays usable (SCR-Editor "exporting-setup"); Esc, Cancel or Close closes it
+// without exporting and focus returns to the toolbar's Export.
+// Implements: F-015.R1/R2, F-015.AC1/AC2/AC9, F-016.R1/R2, RULE-15 (offers, default, quality or size target,
+// D-020), RULE-16 (GIF range, size and rate; audio formats), CMP-ExportPanel "video · wide", "resolution
+// unavailable", "lower res", "fallback", "needs clip", "gif", "audio", "no sound", "narrow", "Behavior" and
+// "Accessibility".
 import { effect } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { formatMB, language, t } from '../copy';
-import type { ExportQuality, VideoResolution } from '../core';
-import { needsClip } from './adding';
+import type { ExportQuality, Micros, VideoResolution } from '../core';
+import { project } from '../project';
 import {
+  audioOffers,
   canExport,
+  chooseAudio,
+  chooseGifFrom,
+  chooseGifRate,
+  chooseGifSize,
+  chooseGifTo,
+  chooseKind,
   chooseQuality,
   chooseResolution,
   chooseTarget,
+  chosenAudio,
   closePanel,
   estimateView,
+  exportBlock,
+  exportKind,
+  formatGifTime,
+  gifChoice,
+  gifRange,
+  gifRangeFixed,
+  GIF_RATES,
+  GIF_SIZES,
+  KINDS,
   offers,
   panelOpen,
+  parseGifTime,
   parseTarget,
   QUICK_TARGETS,
   resolution,
   retryEstimate,
   sessionCaps,
-  startVideoExport,
+  startExport,
   targetAdvice,
   videoChoice,
+  type ExportKind,
   type ResolutionOffer,
 } from './export';
 import { openSheet } from './EditSheet';
-import { videoFormatLine } from './export-format';
+import { audioFormatLine, audioFormatName, gifFormatLine, videoFormatLine } from './export-format';
 import { Icon } from './icons';
 
 // Narrow layouts have one sheet at a time: opening a tab bar sheet closes the panel, and opening the panel
@@ -50,9 +69,15 @@ effect(() => {
 
 const ID = 'tk-export';
 const TITLE_ID = `${ID}-title`;
-const TAB_ID = `${ID}-kind-video`;
+const tabId = (k: ExportKind): string => `${ID}-kind-${k}`;
 const ADVICE_ID = `${ID}-advice`;
 const LINE_ID = `${ID}-line`;
+
+const KIND_LABEL: Readonly<Record<ExportKind, 'export.kind_video' | 'export.kind_gif' | 'export.kind_audio'>> = {
+  video: 'export.kind_video',
+  gif: 'export.kind_gif',
+  audio: 'export.kind_audio',
+};
 
 const QUALITIES: readonly {
   readonly value: ExportQuality;
@@ -192,6 +217,189 @@ function SizeLimit({ blocked }: { readonly blocked: boolean }) {
 }
 
 /**
+ * A GIF range time field (CMP-ExportPanel "gif"): m:ss with optional frames, taken on Enter or when it loses
+ * focus; text that isn't a time goes back to the range's value; Esc while editing puts the value back first.
+ */
+function TimeField(props: {
+  readonly name: 'from' | 'to';
+  readonly label: string;
+  readonly value: Micros;
+  readonly readOnly: boolean;
+  readonly onCommit: (t: Micros) => void;
+}) {
+  const rate = project.value.frame.frameRate;
+  const shown = formatGifTime(props.value, rate, language.value);
+  const [text, setText] = useState(shown);
+  useEffect(() => setText(shown), [shown]);
+  const commit = (): void => {
+    const at = parseGifTime(text, rate);
+    if (at !== null) props.onCommit(at);
+    // The range may have been clamped to the same value: show what is in effect either way.
+    setText(formatGifTime(gifRange.peek()[props.name], rate, language.peek()));
+  };
+  return (
+    <label class="tk-export__time" data-field={`gif-${props.name}`}>
+      <span>{props.label}</span>
+      <input
+        type="text"
+        class="tk-export__time-input"
+        autoComplete="off"
+        spellcheck={false}
+        value={text}
+        readOnly={props.readOnly}
+        onInput={(e) => setText(e.currentTarget.value)}
+        onChange={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          else if (e.key === 'Escape' && text !== shown) {
+            e.preventDefault(); // puts the value back; a second Esc closes the panel
+            setText(shown);
+          }
+        }}
+      />
+    </label>
+  );
+}
+
+/** Implements: F-016.R1, RULE-16, CMP-ExportPanel "gif" — the range (From, To), size and frame rate. */
+function GifSettings() {
+  const range = gifRange.value;
+  const fixed = gifRangeFixed.value;
+  const choice = gifChoice.value;
+  return (
+    <>
+      <fieldset class="tk-export__field" data-field="gif-range">
+        <legend class="tk-export__legend">{t('export.gif_range')}</legend>
+        <div class="tk-export__times">
+          <TimeField
+            name="from"
+            label={t('export.gif_from')}
+            value={range.from}
+            readOnly={fixed}
+            onCommit={chooseGifFrom}
+          />
+          <TimeField name="to" label={t('export.gif_to')} value={range.to} readOnly={fixed} onCommit={chooseGifTo} />
+        </div>
+      </fieldset>
+      <div class="tk-export__pair">
+        <fieldset class="tk-export__field tk-export__field--size" data-field="gif-size">
+          <legend class="tk-export__legend">{t('export.gif_size')}</legend>
+          <div class="tk-export__segments tk-export__segments--mono">
+            {GIF_SIZES.map((size) => (
+              <label key={size} class="tk-export__seg" data-value={size}>
+                <input
+                  type="radio"
+                  name={`${ID}-gif-size`}
+                  value={size}
+                  checked={choice.size === size}
+                  onChange={() => chooseGifSize(size)}
+                />
+                <span>{size}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset class="tk-export__field tk-export__field--rate" data-field="gif-rate">
+          <legend class="tk-export__legend">{t('export.gif_rate')}</legend>
+          <div class="tk-export__segments tk-export__segments--mono">
+            {GIF_RATES.map((rate) => (
+              <label key={rate} class="tk-export__seg" data-value={rate}>
+                <input
+                  type="radio"
+                  name={`${ID}-gif-rate`}
+                  value={rate}
+                  checked={choice.rate === rate}
+                  onChange={() => chooseGifRate(rate)}
+                />
+                <span>{rate}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Implements: F-016.R2, RULE-16, F-023.R5, CMP-ExportPanel "audio" — the compressed format the device can
+ * encode (named, default) and WAV; without a sound encoder, WAV only.
+ */
+function AudioSettings() {
+  const chosen = chosenAudio.value;
+  return (
+    <fieldset class="tk-export__field" data-field="audio-format">
+      <legend class="tk-export__legend">{t('export.audio_format')}</legend>
+      <div class="tk-export__radios">
+        {audioOffers.value.map((f) => {
+          const value = f.id === 'wav' ? 'wav' : 'compressed';
+          return (
+            <label key={f.id} class="tk-export__radio" data-value={value}>
+              <input
+                type="radio"
+                name={`${ID}-audio-format`}
+                value={value}
+                checked={chosen === value}
+                onChange={() => chooseAudio(value)}
+              />
+              <i class="tk-export__dot" aria-hidden="true" />
+              <span>
+                {value === 'wav' ? t('export.audio_wav') : t('export.audio_compressed', { format: audioFormatName(f) })}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+/** The kinds as a tab list: arrow keys, Home and End move between them and choose (CMP-ExportPanel). */
+function Kinds({ selected }: { readonly selected: { current: HTMLButtonElement | null } }) {
+  const kind = exportKind.value;
+  const move = (ev: KeyboardEvent): void => {
+    const i = KINDS.indexOf(kind);
+    const n = KINDS.length;
+    const next =
+      ev.key === 'ArrowRight'
+        ? (i + 1) % n
+        : ev.key === 'ArrowLeft'
+          ? (i - 1 + n) % n
+          : ev.key === 'Home'
+            ? 0
+            : ev.key === 'End'
+              ? n - 1
+              : -1;
+    if (next < 0) return;
+    ev.preventDefault();
+    chooseKind(KINDS[next]!);
+    document.getElementById(tabId(KINDS[next]!))?.focus();
+  };
+  return (
+    <div class="tk-export__kinds" role="tablist" aria-label={t('export.title')}>
+      {KINDS.map((k) => (
+        <button
+          key={k}
+          ref={k === kind ? selected : null}
+          type="button"
+          role="tab"
+          id={tabId(k)}
+          class="tk-export__kind"
+          data-kind={k}
+          aria-selected={k === kind ? 'true' : 'false'}
+          aria-controls={`${ID}-body`}
+          tabIndex={k === kind ? 0 : -1}
+          onClick={() => chooseKind(k)}
+          onKeyDown={move}
+        >
+          {t(KIND_LABEL[k])}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Implements: F-015.R2 / AC2, D-020 — when the size target can't be met: COPY-export.target_lower_res with
  * COPY-action.use_res, or COPY-export.target_unreachable with COPY-action.use_target; a check that failed reads
  * COPY-export.target_unknown with COPY-action.try_again.
@@ -201,7 +409,7 @@ function useAdvice() {
   const advice = targetAdvice(e.status === 'ready' ? e.result : e.status === 'failed' ? 'failed' : null);
   const target = videoChoice.value.targetMB;
   const r = resolution.value;
-  if (target === null || r === null || advice.kind === 'none') return null;
+  if (exportKind.value !== 'video' || target === null || r === null || advice.kind === 'none') return null;
   if (advice.kind === 'lower_res')
     return {
       text: t('export.target_lower_res', { size: target, res: String(r), fit: String(advice.fit) }),
@@ -242,10 +450,20 @@ export function ExportPanel() {
     if (advice) body.current?.querySelector('.tk-export__advice')?.scrollIntoView({ block: 'nearest' });
   }, [advice?.text]);
   if (!open) return null;
+  const kind = exportKind.value;
   const caps = sessionCaps.value;
   const e = estimateView.value;
-  const clipNeeded = needsClip.value;
-  const line = caps?.videoFormat ? videoFormatLine(caps.videoFormat, language.value) : null;
+  const block = exportBlock.value;
+  const lang = language.value;
+  // The format line of the kind (COPY-export.saves_as, or COPY-export.format_note for a fallback).
+  const line =
+    kind === 'gif'
+      ? gifFormatLine(lang)
+      : kind === 'audio'
+        ? audioFormatLine(audioOffers.value[0]!, chosenAudio.value, lang)
+        : caps?.videoFormat
+          ? videoFormatLine(caps.videoFormat, lang)
+          : null;
   const ready = canExport.value;
   const estimate =
     e.status === 'ready' && e.result.reachable ? t('export.estimate', { size: formatMB(e.result.bytes) }) : '';
@@ -266,23 +484,26 @@ export function ExportPanel() {
           <Icon name="close" size={20} />
         </button>
       </header>
-      <div class="tk-export__kinds" role="tablist" aria-label={t('export.title')}>
-        <button
-          ref={tab}
-          type="button"
-          role="tab"
-          id={TAB_ID}
-          class="tk-export__kind"
-          aria-selected="true"
-          aria-controls={`${ID}-body`}
-        >
-          {t('export.kind_video')}
-        </button>
-      </div>
-      <div ref={body} id={`${ID}-body`} class="tk-export__body" role="tabpanel" aria-labelledby={TAB_ID}>
-        <Resolutions />
-        <Quality />
-        <SizeLimit blocked={advice !== null} />
+      <Kinds selected={tab} />
+      <div
+        ref={body}
+        id={`${ID}-body`}
+        class="tk-export__body"
+        role="tabpanel"
+        aria-labelledby={tabId(kind)}
+        data-kind={kind}
+      >
+        {kind === 'video' ? (
+          <>
+            <Resolutions />
+            <Quality />
+            <SizeLimit blocked={advice !== null} />
+          </>
+        ) : kind === 'gif' ? (
+          <GifSettings />
+        ) : (
+          <AudioSettings />
+        )}
         {advice ? (
           <div class="tk-export__advice">
             <p id={ADVICE_ID} class="tk-export__warn" data-notice="target">
@@ -299,12 +520,17 @@ export function ExportPanel() {
           </div>
         ) : null}
       </div>
-      <footer class="tk-export__foot" data-state={advice ? 'blocked' : clipNeeded ? 'needs-clip' : 'ready'}>
+      <footer
+        class="tk-export__foot"
+        data-state={
+          advice ? 'blocked' : block === 'needs_clip' ? 'needs-clip' : block === 'no_sound' ? 'no-sound' : 'ready'
+        }
+      >
         {/* Polite live region tied to Export as its description (CMP-ExportPanel "Accessibility"). */}
         <p id={LINE_ID} class="tk-export__line" aria-live="polite">
-          {clipNeeded ? (
-            <span class="tk-export__note" data-notice="needs_clip">
-              {t('notice.needs_clip')}
+          {block ? (
+            <span class="tk-export__note" data-notice={block}>
+              {t(block === 'needs_clip' ? 'notice.needs_clip' : 'notice.no_sound_to_export')}
             </span>
           ) : advice ? null : (
             <>
@@ -338,7 +564,7 @@ export function ExportPanel() {
             data-action="start-export"
             disabled={!ready}
             aria-describedby={advice ? `${ADVICE_ID} ${LINE_ID}` : LINE_ID}
-            onClick={() => void startVideoExport()}
+            onClick={() => void startExport()}
           >
             <Icon name="export" size={16} />
             {t('action.export')}

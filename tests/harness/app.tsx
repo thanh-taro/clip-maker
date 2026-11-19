@@ -66,6 +66,7 @@ import { openInput } from '../../src/container';
 import { setExportDeps } from '../../src/app/export';
 import { start as startExport, type ExportResult } from '../../src/export';
 import { scratchReady } from '../../src/app/workers';
+import { readGifFrames } from './gif-read';
 import { analyseTone, decodeWindow, makeToneClip, type ToneReport, type ToneSpec } from './sound';
 import { makeClip } from './video';
 
@@ -170,6 +171,14 @@ declare global {
         onsetAmp: number,
         names: readonly string[],
       ): Promise<ExportRead>;
+      /** F-016: every frame of a downloaded GIF, RGB at fractional `points`, with its delays, loop and palettes. */
+      readGif(bytes: number[], points: readonly (readonly [number, number])[]): Promise<GifRead>;
+      /**
+       * F-016: a downloaded audio-only export: format, codec, rate, channels, bits, length, true peak and level,
+       * the level in 100 ms windows centred at `windows` (s), and the sample-by-sample comparison with the
+       * sound the preview played last (?tap=1).
+       */
+      readAudio(bytes: number[], windows: readonly number[]): Promise<AudioRead>;
       /** F-015.R7: the names in this session's scratch directory (MOD-Scratch), for storage inspection. */
       scratchNames(): Promise<string[]>;
       /** RULE-19: the project has unexported changes. */
@@ -271,6 +280,182 @@ async function readExport(
     };
   }
   return { format, width: W, height: H, duration, frames, sound, found };
+}
+
+/** F-016: what `readGif` found in a downloaded GIF. */
+export interface GifRead {
+  readonly header: string;
+  readonly width: number;
+  readonly height: number;
+  readonly loop: number | null;
+  readonly delays: number[];
+  /** Colours in each frame's table. */
+  readonly palettes: number[];
+  /** The file ends with the 0x3B trailer (the reader throws on a missing trailer or short image data). */
+  readonly trailer: boolean;
+  /** Per frame: RGB at the points. */
+  readonly frames: number[][][];
+}
+
+/** F-016: decodes every frame of a downloaded GIF (tests/harness/gif-read.ts) and samples it at `points`. */
+function readGif(bytes: number[], points: readonly (readonly [number, number])[]): GifRead {
+  const g = readGifFrames(new Uint8Array(bytes));
+  const W = g.width;
+  const H = g.height;
+  const frames = g.rgba.map((px) =>
+    points.map(([fx, fy]) => {
+      const i = (Math.min(H - 1, Math.floor(fy * H)) * W + Math.min(W - 1, Math.floor(fx * W))) * 4;
+      return [px[i]!, px[i + 1]!, px[i + 2]!];
+    }),
+  );
+  return {
+    header: g.header,
+    width: W,
+    height: H,
+    loop: g.loop,
+    delays: g.delays,
+    palettes: g.palettes,
+    trailer: g.trailer,
+    frames,
+  };
+}
+
+/** F-016: what `readAudio` found in a downloaded audio-only export. */
+export interface AudioRead {
+  readonly container: string;
+  readonly codec: string;
+  readonly sampleRate: number;
+  readonly channels: number;
+  /** Bits per sample (WAV), else null. */
+  readonly bits: number | null;
+  readonly duration: number;
+  readonly truePeakDb: number;
+  readonly rmsDb: number;
+  /** RMS (dBFS) over 100 ms windows centred at the given times (s). */
+  readonly windowsDb: number[];
+  /**
+   * Against the sound the preview sent the worklet in its last generation (?tap=1), sample by sample at the
+   * same project positions: the level difference (dB), the correlation, the difference's level relative to
+   * the preview's (dB), and the seconds compared. Null when nothing was tapped.
+   */
+  readonly vsPreview: { levelDb: number; correlation: number; errorDb: number; seconds: number } | null;
+}
+
+/** RIFF/WAVE: format tag, channels, rate, bits and the samples as floats (16-bit PCM). */
+function parseWav(b: Uint8Array): {
+  tag: number;
+  channels: number;
+  rate: number;
+  bits: number;
+  L: Float32Array;
+  R: Float32Array;
+} {
+  const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  let at = 12;
+  let fmt = { tag: 0, channels: 0, rate: 0, bits: 0 };
+  let data: [number, number] = [0, 0];
+  while (at + 8 <= b.length) {
+    const id = String.fromCharCode(...b.subarray(at, at + 4));
+    const size = v.getUint32(at + 4, true);
+    if (id === 'fmt ')
+      fmt = {
+        tag: v.getUint16(at + 8, true),
+        channels: v.getUint16(at + 10, true),
+        rate: v.getUint32(at + 12, true),
+        bits: v.getUint16(at + 22, true),
+      };
+    if (id === 'data') data = [at + 8, Math.min(size, b.length - at - 8)];
+    at += 8 + size + (size & 1);
+  }
+  const frames = Math.floor(data[1] / (2 * Math.max(1, fmt.channels)));
+  const L = new Float32Array(frames);
+  const R = new Float32Array(frames);
+  for (let i = 0; i < frames; i++) {
+    const o = data[0] + i * 2 * fmt.channels;
+    L[i] = v.getInt16(o, true) / 32768;
+    R[i] = fmt.channels > 1 ? v.getInt16(o + 2, true) / 32768 : L[i]!;
+  }
+  return { ...fmt, L, R };
+}
+
+async function readAudio(bytes: number[], windows: readonly number[]): Promise<AudioRead> {
+  const data = new Uint8Array(bytes);
+  const blob = new Blob([data]);
+  let L: Float32Array;
+  let R: Float32Array;
+  let info: Pick<AudioRead, 'container' | 'codec' | 'sampleRate' | 'channels' | 'bits' | 'duration'>;
+  if (
+    String.fromCharCode(...data.subarray(0, 4)) === 'RIFF' &&
+    String.fromCharCode(...data.subarray(8, 12)) === 'WAVE'
+  ) {
+    const w = parseWav(data);
+    ({ L, R } = w);
+    info = {
+      container: 'WAV',
+      codec: w.tag === 1 ? `pcm-s${w.bits}` : `tag-${w.tag}`,
+      sampleRate: w.rate,
+      channels: w.channels,
+      bits: w.bits,
+      duration: L.length / w.rate,
+    };
+  } else {
+    const input = await openInput(blob);
+    const a = input.audio;
+    info = {
+      container: input.format,
+      codec: a?.codec ?? '',
+      sampleRate: a?.sampleRate ?? 0,
+      channels: a?.channels ?? 0,
+      bits: null,
+      duration: input.duration,
+    };
+    input.close();
+    [L, R] = await decodeWindow(blob, 0, info.duration);
+  }
+  let sum = 0;
+  for (let i = 0; i < L.length; i++) sum += (L[i]! * L[i]! + R[i]! * R[i]!) / 2;
+  const rms = (a: number, b: number): number => {
+    let x = 0;
+    for (let i = Math.max(0, a); i < Math.min(L.length, b); i++) x += (L[i]! * L[i]! + R[i]! * R[i]!) / 2;
+    return 10 * Math.log10(x / Math.max(1, b - a) || 1e-30);
+  };
+  let vsPreview: AudioRead['vsPreview'] = null;
+  if (tapped.length) {
+    const gen = Math.max(...tapped.map((b) => b.gen));
+    let sxy = 0;
+    let sxx = 0;
+    let syy = 0;
+    let see = 0;
+    let n = 0;
+    for (const b of tapped.filter((t) => t.gen === gen))
+      for (let j = 0; j < b.L.length; j++) {
+        const k = b.from + j;
+        if (k < 0 || k >= L.length) continue;
+        for (const [x, y] of [
+          [L[k]!, b.L[j]!],
+          [R[k]!, b.R[j]!],
+        ] as const) {
+          sxy += x * y;
+          sxx += x * x;
+          syy += y * y;
+          see += (x - y) * (x - y);
+        }
+        n++;
+      }
+    vsPreview = {
+      levelDb: 10 * Math.log10((sxx || 1e-30) / (syy || 1e-30)),
+      correlation: sxy / Math.sqrt((sxx || 1e-30) * (syy || 1e-30)),
+      errorDb: 10 * Math.log10((see || 1e-30) / (syy || 1e-30)),
+      seconds: n / 48_000,
+    };
+  }
+  return {
+    ...info,
+    truePeakDb: truePeak([L, R]).dB,
+    rmsDb: 10 * Math.log10(sum / Math.max(1, L.length) || 1e-30),
+    windowsDb: windows.map((c) => rms(Math.round((c - 0.05) * 48_000), Math.round((c + 0.05) * 48_000))),
+    vsPreview,
+  };
 }
 
 function heardTones(windows: readonly { at: number; freq: number }[]): {
@@ -698,6 +883,8 @@ window.appHarness = {
   heardLevels,
   heardTones,
   readExport,
+  readGif: async (bytes, points) => readGif(bytes, points),
+  readAudio,
   unexported: () => unexported.peek(),
   async scratchNames() {
     const scratch = await scratchReady;
