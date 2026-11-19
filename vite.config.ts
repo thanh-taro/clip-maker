@@ -46,7 +46,8 @@ export default defineConfig({
     // DSP and property tests take ~1 s idle; a busy machine can push them past Vitest's 5 s default.
     // They assert results, not speed (wall-clock checks are the @realtime e2e tests).
     testTimeout: 20_000,
-    // Worker threads per run: the machine budget (BMA_TEST_WORKERS, build-my-app bma_heavy.py), else 2.
-    maxWorkers: Math.max(1, Number(process.env['BMA_TEST_WORKERS']) || 2),
+    // Worker threads per run: the machine budget (BMA_TEST_WORKERS, build-my-app bma_heavy.py), else 1
+    // (one at a time; see playwright.config.ts).
+    maxWorkers: Math.max(1, Number(process.env['BMA_TEST_WORKERS']) || 1),
   },
 });

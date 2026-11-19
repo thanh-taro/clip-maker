@@ -741,10 +741,6 @@
   "log": [
     {
       "at": "2026-11-03T06:11:11+00:00",
-      "event": "decision D-002 opened: Phone support in M-1"
-    },
-    {
-      "at": "2026-11-03T06:11:11+00:00",
       "event": "decision D-003 opened: MPL-2.0 muxer (mediabunny) vs permissive-only policy"
     },
     {
@@ -1538,9 +1534,13 @@
     {
       "at": "2026-11-19T11:43:42+00:00",
       "event": "build step: 4 wave 5: wave 4 reviewed + decisions merged (843/844 e2e, F-020.AC4 passes alone); now F-016 GIF/audio export, then F-017 keyboard & touch"
+    },
+    {
+      "at": "2026-11-19T13:24:27+00:00",
+      "event": "resources: 1 heavy slot(s), 1 builder(s), 1 test worker(s)"
     }
   ],
-  "updated": "2026-11-19T11:43:42+00:00",
+  "updated": "2026-11-19T13:24:27+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
@@ -1635,6 +1635,6 @@
     "cpus": 4,
     "heavy_slots": 1,
     "parallel_builders": 1,
-    "test_workers": 2
+    "test_workers": 1
   }
 }
