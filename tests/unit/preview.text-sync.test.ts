@@ -62,13 +62,32 @@ describe('MOD-Preview text bitmaps for the engine', () => {
     expect(posts[0]!.keep).toEqual([]);
   });
 
-  it('ADR-0012 §3 a rasterisation superseded by a later change is closed and never sent', async () => {
-    const { posts, made, sync } = setup();
+  it('ADR-0012 §3 results post in the order of the changes: one finishing after a later one posted is closed, never sent', async () => {
+    const posts: Extract<ToEngine, { type: 'engine:setTextBitmaps' }>[] = [];
+    const pending: ((b: ImageBitmap) => void)[] = [];
+    const made: FakeBitmap[] = [];
+    const sync = textSync(
+      (m) => posts.push(m as Extract<ToEngine, { type: 'engine:setTextBitmaps' }>),
+      (l) =>
+        new Promise<ImageBitmap | null>((resolve) => {
+          const b = new FakeBitmap(l.content);
+          made.push(b);
+          pending.push(resolve as (b: ImageBitmap) => void);
+        }),
+    );
     const first = sync.update([text('A', 0, 3, { content: 'H' })], 640, 360);
     const second = sync.update([text('A', 0, 3, { content: 'He' })], 640, 360);
-    await Promise.all([first, second]);
-    expect(posts).toHaveLength(1);
-    expect(posts[0]!.bitmaps['A']!.bitmap).toBe(made[1]);
-    expect(made[0]!.closed).toBe(true);
+    const third = sync.update([text('A', 0, 3, { content: 'Hel' })], 640, 360);
+    // The first finishes first: still the newest result, it shows while typing goes on.
+    pending[0]!(made[0] as unknown as ImageBitmap);
+    await first;
+    expect(posts.map((m) => m.bitmaps['A']!.bitmap)).toEqual([made[0]]);
+    // The third finishes before the second: the second is closed when it comes.
+    pending[2]!(made[2] as unknown as ImageBitmap);
+    await third;
+    pending[1]!(made[1] as unknown as ImageBitmap);
+    await second;
+    expect(posts.map((m) => m.bitmaps['A']!.bitmap)).toEqual([made[0], made[2]]);
+    expect(made[1]!.closed).toBe(true);
   });
 });

@@ -263,6 +263,11 @@
     display: none;
   }
 
+  /* The floating bar sits above the frame: the stage keeps room for it while editing (wide and compact). */
+  .tk-editor[data-editing] .tk-stage {
+    padding-block-start: calc(var(--tk-size-tool-button) + var(--tk-space-6));
+  }
+
   /* ── CMP-Inspector "text layer" ── */
   .tk-text {
     display: flex;
@@ -487,6 +492,9 @@
     .tk-texteditor__bar,
     .tk-texteditor__hint {
       display: none;
+    }
+    .tk-editor[data-editing] .tk-stage {
+      padding-block: var(--tk-space-2) calc(var(--tk-size-touch-target) + var(--tk-space-6));
     }
     .tk-texteditor__narrow {
       position: absolute;

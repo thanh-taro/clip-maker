@@ -147,13 +147,13 @@ describe('F-012 the frame section (MOD-App)', () => {
     expect(project.value.frame.frameRate).toBe(30);
   });
 
-  it('CMP-Inspector F-011 the frame section shows unless a main-track clip or an audio clip is selected (a text layer has no section yet)', () => {
+  it('CMP-Inspector F-011 F-010 the frame section shows unless a main-track clip, an audio clip or a text layer is selected', () => {
     load(proj({ clips: [video('A', 4)], textLayers: [text('T', 0, 1)], audioClips: [audio('M', 0, 2)] }));
     expect(frameSectionShown.value).toBe(true);
     selection.value = ['M'];
     expect(frameSectionShown.value).toBe(false);
     selection.value = ['T'];
-    expect(frameSectionShown.value).toBe(true);
+    expect(frameSectionShown.value).toBe(false);
     selection.value = ['A'];
     expect(frameSectionShown.value).toBe(false);
     selection.value = [];

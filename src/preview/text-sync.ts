@@ -1,7 +1,8 @@
 // MOD-Preview — keeps the engine's text bitmaps in step with the project and the preview's size (ADR-0012
 // §3): a layer is rasterised again only when its pixels change (content, style, size or the canvas size;
 // moving it or changing its times does not), the new bitmaps are transferred, and the others are kept by
-// id. A later change supersedes a rasterisation still running (its bitmaps are closed, never sent).
+// id. Results are posted in the order the changes came: one that finishes after a later change's result was
+// posted is closed, never sent (while typing fast, each result that is still the newest shows).
 // Implements: F-010.R5 (the preview draws the text the export draws), F-010.R1/R2 (typing and styling show
 // in the preview as they happen), ADR-0012 §3.
 import type { TextBitmap, TextLayer, ToEngine } from '../core';
@@ -22,6 +23,8 @@ export function textSync(
   /** What the engine holds per id: the raster key of its bitmap. */
   const held = new Map<string, string>();
   let ticket = 0;
+  /** The newest change whose result was posted. */
+  let posted = 0;
   let live = true;
   return {
     async update(layers, W, H) {
@@ -29,13 +32,18 @@ export function textSync(
       const wanted = new Map(layers.map((l) => [l.id, rasterKey(l, W, H)] as const));
       const stale = layers.filter((l) => held.get(l.id) !== wanted.get(l.id));
       const gone = [...held.keys()].some((id) => !wanted.has(id));
-      if (!stale.length && !gone) return;
+      if (!stale.length && !gone) {
+        // The engine already shows this: an older result still running must not replace it.
+        posted = mine;
+        return;
+      }
       const made: [TextLayer, ImageBitmap | null][] = [];
       for (const l of stale) made.push([l, await rasterise(l, W, H)]);
-      if (mine !== ticket || !live) {
+      if (mine < posted || !live) {
         for (const [, b] of made) b?.close();
         return;
       }
+      posted = mine;
       const bitmaps: Record<string, TextBitmap> = {};
       const transfer: Transferable[] = [];
       for (const [l, b] of made) {
