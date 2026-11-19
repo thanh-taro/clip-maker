@@ -419,9 +419,12 @@ test.describe('F-017 CMP-ShortcutHelp (app harness)', () => {
       await expect(close).toBeFocused();
       const c = (await close.boundingBox())!;
       expect(Math.min(c.width, c.height)).toBeGreaterThanOrEqual(44);
-      // The list scrolls inside the sheet.
-      const body = dialog.getByRole('region', { name: text(lang, 'help.title') });
-      expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+      // The list scrolls inside the sheet, under its header; the scope note comes last.
+      expect(await dialog.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+      await dialog.evaluate((el) => (el.scrollTop = el.scrollHeight));
+      await expect(dialog.getByText(text(lang, 'help.scope'))).toBeInViewport();
+      await expect(close).toBeInViewport();
+      await dialog.evaluate((el) => (el.scrollTop = 0));
       await axe(page);
       await shot(page, `help-narrow-${lang}`, browserName);
       await close.click();
