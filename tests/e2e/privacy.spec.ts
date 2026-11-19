@@ -11,6 +11,26 @@ import { NOTICE_CODE, NOTICE_FONTS, NOTICE_TEXTS } from '../../src/app/notices.g
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
 import { HOST_ALLOWED, TOOL_ALLOWED, hostPageUrl } from './support/host-urls';
 
+/** The looks manifest's response, waited for from before the page opens (it may come late, see below). */
+const manifestResponse = (page: Page) =>
+  page.waitForResponse((r) => new URL(r.url()).pathname === '/asset-manifest.json', { timeout: 30_000 });
+
+/**
+ * The tool's start-up requests are over: the device check is done (its `tk-device-checked` mark, in the tool's
+ * own frame), the looks manifest GET that follows it has been answered, and the network is idle. `networkidle`
+ * alone can fire before the device check ends, and so before that GET.
+ */
+async function startupSettled(page: Page, toolUrl: string, manifest: Promise<unknown>): Promise<void> {
+  const frame = () => page.frames().find((f) => f.url().startsWith(toolUrl));
+  await expect
+    .poll(async () => (await frame()?.evaluate(() => performance.getEntriesByName('tk-device-checked').length)) ?? 0, {
+      timeout: 30_000,
+    })
+    .toBeGreaterThan(0);
+  await manifest;
+  await page.waitForLoadState('networkidle');
+}
+
 const REPO = 'https://github.com/thanh-taro/clip-maker';
 const text = (lang: Language, id: keyof (typeof CATALOG)['en-US']): string => CATALOG[lang][id] as string;
 
@@ -274,6 +294,7 @@ test('F-020.AC4 in a host frame that blocks new tabs and offline, COPY-privacy.n
     const requests: string[] = [];
     context.on('request', (r) => requests.push(r.url()));
     const page = await context.newPage();
+    const manifest = manifestResponse(page);
     await page.goto(hostPageUrl(HOST_ALLOWED, TOOL_ALLOWED, { theme: 'dark', lang: 'en-US' }));
     const tool = page.frameLocator('#tool');
     const badge = tool.locator('footer').getByRole('button', { name: text('en-US', 'privacy.badge') });
@@ -283,7 +304,8 @@ test('F-020.AC4 in a host frame that blocks new tabs and offline, COPY-privacy.n
     await expect
       .poll(() => frame?.evaluate(() => [...document.fonts].map((f) => f.status).join()), { timeout: 10_000 })
       .toMatch(/^loaded(,loaded)+$/);
-    await page.waitForLoadState('networkidle');
+    // ... and its start-up requests (the looks manifest after the device check) are done.
+    await startupSettled(page, TOOL_ALLOWED, manifest);
 
     // Offline from here on: whatever the view needs is already in the page.
     await context.setOffline(true);
@@ -361,6 +383,7 @@ test('NFR-01 PRN-01 INV-01 a session requests only the tool’s own files by GET
     if (r.method() !== 'GET' || r.postData() !== null) bodies.push(`${r.method()} ${r.url()}`);
   });
   const { requests } = await guard(context, origin);
+  const manifest = manifestResponse(page);
   await page.goto('/?lang=vi-VN');
   const badge = badgeOf(page, 'vi-VN');
   await expect(badge).toBeVisible();
@@ -370,7 +393,7 @@ test('NFR-01 PRN-01 INV-01 a session requests only the tool’s own files by GET
   await expect(page.getByRole('dialog', { name: text('vi-VN', 'privacy.notices_title') })).toBeVisible();
   await page.getByRole('button', { name: text('vi-VN', 'action.back') }).click();
   await page.keyboard.press('Escape');
-  await page.waitForLoadState('networkidle');
+  await startupSettled(page, origin, manifest);
 
   expect(requests.filter((r) => !r.startsWith(`GET ${origin}/`))).toEqual([]);
   expect(bodies).toEqual([]);
