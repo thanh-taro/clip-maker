@@ -150,7 +150,9 @@ test.describe('F-014 undo and redo (app harness)', () => {
     await page.mouse.move(0, 0);
     // F-010's Add text at the playhead (0 s), typed in CMP-TextEditor and finished with Esc: one step.
     await page.evaluate(() => (window as unknown as Harness).appHarness.setPlayhead(0));
-    await toolbar(page).getByRole('button', { name: text('en-US', 'action.add_text'), exact: true }).click();
+    await toolbar(page)
+      .getByRole('button', { name: text('en-US', 'action.add_text'), exact: true })
+      .click();
     await expect(page.getByRole('textbox', { name: text('en-US', 'text.field') })).toBeFocused();
     await page.keyboard.type('Hi');
     await page.keyboard.press('Escape');
@@ -295,11 +297,16 @@ test.describe('F-014 undo and redo (app harness)', () => {
     await add(page, [video('A.mp4')]);
     const before = await state(page);
     await page.evaluate(() => (window as unknown as Harness).appHarness.setPlayhead(0.5));
-    await toolbar(page).getByRole('button', { name: text('en-US', 'action.add_text'), exact: true }).click();
+    await toolbar(page)
+      .getByRole('button', { name: text('en-US', 'action.add_text'), exact: true })
+      .click();
     const field = page.getByRole('textbox', { name: text('en-US', 'text.field') });
     await expect(field).toBeFocused();
     await page.keyboard.type('Hello');
-    await page.locator('.tk-texteditor__bar').getByRole('button', { name: text('en-US', 'text.done') }).click();
+    await page
+      .locator('.tk-texteditor__bar')
+      .getByRole('button', { name: text('en-US', 'text.done') })
+      .click();
     await expect(field).toHaveCount(0);
     expect((await summary(page)).texts).toEqual(['Hello']);
     await undoButton(page).click();

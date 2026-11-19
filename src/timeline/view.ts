@@ -604,7 +604,10 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       const t = h.dataset['edge'] === 'start' ? span.start : span.end;
       h.style.left = `${t * scale}px`;
       // F-010: on the text lane the handles sit on the item's row.
-      h.style.setProperty('--row', span.kind === 'text' ? (texts.get(id)?.button.style.getPropertyValue('--row') ?? '0') : '0');
+      h.style.setProperty(
+        '--row',
+        span.kind === 'text' ? (texts.get(id)?.button.style.getPropertyValue('--row') ?? '0') : '0',
+      );
       if (h.parentElement !== lane) lane.appendChild(h);
     }
   }
