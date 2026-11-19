@@ -18,6 +18,7 @@ import {
 } from '../media';
 import { addMedia, edit, history, placeSource, playhead, project, removeSource, type History } from '../project';
 import { device } from './device';
+import { editorLocked } from './lock';
 import { closeNotice, showNotice, type NoticeKind } from './notice-stack';
 
 export interface AddingDeps {
@@ -212,6 +213,8 @@ async function runBatch(items: readonly IntakeItem[], gen: number): Promise<void
  * applied, or dropped (cancelled, or the device turned out unsupported).
  */
 export function addFiles(items: readonly IntakeItem[]): Promise<void> {
+  // SCR-Editor "exporting": the editor is locked; files dropped or pasted on it then are not taken.
+  if (editorLocked.peek()) return Promise.resolve();
   const gen = generation;
   queued.value++;
   const run = chain.then(() => runBatch(items, gen));

@@ -36,6 +36,17 @@ export function videoFormatNote(f: VideoFormat | null, lang: Language): string |
   return translate(lang, 'export.format_note', videoFormatNames(f));
 }
 
+/**
+ * The format line of CMP-ExportPanel's footer (F-015.R2, AC9): COPY-export.saves_as with the container's
+ * technical name for the preferred format, or COPY-export.format_note naming the fallback.
+ */
+export function videoFormatLine(f: VideoFormat, lang: Language): { readonly text: string; readonly fallback: boolean } {
+  const note = videoFormatNote(f, lang);
+  return note
+    ? { text: note, fallback: true }
+    : { text: translate(lang, 'export.saves_as', { format: CONTAINER[f.container] }), fallback: false };
+}
+
 const AUDIO_NAME: Record<AudioFormat['id'], string> = { 'm4a-aac': 'M4A', 'ogg-opus': 'Ogg', wav: 'WAV' };
 
 /**

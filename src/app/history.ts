@@ -7,24 +7,28 @@
 import { computed } from '@preact/signals';
 import { isMac, resolveKey, scopeOf, type Action } from '../keys';
 import { canRedo, canUndo, redo, undo } from '../project';
+import { editorLocked } from './lock';
 import { focusInfo } from './playback';
 
 /** CMP-Toolbar: Undo and Redo are each unavailable when there is nothing to undo or redo (F-014 UX notes). */
-export const historyAvailable = computed(() => ({ undo: canUndo.value, redo: canRedo.value }));
+export const historyAvailable = computed(() => ({
+  undo: canUndo.value && !editorLocked.value,
+  redo: canRedo.value && !editorLocked.value,
+}));
 
-// TODO(F-015): while an export runs the editor is locked (SCR-Editor "exporting"); gate undoEdit, redoEdit
-// and the history keys on F-015's lock signal (build question 96). No such signal exists yet.
+// SCR-Editor "exporting" (build question 96): while an export runs the editor is locked, so undo and redo do
+// nothing; the history keys get a dialog's scope then (./playback.ts focusInfo), and the toolbar is inert.
 
 /** F-014.R1: undo the last edit; false when there is nothing to undo. */
 export function undoEdit(): boolean {
-  if (!canUndo.peek()) return false;
+  if (editorLocked.peek() || !canUndo.peek()) return false;
   undo();
   return true;
 }
 
 /** F-014.R1: redo the last undone edit; false when there is nothing to redo. */
 export function redoEdit(): boolean {
-  if (!canRedo.peek()) return false;
+  if (editorLocked.peek() || !canRedo.peek()) return false;
   redo();
   return true;
 }

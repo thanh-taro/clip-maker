@@ -2,6 +2,11 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-19 — F-015 building
+- F-015 set to `building` (phase 4, wave 4).
+- COPY-export.progress_starting added: CMP-ExportProgress hides the time remaining until its first estimate (F-015.AC12), so the progress line needs a form without it (build question 181).
+- MOD-Project "Public surface": `exportMark()`; `markExported(kind, mark)` marks the project as it was when the export started, so a change landing during the export stays unexported (RULE-19; build question 182).
+
 ## 2026-11-19 — F-013 building
 - F-013 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 173, 174 and 176 (Snapping and Fit on the phone's zoom pill, the centred playhead on narrow layouts only, what snaps).
 - MOD-Timeline: a pinch zooms around the pinch point (F-013.AC4), so on phones it moves the time under the centre line and scrubs; "Public surface": the `zoom`, `snapping` and `playing` signals and the view's `zoomIn`, `zoomOut`, `fit`, `scrollToPlayhead` and `nav` (build question 175).

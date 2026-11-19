@@ -2,8 +2,8 @@
 // The buttons and their labels in both languages. Wired so far: Add media (F-001), Music (F-011: opens
 // CMP-MusicPicker as a popover under it), Undo and Redo (F-014: unavailable when there is nothing to undo
 // or redo, and the RULE-20 history keys), Add text (F-010.R1: a layer at the playhead with CMP-TextEditor open on
-// it; while editing, the narrow top bar collapses to Undo, Redo and Done); the other actions come with F-015,
-// F-017 and F-018. Labels collapse to icons (compact) and the narrow top bar of D-038 is CSS on the tool's width
+// it; while editing, the narrow top bar collapses to Undo, Redo and Done), Export (F-015: opens CMP-ExportPanel); the
+// other actions come with F-017 and F-018. Labels collapse to icons (compact) and the narrow top bar of D-038 is CSS on the tool's width
 // (layout.css, text.css).
 import { useEffect } from 'preact/hooks';
 import { t, type MessageId, type MessageParams } from '../copy';
@@ -13,6 +13,9 @@ type ActionLabel = {
   [K in MessageId]: K extends `action.${string}` ? (MessageParams[K] extends undefined ? K : never) : never;
 }[MessageId];
 import { needsClip } from './adding';
+import { device } from './device';
+import { closePanel, openPanel, panelOpen as exportPanelOpen, setExportOpener } from './export';
+import { editorLocked } from './lock';
 import { bindHistoryKeys, historyAvailable, redoEdit, undoEdit } from './history';
 import { Icon, type IconName } from './icons';
 import { addMedia } from './MediaInput';
@@ -128,14 +131,37 @@ export function Toolbar() {
         {needsClip.value ? <NeedsClip /> : null}
         {/* CMP-TextEditor "narrow, keyboard open": Done lives only in the top bar (shown on narrow layouts). */}
         {editingText.value !== null ? <DoneButton variant="top" /> : null}
-        <button type="button" class="tk-tool tk-tool--export" data-action="export" disabled>
-          <Icon name="export" size={20} />
-          <span class="tk-tool__label">{t('action.export')}</span>
-        </button>
+        <ExportButton />
       </div>
       {needsClip.value ? <NeedsClip narrow /> : null}
       <MusicPopover anchor={() => musicButton} />
     </header>
+  );
+}
+
+/**
+ * Implements: F-015.R1, CMP-Toolbar, CMP-ExportPanel "opener states" — Export opens CMP-ExportPanel (again: closes
+ * it). It is unavailable without a clip on the main track (RULE-03) or before the device check let media in;
+ * pressed (raised, accent border) while the panel is open; busy with a thin progress line while an export runs.
+ */
+function ExportButton() {
+  const open = exportPanelOpen.value;
+  const busy = editorLocked.value;
+  return (
+    <button
+      ref={setExportOpener}
+      type="button"
+      class="tk-tool tk-tool--export"
+      data-action="export"
+      disabled={needsClip.value || device.value.status !== 'supported'}
+      aria-haspopup="dialog"
+      aria-expanded={open ? 'true' : 'false'}
+      aria-busy={busy ? 'true' : undefined}
+      onClick={() => (exportPanelOpen.peek() ? closePanel(false) : openPanel())}
+    >
+      <Icon name="export" size={20} />
+      <span class="tk-tool__label">{t('action.export')}</span>
+    </button>
   );
 }
 
