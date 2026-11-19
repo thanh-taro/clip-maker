@@ -185,7 +185,7 @@ function SizeLimit({ blocked }: { readonly blocked: boolean }) {
             else if (custom) chooseTarget(null);
           }}
         />
-        <span aria-hidden="true">MB</span>
+        <span aria-hidden="true">{t('export.size_unit')}</span>
       </label>
     </fieldset>
   );
@@ -235,7 +235,7 @@ export function ExportPanel() {
   const advice = useAdvice();
   // CMP-ExportPanel "Behavior": the body scrolls the field and its message into view above the footer.
   useEffect(() => {
-    if (advice) body.current?.querySelector(`#${ADVICE_ID}`)?.scrollIntoView({ block: 'nearest' });
+    if (advice) body.current?.querySelector('.tk-export__advice')?.scrollIntoView({ block: 'nearest' });
   }, [advice?.text]);
   if (!open) return null;
   const caps = sessionCaps.value;
@@ -246,13 +246,7 @@ export function ExportPanel() {
   const estimate =
     e.status === 'ready' && e.result.reachable ? t('export.estimate', { size: formatMB(e.result.bytes) }) : '';
   return (
-    <section
-      id={ID}
-      class="tk-export"
-      role="dialog"
-      aria-labelledby={TITLE_ID}
-      data-panel="export"
-    >
+    <section id={ID} class="tk-export" role="dialog" aria-labelledby={TITLE_ID} data-panel="export">
       <span class="tk-export__grab" aria-hidden="true" />
       <header class="tk-export__head">
         <h2 id={TITLE_ID} class="tk-export__title">

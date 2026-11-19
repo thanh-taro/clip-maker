@@ -218,7 +218,11 @@ async function readExport(
       stamps.push(f.timestamp);
       g.drawImage(f, 0, 0, W, H);
       const rgb = points.map(([fx, fy]) =>
-        Array.from(g.getImageData(Math.min(W - 1, Math.floor(fx * W)), Math.min(H - 1, Math.floor(fy * H)), 1, 1).data.subarray(0, 3)),
+        Array.from(
+          g
+            .getImageData(Math.min(W - 1, Math.floor(fx * W)), Math.min(H - 1, Math.floor(fy * H)), 1, 1)
+            .data.subarray(0, 3),
+        ),
       );
       decoded.push({ ts: f.timestamp, rgb });
       f.close();
@@ -227,7 +231,9 @@ async function readExport(
   });
   dec.configure(v.decoderConfig);
   for await (const p of input.packets('video'))
-    dec.decode(new EncodedVideoChunk({ type: p.key ? 'key' : 'delta', timestamp: Math.round(p.timestamp * 1e6), data: p.data }));
+    dec.decode(
+      new EncodedVideoChunk({ type: p.key ? 'key' : 'delta', timestamp: Math.round(p.timestamp * 1e6), data: p.data }),
+    );
   await dec.flush();
   dec.close();
   decoded.sort((a, b) => a.ts - b.ts);
@@ -421,7 +427,14 @@ if (fault === 'failed' || fault === 'interrupted') {
       void h.result.then((r) => {
         if (!fired) ended(r);
       });
-      return { ...h, onProgress: h.onProgress, cancel: h.cancel, result, cleaned: h.cleaned, scratchFile: h.scratchFile };
+      return {
+        ...h,
+        onProgress: h.onProgress,
+        cancel: h.cancel,
+        result,
+        cleaned: h.cleaned,
+        scratchFile: h.scratchFile,
+      };
     },
   });
 }

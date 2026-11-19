@@ -339,6 +339,7 @@ Rules for every string:
 | **COPY-export.cancelling** | Cancelling… | Đang huỷ… | |
 | **COPY-export.progress_label** | Export progress | Tiến độ xuất | |
 | **COPY-export.keep_open** | Keep this page open until the export finishes. | Hãy giữ trang này mở cho đến khi xuất xong. | |
+| **COPY-export.size_unit** | MB | MB | The unit after the COPY-export.size_custom field (the board's "Other [  ] MB"); 1 MB = 1,000,000 bytes |
 | **COPY-export.progress_starting** | Exporting… {percent} % | Đang xuất… {percent} % | COPY-export.progress before the first time-remaining estimate (CMP-ExportProgress hides the time until then) |
 
 ## Licence notices

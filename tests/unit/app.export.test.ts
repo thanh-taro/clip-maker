@@ -40,7 +40,9 @@ import { focusInfo } from '../../src/app/playback';
 import { proj, video, videoSource } from '../support/project';
 
 const grid = (ok: (short: number, rate: number) => boolean): GridCell[] =>
-  [480, 720, 1080, 1440, 2160].flatMap((short) => [24, 25, 30, 60].map((rate) => ({ short, rate, supported: ok(short, rate) })));
+  [480, 720, 1080, 1440, 2160].flatMap((short) =>
+    [24, 25, 30, 60].map((rate) => ({ short, rate, supported: ok(short, rate) })),
+  );
 const MP4: VideoFormat = { id: 'mp4-h264-aac', container: 'mp4', video: 'h264', audio: 'aac', fallback: false };
 const CAPS: ExportCaps = {
   videoFormat: MP4,
@@ -62,7 +64,11 @@ describe('RULE-15 resolutions offered (F-015.AC1)', () => {
     proj({ clips: [video('A', 4)], sources: [videoSource('A', 4, { width: w, height: h })] });
 
   it('F-015.AC1 only sizes the device can encode are offered and 1080 with Balanced is chosen', () => {
-    const offers = resolutionOffers(p(3840, 2160), true, grid((s) => s <= 1440));
+    const offers = resolutionOffers(
+      p(3840, 2160),
+      true,
+      grid((s) => s <= 1440),
+    );
     expect(offers.map((o) => [o.resolution, o.state])).toEqual([
       [480, 'ok'],
       [720, 'ok'],
@@ -75,7 +81,11 @@ describe('RULE-15 resolutions offered (F-015.AC1)', () => {
   });
 
   it('F-015.AC1 RULE-15 when 1080 can’t be encoded the default is the largest offered size below it', () => {
-    const offers = resolutionOffers(p(1920, 1080), true, grid((s) => s <= 720));
+    const offers = resolutionOffers(
+      p(1920, 1080),
+      true,
+      grid((s) => s <= 720),
+    );
     expect(defaultResolution(offers)).toBe(720);
     expect(offers.find((o) => o.resolution === 1080)?.state).toBe('no_encoder');
   });
@@ -92,7 +102,11 @@ describe('RULE-15 resolutions offered (F-015.AC1)', () => {
 
   it('RULE-15 a size is offered at the project’s frame rate only (the grid is size × rate)', () => {
     const at60 = { ...p(1920, 1080), frame: { aspect: 'original', frameRate: 60, background: 'black' } } as const;
-    const offers = resolutionOffers(at60, true, grid((s, r) => r !== 60 || s <= 720));
+    const offers = resolutionOffers(
+      at60,
+      true,
+      grid((s, r) => r !== 60 || s <= 720),
+    );
     expect(offers.find((o) => o.resolution === 1080)?.state).toBe('no_encoder');
     expect(defaultResolution(offers)).toBe(720);
   });
@@ -118,15 +132,26 @@ describe('RULE-15 quality or size target', () => {
   it('RULE-15 CMP-ExportPanel a size target replaces the quality level, and choosing a quality clears it', () => {
     resetExportSession();
     chooseTarget(8);
-    expect(settingsOf(videoChoice.value, 1080)).toEqual({ kind: 'video', resolution: 1080, quality: 'balanced', targetMB: 8 });
+    expect(settingsOf(videoChoice.value, 1080)).toEqual({
+      kind: 'video',
+      resolution: 1080,
+      quality: 'balanced',
+      targetMB: 8,
+    });
     chooseQuality('best');
     expect(videoChoice.value.targetMB).toBeNull();
     expect(settingsOf(videoChoice.value, 720)).toEqual({ kind: 'video', resolution: 720, quality: 'best' });
   });
 
   it('F-015.AC2 the advice names the largest resolution that meets the target, or the smallest whole-MB target', () => {
-    expect(targetAdvice({ bytes: 4e6, reachable: false, suggestedResolution: 480 })).toEqual({ kind: 'lower_res', fit: 480 });
-    expect(targetAdvice({ bytes: 1e6, reachable: false, smallestTargetMB: 3 })).toEqual({ kind: 'unreachable', min: 3 });
+    expect(targetAdvice({ bytes: 4e6, reachable: false, suggestedResolution: 480 })).toEqual({
+      kind: 'lower_res',
+      fit: 480,
+    });
+    expect(targetAdvice({ bytes: 1e6, reachable: false, smallestTargetMB: 3 })).toEqual({
+      kind: 'unreachable',
+      min: 3,
+    });
     expect(targetAdvice({ bytes: 9e6, reachable: true })).toEqual({ kind: 'none' });
     expect(targetAdvice(null)).toEqual({ kind: 'none' });
   });
@@ -134,10 +159,15 @@ describe('RULE-15 quality or size target', () => {
   it('F-015.AC9 RULE-15 the format line names the fallback in technical names, the same in both languages', () => {
     expect(videoFormatLine(MP4, 'en-US')).toEqual({ text: 'Saves as MP4', fallback: false });
     const webm: VideoFormat = { id: 'webm-vp9-opus', container: 'webm', video: 'vp9', audio: 'opus', fallback: true };
-    expect(videoFormatLine(webm, 'en-US')).toEqual({ text: "Saves as WebM. This browser can't make MP4.", fallback: true });
+    expect(videoFormatLine(webm, 'en-US')).toEqual({
+      text: "Saves as WebM. This browser can't make MP4.",
+      fallback: true,
+    });
     expect(videoFormatLine(webm, 'vi-VN').text).toBe('Lưu dạng WebM. Trình duyệt này không tạo được MP4.');
     const opus: VideoFormat = { ...MP4, id: 'mp4-h264-opus', audio: 'opus', fallback: true };
-    expect(videoFormatLine(opus, 'en-US').text).toBe("Saves as MP4 (H.264 + Opus). This browser can't make MP4 (H.264 + AAC).");
+    expect(videoFormatLine(opus, 'en-US').text).toBe(
+      "Saves as MP4 (H.264 + Opus). This browser can't make MP4 (H.264 + AAC).",
+    );
   });
 
   it('F-015.R9 the shared file carries its format’s type', () => {
@@ -313,7 +343,11 @@ describe('F-015 the run (CMP-ExportProgress)', () => {
     const before = project.value;
     const started = startVideoExport();
     await tick();
-    fake.runs[0]!.end({ ok: false, error: 'error.export_failed', detail: 'RangeError: Array buffer allocation failed' });
+    fake.runs[0]!.end({
+      ok: false,
+      error: 'error.export_failed',
+      detail: 'RangeError: Array buffer allocation failed',
+    });
     await started;
     expect(run.value).toEqual({ phase: 'failed' });
     expect(project.value).toBe(before);

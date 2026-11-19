@@ -344,7 +344,7 @@ test.describe('embedded', () => {
     await expect(redo).toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('F-022.AC8 a running export continues when the host switches language; only its progress text changes; a text being edited keeps its state', async ({
+  test('F-022.AC8 F-019.AC7 a running export continues when the host switches language and is saved from the frame; only its progress text changes; a text being edited keeps its state', async ({
     page,
   }) => {
     test.setTimeout(180_000);

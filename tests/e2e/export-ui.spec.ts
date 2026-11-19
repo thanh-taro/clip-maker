@@ -39,7 +39,10 @@ interface Harness {
     codedClip(rate: number, frames: number): Promise<number[]>;
     toneClip(spec: ToneSpec): Promise<number[]>;
     typeText(seconds: number, content: string): void;
-    pixels(png: string, points: readonly (readonly [number, number])[]): Promise<{ width: number; height: number; at: number[][] }>;
+    pixels(
+      png: string,
+      points: readonly (readonly [number, number])[],
+    ): Promise<{ width: number; height: number; at: number[][] }>;
     readExport(
       bytes: number[],
       times: readonly number[],
@@ -79,10 +82,11 @@ async function toned(page: Page, name: string, spec: ToneSpec): Promise<Payload>
 
 /** A W × H photo of one flat colour. */
 async function photo(page: Page, name: string, colour: readonly number[], w = 320, h = 240): Promise<Payload> {
-  const bytes = await page.evaluate(
-    ([c, ww, hh]) => (window as unknown as Harness).appHarness.stripes(ww, hh, [c]),
-    [colour, w, h] as const,
-  );
+  const bytes = await page.evaluate(([c, ww, hh]) => (window as unknown as Harness).appHarness.stripes(ww, hh, [c]), [
+    colour,
+    w,
+    h,
+  ] as const);
   return { name, mimeType: 'image/png', buffer: Buffer.from(bytes) };
 }
 
@@ -102,12 +106,15 @@ async function add(page: Page, files: Payload[], lang: Language = 'en-US'): Prom
   for (const close of await page.locator('.tk-notice__close').all()) await close.click().catch(() => undefined);
 }
 
-const toolbar = (page: Page, lang: Language = 'en-US') => page.getByRole('toolbar', { name: text(lang, 'toolbar.label') });
+const toolbar = (page: Page, lang: Language = 'en-US') =>
+  page.getByRole('toolbar', { name: text(lang, 'toolbar.label') });
 const exportButton = (page: Page, lang: Language = 'en-US') =>
   toolbar(page, lang).getByRole('button', { name: text(lang, 'action.export'), exact: true });
-const panel = (page: Page, lang: Language = 'en-US') => page.getByRole('dialog', { name: text(lang, 'export.title') }).and(page.locator('.tk-export'));
+const panel = (page: Page, lang: Language = 'en-US') =>
+  page.getByRole('dialog', { name: text(lang, 'export.title') }).and(page.locator('.tk-export'));
 const progress = (page: Page) => page.locator('dialog.tk-run');
-const radio = (scope: Locator, name: string | RegExp) => scope.getByRole('radio', { name, exact: typeof name === 'string' });
+const radio = (scope: Locator, name: string | RegExp) =>
+  scope.getByRole('radio', { name, exact: typeof name === 'string' });
 /** Chooses an option as a user does: a click on its label (the native radio is visually hidden). */
 const pick = (scope: Locator, name: string) =>
   scope
@@ -130,7 +137,11 @@ async function estimated(p: Locator, lang: Language = 'en-US'): Promise<string> 
 }
 
 /** Starts the export from the panel and returns the download and the file's bytes. */
-async function exportNow(page: Page, p: Locator, lang: Language = 'en-US'): Promise<{ download: Download; bytes: number[] }> {
+async function exportNow(
+  page: Page,
+  p: Locator,
+  lang: Language = 'en-US',
+): Promise<{ download: Download; bytes: number[] }> {
   const download = page.waitForEvent('download', { timeout: 90_000 });
   await p.getByRole('button', { name: text(lang, 'action.export'), exact: true }).click();
   const d = await download;
@@ -204,6 +215,34 @@ test.describe('F-015 export video through the panel', () => {
   });
 });
 
+test.describe('F-015 privacy', () => {
+  test('F-015.AC8 NFR-01 F-020.R2 an export through the panel requests nothing beyond the tool’s own files and sends no content (its speed: the @realtime NFR-04 run)', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(120_000);
+    const origin = new URL(APP).origin;
+    const requests: string[] = [];
+    context.on('request', (r) => requests.push(`${r.method()} ${r.url()}${r.postData() === null ? '' : ' +body'}`));
+    await context.route(
+      (url) => url.origin !== origin && url.protocol !== 'data:' && url.protocol !== 'blob:',
+      (route) => route.abort(),
+    );
+    await open(page);
+    await add(page, [await coded(page, 'a.mp4', 45)]);
+    const p = await openPanel(page);
+    await pick(p, '480');
+    await estimated(p);
+    const from = requests.length;
+    await exportNow(page, p);
+    await expect(progress(page)).toHaveAttribute('data-phase', 'done');
+    const offDevice = (q: string) =>
+      !(q.startsWith(`GET ${origin}/`) || q.startsWith(`GET blob:${origin}/`)) || q.endsWith(' +body');
+    expect(requests.slice(from).filter(offDevice)).toEqual([]);
+    expect(requests.filter(offDevice)).toEqual([]);
+  });
+});
+
 // ── Shared steps ───────────────────────────────────────────────────────────────────────────────────
 
 const S = 1_000_000;
@@ -265,7 +304,10 @@ async function previewAt(
     await page.waitForTimeout(150);
     const png = (await canvas(page).screenshot()).toString('base64');
     rgb = (
-      await page.evaluate(([p, pts]) => (window as unknown as Harness).appHarness.pixels(p, pts), [png, points] as const)
+      await page.evaluate(([p, pts]) => (window as unknown as Harness).appHarness.pixels(p, pts), [
+        png,
+        points,
+      ] as const)
     ).at;
     const now = JSON.stringify(rgb);
     if (now === last) break;
