@@ -363,10 +363,12 @@ test.describe('F-018 New project (standalone)', () => {
     expect(confirmBox.y).toBeLessThan(cancelBox.y);
     expect(cancelBox.height).toBeGreaterThanOrEqual(44);
     // A bottom sheet, the full width (measured once its entrance has settled).
-    await expect.poll(async () => {
-      const b = (await d.boundingBox())!;
-      return [Math.round(b.y + b.height), Math.round(b.width)];
-    }).toEqual([844, 390]);
+    await expect
+      .poll(async () => {
+        const b = (await d.boundingBox())!;
+        return [Math.round(b.y + b.height), Math.round(b.width)];
+      })
+      .toEqual([844, 390]);
     await settled(d);
     await shot(page, 'confirm-narrow-sheet', browserName);
     await page.keyboard.press('Escape');
