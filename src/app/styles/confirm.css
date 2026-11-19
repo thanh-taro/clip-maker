@@ -183,9 +183,15 @@
     color: var(--tk-color-muted);
   }
 
-  .tk-more__item:hover,
+  .tk-more__item:hover:not([aria-disabled='true']),
   .tk-more__item:focus-visible {
     background: var(--tk-color-surface2);
+  }
+
+  /* Unavailable (Keyboard shortcuts until F-017): legible, muted, still focusable. */
+  .tk-more__item[aria-disabled='true'] {
+    color: var(--tk-color-muted);
+    cursor: default;
   }
 
   .tk-more__separator {

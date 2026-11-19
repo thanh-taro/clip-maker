@@ -11,6 +11,7 @@ import { newProject, unexported } from '../project';
 import { dropAdding } from './adding';
 import { closePanel as closeExportPanel } from './export';
 import { editorLocked } from './lock';
+import { closeNotice, notices } from './notice-stack';
 
 /** CMP-ConfirmDialog is open, asking before New project (F-018.AC3). */
 export const confirmOpen = signal(false);
@@ -25,6 +26,8 @@ function startNewProject(): void {
   // The panel of an empty project has nothing to export (Export is unavailable without a clip, RULE-03).
   closeExportPanel(false);
   newProject();
+  // The old project's results and warnings no longer apply; a progress notice belongs to its running task.
+  for (const n of notices.peek()) if (n.kind !== 'progress') closeNotice(n.key);
 }
 
 export type NewProjectOutcome = 'started' | 'asking' | 'locked';

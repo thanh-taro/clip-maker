@@ -2,8 +2,9 @@
 // board CMP-Toolbar). On narrow layouts (D-038) New project, Keyboard shortcuts, Licences and credits and the
 // source link live here. More is pressed while the menu is open; the menu closes on Esc, on choosing an item
 // or on a tap outside it, and gives focus back to More. Arrow keys, Home and End move between the items.
-// Built with F-018 because New project (F-018.R2) is only reachable from it on phones; Keyboard shortcuts
-// opens CMP-ShortcutHelp once F-017 builds it (the wide toolbar's button is the same).
+// Built with F-018 because New project (F-018.R2) is only reachable from it on phones; Keyboard shortcuts is
+// unavailable until F-017 builds CMP-ShortcutHelp (the wide toolbar's button is the same). The menu closes when
+// the layout stops being narrow.
 // Implements: F-018.R2 (narrow), CMP-Toolbar "Behavior" (More menu) and "Accessibility" (popup, expanded
 // state, menu items), CMP-ConfirmDialog "Behavior" (opened from the More menu on narrow), F-020.R3/R4 (narrow).
 import { signal } from '@preact/signals';
@@ -38,7 +39,16 @@ export function MoreButton() {
     };
     // Capture: a region that handles its own pointer (the preview, the timeline) still closes the menu.
     document.addEventListener('pointerdown', onPointer, true);
-    return () => document.removeEventListener('pointerdown', onPointer, true);
+    // The menu belongs to the narrow layout: when the tool widens, More is hidden and the menu closes.
+    const editor = button.current?.closest('.tk-editor');
+    const sizes = new ResizeObserver(() => {
+      if (button.current && button.current.getClientRects().length === 0) close(false);
+    });
+    if (editor) sizes.observe(editor);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer, true);
+      sizes.disconnect();
+    };
   }, [open]);
 
   const onMenuKey = (e: KeyboardEvent): void => {
@@ -108,7 +118,8 @@ export function MoreButton() {
             role="menuitem"
             data-action="shortcuts"
             data-copy="action.shortcuts"
-            onClick={choose(() => undefined)}
+            // Unavailable until F-017 builds CMP-ShortcutHelp (build question 193): choosing it does nothing.
+            aria-disabled="true"
           >
             <Icon name="shortcuts" size={20} />
             {t('action.shortcuts')}

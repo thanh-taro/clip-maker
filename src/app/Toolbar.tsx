@@ -70,7 +70,8 @@ const ITEMS: readonly Item[] = [
 function ToolButton({ item }: { item: Item }) {
   const name = t(item.label);
   const history = HISTORY[item.id];
-  const unavailable = history ? !history.available() : false;
+  // Keyboard shortcuts is unavailable until F-017 builds CMP-ShortcutHelp (build question 193).
+  const unavailable = history ? !history.available() : item.id === 'shortcuts';
   const music = item.id === 'music';
   const onClick = history
     ? () => void history.run()

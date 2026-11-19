@@ -21,12 +21,20 @@ export function ConfirmDialog() {
     if (!open || !d) return undefined;
     if (!d.open) d.showModal();
     cancel.current?.focus();
-    // A click on the scrim lands on the dialog element itself (its content fills the box): Cancel.
-    const onScrim = (e: MouseEvent): void => {
-      if (e.target === d) cancelNewProject();
+    // A click on the scrim lands on the dialog element itself (its content fills the box): Cancel. Both the
+    // press and the click must be on it, so a drag that starts inside the box and ends outside is not one.
+    let pressedOnScrim = false;
+    const onPress = (e: PointerEvent): void => {
+      pressedOnScrim = e.target === d;
     };
+    const onScrim = (e: MouseEvent): void => {
+      if (pressedOnScrim && e.target === d) cancelNewProject();
+      pressedOnScrim = false;
+    };
+    d.addEventListener('pointerdown', onPress);
     d.addEventListener('click', onScrim);
     return () => {
+      d.removeEventListener('pointerdown', onPress);
       d.removeEventListener('click', onScrim);
       if (d.open) d.close();
       // Focus returns to the opener (CMP-ConfirmDialog "Accessibility"): New project, or More on narrow.

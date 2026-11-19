@@ -394,6 +394,67 @@ test.describe('F-018 New project (standalone)', () => {
     await expect(more).toHaveAttribute('aria-expanded', 'false');
   });
 
+  test('CMP-ConfirmDialog F-020.AC2 Esc closes only the dialog: the privacy details opened before stay open, and focus returns to New project', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await open(page);
+    await add(page, [await coded(page, 'a.mp4')]);
+    await page.locator('.tk-privacy-badge').click();
+    const details = page.locator('.tk-privacy-details');
+    await expect(details).toBeVisible();
+    // From the keyboard, so no pointer press outside closes the details first.
+    const newProject = toolButton(page, 'action.new_project');
+    await newProject.focus();
+    await page.keyboard.press('Enter');
+    const d = confirmDialog(page);
+    await expect(d).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(d).toHaveCount(0);
+    await expect(details).toBeVisible();
+    await expect(newProject).toBeFocused();
+  });
+
+  test('CMP-ConfirmDialog a press inside the dialog that ends on the scrim does not cancel; a click on the scrim does', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await open(page);
+    await add(page, [await coded(page, 'a.mp4')]);
+    await toolButton(page, 'action.new_project').click();
+    const d = confirmDialog(page);
+    await expect(d).toBeVisible();
+    await settled(d);
+    const text_ = d.locator('.tk-confirm__text');
+    const box = (await text_.boundingBox())!;
+    await page.mouse.move(box.x + 5, box.y + 5);
+    await page.mouse.down();
+    await page.mouse.move(8, 400);
+    await page.mouse.up();
+    await expect(d).toBeVisible();
+    await page.mouse.click(8, 400);
+    await expect(d).toHaveCount(0);
+  });
+
+  test('CMP-Toolbar Keyboard shortcuts is unavailable until F-017 (toolbar and More menu); choosing it keeps the menu open; the menu closes when the layout widens', async ({
+    page,
+  }) => {
+    await open(page);
+    await expect(toolButton(page, 'action.shortcuts')).toHaveAttribute('aria-disabled', 'true');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const more = toolButton(page, 'action.more');
+    await more.click();
+    const menu = page.getByRole('menu', { name: text('en-US', 'action.more') });
+    const shortcuts = menu.getByRole('menuitem', { name: text('en-US', 'action.shortcuts') });
+    await expect(shortcuts).toHaveAttribute('aria-disabled', 'true');
+    await shortcuts.click({ force: true }); // a user can still press it: nothing happens
+    await expect(menu).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(menu).toHaveCount(0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(more).toHaveAttribute('aria-expanded', 'false');
+  });
+
   for (const lang of ['en-US', 'vi-VN'] as const) {
     test(`NFR-06 F-022.R6 CMP-ConfirmDialog and the More menu pass axe at 1280 and 320 px (${lang})`, async ({
       page,

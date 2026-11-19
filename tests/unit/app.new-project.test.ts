@@ -21,7 +21,11 @@ import {
   undo,
   unexported,
 } from '../../src/project';
+import type { IntakeResult } from '../../src/media';
+import { addFiles, configureAdding, progress, resetAdding } from '../../src/app/adding';
+import { device, resetDeviceSession } from '../../src/app/device';
 import { chooseResolution, panelOpen, resetExportSession, videoChoice } from '../../src/app/export';
+import { notices, resetNotices, showNotice } from '../../src/app/notice-stack';
 import { editorLocked } from '../../src/app/lock';
 import {
   bindLeaveWarning,
@@ -31,7 +35,7 @@ import {
   requestNewProject,
   type LeaveTarget,
 } from '../../src/app/new-project';
-import { proj, video } from '../support/project';
+import { proj, video, videoSource } from '../support/project';
 
 const load = (p: Project) => edit(() => ({ project: p, notices: [], changed: [] }));
 
@@ -64,6 +68,10 @@ function fakeWindow() {
 
 let unbind: (() => void) | null = null;
 beforeEach(() => {
+  resetDeviceSession();
+  device.value = { status: 'supported' };
+  resetAdding();
+  resetNotices();
   newProject();
   resetExportSession();
   cancelNewProject();
@@ -211,5 +219,72 @@ describe('F-018.R2 New project', () => {
     const before = project.value;
     confirmNewProject();
     expect(project.value).toBe(before);
+  });
+
+  /**
+   * A fake MOD-Media intake: each batch's result waits for `finish()`; every checked file is "accepted"
+   * (a 3 s video), and `released` records what the controller gave back to the registry.
+   */
+  function heldIntake() {
+    const released: string[] = [];
+    let finish: () => void = () => undefined;
+    let started = 0;
+    let n = 0;
+    configureAdding({
+      intake: (items, onProgress) => {
+        started++;
+        onProgress({ position: 1, total: items.length } as never);
+        const accepted = (items as File[]).map((f) => ({
+          source: videoSource(`s${++n}`, 3, { name: f.name }),
+          file: f,
+        }));
+        return new Promise<IntakeResult>((resolve) => {
+          finish = () => resolve({ accepted, refused: [], notices: [], cancelled: false } as unknown as IntakeResult);
+        });
+      },
+      release: (id) => released.push(id),
+    });
+    return { released, finish: () => finish(), started: () => started };
+  }
+  const fileNamed = (name: string) => new File([new Uint8Array(1)], name);
+
+  it('F-018.R3 RULE-23 confirmed while a batch is held: the batch is dropped, the project stays empty and its checked file is released', async () => {
+    load(proj({ clips: [video('A', 4)] }));
+    const h = heldIntake();
+    const batch = addFiles([fileNamed('late.mp4')]);
+    await expect.poll(() => h.started()).toBe(1);
+    expect(requestNewProject()).toBe('asking');
+    confirmNewProject();
+    h.finish();
+    await batch;
+    expect(project.value).toBe(EMPTY_PROJECT);
+    expect(h.released).toEqual(['s1']);
+    expect(progress.value).toBeNull();
+  });
+
+  it('F-018.R3 RULE-23 a batch that lands while the dialog is open is removed on confirm', async () => {
+    load(proj({ clips: [video('A', 4)] }));
+    const h = heldIntake();
+    const batch = addFiles([fileNamed('mid.mp4')]);
+    await expect.poll(() => h.started()).toBe(1);
+    expect(requestNewProject()).toBe('asking');
+    h.finish();
+    await batch;
+    expect(project.value.sources.map((x) => x.name)).toContain('mid.mp4');
+    confirmNewProject();
+    expect(project.value).toBe(EMPTY_PROJECT);
+    expect(canUndo.value).toBe(false);
+  });
+
+  it('F-018.R3 RULE-23 a new project closes the old project’s notices; a progress notice is left to its owner', () => {
+    load(proj({ clips: [video('A', 4)] }));
+    markExported('video', exportMark());
+    showNotice({ kind: 'success', tag: 'added', text: () => 'added' });
+    showNotice({ kind: 'warning', tag: 'length_full', text: () => 'full' });
+    showNotice({ kind: 'error', tag: 'refused_list', text: () => 'refused' });
+    showNotice({ kind: 'progress', tag: 'other-progress', text: () => 'busy' });
+    expect(notices.value).toHaveLength(4);
+    requestNewProject();
+    expect(notices.value.map((n) => n.kind)).toEqual(['progress']);
   });
 });
