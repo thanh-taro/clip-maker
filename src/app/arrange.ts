@@ -9,6 +9,8 @@
 // Earlier/Later by one frame (Shift+Alt: 1 s) under the RULE-12 move rule, and M to mute the selected
 // video or audio clip. Implements: F-011.R2 (move, duplicate, delete), F-011.R8, RULE-20 (M, Shift+Alt).
 // F-004 adds the trim keys S or Mod+B (split), I and O (start / end here), acting through ./trim.ts.
+// F-010 adds the text layers (./text.ts): the same Delete and Duplicate, Earlier/Later one frame in time
+// (Shift+Alt: 1 s), and T to add a text layer. Implements: F-010.R4, F-010.R8, RULE-20 (T, Alt / Shift+Alt).
 import { computed } from '@preact/signals';
 import type { AudioClip, Clip } from '../core';
 import { isMac, resolveKey, scopeOf, type Action } from '../keys';
@@ -26,6 +28,14 @@ import {
 } from '../project';
 import { nextItemId, showResultNotices } from './adding';
 import { focusInfo } from './playback';
+import {
+  addTextAndEdit,
+  deleteSelectedText,
+  duplicateSelectedText,
+  moveTextBy,
+  selectedText,
+  textMoveAvailable,
+} from './text';
 import { splitHere, trimHere } from './trim';
 
 /** F-003.R1: the selected main-track clip, if the selection is one. */
@@ -56,6 +66,10 @@ const selectedIndex = computed(() => {
  * the first clip can't move earlier, nor the last later.
  */
 export const arrangeAvailable = computed(() => {
+  if (selectedText.value) {
+    const m = textMoveAvailable.value;
+    return { earlier: m.earlier, later: m.later, delete: true, duplicate: project.value.textLayers.length < 50 };
+  }
   const audio = selectedAudio.value;
   if (audio) {
     const p = project.value;
@@ -105,6 +119,7 @@ export function moveAudioBy(frames: number): boolean {
  * Earlier / Later — the selected audio clip one frame in time.
  */
 export function moveSelected(direction: 'earlier' | 'later'): boolean {
+  if (selectedText.peek()) return moveTextBy(direction === 'earlier' ? -1 : 1);
   if (selectedAudio.peek()) return moveAudioBy(direction === 'earlier' ? -1 : 1);
   const clip = selectedClip.peek();
   const i = selectedIndex.peek();
@@ -115,6 +130,17 @@ export function moveSelected(direction: 'earlier' | 'later'): boolean {
 
 /** F-003.R3: delete the selected clip; later clips close the gap and nothing is selected afterwards. */
 export function deleteSelected(): boolean {
+  if (selectedText.peek()) {
+    const had = typeof document === 'undefined' ? null : (document.activeElement?.closest?.('.tk-tclip') ?? null);
+    const done = deleteSelectedText();
+    // Keyboard focus stays on the text lane: the next text item, else the main track.
+    if (done && had)
+      setTimeout(() => {
+        if (document.activeElement && document.activeElement !== document.body) return;
+        (document.querySelector<HTMLElement>('.tk-tclip') ?? document.querySelector<HTMLElement>('.tk-track'))?.focus();
+      }, 0);
+    return done;
+  }
   const audio = selectedAudio.peek();
   if (audio) {
     const had = document.activeElement?.closest?.('.tk-aclip') ?? null;
@@ -145,6 +171,7 @@ export function deleteSelected(): boolean {
 
 /** F-003.R4: duplicate the selected clip right after it; the original stays selected. */
 export function duplicateSelected(): boolean {
+  if (selectedText.peek()) return duplicateSelectedText();
   const audio = selectedAudio.peek();
   if (audio) return commit((p) => duplicateAudio(p, audio.id, nextItemId));
   const clip = selectedClip.peek();
@@ -169,7 +196,13 @@ export function runArrangeAction(action: Action, repeat = false): boolean {
   // Backspace is taken only when it deletes. A held (repeating) Delete or Mod+D acts once.
   switch (action) {
     case 'delete':
-      return repeat ? selectedClip.peek() !== null || selectedAudio.peek() !== null : deleteSelected();
+      return repeat
+        ? selectedClip.peek() !== null || selectedAudio.peek() !== null || selectedText.peek() !== null
+        : deleteSelected();
+    // RULE-20: T adds a text layer (F-010); a held T acts once.
+    case 'add-text':
+      if (!repeat) addTextAndEdit();
+      return true;
     case 'duplicate':
       if (!repeat) duplicateSelected();
       return true;
@@ -179,8 +212,13 @@ export function runArrangeAction(action: Action, repeat = false): boolean {
       return true;
     case 'move-earlier-second':
     case 'move-later-second': {
-      // RULE-20 (Q93): Shift+Alt moves an audio clip 1 s (a text layer's comes with F-010); for a main-track
-      // clip Shift makes no difference, so it moves one place like Alt+Left/Right and the key is taken.
+      // RULE-20 (Q93): Shift+Alt moves a text layer or an audio clip 1 s; for a main-track clip Shift makes
+      // no difference, so it moves one place like Alt+Left/Right and the key is taken.
+      if (selectedText.peek()) {
+        const second = project.peek().frame.frameRate;
+        moveTextBy(action === 'move-earlier-second' ? -second : second);
+        return true;
+      }
       if (!selectedAudio.peek()) {
         moveSelected(action === 'move-earlier-second' ? 'earlier' : 'later');
         return true;

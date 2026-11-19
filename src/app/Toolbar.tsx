@@ -1,8 +1,10 @@
 // MOD-App — CMP-Toolbar, empty-project state (specs/30-experience/components/CMP-Toolbar.md).
 // The buttons and their labels in both languages. Wired so far: Add media (F-001), Music (F-011: opens
 // CMP-MusicPicker as a popover under it), Undo and Redo (F-014: unavailable when there is nothing to undo
-// or redo, and the RULE-20 history keys); the other actions come with F-010, F-015, F-017 and F-018. Labels collapse to icons (compact) and the
-// narrow top bar of D-038 is CSS on the tool's width (layout.css).
+// or redo, and the RULE-20 history keys), Add text (F-010.R1: a layer at the playhead with CMP-TextEditor open on
+// it; while editing, the narrow top bar collapses to Undo, Redo and Done); the other actions come with F-015,
+// F-017 and F-018. Labels collapse to icons (compact) and the narrow top bar of D-038 is CSS on the tool's width
+// (layout.css, text.css).
 import { useEffect } from 'preact/hooks';
 import { t, type MessageId, type MessageParams } from '../copy';
 
@@ -16,6 +18,8 @@ import { Icon, type IconName } from './icons';
 import { addMedia } from './MediaInput';
 import { MusicPopover } from './MusicPicker';
 import { closePicker, openPicker, pickerOpen } from './sound';
+import { addTextAndEdit, editingText } from './text';
+import { DoneButton } from './TextEditor';
 
 /** Toolbar's Music button (the picker's anchor; Esc and Close return focus to it). */
 let musicButton: HTMLButtonElement | null = null;
@@ -68,7 +72,10 @@ function ToolButton({ item }: { item: Item }) {
       ? addMedia
       : music
         ? toggleMusic
-        : undefined;
+        : item.id === 'add-text'
+          ? // F-010.R1: Add text adds a layer at the playhead and opens CMP-TextEditor on it.
+            () => void addTextAndEdit()
+          : undefined;
   return (
     <button
       ref={(el: HTMLButtonElement | null) => {
@@ -119,6 +126,8 @@ export function Toolbar() {
           <ToolButton key={item.id} item={item} />
         ))}
         {needsClip.value ? <NeedsClip /> : null}
+        {/* CMP-TextEditor "narrow, keyboard open": Done lives only in the top bar (shown on narrow layouts). */}
+        {editingText.value !== null ? <DoneButton variant="top" /> : null}
         <button type="button" class="tk-tool tk-tool--export" data-action="export" disabled>
           <Icon name="export" size={20} />
           <span class="tk-tool__label">{t('action.export')}</span>

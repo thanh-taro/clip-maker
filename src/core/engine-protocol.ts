@@ -60,7 +60,15 @@ export type ToEngine =
   | { readonly type: 'engine:tick'; readonly t: Micros; readonly playing: boolean }
   /** Seek or scrub: coarse first, then the exact frame (NFR-03). Latest wins. */
   | { readonly type: 'engine:seek'; readonly t: Micros }
-  | { readonly type: 'engine:setTextBitmaps'; readonly bitmaps: Readonly<Record<string, TextBitmap>> }
+  /**
+   * The text layers' bitmaps (ADR-0012): `bitmaps` replace those ids; the ids in `keep` keep the bitmap the
+   * engine has (F-010: only changed layers are rasterised again); every other bitmap is closed and dropped.
+   */
+  | {
+      readonly type: 'engine:setTextBitmaps';
+      readonly bitmaps: Readonly<Record<string, TextBitmap>>;
+      readonly keep?: readonly string[];
+    }
   /** Compare hold (RULE-08): the clip drawn without adjustments and look; null ends it. */
   | { readonly type: 'engine:compare'; readonly clipId: string | null }
   | { readonly type: 'engine:overlay'; readonly overlay: Overlay | null }

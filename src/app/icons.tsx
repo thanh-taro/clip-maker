@@ -4,11 +4,13 @@
 import type { JSX } from 'preact';
 import {
   ArrowDown,
+  ArrowDownToLine,
   ArrowLeft,
   ArrowLeftToLine,
   ArrowRight,
   ArrowRightToLine,
   ArrowUp,
+  ArrowUpToLine,
   AudioLines,
   Check,
   ChevronLeft,
@@ -49,6 +51,9 @@ import {
   ShieldCheck,
   SkipBack,
   SkipForward,
+  TextAlignCenter,
+  TextAlignEnd,
+  TextAlignStart,
   SlidersVertical,
   Square,
   Trash2,
@@ -139,6 +144,13 @@ const SOURCES = {
   crossFade: '<svg viewBox="0 0 24 24"><path d="M4 6v12l8-6zM20 6v12l-8-6z"/></svg>',
   shorter: Minus,
   longer: Plus,
+  // F-010: text alignment (CMP-Inspector "text layer"), Bring forward / Send back (board SCR-Editor editing-text
+  // narrow, Text tab)
+  alignLeft: TextAlignStart,
+  alignCentre: TextAlignCenter,
+  alignRight: TextAlignEnd,
+  bringForward: ArrowUpToLine,
+  sendBack: ArrowDownToLine,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

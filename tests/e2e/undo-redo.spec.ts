@@ -2,10 +2,10 @@
 // app harness (tests/harness/app.html), with real decoders, the timeline (F-003) and the preview (F-002).
 // Edits whose controls are not built yet are made through the harness with the same MOD-Project
 // operations and gesture API those features will use, and are marked below:
-//   AC1 — Add text with typing (F-010); the split is F-004's real Split control and the look F-008's real
-//         look gallery (re-run with them per build question 100);
+//   AC1 — the split is F-004's real Split control, the look F-008's real look gallery and the text F-010's
+//         real Add text and CMP-TextEditor (re-run with them per build question 100);
 //   AC4 — now the real Exact speed slider of F-005 (re-run per build question 100);
-//   AC6 — the text layer typed in CMP-TextEditor (F-010).
+//   AC6 — now F-010's real Add text and CMP-TextEditor (build question 100).
 // Undo and Redo themselves are always the toolbar buttons or the keys. Axe at 320 and 1280 px in en-US
 // and vi-VN.
 import AxeBuilder from '@axe-core/playwright';
@@ -127,7 +127,7 @@ test.describe('F-014 undo and redo (app harness)', () => {
     await expect(clipButtons(page)).toHaveCount(2);
   });
 
-  test('F-014.AC1 undoing a split, a look change and a text added three times restores the project; redoing three times brings all back (Split control and F-008 look gallery; text F-010 via the harness)', async ({
+  test('F-014.AC1 undoing a split, a look change and a text added three times restores the project; redoing three times brings all back (Split control, F-008 look gallery, F-010 Add text and editor)', async ({
     page,
     browserName,
   }) => {
@@ -148,7 +148,15 @@ test.describe('F-014 undo and redo (app harness)', () => {
       .click();
     expect((await clipsOf(page))[0]!.look).toBe('natural-warm');
     await page.mouse.move(0, 0);
-    await page.evaluate(() => (window as unknown as Harness).appHarness.typeText(0, 'Hi'));
+    // F-010's Add text at the playhead (0 s), typed in CMP-TextEditor and finished with Esc: one step.
+    await page.evaluate(() => (window as unknown as Harness).appHarness.setPlayhead(0));
+    await toolbar(page)
+      .getByRole('button', { name: text('en-US', 'action.add_text'), exact: true })
+      .click();
+    await expect(page.getByRole('textbox', { name: text('en-US', 'text.field') })).toBeFocused();
+    await page.keyboard.type('Hi');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('textbox', { name: text('en-US', 'text.field') })).toHaveCount(0);
     const after = await state(page);
     expect((await summary(page)).texts).toEqual(['Hi']);
     // Undo three times: the toolbar button, then Mod+Z twice.
@@ -282,13 +290,24 @@ test.describe('F-014 undo and redo (app harness)', () => {
     await expect(timeline(page).locator('.tk-clip[aria-pressed="true"]')).toHaveCount(0);
   });
 
-  test('F-014.AC6 a new text layer typed in and finished is gone after one undo (CMP-TextEditor is F-010; the session via the harness)', async ({
+  test('F-014.AC6 a new text layer typed in and finished is gone after one undo (F-010 Add text and CMP-TextEditor)', async ({
     page,
   }) => {
     await open(page);
     await add(page, [video('A.mp4')]);
     const before = await state(page);
-    await page.evaluate(() => (window as unknown as Harness).appHarness.typeText(0.5, 'Hello'));
+    await page.evaluate(() => (window as unknown as Harness).appHarness.setPlayhead(0.5));
+    await toolbar(page)
+      .getByRole('button', { name: text('en-US', 'action.add_text'), exact: true })
+      .click();
+    const field = page.getByRole('textbox', { name: text('en-US', 'text.field') });
+    await expect(field).toBeFocused();
+    await page.keyboard.type('Hello');
+    await page
+      .locator('.tk-texteditor__bar')
+      .getByRole('button', { name: text('en-US', 'text.done') })
+      .click();
+    await expect(field).toHaveCount(0);
     expect((await summary(page)).texts).toEqual(['Hello']);
     await undoButton(page).click();
     expect((await summary(page)).texts).toEqual([]);

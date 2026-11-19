@@ -3,7 +3,7 @@
 // action. MOD-App's binder executes actions. Built so far: the playback keys (F-002: Space, Left/Right
 // with Shift, Home/End), Esc, the arrange keys of F-003 (Delete/Backspace, Mod+D, Alt+Left/Right), the
 // history keys of F-014 (Mod+Z, Mod+Shift+Z, Ctrl+Y), M (F-011), the trim keys of F-004 (S or Mod+B,
-// I, O) and F-007's Mod+C / Mod+V (copy and paste colour) and hold \ (compare); the other edit, view, file and help keys come with their features and F-017.
+// I, O), F-007's Mod+C / Mod+V (copy and paste colour) and hold \ (compare), and F-010's T (add text); the other edit, view, file and help keys come with their features and F-017.
 // Implements: RULE-20 Scope, Playback, Edit (delete, duplicate, move) and History, F-017.R5 (a focused
 // control that uses a key gets it), F-003.R6, F-014.R1.
 
@@ -43,6 +43,8 @@ export type Action =
   | 'paste-colour'
   /** Hold \: compare (RULE-08; F-007.R7). Released on key-up (MOD-App's binder). */
   | 'compare'
+  /** T: add a text layer (RULE-20; F-010.R1). */
+  | 'add-text'
   /** Mod+Z: undo (F-014.R1). */
   | 'undo'
   /** Mod+Shift+Z or Ctrl+Y: redo (F-014.R1). */
@@ -174,5 +176,7 @@ function editKey(
   if (code === 'KeyC' && mod && !altKey && !shiftKey) return 'copy-colour';
   if (code === 'KeyV' && mod && !altKey && !shiftKey) return 'paste-colour';
   if (code === 'Backslash' && plain && !shiftKey) return 'compare';
+  // RULE-20: T adds a text layer (F-010).
+  if (code === 'KeyT' && plain && !shiftKey) return 'add-text';
   return undefined;
 }

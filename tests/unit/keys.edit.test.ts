@@ -43,6 +43,14 @@ describe('MOD-Keys edit keys (RULE-20, F-003.R6)', () => {
     expect(isMac('Win32')).toBe(false);
   });
 
+  it('RULE-20 F-010.R1 T adds a text layer; never while a text field (CMP-TextEditor) is edited, nor with a modifier', () => {
+    expect(resolveKey(key('KeyT'), 'none')).toBe('add-text');
+    expect(resolveKey(key('KeyT', { shiftKey: true }), 'none')).toBeNull();
+    expect(resolveKey(key('KeyT', { ctrlKey: true }), 'none')).toBeNull();
+    expect(resolveKey(key('KeyT'), 'field')).toBeNull();
+    expect(scopeOf(focus({ tag: 'textarea', editable: true }), 'KeyT')).toBe('field');
+  });
+
   it('RULE-20 Alt+Left / Alt+Right move the selected clip one place earlier / later', () => {
     expect(resolveKey(key('ArrowLeft', { altKey: true }), 'none')).toBe('move-earlier');
     expect(resolveKey(key('ArrowRight', { altKey: true }), 'none')).toBe('move-later');

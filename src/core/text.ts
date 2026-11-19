@@ -33,6 +33,14 @@ export function clampText(text: string, max: number = RULE_11.maxCharacters): st
   return parts.length <= max ? nfc : parts.slice(0, max).join('');
 }
 
+/**
+ * RULE-11 *Style*: the outline, shadow and default box colour — black, or white when the text is black,
+ * blue or purple.
+ */
+export function contrastOf(colour: TextLayer['colour']): 'black' | 'white' {
+  return colour === 'black' || colour === 'blue' || colour === 'purple' ? 'white' : 'black';
+}
+
 /** RULE-11 empty text: only whitespace (or nothing). */
 export const isBlankText = (text: string): boolean => text.trim() === '';
 

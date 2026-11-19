@@ -19,6 +19,7 @@ import {
   type Project,
   type ToEngine,
 } from '../core';
+import { textSync, type Rasterise } from './text-sync';
 import { clampTime, pausedAt, playFrom, previewSize, stepTime } from './timing';
 
 /** The master clock (MOD-Audio `Playback` satisfies it): project time being heard now. */
@@ -131,6 +132,8 @@ export interface PreviewDeps {
   readonly engine: EnginePort;
   readonly clock: PreviewClock;
   readonly env?: PreviewEnv;
+  /** F-010: the text rasteriser (MOD-Preview's by default; tests pass a fake). */
+  readonly rasterise?: Rasterise;
 }
 
 /** Implements: MOD-Preview `mountPreview(element, signals)`. */
@@ -194,6 +197,19 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
   let lastSize = '';
   const sizeFor = (): ReturnType<typeof previewSize> =>
     previewSize(box.width, box.height, env.devicePixelRatio(), frameAspect(signals.project.value));
+  // F-010 (ADR-0012 §3): the text layers' bitmaps at the canvas's size, rasterised again only when they change.
+  const texts = textSync((m, transfer) => engine.postMessage(m, transfer), deps.rasterise);
+  let canvasSize = { width: 1, height: 1 };
+  // A resize and a project change in the same task rasterise once (the latest layers at the latest size).
+  let textsQueued = false;
+  const syncTexts = (): void => {
+    if (textsQueued) return;
+    textsQueued = true;
+    queueMicrotask(() => {
+      textsQueued = false;
+      void texts.update(signals.project.peek().textLayers, canvasSize.width, canvasSize.height).catch(() => undefined);
+    });
+  };
   const applySize = (): void => {
     if (!lastSize) return; // not transferred yet
     const s = sizeFor();
@@ -202,7 +218,9 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
     const key = `${s.width}x${s.height}`;
     if (key === lastSize) return;
     lastSize = key;
+    canvasSize = { width: s.width, height: s.height };
     engine.postMessage({ type: 'engine:resize', width: s.width, height: s.height });
+    syncTexts();
   };
   const stopObserving = env.observeSize(element, (width, height) => {
     box = { width, height };
@@ -214,6 +232,7 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
     offscreen,
   ]);
   lastSize = `${first.width}x${first.height}`;
+  canvasSize = { width: first.width, height: first.height };
   canvas.style.width = `${first.cssWidth}px`;
   canvas.style.height = `${first.cssHeight}px`;
 
@@ -222,6 +241,7 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
     const project = signals.project.value;
     engine.postMessage({ type: 'engine:setProject', project });
     applySize();
+    syncTexts();
     const end = projectEnd(project);
     if (time.peek() > end) seekTo(end);
   });
@@ -349,6 +369,7 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
       if (state.peek() === 'playing') clock.pause();
       state.value = 'paused';
       stopProject();
+      texts.dispose();
       stopObserving();
       engine.removeEventListener('message', onMessage);
       clock.onInterrupted = previousInterrupted;

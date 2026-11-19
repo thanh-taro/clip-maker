@@ -18,6 +18,10 @@
 // F-009: the view's cross-fade controls at each join (the add chip, the bow-tie marker) act through
 // ./fades.ts; the marker's popover is ./CrossFadePopover.tsx. The phone Edit sheet's Cross-fade tile is
 // CROSSFADE_ITEM. Implements: F-009.R2, F-009.R7, CMP-Timeline "cross-fade".
+// F-010: the text lane's gutter icon and its items' text; with a text layer selected the move actions read
+// Earlier and Later (COPY-action.time_earlier, COPY-action.time_later) and move it one frame in time
+// (CMP-Timeline "text item"); a text item dragged in time, and activated again (or double-clicked) to edit it.
+// Implements: F-010.R4, F-010.R8, RULE-21 (time controls for text layers).
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
 import { CrossFadePopover } from './CrossFadePopover';
@@ -42,6 +46,7 @@ import {
 } from './arrange';
 import { Icon, type IconName } from './icons';
 import { pauseForScrub } from './playback';
+import { editLayer, moveTextFrames, selectedText } from './text';
 
 /** The timeline view of the session (for focus after a delete). */
 let view: TimelineView | null = null;
@@ -143,7 +148,7 @@ export const ARRANGE_ITEMS: readonly ArrangeItem[] = [
   {
     id: 'move-earlier',
     label: 'action.move_left',
-    labelNow: () => (selectedAudio.value ? 'action.time_earlier' : 'action.move_left'),
+    labelNow: () => (selectedAudio.value || selectedText.value ? 'action.time_earlier' : 'action.move_left'),
     icon: 'moveEarlier',
     run: () => moveSelected('earlier'),
     available: () => arrangeAvailable.value.earlier,
@@ -151,7 +156,7 @@ export const ARRANGE_ITEMS: readonly ArrangeItem[] = [
   {
     id: 'move-later',
     label: 'action.move_right',
-    labelNow: () => (selectedAudio.value ? 'action.time_later' : 'action.move_right'),
+    labelNow: () => (selectedAudio.value || selectedText.value ? 'action.time_later' : 'action.move_right'),
     icon: 'moveLater',
     run: () => moveSelected('later'),
     available: () => arrangeAvailable.value.later,
@@ -205,6 +210,10 @@ export function Timeline() {
             ''
           );
         },
+        // F-010: a text item shows its text on one line (line breaks read as spaces).
+        textName: (layer) => layer.content.replace(/\s+/g, ' ').trim(),
+        moveText: (id, frames) => void moveTextFrames(id, frames),
+        editText: (id) => void editLayer(id),
         select: selectClip,
         move: (id, to) => void moveClipTo(id, to),
         moveAudio: (id, start) => void moveAudioTo(id, start),
@@ -264,6 +273,7 @@ export function Timeline() {
       <div class="tk-tl-body">
         <div class="tk-tl-gutter" aria-hidden="true">
           <Icon name="film" size={16} />
+          <Icon name="text" size={16} class="tk-tl-gutter__text" />
           <Icon name="audio" size={16} class="tk-tl-gutter__audio" />
         </div>
         <div class="tk-tl-lanes" ref={lanes} />

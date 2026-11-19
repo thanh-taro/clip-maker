@@ -20,8 +20,23 @@
 // short) or, over a cross-fade's band, the bow-tie marker that opens MOD-App's length popover (its expanded
 // state follows `crossFade.open`). They come after the clips in focus order and keep their element (and focus)
 // across edits. Implements: F-009.R2, F-009.R7, CMP-Timeline "Accessibility" (the marker's expanded state).
+// F-010 adds the text lane between the main track and the audio lane: each text layer at its times, showing its
+// text (`trackText`), later layers stacked on top; selecting it; its trim handles (the F-004 drag); moving it in
+// time by dragging (on touch after the 0.4 s hold, RULE-21); activating the selected item again, or a
+// double-click, opens CMP-TextEditor on it. The part past the project end is hatched (INV-07). Implements:
+// F-010.R4 (start and end on the timeline), F-004.R3 (text layers trimmed the same way), CMP-Timeline "text
+// item", RULE-21.
 import { effect, signal, type ReadonlySignal, type Signal } from '@preact/signals';
-import { frameStart, nearestFrame, projectEnd, type AudioClip, type Clip, type Micros, type Project } from '../core';
+import {
+  frameStart,
+  nearestFrame,
+  projectEnd,
+  type AudioClip,
+  type Clip,
+  type Micros,
+  type Project,
+  type TextLayer,
+} from '../core';
 import {
   EMPTY_SPAN,
   audioBoxes,
@@ -68,6 +83,12 @@ export interface TimelineDeps {
   audioName?(clip: AudioClip): string;
   /** Move audio clip `id` to start at `start`; MOD-Project's RULE-12 move rule places it (F-011.R2). */
   moveAudio?(id: string, start: Micros): void;
+  /** F-010: what a text item shows and is named by (its text on one line). */
+  textName?(layer: TextLayer): string;
+  /** F-010: move text layer `id` by `frames` frames in time (one undo step; a drag on the text lane). */
+  moveText?(id: string, frames: number): void;
+  /** F-010: open CMP-TextEditor on text layer `id` (a double-click, or activating the selected item again). */
+  editText?(id: string): void;
   /** A scrub on the ruler starts (playback keeps the latest time, F-002.R3). */
   scrubStart?(): void;
   /**
@@ -112,6 +133,8 @@ export interface TimelineView {
 export const HOLD_MS = 400;
 /** A pointer that moves this far before the hold ends scrolls instead (touch), or starts a drag (mouse). */
 const DRAG_SLOP_PX = 6;
+/** F-010: rows of the text lane for layers that overlap in time (more share the last row). */
+const TEXT_ROWS = 3;
 /** Ruler labels at least this far apart. */
 const LABEL_GAP_PX = 56;
 /** F-009: the add chip shows while the pointer is this close to its join. */
@@ -181,7 +204,7 @@ interface ClipEls {
 interface Trim {
   readonly id: string;
   readonly edge: 'start' | 'end';
-  readonly lane: 'clip' | 'audio';
+  readonly lane: 'clip' | 'text' | 'audio';
   readonly pointerId: number;
   readonly touch: boolean;
   readonly startX: number;
@@ -195,8 +218,8 @@ interface Trim {
 }
 
 interface Drag {
-  /** A main-track clip, or an audio clip (F-011). */
-  readonly kind: 'clip' | 'audio';
+  /** A main-track clip, an audio clip (F-011) or a text layer (F-010). */
+  readonly kind: 'clip' | 'audio' | 'text';
   readonly id: string;
   readonly index: number;
   readonly pointerId: number;
@@ -228,7 +251,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const hint = el('span', 'tk-track__hint', track);
   const drop = el('span', 'tk-track__drop', track);
   decorative(drop);
-  // F-011: the audio lane under the main track (the text lane comes between them with F-010).
+  // F-010: the text lane between the main track and the audio lane (F-011).
+  const textLane = el('div', 'tk-text-lane', host);
   const audioLane = el('div', 'tk-audio-lane', host);
   const end = el('span', 'tk-end', host);
   decorative(end);
@@ -265,6 +289,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
 
   const clips = new Map<string, ClipEls>();
   const audios = new Map<string, { button: HTMLButtonElement; name: HTMLSpanElement; past: HTMLSpanElement }>();
+  const texts = new Map<string, { button: HTMLButtonElement; name: HTMLSpanElement; past: HTMLSpanElement }>();
   /** F-009: each join's control, keyed by the clip before it (kept, so focus stays on it across edits). */
   const joins = new Map<string, JoinEls>();
   let boxes: ClipBox[] = [];
@@ -426,6 +451,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     });
     layoutJoins(p, selected);
     track.appendChild(drop);
+    layoutText(p, selected, projEnd);
     layoutAudio(p, selected);
     placeHandles(p, selected);
     placeHead(playhead.peek());
@@ -566,7 +592,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   function placeHandles(p: Project, selected: ReadonlySet<string>): void {
     const id = [...selected][0];
     const span = id !== undefined ? itemSpan(p, id) : null;
-    const lane = span?.kind === 'clip' ? track : span?.kind === 'audio' ? audioLane : null;
+    const lane =
+      span?.kind === 'clip' ? track : span?.kind === 'audio' ? audioLane : span?.kind === 'text' ? textLane : null;
     for (const h of handles) {
       if (!span || !lane || id === undefined) {
         h.remove();
@@ -576,8 +603,75 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       h.dataset['lane'] = span.kind;
       const t = h.dataset['edge'] === 'start' ? span.start : span.end;
       h.style.left = `${t * scale}px`;
+      // F-010: on the text lane the handles sit on the item's row.
+      h.style.setProperty(
+        '--row',
+        span.kind === 'text' ? (texts.get(id)?.button.style.getPropertyValue('--row') ?? '0') : '0',
+      );
       if (h.parentElement !== lane) lane.appendChild(h);
     }
+  }
+
+  function textEls(id: string): { button: HTMLButtonElement; name: HTMLSpanElement; past: HTMLSpanElement } {
+    let t = texts.get(id);
+    if (t) return t;
+    const button = el('button', 'tk-tclip');
+    button.type = 'button';
+    button.dataset['textId'] = id;
+    const name = el('span', 'tk-tclip__name', button);
+    decorative(name);
+    const past = el('span', 'tk-aclip__past', button);
+    decorative(past);
+    t = { button, name, past };
+    texts.set(id, t);
+    return t;
+  }
+
+  /**
+   * F-010: the text lane — every text layer at its times, showing its text; later layers draw on top (stacking
+   * order); focus order is time order. The part past the project end is hatched (INV-07).
+   */
+  function layoutText(p: Project, selected: ReadonlySet<string>, projEnd: Micros): void {
+    const keep = new Set(p.textLayers.map((t) => t.id));
+    for (const [id, t] of texts) {
+      if (keep.has(id)) continue;
+      t.button.remove();
+      texts.delete(id);
+    }
+    const order = p.textLayers
+      .map((layer, i) => ({ layer, i }))
+      .sort((a, b) => a.layer.start - b.layer.start || a.i - b.i);
+    // Layers that overlap in time take separate rows (up to TEXT_ROWS; more share the last), so each can be
+    // reached with a pointer (build question 167).
+    const rowEnds: Micros[] = [];
+    const rowOf = order.map(({ layer }) => {
+      let r = rowEnds.findIndex((end) => end <= layer.start);
+      if (r < 0) r = Math.min(rowEnds.length, TEXT_ROWS - 1);
+      rowEnds[r] = Math.max(rowEnds[r] ?? 0, layer.end);
+      return r;
+    });
+    // The lane grows with its rows; the gutter (outside the lanes) follows the same property.
+    (host.parentElement ?? host).style.setProperty('--text-rows', String(Math.max(1, rowEnds.length)));
+    order.forEach(({ layer, i }, n) => {
+      const t = textEls(layer.id);
+      const x = layer.start * scale;
+      const w = Math.max(1, (layer.end - layer.start) * scale);
+      const name = deps.textName?.(layer) ?? layer.content;
+      const length = deps.time(layer.end - layer.start);
+      t.name.textContent = name;
+      t.button.setAttribute('aria-label', `${name} ${length}`);
+      t.button.setAttribute('aria-pressed', String(selected.has(layer.id)));
+      t.button.title = labelFits(w) ? '' : name;
+      t.button.style.left = `${x}px`;
+      t.button.style.width = `${w}px`;
+      t.button.style.setProperty('--row', String(rowOf[n]));
+      // Later layers on top (RULE-11); the selected item above the others, so it shows whole.
+      t.button.style.zIndex = String(selected.has(layer.id) ? p.textLayers.length + 1 : i + 1);
+      const pastEnd = p.clips.length > 0 && layer.end > projEnd ? Math.max(0, (projEnd - layer.start) * scale) : null;
+      t.past.hidden = pastEnd === null;
+      if (pastEnd !== null) t.past.style.left = `${pastEnd}px`;
+      if (textLane.children[n] !== t.button) textLane.insertBefore(t.button, textLane.children[n] ?? null);
+    });
   }
 
   function audioEls(id: string): { button: HTMLButtonElement; name: HTMLSpanElement; past: HTMLSpanElement } {
@@ -674,7 +768,12 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     drag = null;
     if (!d) return;
     if (d.timer) clearTimeout(d.timer);
-    const button = d.kind === 'audio' ? audios.get(d.id)?.button : clips.get(d.id)?.button;
+    const button =
+      d.kind === 'audio'
+        ? audios.get(d.id)?.button
+        : d.kind === 'text'
+          ? texts.get(d.id)?.button
+          : clips.get(d.id)?.button;
     button?.classList.remove('tk-clip--dragging');
     if (button) button.style.transform = '';
     track.classList.remove('tk-track--dragging');
@@ -684,6 +783,13 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     suppressClick = true;
     setTimeout(() => (suppressClick = false), 0);
     deps.select(d.id);
+    if (d.kind === 'text') {
+      // RULE-21 hold-and-drag: the layer moves by whole frames, keeping its length (F-010.R4).
+      const rate = project.peek().frame.frameRate;
+      const frames = Math.round((d.dx / scale) * (rate / 1_000_000));
+      if (commit && frames !== 0) deps.moveText?.(d.id, frames);
+      return;
+    }
     if (d.kind === 'audio') {
       const a = project.peek().audioClips.find((x) => x.id === d.id);
       if (commit && a && d.dx !== 0)
@@ -695,6 +801,11 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   }
   function startDrag(d: Drag): void {
     d.active = true;
+    if (d.kind === 'text') {
+      texts.get(d.id)?.button.classList.add('tk-clip--dragging');
+      capture(textLane, d.pointerId);
+      return;
+    }
     if (d.kind === 'audio') {
       audios.get(d.id)?.button.classList.add('tk-clip--dragging');
       capture(audioLane, d.pointerId);
@@ -708,7 +819,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   // end (the lanes' end padding) and below the track; the ruler scrubs instead.
   const onLanesDown = (e: PointerEvent): void => {
     const target = e.target as Element;
-    if (e.button !== 0 || target.closest('.tk-clip, .tk-aclip, .tk-ruler, .tk-trim, .tk-join')) return;
+    if (e.button !== 0 || target.closest('.tk-clip, .tk-aclip, .tk-tclip, .tk-ruler, .tk-trim, .tk-join')) return;
     deps.select(null);
   };
   const onTrackDown = (e: PointerEvent): void => {
@@ -756,6 +867,11 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     }
     e.preventDefault();
     d.dx = dx;
+    if (d.kind === 'text') {
+      const t = texts.get(d.id);
+      if (t) t.button.style.transform = `translateX(${dx}px)`;
+      return;
+    }
     if (d.kind === 'audio') {
       const a = audios.get(d.id);
       if (a) a.button.style.transform = `translateX(${dx}px)`;
@@ -779,8 +895,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     readLength.textContent = length;
     readEnd.textContent = ends;
     readout.hidden = false;
-    // Below the main track for a clip, above the audio lane for an audio clip; at the item, kept inside.
-    const lane = t.lane === 'clip' ? track : audioLane;
+    // Below the main track for a clip, above the text or audio lane for its items; at the item, kept inside.
+    const lane = t.lane === 'clip' ? track : t.lane === 'text' ? textLane : audioLane;
     const top = t.lane === 'clip' ? lane.offsetTop + lane.offsetHeight : lane.offsetTop - readout.offsetHeight;
     readout.style.top = `${top}px`;
     const max = Math.max(0, host.clientWidth - readout.offsetWidth);
@@ -816,7 +932,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const id = h.dataset['itemId'] ?? '';
     const p = project.peek();
     const span = itemSpan(p, id);
-    if (!span || span.kind === 'text') return;
+    if (!span) return;
     e.preventDefault();
     const edge = h.dataset['edge'] === 'start' ? 'start' : 'end';
     trim = {
@@ -883,10 +999,17 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     if (((drag?.active && drag.touch) || trim) && e.cancelable) e.preventDefault();
   };
   const onClick = (e: MouseEvent): void => {
-    const button = (e.target as Element).closest<HTMLButtonElement>('.tk-clip, .tk-aclip');
+    const button = (e.target as Element).closest<HTMLButtonElement>('.tk-clip, .tk-aclip, .tk-tclip');
     if (!button) return;
     if (suppressClick) {
       suppressClick = false;
+      return;
+    }
+    // F-010 (CMP-TextEditor "Behavior"): activating the selected text item again opens the editor on it.
+    const textId = button.dataset['textId'];
+    if (textId !== undefined) {
+      if (button.getAttribute('aria-pressed') === String(true) && deps.editText) deps.editText(textId);
+      else deps.select(textId);
       return;
     }
     // Activating the selected clip again clears the selection (a toggle, as a tap on empty space).
@@ -930,6 +1053,39 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     if (touch) d.timer = setTimeout(() => !d.cancelled && drag === d && startDrag(d), HOLD_MS);
     drag = d;
   };
+  // F-010: a text item drags in time (on touch after the hold), by whole frames.
+  const onTextDown = (e: PointerEvent): void => {
+    const button = (e.target as Element).closest<HTMLButtonElement>('.tk-tclip');
+    if (!button || e.button !== 0 || drag) return;
+    const id = button.dataset['textId'] ?? '';
+    if (!project.peek().textLayers.some((t) => t.id === id)) return;
+    const touch = e.pointerType === 'touch';
+    const d: Drag = {
+      kind: 'text',
+      id,
+      index: -1,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      touch,
+      active: false,
+      cancelled: false,
+      timer: null,
+      boundary: null,
+      dx: 0,
+    };
+    if (touch) d.timer = setTimeout(() => !d.cancelled && drag === d && startDrag(d), HOLD_MS);
+    drag = d;
+  };
+  const onTextDouble = (e: MouseEvent): void => {
+    const id = (e.target as Element).closest<HTMLElement>('.tk-tclip')?.dataset['textId'];
+    if (id !== undefined && deps.editText) deps.editText(id);
+  };
+  textLane.addEventListener('pointerdown', onTextDown);
+  textLane.addEventListener('pointermove', onTrackMove);
+  textLane.addEventListener('touchmove', onTouchMove, { passive: false });
+  textLane.addEventListener('click', onClick);
+  textLane.addEventListener('dblclick', onTextDouble);
+  textLane.addEventListener('contextmenu', onContext);
   host.addEventListener('pointerdown', onLanesDown);
   audioLane.addEventListener('pointerdown', onAudioDown);
   audioLane.addEventListener('pointermove', onTrackMove);

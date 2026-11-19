@@ -7,13 +7,14 @@
 // widths (style.md "Layouts": wide ≥ 1000, compact 700–999, narrow < 700) are container queries on the
 // tool root (NFR-07). `data-device` shows the RULE-22 check (F-023): media is accepted only once it
 // reads "supported". `data-state` follows SCR-Editor's states: empty, default, selected, playing,
-// adding, dragging-file.
+// adding, dragging-file, and (F-010) editing-text, with `data-editing` while CMP-TextEditor is open (the phone
+// layout hides the timeline and the tab bar for the keyboard, SCR-Editor "Phone editing-text").
 import { useEffect, useRef } from 'preact/hooks';
 import { isEmpty } from '../project';
 import { panelOpen, progress } from './adding';
 import { selectedAudio, selectedClip } from './arrange';
 import { device } from './device';
-import { AdjustSheet, AudioSheet, EditSheet, LooksSheet, openSheet, TabBar } from './EditSheet';
+import { AdjustSheet, AudioSheet, EditSheet, LooksSheet, openSheet, TabBar, TextSheet } from './EditSheet';
 import { Inspector } from './Inspector';
 import { DropOverlay, dragging, FilePicker, useMediaInput } from './MediaInput';
 import { MediaPanel } from './MediaPanel';
@@ -21,6 +22,7 @@ import { playback } from './playback';
 import { PreviewArea } from './Preview';
 import { StatusBar } from './StatusBar';
 import { Timeline } from './Timeline';
+import { editingText, selectedText } from './text';
 import { Toolbar } from './Toolbar';
 import { workersReady } from './workers';
 
@@ -28,8 +30,9 @@ import { workersReady } from './workers';
 function stateOf(empty: boolean): string {
   if (dragging.value) return 'dragging-file';
   if (progress.value) return 'adding';
+  if (editingText.value !== null) return 'editing-text';
   if (playback.value?.ctl.state.value === 'playing') return 'playing';
-  if (selectedClip.value || selectedAudio.value) return 'selected';
+  if (selectedClip.value || selectedAudio.value || selectedText.value) return 'selected';
   return empty ? 'empty' : 'default';
 }
 
@@ -83,6 +86,7 @@ export function Shell({ addRef }: { addRef: (el: HTMLButtonElement | null) => vo
       data-workers={workersReady.value.length}
       data-panel={panelOpen.value ? 'open' : undefined}
       data-sheet={openSheet.value ?? undefined}
+      data-editing={editingText.value !== null ? '' : undefined}
     >
       <Toolbar />
       <MediaPanel />
@@ -93,6 +97,7 @@ export function Shell({ addRef }: { addRef: (el: HTMLButtonElement | null) => vo
       <AudioSheet />
       <LooksSheet />
       <AdjustSheet />
+      <TextSheet />
       <TabBar />
       <StatusBar />
       <DropOverlay />

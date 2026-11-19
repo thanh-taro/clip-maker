@@ -36,7 +36,7 @@ import { playback } from './playback';
 /** RULE-14: snapping is on by default; its toggle comes with F-013. */
 const SNAPPING = true;
 
-interface Box {
+export interface Box {
   readonly left: number;
   readonly top: number;
   readonly width: number;
@@ -63,7 +63,7 @@ interface Drag {
 }
 
 /** The preview canvas's box inside the stage (CSS pixels), followed as the canvas and stage resize. */
-function useCanvasBox(stage: RefObject<HTMLElement>): Box | null {
+export function useCanvasBox(stage: RefObject<HTMLElement>): Box | null {
   const [box, setBox] = useState<Box | null>(null);
   useEffect(() => {
     const el = stage.current;
