@@ -22,6 +22,13 @@
 // Earlier and Later (COPY-action.time_earlier, COPY-action.time_later) and move it one frame in time
 // (CMP-Timeline "text item"); a text item dragged in time, and activated again (or double-clicked) to edit it.
 // Implements: F-010.R4, F-010.R8, RULE-21 (time controls for text layers).
+// F-013: the toolbar ends with the Snapping toggle (COPY-action.snapping, pressed while on) and icon-only Zoom
+// out, Zoom in and Fit (COPY-action.zoom_out, zoom_in, zoom_fit), with COPY-timeline.zoom_frames while zoomed to
+// frames (CMP-Timeline "wide / default", "frames"); on narrow layouts the same controls sit on a `chrome` pill in
+// the timeline's bottom-right corner ("narrow / no sheet"). All are unavailable in an empty project (SCR-Editor
+// "Unavailable controls"). The view follows the playhead while playing (`playing`). Implements: F-013.R1–R3,
+// RULE-21 (pinch zoom → zoom controls), NFR-06.
+import { computed } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
 import { CrossFadePopover } from './CrossFadePopover';
@@ -45,11 +52,15 @@ import {
   selectedAudio,
 } from './arrange';
 import { Icon, type IconName } from './icons';
-import { pauseForScrub } from './playback';
+import { pauseForScrub, playback } from './playback';
+import { snapping, timelineNav, timelineView, timelineZoom, toggleSnapping } from './timeline-nav';
 import { editLayer, moveTextFrames, selectedText } from './text';
 
 /** The timeline view of the session (for focus after a delete). */
 let view: TimelineView | null = null;
+
+/** F-013.R2: playback is running (the timeline follows the playhead). */
+const playing = computed(() => playback.value?.ctl.state.value === 'playing');
 
 /** After a delete, keyboard focus stays on the track when the control that had it is gone or unavailable. */
 function keepFocus(index: number): void {
@@ -191,7 +202,7 @@ export function Timeline() {
     if (!host) return undefined;
     view = mountTimeline(
       host,
-      { project, selection, playhead },
+      { project, selection, playhead, zoom: timelineZoom, snapping, playing },
       {
         name: (clip) => project.peek().sources.find((s) => s.id === clip.sourceId)?.name ?? '',
         time: (us) => formatDuration(us),
@@ -245,11 +256,13 @@ export function Timeline() {
         },
       },
     );
+    timelineView.value = view;
     onDeleted(keepFocus);
     const unbind = bindArrangeKeys();
     return () => {
       unbind();
       onDeleted(null);
+      timelineView.value = null;
       view?.dispose();
       view = null;
     };
@@ -269,6 +282,8 @@ export function Timeline() {
         {ARRANGE_ITEMS.slice(2).map((item) => (
           <ToolbarButton key={item.id} item={item} />
         ))}
+        <span class="tk-tl-toolbar__grow" />
+        <NavControls variant="toolbar" empty={empty} />
       </div>
       <div class="tk-tl-body">
         <div class="tk-tl-gutter" aria-hidden="true">
@@ -277,8 +292,68 @@ export function Timeline() {
           <Icon name="audio" size={16} class="tk-tl-gutter__audio" />
         </div>
         <div class="tk-tl-lanes" ref={lanes} />
+        <div class="tk-tl-zoom" role="toolbar" aria-label={t('timeline.label')}>
+          <NavControls variant="pill" empty={empty} />
+        </div>
       </div>
       <CrossFadePopover />
     </section>
+  );
+}
+
+type ZoomAction = 'zoom_out' | 'zoom_in' | 'zoom_fit';
+const ZOOM_ICONS: Record<ZoomAction, IconName> = { zoom_out: 'zoomOut', zoom_in: 'zoomIn', zoom_fit: 'zoomFit' };
+
+/**
+ * F-013: the Snapping toggle and the zoom controls — at the end of the wide toolbar (Snapping with its label,
+ * the zoom controls icon-only, COPY-timeline.zoom_frames while zoomed to frames), or on the narrow pill (icon
+ * buttons with touch-size hit areas). Unavailable controls keep their names (aria-disabled), as the toolbar's
+ * other actions do.
+ */
+function NavControls({ variant, empty }: { variant: 'toolbar' | 'pill'; empty: boolean }) {
+  const nav = timelineNav.value;
+  const on = snapping.value;
+  const pill = variant === 'pill';
+  const cls = pill ? 'tk-tl-zoom__button' : 'tk-tl-tool tk-tl-tool--icon';
+  const zoomButton = (action: ZoomAction, available: boolean, run: () => void) => (
+    <button
+      type="button"
+      class={cls}
+      data-action={action}
+      aria-label={t(`action.${action}`)}
+      title={t(`action.${action}`)}
+      aria-disabled={available ? undefined : 'true'}
+      onClick={() => {
+        if (available) run();
+      }}
+    >
+      <Icon name={ZOOM_ICONS[action]} size={16} />
+    </button>
+  );
+  return (
+    <>
+      {!pill && nav.framePx !== null ? (
+        <span class="tk-tl-zoom-frames">{t('timeline.zoom_frames', { px: nav.framePx })}</span>
+      ) : null}
+      <button
+        type="button"
+        class={pill ? 'tk-tl-zoom__button' : 'tk-tl-tool'}
+        data-action="snapping"
+        aria-pressed={on ? 'true' : 'false'}
+        aria-label={pill ? t('action.snapping') : undefined}
+        title={pill ? t('action.snapping') : undefined}
+        aria-disabled={empty ? 'true' : undefined}
+        onClick={() => {
+          if (!empty) toggleSnapping();
+        }}
+      >
+        <Icon name="snapping" size={16} />
+        {pill ? null : <span>{t('action.snapping')}</span>}
+      </button>
+      {pill ? null : <span class="tk-tl-toolbar__divider" aria-hidden="true" />}
+      {zoomButton('zoom_out', nav.canZoomOut, () => timelineView.peek()?.zoomOut())}
+      {zoomButton('zoom_in', nav.canZoomIn, () => timelineView.peek()?.zoomIn())}
+      {zoomButton('zoom_fit', nav.canZoomOut, () => timelineView.peek()?.fit())}
+    </>
   );
 }

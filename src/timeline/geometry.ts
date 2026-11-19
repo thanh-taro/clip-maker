@@ -3,7 +3,9 @@
 // ticks, the clip boundary nearest a drop point (RULE-05 reorder) and the time under the pointer.
 // Implements: CMP-Timeline "wide / default" (clip widths equal duration × the ruler scale), RULE-05
 // reorder target, F-002.R3 (the ruler's time under the pointer), F-003.R2. F-004 adds an item's span, the
-// time under a trim drag and RULE-14 snapping of a trimmed edge (F-004.R4).
+// time under a trim drag and RULE-14 snapping of a trimmed edge (F-004.R4). F-013 adds RULE-14's zoom range
+// and steps, the scroll that keeps a time under a point, following the playhead, the ruler at frame zoom
+// (windowed to the view) and snapping of a moved item and of the scrubbed playhead (F-013.R1–R3).
 import {
   audioEnd,
   frameStart,
@@ -63,31 +65,82 @@ export function clipBoxes(project: Project, scale: number): ClipBox[] {
 
 /** Label steps of the ruler, in seconds: round m:ss values. */
 const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+/** CMP-Timeline "frames": steps between numbered frames, and the least room a frame number takes. */
+const FRAME_STEPS = [1, 2, 3, 5, 6, 10, 15];
+const FRAME_GAP_PX = 20;
+/** No frame number this close after a second's m:ss label (the label's room). */
+const SECOND_LABEL_PX = 36;
+/** Ticks at every frame once a frame is this wide. */
+const FRAME_TICK_PX = 4;
 
 export interface RulerTicks {
   /** Between labels. */
   readonly step: Micros;
-  /** Labelled times, from 0 to the span. */
+  /** Labelled times (m:ss), from 0 (or the window's start) to the span. */
   readonly labels: readonly Micros[];
   /** Unlabelled ticks between labels. */
   readonly minor: readonly Micros[];
+  /** CMP-Timeline "frames": muted frame numbers between the seconds (`n`: the frame within its second). */
+  readonly frames: readonly { readonly at: Micros; readonly n: number }[];
 }
 
-/** The ruler: labels at the smallest round step at least `minGap` pixels apart, with minor ticks between. */
-export function rulerTicks(span: Micros, scale: number, minGap: number): RulerTicks {
-  const seconds = STEPS.find((s) => s * MICROS_PER_SECOND * scale >= minGap) ?? STEPS[STEPS.length - 1]!;
+/** The part of the ruler to make (the view and a margin around it), and the frame rate for frame numbers. */
+export interface RulerWindow {
+  readonly from: Micros;
+  readonly to: Micros;
+  readonly rate?: FrameRate;
+}
+
+/**
+ * The ruler: labels at the smallest round step at least `minGap` pixels apart, with minor ticks between.
+ * At frame zoom (a 1 s step and room for frame numbers), the frames between the seconds are numbered
+ * (CMP-Timeline "frames"). With a `window`, only the ticks within it are made (a 10-minute project at frame
+ * zoom would otherwise make tens of thousands, NFR-03).
+ */
+const labelSeconds = (scale: number, minGap: number): number =>
+  STEPS.find((s) => s * MICROS_PER_SECOND * scale >= minGap) ?? STEPS[STEPS.length - 1]!;
+
+/**
+ * CMP-Timeline "frames": every how many frames the ruler numbers them at `scale`, or undefined when it shows
+ * no frame numbers (labels a second apart, and room for a number between them).
+ */
+export function frameLabelStep(scale: number, rate: FrameRate, minGap: number): number | undefined {
+  if (labelSeconds(scale, minGap) !== 1) return undefined;
+  const fp = framePx(scale, rate);
+  return FRAME_STEPS.find((n) => n < rate && n * fp >= FRAME_GAP_PX);
+}
+
+export function rulerTicks(span: Micros, scale: number, minGap: number, window?: RulerWindow): RulerTicks {
+  const seconds = labelSeconds(scale, minGap);
   const step = seconds * MICROS_PER_SECOND;
+  const from = window ? Math.max(0, Math.floor(window.from / step) * step) : 0;
+  const to = window ? Math.min(span, window.to) : span;
+  const rate = window?.rate;
+  const fp = rate ? framePx(scale, rate) : 0;
+  const k = rate ? frameLabelStep(scale, rate, minGap) : undefined;
   const parts = seconds % 5 === 0 ? 5 : 2;
   const labels: Micros[] = [];
   const minor: Micros[] = [];
-  for (let t = 0; t <= span; t += step) {
+  const frames: { at: Micros; n: number }[] = [];
+  for (let t = from; t <= to; t += step) {
     labels.push(t);
-    for (let k = 1; k < parts; k++) {
-      const m = t + (step * k) / parts;
+    if (rate && k !== undefined) {
+      const first = Math.round((t / MICROS_PER_SECOND) * rate);
+      const every = fp >= FRAME_TICK_PX ? 1 : k;
+      for (let n = every; n < rate; n += every) {
+        const at = frameStart(first + n, rate);
+        if (at >= span) break;
+        minor.push(at);
+        if (n % k === 0 && (at - t) * scale >= SECOND_LABEL_PX) frames.push({ at, n });
+      }
+      continue;
+    }
+    for (let j = 1; j < parts; j++) {
+      const m = t + (step * j) / parts;
       if (m < span) minor.push(Math.round(m));
     }
   }
-  return { step, labels, minor };
+  return { step, labels, minor, frames };
 }
 
 /**
@@ -230,4 +283,111 @@ export function snapTime(
     if (best === null || d < Math.abs(best - t) * scale) best = target;
   }
   return best;
+}
+
+// ── F-013: zoom, scroll and follow (RULE-14) ─────────────────────────────────────────────────────────
+
+/** Width in screen pixels of the shortest frame at `scale` (frames are floor-rounded microseconds). */
+export function framePx(scale: number, rate: FrameRate): number {
+  return scale * Math.floor(MICROS_PER_SECOND / rate);
+}
+
+/** RULE-14: the scale at which one frame is `minFramePx` screen pixels wide (zoomed in fully). */
+export function maxScale(rate: FrameRate): number {
+  const frame = Math.floor(MICROS_PER_SECOND / rate);
+  const scale = RULE_14.minFramePx / frame;
+  // Never a hair under 12 px through rounding (F-013.AC1 says at least).
+  return scale * frame < RULE_14.minFramePx ? scale * (1 + 4 * Number.EPSILON) : scale;
+}
+
+export interface ZoomRange {
+  /** The whole project in the view (fit). */
+  readonly min: number;
+  /** One frame at least 12 px wide, or the fit when that already is. */
+  readonly max: number;
+}
+
+/** Implements: RULE-14 *Zoom* — from showing the whole project (`fit`) to one frame being at least 12 px wide. */
+export function zoomRange(fit: number, rate: FrameRate): ZoomRange {
+  return { min: fit, max: Math.max(fit, maxScale(rate)) };
+}
+
+export const clampScale = (scale: number, range: ZoomRange): number => Math.min(range.max, Math.max(range.min, scale));
+
+/** Each zoom control step doubles or halves the scale. */
+export const ZOOM_STEP = 2;
+/** A step that lands this close to an end of the range goes to it. */
+const ZOOM_EPSILON = 1e-6;
+
+/** F-013.R1: the scale one Zoom in (`dir` 1) or Zoom out (−1) step away, within the range. */
+export function zoomedScale(scale: number, dir: 1 | -1, range: ZoomRange): number {
+  const next = clampScale(dir > 0 ? scale * ZOOM_STEP : scale / ZOOM_STEP, range);
+  if (Math.abs(next - range.min) <= range.min * ZOOM_EPSILON) return range.min;
+  if (Math.abs(next - range.max) <= range.max * ZOOM_EPSILON) return range.max;
+  return next;
+}
+
+/**
+ * RULE-14 D-013: on touch the playhead sits at the view's centre and the project can scroll from its start to
+ * its end under it, so fitting puts the whole project in half the view: it then shows wherever the playhead is.
+ */
+export function centredFit(viewWidth: number, end: Micros): number {
+  return Math.max(0, viewWidth) / 2 / (end > 0 ? end : EMPTY_SPAN);
+}
+
+/** The time at view x `x` (pixels from the view's left) with the lanes scrolled by `scroll` and time 0 at `pad`. */
+export function scrollTimeAt(x: number, scroll: number, pad: number, scale: number): Micros {
+  return scale > 0 ? (x + scroll - pad) / scale : 0;
+}
+
+/** The scroll that puts time `t` at view x `x` (a zoom anchor; F-013.AC4: the pinch point). */
+export function anchoredScroll(t: Micros, x: number, pad: number, scale: number): number {
+  return pad + t * scale - x;
+}
+
+/** While following, the playhead turns a page this close to the view's right edge… */
+const FOLLOW_EDGE_PX = 16;
+/** …and lands this far from its left edge (at most an eighth of the view). */
+const FOLLOW_LEAD_PX = 64;
+
+/**
+ * Implements: RULE-14 *During playback* (F-013.R2, F-013.AC2) — with the playhead at content x `headX` and the
+ * view scrolled by `scroll`, the scroll that keeps it visible: null while it is inside the view; at (or past)
+ * the right edge, or behind the left edge, a page turn that puts it near the left edge.
+ */
+export function followScroll(headX: number, scroll: number, viewWidth: number): number | null {
+  if (headX >= scroll && headX <= scroll + viewWidth - FOLLOW_EDGE_PX) return null;
+  return Math.max(0, headX - Math.min(FOLLOW_LEAD_PX, viewWidth / 8));
+}
+
+// ── RULE-14 snapping of moves and of the playhead (F-013.R3) ───────────────────────────────────────
+
+/**
+ * Implements: RULE-14 — a moved item snaps by its start or its end (F-013.R3), whichever is nearer a target
+ * within `px` screen pixels. Returns the change to its time and the target, or null.
+ */
+export function moveSnap(
+  start: Micros,
+  end: Micros,
+  targets: readonly Micros[],
+  scale: number,
+  px: number = RULE_14.snapPx,
+): { readonly delta: Micros; readonly at: Micros } | null {
+  const a = snapTime(start, targets, scale, px);
+  const b = snapTime(end, targets, scale, px);
+  if (a === null && b === null) return null;
+  if (b === null || (a !== null && Math.abs(a - start) <= Math.abs(b - end))) return { delta: a! - start, at: a! };
+  return { delta: b - end, at: b };
+}
+
+/** RULE-14: what the scrubbed playhead snaps to — time 0, the project end and every item's start and end. */
+export function playheadSnapTargets(project: Project): Micros[] {
+  const rate = project.frame.frameRate;
+  const out: Micros[] = [0];
+  if (project.clips.length) out.push(projectEnd(project));
+  for (const span of layoutOf(project).spans)
+    out.push(frameStart(span.startFrame, rate), frameStart(span.endFrame, rate));
+  for (const t of project.textLayers) out.push(t.start, t.end);
+  for (const a of project.audioClips) out.push(a.start, audioEnd(a));
+  return [...new Set(out)].sort((a, b) => a - b);
 }

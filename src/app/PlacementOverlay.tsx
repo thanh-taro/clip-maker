@@ -32,9 +32,9 @@ import {
 } from '../preview';
 import { beginPlacementDrag, placementShown, placementTarget, type PlacementDrag } from './placement';
 import { playback } from './playback';
+import { snapping } from './timeline-nav';
 
-/** RULE-14: snapping is on by default; its toggle comes with F-013. */
-const SNAPPING = true;
+// RULE-14 snapping: the F-013 toggle (./timeline-nav.ts), for the timeline and the preview (F-013.R3).
 
 export interface Box {
   readonly left: number;
@@ -154,7 +154,7 @@ export function PlacementOverlay({ stage }: { readonly stage: RefObject<HTMLElem
       } else if (d.mode === 'scale' && d.handle) {
         change = { scale: scaleFrom(d.from.scale, d.handle, d.centre, d.start, now) };
       } else {
-        const m = moveFrom(d.from, now[0] - d.start[0], now[1] - d.start[1], d.frame, SNAPPING);
+        const m = moveFrom(d.from, now[0] - d.start[0], now[1] - d.start[1], d.frame, snapping.peek());
         change = { offsetX: m.offsetX, offsetY: m.offsetY };
         setGuides((g) => (g.x === m.snapX && g.y === m.snapY ? g : { x: m.snapX, y: m.snapY }));
       }

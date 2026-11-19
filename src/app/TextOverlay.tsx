@@ -34,10 +34,11 @@ import {
 import { playhead, project } from '../project';
 import { useCanvasBox } from './PlacementOverlay';
 import { playback } from './playback';
+import { snapping } from './timeline-nav';
 import { beginTextDrag, editingText, editLayer, selectText, selectedText, type TextDrag } from './text';
 
-/** RULE-14: snapping is on by default; its toggle comes with F-013. */
-const SNAPPING = true;
+// RULE-14 snapping: the F-013 toggle (./timeline-nav.ts), for the timeline and the preview (F-013.R3).
+
 /** Two taps within this time on the same layer are a double-tap (CMP-TextEditor "Behavior"). */
 const DOUBLE_TAP_MS = 350;
 
@@ -115,7 +116,7 @@ export function TextOverlay({ stage }: { readonly stage: RefObject<HTMLElement> 
       } else if (d.mode === 'scale') {
         change = { size: textSizeFrom(d.from.size, d.centre, d.start, now) };
       } else {
-        const m = moveText(d.from, now[0] - d.start[0], now[1] - d.start[1], d.frame, d.block, SNAPPING);
+        const m = moveText(d.from, now[0] - d.start[0], now[1] - d.start[1], d.frame, d.block, snapping.peek());
         change = { x: m.x, y: m.y };
         setGuides((g) => (g.x === m.snapX && g.y === m.snapY && g.on ? g : { x: m.snapX, y: m.snapY, on: true }));
       }

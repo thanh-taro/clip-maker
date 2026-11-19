@@ -117,8 +117,12 @@ export const RULE_12 = /* @__PURE__ */ Object.freeze({
   limiterDbtp: -1,
 });
 
-/** Implements: RULE-14 timeline view: snapping within 8 screen pixels. */
-export const RULE_14 = /* @__PURE__ */ Object.freeze({ snapPx: 8 });
+/** Implements: RULE-14 timeline view: snapping within 8 screen pixels; the zoom range (F-013). */
+export const RULE_14 = /* @__PURE__ */ Object.freeze({
+  snapPx: 8,
+  /** Zoomed in fully, one frame is at least this many screen pixels wide (F-013.AC1). */
+  minFramePx: 12,
+});
 
 /** Implements: RULE-15 video export choices (the bitrate tables live with F-015). */
 export const RULE_15 = /* @__PURE__ */ Object.freeze({

@@ -513,10 +513,11 @@ test.describe('F-003 arrange clips (app harness)', () => {
       await page.setViewportSize({ width: 320, height: 640 });
       await open(page, lang);
       await add(page, ABC(), lang);
-      // No sheet is open by default; the timeline's own toolbar is hidden on narrow layouts.
+      // No sheet is open by default; the timeline's action toolbar is hidden on narrow layouts (only F-013's
+      // zoom pill shows).
       const tab = page.getByRole('tab', { name: text(lang, 'inspector.edit') });
       await expect(tab).toHaveAttribute('aria-selected', 'false');
-      await expect(timeline(page, lang).getByRole('toolbar')).toBeHidden();
+      await expect(timeline(page, lang).locator('.tk-tl-toolbar')).toBeHidden();
       await axe(page);
       await clip(page, 'B.png', 0, lang).click();
       await tab.click();
