@@ -46,7 +46,8 @@ const shownTexts = computed<readonly TextLayer[]>(() => {
   const p = project.value;
   const rate = p.frame.frameRate;
   const k = frameIndexAt(playhead.value, rate);
-  if (playhead.value >= projectEnd(p) && p.clips.length > 0) return [];
+  // INV-07: nothing at or past the project end is drawn (an empty main track ends at 0).
+  if (playhead.value >= projectEnd(p)) return [];
   return p.textLayers.filter(
     (t) => t.content.trim() !== '' && frameIndexAt(t.start, rate) <= k && k < frameIndexAt(t.end, rate),
   );

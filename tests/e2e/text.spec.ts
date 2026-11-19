@@ -726,3 +726,57 @@ test.describe('F-010 text in the export (media harness, INV-02)', () => {
     }
   });
 });
+
+test.describe('F-002 the preview with everything applied (app harness)', () => {
+  test('F-002.AC1 F-002.R1 inside a cross-fade the preview shows both clips blended, with the look and the text layer', async ({
+    page,
+  }) => {
+    await open(page);
+    const RED: Rgb = [200, 40, 40];
+    const BLUE: Rgb = [40, 40, 200];
+    await add(page, [await photo(page, 'red.png', RED), await photo(page, 'blue.png', BLUE)]);
+    // Two 3 s photos joined by a 1 s cross-fade (F-009), both with the B&W Classic look (F-008), and a text
+    // layer over the whole project (F-010): set through the harness, drawn by the real engine.
+    const p = JSON.parse(await page.evaluate(() => (window as unknown as Harness).appHarness.state())) as {
+      clips: { duration?: number; crossFadeNext: number; look: { id: string; intensity: number } | null }[];
+      textLayers: Layer[];
+    };
+    p.clips.forEach((c) => {
+      c.duration = 3 * S;
+      c.look = { id: 'bw-classic', intensity: 100 };
+    });
+    p.clips[0]!.crossFadeNext = 1 * S;
+    p.textLayers = [layer('T', 0, 5, { content: 'MMMM', y: 0.2, size: 10, style: 'plain' })];
+    await page.evaluate((json) => (window as unknown as Harness).appHarness.load(json), JSON.stringify(p));
+    await expect(page.locator('.tk-transport')).toContainText('/ 0:05');
+    const centre: Point[] = [[0.5, 0.6]];
+    const grey = (c: number[]) => Math.abs(c[0]! - c[1]!) < 12 && Math.abs(c[1]! - c[2]!) < 12;
+    /** The centre's grey level once the paint has settled at `seconds`. */
+    const levelAt = async (seconds: number): Promise<number> => {
+      await setPlayhead(page, seconds);
+      let last: number[] = [];
+      await expect
+        .poll(
+          async () => {
+            const [c] = await previewAt(page, centre);
+            const same = JSON.stringify(c) === JSON.stringify(last);
+            last = c!;
+            return same && grey(c!);
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(true);
+      return last[0]!;
+    };
+    const a = await levelAt(1);
+    const b = await levelAt(4.5);
+    const mid = await levelAt(2.5);
+    // The look made both greys (B&W), they differ, and inside the cross-fade the picture is between the two.
+    expect(Math.abs(a - b)).toBeGreaterThan(10);
+    expect(mid).toBeGreaterThan(Math.min(a, b) + 2);
+    expect(mid).toBeLessThan(Math.max(a, b) - 2);
+    // The text layer is drawn over it (white letters near the top).
+    const ink = await previewAt(page, band(0.25, 0.75, 0.16, 0.24, 30));
+    expect(ink.filter((c) => c.every((v) => v > 235)).length).toBeGreaterThan(5);
+  });
+});
