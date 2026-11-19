@@ -883,6 +883,10 @@
     .tk-tl-zoom {
       display: flex;
     }
+    /* The pill sits below the audio lane. */
+    .tk-tl-body {
+      padding-block-end: calc(var(--tk-space-8) + var(--tk-space-2));
+    }
     .tk-editor[data-sheet] .tk-tl-zoom {
       display: none;
     }

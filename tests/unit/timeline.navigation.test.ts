@@ -29,6 +29,7 @@ describe('RULE-14 zoom range', () => {
       const fit = fitScale(1200, 5 * MIN);
       const range = zoomRange(fit, rate);
       expect(range.min).toBe(fit);
+      expect(range.max).toBe(maxScale(rate));
       expect(framePx(range.max, rate)).toBeGreaterThanOrEqual(RULE_14.minFramePx);
       expect(framePx(range.max, rate)).toBeCloseTo(RULE_14.minFramePx, 6);
       // F-013.AC1 fit: the whole project in the view.
@@ -105,6 +106,8 @@ describe('F-013 ruler at zoom', () => {
       expect(f.n % 30).not.toBe(0);
       expect(f.n).toBeGreaterThan(0);
     }
+    // None under a second's m:ss label.
+    for (const f of ticks.frames) expect(((f.at % S) * scale) | 0).toBeGreaterThanOrEqual(36 - 1);
     const gaps = ticks.frames.slice(1).map((f, i) => (f.at - ticks.frames[i]!.at) * scale);
     expect(Math.min(...gaps.filter((g) => g > 0))).toBeGreaterThanOrEqual(20);
   });

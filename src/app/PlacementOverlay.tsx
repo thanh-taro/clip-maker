@@ -36,7 +36,6 @@ import { snapping } from './timeline-nav';
 
 // RULE-14 snapping: the F-013 toggle (./timeline-nav.ts), for the timeline and the preview (F-013.R3).
 
-
 export interface Box {
   readonly left: number;
   readonly top: number;

@@ -106,7 +106,7 @@ async function settled(target: Locator): Promise<void> {
 
 /** Pixels per second of the timeline now (the track spans the project). */
 async function pxPerSecond(page: Page): Promise<number> {
-  const track = (await timeline(page).locator('.tk-track').boundingBox())!;
+  const track = (await page.locator('.tk-track').boundingBox())!;
   const last = (await clipsOf(page)).at(-1)!.end;
   return track.width / last;
 }
@@ -135,7 +135,7 @@ async function shot(page: Page, name: string, browserName: string): Promise<void
 
 /** The playhead line's screen x. */
 async function headX(page: Page): Promise<number> {
-  const b = (await timeline(page).locator('.tk-playhead').boundingBox())!;
+  const b = (await page.locator('.tk-playhead').boundingBox())!;
   return b.x + b.width / 2;
 }
 
@@ -147,7 +147,9 @@ test.describe('F-013 timeline navigation with a pointer (app harness)', () => {
     browserName,
   }) => {
     await open(page);
-    await photos(page, 300);
+    // Five 60 s photos (RULE-05's longest photo): 5 minutes.
+    await photos(page, 60, 5);
+    expect((await clipsOf(page)).at(-1)!.end).toBe(300);
     await at(page, 150);
     // At the fit zoom out and Fit are unavailable; the whole project is in the view.
     await expect(control(page, 'action.zoom_out')).toHaveAttribute('aria-disabled', 'true');
@@ -296,7 +298,7 @@ test.describe('F-013 timeline navigation with a pointer (app harness)', () => {
       await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
       await page.mouse.down();
       await page.mouse.move(b.x + b.width / 2 + dx, b.y + b.height / 2, { steps: 6 });
-      if (await control(page, 'action.snapping').getAttribute('aria-pressed') === 'true')
+      if ((await control(page, 'action.snapping').getAttribute('aria-pressed')) === 'true')
         await expect(timeline(page).locator('.tk-snap')).toBeVisible();
       else await expect(timeline(page).locator('.tk-snap')).toBeHidden();
       await page.mouse.up();
@@ -311,7 +313,9 @@ test.describe('F-013 timeline navigation with a pointer (app harness)', () => {
     expect(Math.abs((await drag(4 * px - 5)) - (10 - 5 / px))).toBeLessThan(0.1);
   });
 
-  test('F-013.R3 RULE-14 with a pointer the scrubbed playhead snaps to a clip boundary within 8 px', async ({ page }) => {
+  test('F-013.R3 RULE-14 with a pointer the scrubbed playhead snaps to a clip boundary within 8 px', async ({
+    page,
+  }) => {
     await open(page);
     await photos(page, 5, 2);
     const ruler = (await timeline(page).locator('.tk-ruler').boundingBox())!;
@@ -549,6 +553,59 @@ test.describe('F-013 on a phone: the centred playhead (app harness, touch)', () 
     expect(Math.abs((await headX(page)) - (await centreX(page)))).toBeLessThan(1.5);
     await expect(control(page, 'action.zoom_out')).not.toHaveAttribute('aria-disabled', 'true');
     await shot(page, 'narrow-pinched-en-US', browserName);
+  });
+
+  test('F-013.R4 RULE-21 a cancelled pinch (touchcancel) puts the zoom and the playhead back; a held clip drag is not a pinch', async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'CDP touch input');
+    await open(page);
+    await photos(page, 20);
+    await at(page, 4);
+    const track = timeline(page).locator('.tk-track');
+    await settled(track);
+    const before = (await track.boundingBox())!;
+    const y = before.y + before.height / 2;
+    const mid = (await centreX(page)) + 60;
+    const send = await touch(page);
+    await send('touchStart', [
+      { x: mid - 20, y, id: 1 },
+      { x: mid + 20, y, id: 2 },
+    ]);
+    for (let i = 1; i <= 6; i++)
+      await send('touchMove', [
+        { x: mid - 20 - 6 * i, y, id: 1 },
+        { x: mid + 20 + 6 * i, y, id: 2 },
+      ]);
+    expect((await track.boundingBox())!.width).toBeGreaterThan(before.width * 1.5);
+    await send('touchCancel', []);
+    await expect.poll(async () => (await track.boundingBox())!.width).toBeCloseTo(before.width, 0);
+    expect((await preview(page)).playhead).toBe(4);
+  });
+
+  test('F-013.R2 a project change in the middle of a touch scroll ends it without errors', async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'CDP touch input');
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await open(page);
+    await photos(page, 20);
+    await at(page, 4);
+    const send = await touch(page);
+    const track = (await timeline(page).locator('.tk-track').boundingBox())!;
+    const y = track.y + track.height / 2;
+    const x0 = (await centreX(page)) + 40;
+    await send('touchStart', [{ x: x0, y, id: 1 }]);
+    await send('touchMove', [{ x: x0 - 30, y, id: 1 }]);
+    const doc = await stateOf<object>(page);
+    await load(page, { ...doc, clips: [], sources: [] });
+    await send('touchMove', [{ x: x0 - 90, y, id: 1 }]);
+    await send('touchEnd', []);
+    await expect(timeline(page).locator('.tk-lanes')).toHaveAttribute('data-empty', '');
+    expect(errors).toEqual([]);
   });
 
   for (const lang of ['en-US', 'vi-VN'] as const) {

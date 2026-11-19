@@ -68,6 +68,8 @@ const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
 /** CMP-Timeline "frames": steps between numbered frames, and the least room a frame number takes. */
 const FRAME_STEPS = [1, 2, 3, 5, 6, 10, 15];
 const FRAME_GAP_PX = 20;
+/** No frame number this close after a second's m:ss label (the label's room). */
+const SECOND_LABEL_PX = 36;
 /** Ticks at every frame once a frame is this wide. */
 const FRAME_TICK_PX = 4;
 
@@ -129,7 +131,7 @@ export function rulerTicks(span: Micros, scale: number, minGap: number, window?:
         const at = frameStart(first + n, rate);
         if (at >= span) break;
         minor.push(at);
-        if (n % k === 0) frames.push({ at, n });
+        if (n % k === 0 && (at - t) * scale >= SECOND_LABEL_PX) frames.push({ at, n });
       }
       continue;
     }
@@ -310,8 +312,7 @@ export function zoomRange(fit: number, rate: FrameRate): ZoomRange {
   return { min: fit, max: Math.max(fit, maxScale(rate)) };
 }
 
-export const clampScale = (scale: number, range: ZoomRange): number =>
-  Math.min(range.max, Math.max(range.min, scale));
+export const clampScale = (scale: number, range: ZoomRange): number => Math.min(range.max, Math.max(range.min, scale));
 
 /** Each zoom control step doubles or halves the scale. */
 export const ZOOM_STEP = 2;
