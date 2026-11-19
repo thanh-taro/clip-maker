@@ -4,9 +4,10 @@
 // or redo, and the RULE-20 history keys), Add text (F-010.R1: a layer at the playhead with CMP-TextEditor open on
 // it; while editing, the narrow top bar collapses to Undo, Redo and Done), Export (F-015: opens CMP-ExportPanel), New
 // project (F-018.R2: CMP-ConfirmDialog asks first with unexported changes) and the narrow More menu (./MoreMenu.tsx,
-// F-018); Keyboard shortcuts comes with F-017. Labels collapse to icons (compact) and the narrow top bar of D-038 is CSS on the tool's width
+// F-018) and Keyboard shortcuts (F-017.R3: opens CMP-ShortcutHelp). Arrow keys move between the buttons (./roving.ts,
+// F-017), and the RULE-20 view, file and help keys are bound here (./shortcuts.ts). Labels collapse to icons (compact) and the narrow top bar of D-038 is CSS on the tool's width
 // (layout.css, text.css).
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import { t, type MessageId, type MessageParams } from '../copy';
 
 /** COPY action labels that take no parameters. */
@@ -26,6 +27,8 @@ import { addTextAndEdit, editingText } from './text';
 import { DoneButton } from './TextEditor';
 import { MoreButton } from './MoreMenu';
 import { requestNewProject } from './new-project';
+import { bindRovingToolbar } from './roving';
+import { bindShortcutKeys, openHelp } from './shortcuts';
 
 /** Toolbar's Music button (the picker's anchor; Esc and Close return focus to it). */
 let musicButton: HTMLButtonElement | null = null;
@@ -70,9 +73,9 @@ const ITEMS: readonly Item[] = [
 function ToolButton({ item }: { item: Item }) {
   const name = t(item.label);
   const history = HISTORY[item.id];
-  // Keyboard shortcuts is unavailable until F-017 builds CMP-ShortcutHelp (build question 193).
-  const unavailable = history ? !history.available() : item.id === 'shortcuts';
+  const unavailable = history ? !history.available() : false;
   const music = item.id === 'music';
+  const shortcuts = item.id === 'shortcuts';
   const onClick = history
     ? () => void history.run()
     : item.id === 'add-media'
@@ -85,13 +88,16 @@ function ToolButton({ item }: { item: Item }) {
           : item.id === 'new-project'
             ? // F-018.R2: asks first (CMP-ConfirmDialog) only when there are unexported changes.
               (e: MouseEvent) => void requestNewProject(e.currentTarget as HTMLElement)
-            : undefined;
+            : shortcuts
+              ? // F-017.R3: COPY-action.shortcuts opens CMP-ShortcutHelp; focus comes back here.
+                (e: MouseEvent) => openHelp(e.currentTarget as HTMLElement)
+              : undefined;
   return (
     <button
       ref={(el: HTMLButtonElement | null) => {
         if (music) musicButton = el;
       }}
-      aria-haspopup={music ? 'dialog' : undefined}
+      aria-haspopup={music || shortcuts ? 'dialog' : undefined}
       aria-expanded={music ? (pickerOpen.value ? 'true' : 'false') : undefined}
       type="button"
       class={[
@@ -113,10 +119,13 @@ function ToolButton({ item }: { item: Item }) {
 }
 
 export function Toolbar() {
+  const bar = useRef<HTMLDivElement>(null);
   useEffect(() => bindHistoryKeys(), []);
+  useEffect(() => bindShortcutKeys(), []);
+  useEffect(() => (bar.current ? bindRovingToolbar(bar.current) : undefined), []);
   return (
     <header class="tk-toolbar-region">
-      <div class="tk-toolbar" role="toolbar" aria-label={t('toolbar.label')}>
+      <div ref={bar} class="tk-toolbar" role="toolbar" aria-label={t('toolbar.label')}>
         <MoreButton />
         {ITEMS.slice(0, 5).map((item) => (
           <ToolButton key={item.id} item={item} />

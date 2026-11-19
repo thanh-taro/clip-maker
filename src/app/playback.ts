@@ -319,6 +319,8 @@ export function focusInfo(el: Element | null): FocusInfo | null {
       scrolls(style.overflowY, el.scrollHeight, el.clientHeight) ||
       scrolls(style.overflowX, el.scrollWidth, el.clientWidth),
     inDialog: el.closest('dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"]') !== null,
+    // CMP-Toolbar / CMP-Timeline: a toolbar's Left and Right move between its buttons (./roving.ts, F-017).
+    inToolbar: el.closest('[role="toolbar"]') !== null,
   };
 }
 

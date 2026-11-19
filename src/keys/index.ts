@@ -3,9 +3,17 @@
 // action. MOD-App's binder executes actions. Built so far: the playback keys (F-002: Space, Left/Right
 // with Shift, Home/End), Esc, the arrange keys of F-003 (Delete/Backspace, Mod+D, Alt+Left/Right), the
 // history keys of F-014 (Mod+Z, Mod+Shift+Z, Ctrl+Y), M (F-011), the trim keys of F-004 (S or Mod+B,
-// I, O), F-007's Mod+C / Mod+V (copy and paste colour) and hold \ (compare), and F-010's T (add text); the other edit, view, file and help keys come with their features and F-017.
-// Implements: RULE-20 Scope, Playback, Edit (delete, duplicate, move) and History, F-017.R5 (a focused
-// control that uses a key gets it), F-003.R6, F-014.R1.
+// I, O), F-007's Mod+C / Mod+V (copy and paste colour) and hold \ (compare), F-010's T (add text), and F-017's
+// view keys (= and -, Shift+Z, N), file keys (Mod+O, Mod+E) and help (?). `HELP_GROUPS` is the same map as
+// CMP-ShortcutHelp lists it.
+// Implements: RULE-20 (Scope, Playback, Edit, History, View, Files, Help), F-017.R1, F-017.R3 (the list),
+// F-017.R5 (a focused control that uses a key gets it), F-003.R6, F-014.R1.
+import type { MessageId, MessageParams } from '../copy/messages.gen';
+
+/** A COPY ID that takes no parameters (the list's titles and descriptions). */
+export type HelpLabel = {
+  [K in MessageId]: MessageParams[K] extends undefined ? K : never;
+}[MessageId];
 
 /** Where focus is when a key is pressed (MOD-Keys "Responsibility"). */
 export type KeyScope = 'none' | 'field' | 'dialog' | 'control';
@@ -48,7 +56,17 @@ export type Action =
   /** Mod+Z: undo (F-014.R1). */
   | 'undo'
   /** Mod+Shift+Z or Ctrl+Y: redo (F-014.R1). */
-  | 'redo';
+  | 'redo'
+  /** = and -: zoom the timeline in / out; Shift+Z: fit it; N: snapping on or off (RULE-20 *View*; F-013). */
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'zoom-fit'
+  | 'snapping'
+  /** Mod+O: add media; Mod+E: open export (RULE-20 *Files*). */
+  | 'add-media'
+  | 'export'
+  /** ?: show the shortcut list (RULE-20 *Help*, CMP-ShortcutHelp). */
+  | 'help';
 
 /** Mod = Cmd on macOS, else Ctrl (RULE-20). */
 export const isMac = (platform: string): boolean => /mac|iphone|ipad|ipod/i.test(platform);
@@ -66,12 +84,16 @@ export interface FocusInfo {
   readonly inDialog: boolean;
   /** A region that scrolls (its arrow, Space and Page keys scroll it). */
   readonly scrollable: boolean;
+  /** Inside a toolbar, whose Left and Right move between its buttons (CMP-Toolbar "Accessibility"). */
+  readonly inToolbar?: boolean;
 }
 
 const BUTTON_ROLES = new Set(['button', 'switch', 'checkbox', 'radio', 'tab', 'menuitem', 'menuitemradio', 'option']);
 const BUTTON_INPUTS = new Set(['button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'color']);
 const ARROW_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 const SLIDER_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
+const TAB_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
+const TOOLBAR_KEYS = new Set(['ArrowLeft', 'ArrowRight']);
 const SCROLL_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'PageUp', 'PageDown']);
 /** Composite widgets that move their own selection or focus with the arrows, Space, Page, Home and End. */
 const COMPOSITE_ROLES = new Set(['listbox', 'grid', 'tree', 'treegrid', 'option', 'gridcell', 'treeitem', 'row']);
@@ -95,6 +117,10 @@ export function scopeOf(focus: FocusInfo | null, code: string): KeyScope {
   // A radio of an option group (CMP-Inspector: aspect, rate, background) moves its choice with the arrows.
   const radio = focus.role === 'radio' || (focus.tag === 'input' && focus.type === 'radio');
   if (radio && ARROW_KEYS.has(code)) return 'control';
+  // A tab list's tabs (the inspector's clip tabs, the phone tab bar) move between tabs with Left, Right, Home, End.
+  if (focus.role === 'tab' && TAB_KEYS.has(code)) return 'control';
+  // A toolbar's buttons move between each other with Left and Right (CMP-Toolbar, CMP-Timeline; build question 102).
+  if (focus.inToolbar && TOOLBAR_KEYS.has(code)) return 'control';
   if (focus.scrollable && SCROLL_KEYS.has(code)) return 'control';
   const button =
     focus.tag === 'button' ||
@@ -121,6 +147,11 @@ export function resolveKey(
   const edit = editKey(event, mac);
   if (edit !== undefined) return edit;
   if (event.metaKey || event.ctrlKey || event.altKey) return null;
+  // RULE-20 *View* and *Help*: = (or +) and - zoom the timeline, ? shows the list. Unlike letters, these
+  // follow the character the layout types (a German ? is Shift+ß), so the printed key works (build question 203).
+  if (event.key === '?') return 'help';
+  if (event.key === '=' || event.key === '+') return 'zoom-in';
+  if (event.key === '-') return 'zoom-out';
   // A held Space or Esc acts once; held arrows keep stepping.
   if (event.repeat && (event.code === 'Space' || event.code === 'Escape')) return null;
   const shift = event.shiftKey;
@@ -172,6 +203,12 @@ function editKey(
   if (code === 'KeyB' && mod && !altKey && !shiftKey) return 'split';
   if (code === 'KeyI' && plain && !shiftKey) return 'set-in';
   if (code === 'KeyO' && plain && !shiftKey) return 'set-out';
+  // RULE-20 *Files*: Mod+O adds media, Mod+E opens export.
+  if (code === 'KeyO' && mod && !altKey && !shiftKey) return 'add-media';
+  if (code === 'KeyE' && mod && !altKey && !shiftKey) return 'export';
+  // RULE-20 *View*: Shift+Z fits the timeline, N toggles snapping (= and - are matched by character).
+  if (code === 'KeyZ' && shiftKey && plain) return 'zoom-fit';
+  if (code === 'KeyN' && plain && !shiftKey) return 'snapping';
   // RULE-20: Mod+C / Mod+V copy and paste a clip's adjustments and look; hold \ to compare (F-007).
   if (code === 'KeyC' && mod && !altKey && !shiftKey) return 'copy-colour';
   if (code === 'KeyV' && mod && !altKey && !shiftKey) return 'paste-colour';
@@ -179,4 +216,150 @@ function editKey(
   // RULE-20: T adds a text layer (F-010).
   if (code === 'KeyT' && plain && !shiftKey) return 'add-text';
   return undefined;
+}
+
+// ── The shortcut list (CMP-ShortcutHelp) ─────────────────────────────────────────────────────────────
+
+/** One key of a combination: a modifier, or a key with its position (`code`) and the character it types. */
+export interface KeyToken {
+  /** 'Mod', 'Alt', 'Shift', 'Ctrl', or the key's label as on a US keyboard. */
+  readonly id: string;
+  readonly code: string;
+  readonly key: string;
+  /** The platform's command modifier (Cmd on macOS, else Ctrl). */
+  readonly mod?: boolean;
+}
+
+/** One row of the list: what it does (a COPY ID), the actions it stands for, and its key combinations. */
+export interface HelpRow {
+  readonly label: HelpLabel;
+  readonly actions: readonly Action[];
+  readonly keys: readonly (readonly KeyToken[])[];
+  /** Hold the key (COPY-help.hold). */
+  readonly hold?: boolean;
+}
+
+export interface HelpGroup {
+  readonly title: HelpLabel;
+  /** The wide dialog's column (CMP-ShortcutHelp "wide dialog"). */
+  readonly column: 1 | 2 | 3;
+  readonly rows: readonly HelpRow[];
+}
+
+const MOD: KeyToken = { id: 'Mod', code: '', key: '', mod: true };
+const ALT: KeyToken = { id: 'Alt', code: '', key: '' };
+const SHIFT: KeyToken = { id: 'Shift', code: '', key: '' };
+const CTRL: KeyToken = { id: 'Ctrl', code: '', key: '' };
+const k = (id: string, code: string, key: string): KeyToken => ({ id, code, key });
+const letter = (l: string): KeyToken => k(l, `Key${l}`, l.toLowerCase());
+const LEFT = k('←', 'ArrowLeft', 'ArrowLeft');
+const RIGHT = k('→', 'ArrowRight', 'ArrowRight');
+
+/** RULE-20 as CMP-ShortcutHelp groups and orders it (CMP-ShortcutHelp "Variants & states" and "Behavior"). */
+export const HELP_GROUPS: readonly HelpGroup[] = [
+  {
+    title: 'help.group_playback',
+    column: 1,
+    rows: [
+      { label: 'help.play_pause', actions: ['play-pause'], keys: [[k('Space', 'Space', ' ')]] },
+      {
+        label: 'help.frame_step',
+        actions: ['frame-back', 'frame-forward', 'second-back', 'second-forward'],
+        keys: [[LEFT], [RIGHT]],
+      },
+      {
+        label: 'help.go_ends',
+        actions: ['go-start', 'go-end'],
+        keys: [[k('Home', 'Home', 'Home')], [k('End', 'End', 'End')]],
+      },
+    ],
+  },
+  {
+    title: 'help.group_history',
+    column: 1,
+    rows: [
+      { label: 'action.undo', actions: ['undo'], keys: [[MOD, letter('Z')]] },
+      {
+        label: 'action.redo',
+        actions: ['redo'],
+        keys: [
+          [MOD, SHIFT, letter('Z')],
+          [CTRL, letter('Y')],
+        ],
+      },
+    ],
+  },
+  {
+    title: 'help.group_files',
+    column: 1,
+    rows: [
+      { label: 'action.add_media', actions: ['add-media'], keys: [[MOD, letter('O')]] },
+      { label: 'action.export', actions: ['export'], keys: [[MOD, letter('E')]] },
+    ],
+  },
+  {
+    title: 'help.group_edit',
+    column: 2,
+    rows: [
+      { label: 'action.split', actions: ['split'], keys: [[letter('S')], [MOD, letter('B')]] },
+      { label: 'action.set_in', actions: ['set-in'], keys: [[letter('I')]] },
+      { label: 'action.set_out', actions: ['set-out'], keys: [[letter('O')]] },
+      {
+        label: 'action.delete',
+        actions: ['delete'],
+        keys: [[k('Delete', 'Delete', 'Delete')], [k('Backspace', 'Backspace', 'Backspace')]],
+      },
+      { label: 'action.duplicate', actions: ['duplicate'], keys: [[MOD, letter('D')]] },
+      {
+        label: 'help.move',
+        actions: ['move-earlier', 'move-later', 'move-earlier-second', 'move-later-second'],
+        keys: [
+          [ALT, LEFT],
+          [ALT, RIGHT],
+        ],
+      },
+      { label: 'help.mute', actions: ['mute'], keys: [[letter('M')]] },
+      { label: 'action.add_text', actions: ['add-text'], keys: [[letter('T')]] },
+      { label: 'action.copy_look', actions: ['copy-colour'], keys: [[MOD, letter('C')]] },
+      { label: 'help.paste', actions: ['paste-colour'], keys: [[MOD, letter('V')]] },
+      { label: 'action.compare', actions: ['compare'], keys: [[k('\\', 'Backslash', '\\')]], hold: true },
+    ],
+  },
+  {
+    title: 'help.group_view',
+    column: 3,
+    rows: [
+      { label: 'help.zoom', actions: ['zoom-in', 'zoom-out'], keys: [[k('=', 'Equal', '=')], [k('-', 'Minus', '-')]] },
+      { label: 'action.zoom_fit', actions: ['zoom-fit'], keys: [[SHIFT, letter('Z')]] },
+      { label: 'help.snapping', actions: ['snapping'], keys: [[letter('N')]] },
+    ],
+  },
+  {
+    title: 'help.group_help',
+    column: 3,
+    rows: [
+      { label: 'action.shortcuts', actions: ['help'], keys: [[k('?', 'Slash', '?')]] },
+      { label: 'help.esc', actions: ['escape'], keys: [[k('Esc', 'Escape', 'Escape')]] },
+      // CMP-TextEditor finishes editing with Mod+Enter (its field's own key; RULE-20 *Scope*).
+      { label: 'help.finish_editing', actions: [], keys: [[MOD, k('Enter', 'Enter', 'Enter')]] },
+    ],
+  },
+];
+
+/** One key cap as shown: its text, and a spoken name where the text is a symbol. */
+export interface KeyCap {
+  readonly text: string;
+  readonly name?: string;
+}
+
+/**
+ * CMP-ShortcutHelp: a combination's key caps on this platform. Mod is the Command key on macOS and Ctrl
+ * elsewhere; Alt is Option on macOS. Key names stay as on the keyboard (not translated).
+ */
+export function keyCaps(combo: readonly KeyToken[], mac: boolean): KeyCap[] {
+  return combo.map((t) => {
+    if (t.mod) return mac ? { text: '⌘', name: 'Command' } : { text: 'Ctrl' };
+    if (t.id === 'Alt') return mac ? { text: '⌥', name: 'Option' } : { text: 'Alt' };
+    return { text: t.id };
+  });
 }

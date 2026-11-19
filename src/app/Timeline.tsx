@@ -32,6 +32,7 @@ import { computed } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
 import { CrossFadePopover } from './CrossFadePopover';
+import { bindRovingToolbar } from './roving';
 import { addCrossFade, crossFadeTile, openJoin, popoverOpener, secondsLabel, tenthsOf, tileJoin } from './fades';
 import { crossFadeAvailability } from '../project';
 import { registry } from '../media';
@@ -196,6 +197,14 @@ function ToolbarButton({ item }: { item: ArrangeItem }) {
 export function Timeline() {
   const empty = isEmpty.value;
   const lanes = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  const pill = useRef<HTMLDivElement>(null);
+  // CMP-Timeline "Accessibility": the action row and the narrow zoom pill are toolbars; arrows move between
+  // their buttons (F-017, build question 102).
+  useEffect(() => {
+    const off = [bar.current, pill.current].map((el) => (el ? bindRovingToolbar(el) : () => {}));
+    return () => off.forEach((f) => f());
+  }, []);
 
   useEffect(() => {
     const host = lanes.current;
@@ -270,7 +279,7 @@ export function Timeline() {
 
   return (
     <section class="tk-timeline" aria-label={t('timeline.label')} data-unavailable={empty ? '' : undefined}>
-      <div class="tk-tl-toolbar" role="toolbar" aria-label={t('timeline.label')}>
+      <div ref={bar} class="tk-tl-toolbar" role="toolbar" aria-label={t('timeline.label')}>
         {TRIM_ITEMS.map((item) => (
           <ToolbarButton key={item.id} item={item} />
         ))}
@@ -292,7 +301,7 @@ export function Timeline() {
           <Icon name="audio" size={16} class="tk-tl-gutter__audio" />
         </div>
         <div class="tk-tl-lanes" ref={lanes} />
-        <div class="tk-tl-zoom" role="toolbar" aria-label={t('timeline.label')}>
+        <div ref={pill} class="tk-tl-zoom" role="toolbar" aria-label={t('timeline.label')}>
           <NavControls variant="pill" empty={empty} />
         </div>
       </div>

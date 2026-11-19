@@ -2,16 +2,16 @@
 // board CMP-Toolbar). On narrow layouts (D-038) New project, Keyboard shortcuts, Licences and credits and the
 // source link live here. More is pressed while the menu is open; the menu closes on Esc, on choosing an item
 // or on a tap outside it, and gives focus back to More. Arrow keys, Home and End move between the items.
-// Built with F-018 because New project (F-018.R2) is only reachable from it on phones; Keyboard shortcuts is
-// unavailable until F-017 builds CMP-ShortcutHelp (the wide toolbar's button is the same). The menu closes when
-// the layout stops being narrow.
+// Built with F-018 because New project (F-018.R2) is only reachable from it on phones; Keyboard shortcuts opens
+// CMP-ShortcutHelp (F-017.R3). The menu closes when the layout stops being narrow.
 // Implements: F-018.R2 (narrow), CMP-Toolbar "Behavior" (More menu) and "Accessibility" (popup, expanded
-// state, menu items), CMP-ConfirmDialog "Behavior" (opened from the More menu on narrow), F-020.R3/R4 (narrow).
+// state, menu items), F-017.R3 (narrow), CMP-ConfirmDialog "Behavior" (opened from the More menu on narrow), F-020.R3/R4 (narrow).
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { t } from '../copy';
 import { Icon } from './icons';
 import { requestNewProject } from './new-project';
+import { openHelp } from './shortcuts';
 import { noticesRequest, SOURCE_URL } from './StatusBar';
 
 /** The More menu is open. */
@@ -118,8 +118,9 @@ export function MoreButton() {
             role="menuitem"
             data-action="shortcuts"
             data-copy="action.shortcuts"
-            // Unavailable until F-017 builds CMP-ShortcutHelp (build question 193): choosing it does nothing.
-            aria-disabled="true"
+            aria-haspopup="dialog"
+            // F-017.R3: opens CMP-ShortcutHelp; focus returns to More when it closes.
+            onClick={choose(() => openHelp(button.current))}
           >
             <Icon name="shortcuts" size={20} />
             {t('action.shortcuts')}

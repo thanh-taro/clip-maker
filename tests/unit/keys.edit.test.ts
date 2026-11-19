@@ -124,9 +124,10 @@ describe('MOD-Keys trim keys (RULE-20, F-004)', () => {
     expect(resolveKey(key('KeyB'), 'none')).toBeNull();
     expect(resolveKey(key('KeyI'), 'none')).toBe('set-in');
     expect(resolveKey(key('KeyO'), 'none')).toBe('set-out');
-    // Modified letters keep the browser's meaning (Mod+S saves, Mod+O opens, …).
+    // Modified letters keep the browser's meaning (Mod+S saves, …); Mod+O adds media (F-017, keys.map.test.ts).
+    expect(resolveKey(key('KeyO', { metaKey: true }), 'none', true)).toBe('add-media');
     for (const code of ['KeyS', 'KeyI', 'KeyO']) {
-      expect(resolveKey(key(code, { metaKey: true }), 'none', true)).toBeNull();
+      if (code !== 'KeyO') expect(resolveKey(key(code, { metaKey: true }), 'none', true)).toBeNull();
       expect(resolveKey(key(code, { shiftKey: true }), 'none')).toBeNull();
       expect(resolveKey(key(code, { altKey: true }), 'none')).toBeNull();
     }

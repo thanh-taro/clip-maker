@@ -146,12 +146,39 @@ const TABS: readonly {
   },
 ];
 
-/** The phone tab bar (D-038). Hidden on wide and compact layouts (CSS). */
+/**
+ * The phone tab bar (D-038). Hidden on wide and compact layouts (CSS). ARIA tabs with manual activation
+ * (F-017, build questions 90 and 127): one Tab stop (the open tab, else the first); Left and Right (wrapping),
+ * Home and End move focus between the tabs, and Enter or Space opens one, since opening a sheet changes the
+ * layout. MOD-Keys gives a focused tab these keys (RULE-20 *Scope*).
+ */
 export function TabBar() {
+  const current = TABS.findIndex((tab) => openSheet.value === tab.sheet);
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const tabs = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]')];
+    const at = tabs.indexOf(e.target as HTMLElement);
+    if (at < 0) return;
+    const n = tabs.length;
+    const to =
+      e.key === 'ArrowRight'
+        ? at + 1
+        : e.key === 'ArrowLeft'
+          ? at - 1
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? n - 1
+              : null;
+    if (to === null) return;
+    e.preventDefault();
+    tabs[(to + n) % n]?.focus();
+  };
   return (
     <div class="tk-tabbar">
-      <div class="tk-tabbar__tabs" role="tablist">
-        {TABS.map((tab) => {
+      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- the tabs take focus, not the list */}
+      <div class="tk-tabbar__tabs" role="tablist" onKeyDown={onKey}>
+        {TABS.map((tab, i) => {
           const open = openSheet.value === tab.sheet;
           const available = tab.available();
           return (
@@ -161,6 +188,7 @@ export function TabBar() {
               id={tab.id}
               class="tk-tabbar__tab"
               role="tab"
+              tabIndex={i === Math.max(0, current) ? 0 : -1}
               aria-selected={open ? 'true' : 'false'}
               aria-controls={open ? tab.panel : undefined}
               aria-disabled={available ? undefined : 'true'}
