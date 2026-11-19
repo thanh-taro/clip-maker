@@ -25,6 +25,9 @@ import {
   resolutionOffers,
   run,
   sessionCaps,
+  capsSound,
+  mediaOf,
+  MusicUnavailable,
   setExportDeps,
   settingsOf,
   shareExport,
@@ -37,7 +40,9 @@ import { videoFormatLine } from '../../src/app/export-format';
 import { editorLocked } from '../../src/app/lock';
 import { historyAvailable, redoEdit, undoEdit } from '../../src/app/history';
 import { focusInfo } from '../../src/app/playback';
-import { proj, video, videoSource } from '../support/project';
+import { S, proj, video, videoSource } from '../support/project';
+import { addFiles } from '../../src/app/adding';
+import { notices } from '../../src/app/notice-stack';
 
 const grid = (ok: (short: number, rate: number) => boolean): GridCell[] =>
   [480, 720, 1080, 1440, 2160].flatMap((short) =>
@@ -196,6 +201,8 @@ function fakeExport(): { runs: FakeRun[] } {
     },
     context: async (_p, caps) => ({ caps, save: () => 'blob:test' }) as unknown as ExportContext,
     estimate: async () => ({ bytes: 1e6, reachable: true }),
+    caps: async () => CAPS,
+    grid: async () => null,
     start: async (_p, settings, ctx): Promise<ExportHandle> => {
       let settle: (r: ExportResult) => void = () => undefined;
       const result = new Promise<ExportResult>((r) => (settle = r));
@@ -245,6 +252,7 @@ describe('F-015 the run (CMP-ExportProgress)', () => {
     resetExportSession();
     capabilities.value = PROBE;
     sessionCaps.value = CAPS;
+    capsSound.value = true; // worked out for this project, which has sound
     fake = fakeExport();
     // A 16:9 project with one clip: an edit, so there are unexported changes (RULE-19).
     edit(() => ({ project: proj({ clips: [video('A', 4)] }), notices: [], changed: [] }));
@@ -256,6 +264,8 @@ describe('F-015 the run (CMP-ExportProgress)', () => {
 
   it('F-015.AC1 CMP-ExportPanel Export starts at 1080 Balanced and the panel hands over to the progress dialog', async () => {
     openPanel();
+    await tick(); // the capability record for the project's sound is worked out when the panel opens
+    await tick();
     expect(resolution.value).toBe(1080);
     expect(canExport.value).toBe(true);
     const started = startVideoExport();
@@ -431,5 +441,152 @@ describe('ADR-0004 the export capability record', () => {
     const { exportCaps } = await import('../../src/app/export');
     const noAudio = { ...PROBE, audioEncode: { aac: false, opus: false } } as Capabilities;
     expect(await exportCaps(noAudio, true)).toBeNull();
+  });
+});
+
+describe('F-015 review fixes', () => {
+  beforeEach(() => {
+    newProject();
+    resetExportSession();
+    capabilities.value = PROBE;
+    sessionCaps.value = CAPS;
+    capsSound.value = true;
+    edit(() => ({ project: proj({ clips: [video('A', 4)] }), notices: [], changed: [] }));
+  });
+  afterEach(() => {
+    resetExportSession();
+    capabilities.value = null;
+  });
+
+  /** A promise and its resolver. */
+  function later<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+    let resolve: (v: T) => void = () => undefined;
+    const promise = new Promise<T>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+
+  for (const step of ['texts', 'context'] as const) {
+    it(`F-015.AC3 SCR-Editor exporting Cancel while the ${step} is being prepared ends the run at once: unlocked, no file, no error`, async () => {
+      const gate = later<void>();
+      const closed: number[] = [];
+      let starts = 0;
+      const bitmap = { close: () => closed.push(1) } as unknown as ImageBitmap;
+      setExportDeps({
+        texts: async () => {
+          if (step === 'texts') await gate.promise;
+          return { t1: { bitmap, s: 480 } };
+        },
+        context: async (_p, caps) => {
+          if (step === 'context') await gate.promise;
+          return { caps } as unknown as ExportContext;
+        },
+        start: async () => {
+          starts++;
+          throw new Error('never');
+        },
+      });
+      const started = startVideoExport();
+      await tick();
+      expect(editorLocked.value).toBe(true);
+      cancelExport();
+      expect(run.value).toBeNull();
+      expect(editorLocked.value).toBe(false);
+      gate.resolve();
+      await started;
+      expect(starts).toBe(0);
+      expect(run.value).toBeNull();
+      expect(editorLocked.value).toBe(false);
+      expect(closed).toHaveLength(1); // the stale run's text bitmaps are closed
+    });
+  }
+
+  it('F-015.AC3 a handle that arrives after Cancel is cancelled and nothing is shown', async () => {
+    const gate = later<void>();
+    let cancelled = 0;
+    setExportDeps({
+      texts: async () => ({}),
+      context: async (_p, caps) => ({ caps }) as unknown as ExportContext,
+      start: async () => {
+        await gate.promise;
+        return {
+          onProgress: () => undefined,
+          cancel: async () => void cancelled++,
+          result: new Promise<ExportResult>(() => undefined),
+          cleaned: Promise.resolve(),
+          scratchFile: null,
+        };
+      },
+    });
+    const started = startVideoExport();
+    await tick();
+    cancelExport();
+    gate.resolve();
+    await started;
+    expect(cancelled).toBe(1);
+    expect(run.value).toBeNull();
+    expect(editorLocked.value).toBe(false);
+  });
+
+  it('F-015 review the text bitmaps are closed as soon as MOD-Export has started, not at the end', async () => {
+    const closed: number[] = [];
+    const bitmap = { close: () => closed.push(1) } as unknown as ImageBitmap;
+    const fake = fakeExport();
+    setExportDeps({ texts: async () => ({ t1: { bitmap, s: 480 } }) });
+    const started = startVideoExport();
+    await tick();
+    expect(closed).toHaveLength(1);
+    fake.runs[0]!.end(ok());
+    await started;
+  });
+
+  it('F-015.R2 RULE-15 a size-target check that failed or gave no answer advises a retry instead of a silent disabled Export', () => {
+    expect(targetAdvice('failed')).toEqual({ kind: 'unknown' });
+    expect(targetAdvice({ bytes: 1e6, reachable: false })).toEqual({ kind: 'unknown' });
+  });
+
+  it('F-015.R1 RULE-15 sound added while the panel is open: Export waits for the capability record of the new sound', () => {
+    capsSound.value = false; // worked out for a silent project
+    expect(canExport.value).toBe(false);
+    capsSound.value = true;
+    expect(canExport.value).toBe(true);
+  });
+
+  it('F-011.R7 Q120 a bundled track that can’t be read stops the export: COPY-notice.music_unavailable, never exported without it', async () => {
+    setExportDeps({ music: async () => Promise.reject(new Error('NetworkError')) });
+    const withMusic = proj({
+      clips: [video('A', 4)],
+      audioClips: [
+        {
+          id: 'm1',
+          sourceId: 'placeholder-pad',
+          start: 0,
+          in: 0,
+          out: S,
+          volume: 100,
+          muted: false,
+          fadeIn: 0,
+          fadeOut: 0,
+        },
+      ],
+    });
+    // The track is not one of the project's sources (ENT-MusicTrack).
+    const p = { ...withMusic, sources: withMusic.sources.filter((src) => src.id !== 'placeholder-pad') };
+    await expect(mediaOf(p)).rejects.toBeInstanceOf(MusicUnavailable);
+    expect(notices.value.some((n) => n.tag === 'music_unavailable')).toBe(true);
+    // Through the run: the failed state names the reason.
+    fakeExport();
+    setExportDeps({ context: async () => Promise.reject(new MusicUnavailable('placeholder-pad')) });
+    await startVideoExport();
+    expect(run.value).toEqual({ phase: 'failed', reason: 'music' });
+  });
+
+  it('SCR-Editor exporting files dropped or pasted during an export are refused with COPY-notice.busy_exporting', async () => {
+    const fake = fakeExport();
+    const started = startVideoExport();
+    await tick();
+    await addFiles([]);
+    expect(notices.value.some((n) => n.tag === 'busy_exporting')).toBe(true);
+    fake.runs[0]!.end(ok());
+    await started;
   });
 });

@@ -380,6 +380,9 @@ test.describe('embedded', () => {
     if ((await dialog.getAttribute('data-phase')) === 'running')
       await expect(dialog.getByRole('button', { name: text('en-US', 'action.cancel') })).toBeFocused();
     const saved = await download;
+    // Security audit T1: throughout the embedded export the tool sent the host its one ready signal only.
+    const received = await page.evaluate(() => (window as unknown as HostWindow).__received.map((m) => m.data));
+    expect(received).toEqual([{ type: 'taro:ready' }]);
     await expect(dialog).toHaveAttribute('data-phase', 'done');
     await expect(dialog.getByRole('status')).toHaveText(`Saved ${saved.suggestedFilename()}`);
     await expect(frame.locator('.tk-timeline .tk-clip')).toHaveCount(names.length);
@@ -398,5 +401,8 @@ test.describe('embedded', () => {
     const fieldVi = frame.getByRole('textbox', { name: text('vi-VN', 'text.field') });
     await expect(fieldVi).toBeFocused();
     await expect(fieldVi).toHaveValue('Đà Lạt');
+    expect(await page.evaluate(() => (window as unknown as HostWindow).__received.map((m) => m.data))).toEqual([
+      { type: 'taro:ready' },
+    ]);
   });
 });

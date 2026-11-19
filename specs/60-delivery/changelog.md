@@ -5,7 +5,7 @@ Entries are needed only for items that are `building` or `shipped`.
 ## 2026-11-19 — F-015 building
 - F-015 set to `building` (phase 4, wave 4).
 - COPY-export.progress_starting added: CMP-ExportProgress hides the time remaining until its first estimate (F-015.AC12), so the progress line needs a form without it (build question 181). COPY-export.size_unit added: the "MB" after the custom size field, drawn on the CMP-ExportPanel board without a COPY ID. COPY-export.target_unknown (a size target whose check failed, with COPY-action.try_again) and COPY-notice.busy_exporting (files dropped or pasted while exporting) added after the F-015 review (build question 181).
-- Proposed for the owner (build question 190): an export whose bundled track can't be read fails with COPY-notice.music_unavailable and is never made without the track (extends question 120).
+- Proposed for the owner (build question 190): an export whose bundled track can't be read fails with COPY-notice.music_unavailable and is never made without the track (extends question 120; build question 190).
 - MOD-Project "Public surface": `exportMark()`; `markExported(kind, mark)` marks the project as it was when the export started, so a change landing during the export stays unexported (RULE-19; build question 182).
 
 ## 2026-11-19 — F-013 building

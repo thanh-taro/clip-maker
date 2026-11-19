@@ -503,7 +503,24 @@ test.describe('F-015 cancel and the editor lock', () => {
 // ── The size target (RULE-15, D-020) ─────────────────────────────────────────────────────────────────
 
 test.describe('F-015 size target', () => {
-  test('F-015.AC2 F-015.AC10 a 4 MB target on a 60 s project names 480; a 1 MB target is unreachable and offers the smallest whole-MB size, which then exports within it', async ({
+  test('F-015.AC10 a 10 MB target at 1080 gives a file of at most 10,000,000 bytes (a 60 s project of a photo standing in for the NFR-04 fixture, which lives outside git)', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await open(page);
+    await longPhoto(page, 60);
+    const p = await openPanel(page);
+    const ten = text('en-US', 'export.size_target').replace('{size}', '10');
+    await pick(p, ten);
+    await expect(radio(p, '1080')).toBeChecked();
+    const go = p.getByRole('button', { name: text('en-US', 'action.export'), exact: true });
+    await expect(go).toBeEnabled({ timeout: 30_000 });
+    const { bytes } = await exportNow(page, p);
+    expect(bytes.length).toBeGreaterThan(0);
+    expect(bytes.length).toBeLessThanOrEqual(10_000_000);
+  });
+
+  test('F-015.AC2 RULE-15 D-020 a 4 MB target on a 60 s project names 480; a 1 MB target is unreachable and offers the smallest whole-MB size, and that offered target exports within it', async ({
     page,
     browserName,
   }) => {
@@ -593,7 +610,7 @@ test.describe('F-015 export errors', () => {
     await expect.poll(() => scratchNames(page), { timeout: 10_000 }).toEqual([]);
   });
 
-  test('F-015 edge case a page hidden during export: COPY-export.interrupted_title, and Try again runs the same settings', async ({
+  test('CMP-ExportProgress interrupted (an injected ending; MOD-Export’s visibility rules are unit-tested) shows COPY-export.interrupted_title, and Try again runs the same settings', async ({
     page,
     browserName,
   }) => {

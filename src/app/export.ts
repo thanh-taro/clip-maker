@@ -348,7 +348,7 @@ export class MusicUnavailable extends Error {
  * that can't be read shows COPY-notice.music_unavailable (F-011.R7) and fails the export: it is never
  * exported without the track (build question 120; the proposed rule is question 190).
  */
-async function mediaOf(p: Project): Promise<EngineMedia[]> {
+export async function mediaOf(p: Project): Promise<EngineMedia[]> {
   const sources = await Promise.all(p.sources.map((src) => registryMedia(src)));
   const music: EngineMedia[] = [];
   for (const id of musicIds(p, null)) {
@@ -377,6 +377,10 @@ export interface ExportDeps {
   readonly context: (p: Project, caps: ExportCaps, texts: Texts) => Promise<ExportContext>;
   readonly texts: (p: Project, width: number, height: number) => Promise<Texts>;
   readonly now: () => number;
+  /** The capability record for a project with or without sound (`exportCaps`). */
+  readonly caps: (caps: Capabilities, sound: boolean) => Promise<ExportCaps | null>;
+  /** The size × rate grid of a codec (null: unknown, the start-up answer stands). */
+  readonly grid: (codec: VideoCodecId) => Promise<GridCell[] | null>;
   /** A bundled track's packaged file (MOD-Assets). */
   readonly music: (trackId: string) => Promise<Blob>;
 }
@@ -405,6 +409,8 @@ let deps: ExportDeps = {
   texts: (p, w, h) => textBitmaps(p.textLayers, w, h),
   now: () => Date.now(),
   music: musicBlob,
+  caps: exportCaps,
+  grid: (codec) => gridOf(codec),
 };
 /** Tests replace MOD-Export and the browser context (unit tests of the panel's and the run's logic). */
 export function setExportDeps(d: Partial<ExportDeps>): void {
@@ -428,12 +434,12 @@ async function refreshCaps(p: Project): Promise<void> {
   // Review: the record of the old sound state never serves the new one (a format without a sound track).
   sessionCaps.value = null;
   capsSound.value = null;
-  const ec = await exportCaps(caps, sound);
+  const ec = await deps.caps(caps, sound);
   if (capsFor.caps !== caps || capsFor.sound !== sound) return;
   sessionCaps.value = ec;
   capsSound.value = sound;
   noFormat.value = ec === null;
-  if (ec?.videoFormat) exportGrid.value = await gridOf(ec.videoFormat.video);
+  if (ec?.videoFormat) exportGrid.value = await deps.grid(ec.videoFormat.video);
 }
 
 /** The estimate is worked out again this long after the last change (CMP-ExportPanel: "as soon as"). */
@@ -575,7 +581,8 @@ export async function startVideoExport(settings?: ExportSettings): Promise<void>
   } catch (e) {
     closeTexts(texts);
     // A cancelled run ends quietly; a bundled track that can't be read says so (build question 120).
-    if (!stale()) run.value = e instanceof MusicUnavailable ? { phase: 'failed', reason: 'music' } : { phase: 'failed' };
+    if (!stale())
+      run.value = e instanceof MusicUnavailable ? { phase: 'failed', reason: 'music' } : { phase: 'failed' };
     return;
   }
   // MOD-Export has posted the bitmaps to its worker (structured clones): ours are no longer needed.
