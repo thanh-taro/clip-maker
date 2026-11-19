@@ -608,7 +608,9 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const stopLayout = effect(() => {
     const p = project.value;
     void relayout.value;
-    const { w, centred: c } = size.value;
+    // An empty project has no playhead to centre and nothing to scroll (its ruler fits the view).
+    const { w, centred: narrow } = size.value;
+    const c = narrow && p.clips.length > 0;
     const chosen = zoom.value;
     // The project changed under a drag: its clip indexes are stale, so the drag ends without a move. A
     // trim's own moves change it too; any other change (a batch of media, undo) ends the trim.
@@ -1167,6 +1169,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const onGestureDown = (e: PointerEvent): void => {
     stopGlide();
     const touch = e.pointerType === 'touch';
+    // The first finger of a new touch starts afresh (a lost touchend must not make the next touch a pinch).
+    if (touch && e.isPrimary) touches.clear();
     if (touch) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const onRuler = !!(e.target as Element).closest('.tk-ruler');
     if (!project.peek().clips.length || scale <= 0) return;
@@ -1303,7 +1307,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     applyPan(g, dx);
   };
 
-  function endPan(g: Pan, cancel: boolean, clientX?: number): void {
+  function endPan(g: Pan, cancel: boolean, clientX?: number, releasedAt?: number): void {
     pan = null;
     if (cancel) {
       // A cancelled scroll (the browser took the pointer) puts the view and the playhead back.
@@ -1327,7 +1331,9 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const first = g.samples[0]!;
     const last = g.samples[g.samples.length - 1]!;
     const dt = last.at - first.at;
-    let v = dt > 0 && last.at - first.at < 200 ? (last.x - first.x) / dt : 0;
+    // A finger that rested before lifting does not glide.
+    const rested = releasedAt !== undefined && releasedAt - last.at > 100;
+    let v = !rested && dt > 0 && dt < 200 ? (last.x - first.x) / dt : 0;
     if (Math.abs(v) < MOMENTUM_STOP * 4) {
       settle();
       return;
@@ -1359,7 +1365,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       endPinch(cancel);
       return;
     }
-    if (pan?.id === e.pointerId) endPan(pan, cancel, e.clientX);
+    if (pan?.id === e.pointerId) endPan(pan, cancel, e.clientX, e.timeStamp);
   };
 
   /** Ctrl/⌘ + wheel (and a trackpad pinch) zooms around the pointer; a vertical wheel scrolls along time. */
