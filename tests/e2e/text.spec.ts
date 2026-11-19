@@ -124,8 +124,9 @@ const done = (page: Page, lang: Language = 'en-US') =>
 const timeline = (page: Page, lang: Language = 'en-US') =>
   page.getByRole('region', { name: text(lang, 'timeline.label') });
 const textItem = (page: Page, content: string) => page.locator('.tk-tclip').filter({ hasText: content });
+/** CMP-Inspector with a text layer selected: a single section under the title COPY-inspector.text. */
 const inspector = (page: Page, lang: Language = 'en-US') =>
-  page.getByRole('complementary', { name: text(lang, 'inspector.label') });
+  page.getByRole('complementary', { name: text(lang, 'inspector.text') });
 const undoButton = (page: Page, lang: Language = 'en-US') =>
   toolbar(page, lang).getByRole('button', { name: text(lang, 'action.undo'), exact: true });
 const mod = (browserName: string) => (browserName === 'webkit' ? 'Meta' : 'ControlOrMeta');
@@ -249,6 +250,14 @@ async function withLayers(page: Page, layers: Layer[]): Promise<void> {
   await page.evaluate((json) => (window as unknown as Harness).appHarness.load(json), JSON.stringify(p));
 }
 
+/** A tap on empty timeline space (after the project end, on the audio lane) clears the selection (RULE-21). */
+async function clearSelection(page: Page): Promise<void> {
+  const lane = (await page.locator('.tk-audio-lane').boundingBox())!;
+  const lanes = (await page.locator('.tk-tl-lanes').boundingBox())!;
+  await page.mouse.click(lanes.x + lanes.width - 8, lane.y + lane.height / 2);
+  await expect(page.locator('.tk-tclip[aria-pressed="true"]')).toHaveCount(0);
+}
+
 /** Pixels per second of the timeline (the track fits the project). */
 async function pxPerSecond(page: Page): Promise<number> {
   const track = (await timeline(page).locator('.tk-track').boundingBox())!;
@@ -322,7 +331,8 @@ test.describe('F-010 styling, placing and timing text (app harness)', () => {
     await page.mouse.down();
     await page.mouse.move(b.x + b.width / 2 + dx / 2, b.y + b.height / 2, { steps: 4 });
     await page.mouse.move(b.x + b.width / 2 + dx, b.y + b.height / 2, { steps: 4 });
-    await expect(page.locator('.tk-text-layer__guide[data-snapped]')).toHaveCount(1);
+    // The left margin's guide marks the snap (the centre line the unmoved height sits on marks it too).
+    await expect(page.locator('.tk-text-layer__guide--v[data-snapped]')).toHaveCount(1);
     await shot(page, 'preview-text-moving-wide-en-US', browserName);
     await page.mouse.up();
     await expect.poll(async () => (await layersOf(page))[0]!.x).not.toBe(0.5);
@@ -494,6 +504,8 @@ test.describe('F-010 styling, placing and timing text (app harness)', () => {
       .getByRole('button', { name: text('en-US', 'text.fade') })
       .click();
     expect((await layersOf(page))[0]!.fade).toBe(true);
+    // Nothing selected: the preview shows the picture alone (no selection outline over the text).
+    await clearSelection(page);
     const pts = band(0.2, 0.8, 0.46, 0.54, 40);
     const white = async () => (await previewAt(page, pts)).filter((c) => c.every((v) => v > 240)).length;
     await setPlayhead(page, 2);
@@ -629,7 +641,7 @@ test.describe('F-010 layouts and languages (app harness)', () => {
       await tenSeconds(page, lang);
       await addText(page, lang).click();
       await page.keyboard.type('Đà Lạt 2026 — mùa hoa dã quỳ');
-      await expect(page.locator('.tk-texteditor__bar')).toContainText('27 / 500');
+      await expect(page.locator('.tk-texteditor__bar')).toContainText('28 / 500');
       await shot(page, `editing-vi-wrap-wide-${lang}`, browserName);
       await axe(page);
       await page.keyboard.press('Escape');
@@ -667,8 +679,7 @@ test.describe('F-010 layouts and languages (app harness)', () => {
       await expect(field(page, lang)).toHaveCount(0);
       const [t] = await layersOf(page);
       expect([t!.content, t!.typeface]).toEqual(['Chúc mừng sinh nhật', 'rounded']);
-      // The Text tab's sheet holds the selected layer's section at touch size.
-      await page.getByRole('tab', { name: text(lang, 'inspector.text') }).click();
+      // The Text tab's sheet comes back, holding the selected layer's section at touch size.
       await expect(sheet.locator('[data-section="text"]')).toBeVisible();
       await shot(page, `text-sheet-narrow-${lang}`, browserName);
       await axe(page);
@@ -696,7 +707,7 @@ test.describe('F-010 text in the export (media harness, INV-02)', () => {
     await page.context().setOffline(true);
     const r = await page.evaluate((s) => (window as unknown as Harness).harness.export.textExport(s), spec);
     await page.context().setOffline(false);
-    expect(r.ok).toBe(true);
+    expect(r.ok, r.reason).toBe(true);
     expect(fonts).toEqual([]);
     for (const face of r.faces) {
       // The bundled face is loaded and is what drew the text (not a fallback): its glyphs differ from a generic one.

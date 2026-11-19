@@ -6,9 +6,12 @@
    and Done). The colours drawn in the video come from the palette constants, never these (INV-05). */
 @layer layout {
   /* ── Text lane (CMP-Timeline "text item"): `trackText` items showing their text ── */
+  /* Layers that overlap in time take separate rows (`--text-rows`, set by MOD-Timeline). */
   .tk-text-lane {
     position: relative;
-    block-size: var(--tk-size-timeline-lane);
+    block-size: calc(
+      var(--text-rows, 1) * var(--tk-size-timeline-lane) + (var(--text-rows, 1) - 1) * var(--tk-space-0-5)
+    );
     margin-block-start: var(--tk-space-1);
     touch-action: pan-x pan-y;
   }
@@ -19,13 +22,15 @@
 
   .tk-tl-gutter__text + .tk-tl-gutter__audio {
     margin-block-start: calc(
-      var(--tk-size-timeline-lane) / 2 + var(--tk-space-1) + var(--tk-size-audio-lane) / 2 - var(--tk-space-4)
+      var(--text-rows, 1) * var(--tk-size-timeline-lane) + (var(--text-rows, 1) - 1) * var(--tk-space-0-5) -
+        var(--tk-size-timeline-lane) / 2 + var(--tk-space-1) + var(--tk-size-audio-lane) / 2 - var(--tk-space-4)
     );
   }
 
   .tk-tclip {
     position: absolute;
-    inset-block: 0;
+    inset-block-start: calc(var(--row, 0) * (var(--tk-size-timeline-lane) + var(--tk-space-0-5)));
+    block-size: var(--tk-size-timeline-lane);
     display: flex;
     align-items: center;
     min-inline-size: 0;
@@ -59,6 +64,12 @@
     line-height: var(--tk-font-line-height-tight);
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .tk-text-lane .tk-trim {
+    inset-block: auto;
+    inset-block-start: calc(var(--row, 0) * (var(--tk-size-timeline-lane) + var(--tk-space-0-5)));
+    block-size: var(--tk-size-timeline-lane);
   }
 
   .tk-text-lane .tk-trim::after {
@@ -494,7 +505,7 @@
       display: none;
     }
     .tk-editor[data-editing] .tk-stage {
-      padding-block: var(--tk-space-2) calc(var(--tk-size-touch-target) + var(--tk-space-6));
+      padding-block: var(--tk-space-2) calc(var(--text-bar, var(--tk-size-touch-target)) + var(--tk-space-2));
     }
     .tk-texteditor__narrow {
       position: absolute;

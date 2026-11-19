@@ -19,9 +19,9 @@ import { signal } from '@preact/signals';
 import type { RefObject } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { language, t } from '../copy';
-import { RULE_11, contrastOf } from '../core';
+import { frameIndexAt, PALETTE_HEX, projectFrames, RULE_11, contrastOf } from '../core';
 import { LINE_HEIGHT, canvasMeasure, layoutText } from '../preview';
-import { project } from '../project';
+import { playhead, project } from '../project';
 import { Icon } from './icons';
 import { OptionGroup } from './OptionGroup';
 import { useCanvasBox } from './PlacementOverlay';
@@ -81,13 +81,33 @@ function focusAfter(id: string, kept: boolean): void {
 function NarrowBar({ count, root }: { readonly count: number; readonly root: RefObject<HTMLDivElement> }) {
   const layer = editedLayer.value;
   const open = picker.value;
+  const bar = useRef<HTMLDivElement>(null);
+  // The preview shrinks above the bar (CMP-TextEditor "narrow, keyboard open": the text stays visible): the
+  // editor's root gets the bar's height, which the stage keeps free (text.css).
+  useLayoutEffect(() => {
+    const el = bar.current;
+    const editor = el?.closest<HTMLElement>('.tk-editor');
+    if (!el || !editor) return undefined;
+    let frame = 0;
+    // Set on the next frame: changing the layout inside the observer's callback would loop.
+    const sizes = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => editor.style.setProperty('--text-bar', `${Math.ceil(el.offsetHeight)}px`));
+    });
+    sizes.observe(el);
+    return () => {
+      cancelAnimationFrame(frame);
+      sizes.disconnect();
+      editor.style.removeProperty('--text-bar');
+    };
+  }, [layer !== null]);
   if (!layer) return null;
   const toggle = (which: 'font' | 'colour' | 'style'): void => {
     picker.value = open === which ? null : which;
   };
   const back = (): void => root.current?.querySelector<HTMLTextAreaElement>(`#${FIELD_ID}`)?.focus();
   return (
-    <div class="tk-texteditor__narrow">
+    <div class="tk-texteditor__narrow" ref={bar}>
       {open ? (
         <div class="tk-texteditor__picker" data-picker={open}>
           {open === 'font' ? (
@@ -178,6 +198,51 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
   const root = useRef<HTMLDivElement>(null);
   const composing = useRef<{ value: string; start: number; end: number } | null>(null);
   const [count, setCount] = useState(0);
+  const latest = useRef<{
+    commit: (value: string) => void;
+    replace: (value: string, caret: number) => void;
+    insert: (data: string) => boolean;
+  } | null>(null);
+
+  // Implements: RULE-11 / F-010.R6 on typing, and composition for Vietnamese input methods (ADR-0012 §4): nothing
+  // half-composed is committed; the composed text is committed when composition ends, within the limit.
+  useEffect(() => {
+    const el = field.current;
+    if (id === null || !el) return undefined;
+    const onStart = (): void => {
+      composing.current = { value: el.value, start: el.selectionStart, end: el.selectionEnd };
+    };
+    const onEnd = (e: CompositionEvent): void => {
+      const before = composing.current;
+      composing.current = null;
+      const fns = latest.current;
+      if (!fns) return;
+      if (countOf(el.value) <= RULE_11.maxCharacters) return fns.commit(el.value);
+      // Over the limit: only what fits of the composed text is kept, never splitting a character.
+      const r = before ? insertWithin(before.value, before.start, before.end, e.data ?? '') : null;
+      if (r) fns.replace(r.value, r.caret);
+      else if (before) fns.replace(before.value, before.start);
+    };
+    const onBefore = (e: InputEvent): void => {
+      if (e.isComposing || composing.current) return;
+      const data = e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph' ? '\n' : (e.data ?? null);
+      if (data === null || !e.inputType.startsWith('insert')) return;
+      const room =
+        RULE_11.maxCharacters - countOf(el.value.slice(0, el.selectionStart) + el.value.slice(el.selectionEnd));
+      if (countOf(data) <= room && data.normalize('NFC') === data) return;
+      // Over the limit (or not composed): only what fits is inserted, in NFC.
+      e.preventDefault();
+      latest.current?.insert(data);
+    };
+    el.addEventListener('compositionstart', onStart);
+    el.addEventListener('compositionend', onEnd);
+    el.addEventListener('beforeinput', onBefore);
+    return () => {
+      el.removeEventListener('compositionstart', onStart);
+      el.removeEventListener('compositionend', onEnd);
+      el.removeEventListener('beforeinput', onBefore);
+    };
+  }, [id]);
 
   // Focus moves into the field when a session opens; the field starts with the layer's text.
   useLayoutEffect(() => {
@@ -231,6 +296,10 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
     return true;
   };
 
+  // Composition and beforeinput are listened to directly: Preact maps only the `on…` handlers the element
+  // has as properties, and `oncompositionend` / `onbeforeinput` are not (in every engine): the effect above.
+  latest.current = { commit, replace, insert };
+
   const layout = layer && box ? layoutText(layer, box.width, box.height, canvasMeasure()) : null;
   const atLimit = count >= RULE_11.maxCharacters;
   const near = RULE_11.maxCharacters - count <= ANNOUNCE_WITHIN;
@@ -239,6 +308,15 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
   const fieldWidth = layout ? Math.max(layout.textWidth, layout.px * 0.5) + CARET_SLACK : 0;
   const fieldHeight = layout ? Math.max(1, layout.lines.length) * layout.lineHeight : 0;
   const wrap = box ? RULE_11.wrapWidth * box.width : 0;
+  // INV-07: past the project end (an empty main track) the preview draws no text: the field shows its own
+  // letters then, in the layer's colour, so typing is never blind.
+  const p = project.value;
+  const k = frameIndexAt(playhead.value, p.frame.frameRate);
+  const drawn =
+    layer !== null &&
+    k < projectFrames(p) &&
+    frameIndexAt(layer.start, p.frame.frameRate) <= k &&
+    k < frameIndexAt(layer.end, p.frame.frameRate);
 
   return (
     <div
@@ -307,6 +385,7 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
                 textAlign: layer.align === 'centre' ? 'center' : layer.align,
                 // The canvas draws the glyphs (the field's own are transparent); the caret contrasts with them.
                 caretColor: contrastOf(layer.colour) === 'black' ? 'white' : 'black',
+                ...(drawn ? {} : { color: PALETTE_HEX[layer.colour] }),
               }
             : { left: '0px', top: '0px', width: '1px', height: '1px' }
         }
@@ -318,32 +397,6 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
             e.stopPropagation();
             finishEditing();
           }
-        }}
-        onCompositionStart={(e) => {
-          const el = e.currentTarget;
-          composing.current = { value: el.value, start: el.selectionStart, end: el.selectionEnd };
-        }}
-        onCompositionEnd={(e) => {
-          const before = composing.current;
-          composing.current = null;
-          const el = e.currentTarget;
-          if (countOf(el.value) <= RULE_11.maxCharacters) return commit(el.value);
-          // Over the limit: only what fits of the composed text is kept, never splitting a character.
-          const r = before ? insertWithin(before.value, before.start, before.end, e.data ?? '') : null;
-          if (r) replace(r.value, r.caret);
-          else if (before) replace(before.value, before.start);
-        }}
-        onBeforeInput={(e) => {
-          if (e.isComposing || composing.current) return;
-          const data = e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph' ? '\n' : (e.data ?? null);
-          if (data === null || !e.inputType.startsWith('insert')) return;
-          const el = e.currentTarget;
-          const room =
-            RULE_11.maxCharacters - countOf(el.value.slice(0, el.selectionStart) + el.value.slice(el.selectionEnd));
-          if (countOf(data) <= room && data.normalize('NFC') === data) return;
-          // Over the limit (or not composed): only what fits is inserted, in NFC.
-          e.preventDefault();
-          insert(data);
         }}
         onPaste={(e) => {
           const data = e.clipboardData?.getData('text/plain');

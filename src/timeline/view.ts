@@ -133,6 +133,8 @@ export interface TimelineView {
 export const HOLD_MS = 400;
 /** A pointer that moves this far before the hold ends scrolls instead (touch), or starts a drag (mouse). */
 const DRAG_SLOP_PX = 6;
+/** F-010: rows of the text lane for layers that overlap in time (more share the last row). */
+const TEXT_ROWS = 3;
 /** Ruler labels at least this far apart. */
 const LABEL_GAP_PX = 56;
 /** F-009: the add chip shows while the pointer is this close to its join. */
@@ -601,6 +603,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       h.dataset['lane'] = span.kind;
       const t = h.dataset['edge'] === 'start' ? span.start : span.end;
       h.style.left = `${t * scale}px`;
+      // F-010: on the text lane the handles sit on the item's row.
+      h.style.setProperty('--row', span.kind === 'text' ? (texts.get(id)?.button.style.getPropertyValue('--row') ?? '0') : '0');
       if (h.parentElement !== lane) lane.appendChild(h);
     }
   }
@@ -634,6 +638,17 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const order = p.textLayers
       .map((layer, i) => ({ layer, i }))
       .sort((a, b) => a.layer.start - b.layer.start || a.i - b.i);
+    // Layers that overlap in time take separate rows (up to TEXT_ROWS; more share the last), so each can be
+    // reached with a pointer (build question 167).
+    const rowEnds: Micros[] = [];
+    const rowOf = order.map(({ layer }) => {
+      let r = rowEnds.findIndex((end) => end <= layer.start);
+      if (r < 0) r = Math.min(rowEnds.length, TEXT_ROWS - 1);
+      rowEnds[r] = Math.max(rowEnds[r] ?? 0, layer.end);
+      return r;
+    });
+    // The lane grows with its rows; the gutter (outside the lanes) follows the same property.
+    (host.parentElement ?? host).style.setProperty('--text-rows', String(Math.max(1, rowEnds.length)));
     order.forEach(({ layer, i }, n) => {
       const t = textEls(layer.id);
       const x = layer.start * scale;
@@ -646,6 +661,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       t.button.title = labelFits(w) ? '' : name;
       t.button.style.left = `${x}px`;
       t.button.style.width = `${w}px`;
+      t.button.style.setProperty('--row', String(rowOf[n]));
       // Later layers on top (RULE-11); the selected item above the others, so it shows whole.
       t.button.style.zIndex = String(selected.has(layer.id) ? p.textLayers.length + 1 : i + 1);
       const pastEnd = p.clips.length > 0 && layer.end > projEnd ? Math.max(0, (projEnd - layer.start) * scale) : null;

@@ -17,6 +17,8 @@ import { createCompositor, decodeLookStrip } from '../../src/compositor';
 import { createOutput, openInput, type OutPacket } from '../../src/container';
 import {
   DEFAULT_PLACEMENT,
+  frameAspect,
+  videoOutputSize,
   layoutOf,
   frameStart,
   projectFrames,
@@ -1570,6 +1572,7 @@ export interface TextFaceReport {
 
 export interface TextExportReport {
   readonly ok: boolean;
+  readonly reason?: string;
   readonly faces: readonly TextFaceReport[];
 }
 
@@ -1642,15 +1645,14 @@ async function textExport(spec: TextExportSpec): Promise<TextExportReport> {
   };
   const media: EngineMedia[] = [{ id: 'src-g', kind: 'photo', bitmap: await flatBitmap(TEXT_GREY) }];
   const settings = { kind: 'video', resolution: 480, quality: 'balanced' } as const;
-  // The output size of a 16:9 480p export (RULE-15): the bitmaps are made for it, as the export asks.
-  const W = 854;
-  const H = 480;
+  // The output size of the 480p export (RULE-15): the bitmaps are made for it, as the export asks.
+  const { width: W, height: H } = videoOutputSize(frameAspect(project), 480);
   const texts = await textBitmaps(project.textLayers, W, H);
   const video = await exportFile(project, settings, { media, pcm: [] }, () => texts);
-  if (!video) return { ok: false, faces: [] };
+  if (!video) return { ok: false, reason: 'export failed', faces: [] };
   const ks = faces.map((_, i) => i * 30 + 15);
   const decoded = await decodeFrames(video, ks, 30);
-  if (decoded.W !== W || decoded.H !== H) return { ok: false, faces: [] };
+  if (decoded.W !== W || decoded.H !== H) return { ok: false, reason: `size ${decoded.W}×${decoded.H}`, faces: [] };
   const comp = createCompositor(new OffscreenCanvas(W, H), new Map(), { preserve: true });
   const source = new FrameSource(media);
   const out: TextFaceReport[] = [];

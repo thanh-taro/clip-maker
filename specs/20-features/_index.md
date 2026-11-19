@@ -11,7 +11,7 @@
 | F-007 | Adjust colour and light | M-1 | P0 | building |
 | F-008 | Apply a look | M-1 | P0 | building |
 | F-009 | Fade and cross-fade | M-1 | P1 | building |
-| F-010 | Add text | M-1 | P0 | ready |
+| F-010 | Add text | M-1 | P0 | building |
 | F-011 | Add music and set sound | M-1 | P0 | building |
 | F-012 | Set the frame | M-1 | P0 | building |
 | F-013 | Navigate the timeline | M-1 | P1 | ready |

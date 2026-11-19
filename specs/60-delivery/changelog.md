@@ -2,6 +2,10 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-19 — F-010 building
+- F-010 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 160–168 (editing a layer away from the playhead, the text nudges, the text Reset, editing from the keyboard, styling while editing, selecting and scaling text in the preview, whole-percent sizes, the drawing details, the phone editing layout).
+- MOD-Preview "Public surface": `rasteriseText(layer, W, H)` (an output size, not a scale: wrapping needs the frame's width), `textBitmaps`, `layoutText`, `fontOf`, `textSync`, and the text move geometry; MOD-Engine: `setTextBitmaps` takes `keep`.
+
 ## 2026-11-17 — F-009 building
 - F-009 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 150–155 and 157 (a photo's Duration row, the quick toggles, the phone Fades row and Cross-fade tile, the add chip's visibility and size, the popover's details, a fade a cross-fade replaces).
 - copy.md: new COPY-fades.unit ("s"), the seconds symbol after fade and cross-fade lengths (build question 156).
