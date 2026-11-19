@@ -169,3 +169,6 @@ Owner decisions on `.build-my-app/reports/build-spec-questions.md` items 1–7, 
 - CMP-Inspector, CMP-MusicPicker and style.md: the phone Audio sheet holds the selection's sound section (build question 112).
 - style.md "Number fields" and platform-mapping: number fields accept the language's decimal separator and reject what can't be parsed by showing the value again with no edit; to build before F-005/F-007 (build question 121).
 - Deferred: the bundled music tracks keep their placeholders (DEP-41 … DEP-43) through waves 4–5; before release Claude shortlists ~15 CC0 candidates, asking before any download, and the owner picks 8+ (build question 114).
+
+## 2026-11-19 — F-018 build (wave 4)
+- F-018 edge cases: New project while files are being checked drops the batch (files already checked are not added); New project closes an open export panel, keeping its settings (RULE-23; build question 192).

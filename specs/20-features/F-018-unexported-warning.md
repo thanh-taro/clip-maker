@@ -38,5 +38,7 @@ CMP-Toolbar holds COPY-action.new_project.
 
 ## Edge cases
 - Some browsers never show the leave-page warning from inside a frame. The tool can't detect this (see `40-technical`).
+- New project while files are being checked → the batch is dropped like the rest of the project (RULE-23); files already checked are not added to the new project.
+- New project while the export panel is open → the panel closes; its settings are kept (RULE-23).
 
 ## Open questions
