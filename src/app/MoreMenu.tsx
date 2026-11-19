@@ -36,8 +36,9 @@ export function MoreButton() {
       if (target && (menu.current?.contains(target) || button.current?.contains(target))) return;
       close(false);
     };
-    document.addEventListener('pointerdown', onPointer);
-    return () => document.removeEventListener('pointerdown', onPointer);
+    // Capture: a region that handles its own pointer (the preview, the timeline) still closes the menu.
+    document.addEventListener('pointerdown', onPointer, true);
+    return () => document.removeEventListener('pointerdown', onPointer, true);
   }, [open]);
 
   const onMenuKey = (e: KeyboardEvent): void => {
