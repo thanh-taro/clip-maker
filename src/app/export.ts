@@ -306,7 +306,8 @@ let opener: HTMLElement | null = null;
 export function setExportOpener(el: HTMLElement | null): void {
   opener = el;
 }
-const focusOpener = (): void => {
+/** Focus back on the toolbar's Export (the panel's close; the progress dialog's, once it has closed). */
+export const focusOpener = (): void => {
   if (opener?.isConnected) opener.focus();
 };
 
@@ -370,11 +371,6 @@ async function browserContext(p: Project, caps: ExportCaps, texts: Texts): Promi
     texts: () => texts,
     phone: deviceClass(platformHints()) === 'phone',
     gains,
-    save: (blob, fileName) => {
-      const url = downloadBlob(blob, fileName);
-      handedOver = { blob, fileName, url };
-      return url;
-    },
   };
 }
 
@@ -521,7 +517,16 @@ export async function startVideoExport(settings?: ExportSettings): Promise<void>
   try {
     const { width, height } = outputSize(p, s.resolution);
     texts = await deps.texts(p, width, height);
-    const ctx = await deps.context(p, caps, texts);
+    const base = await deps.context(p, caps, texts);
+    // The hand-over (RULE-15, D-018: a `blob:` URL clicked through `<a download>`), noted for Share (R9).
+    const ctx: ExportContext = {
+      ...base,
+      save: (blob, fileName) => {
+        const url = (base.save ?? downloadBlob)(blob, fileName);
+        handedOver = { blob, fileName, url };
+        return url;
+      },
+    };
     if (run.peek()?.phase !== 'running') return closeTexts(texts); // cancelled while getting ready
     h = await deps.start(p, s, ctx);
   } catch {
@@ -555,8 +560,7 @@ function finish(result: ExportResult, mark: number): void {
     return;
   }
   if (result.error === 'cancelled') {
-    run.value = null;
-    focusOpener();
+    run.value = null; // the dialog closes and gives focus back to the toolbar's Export
     return;
   }
   run.value = { phase: ENDS[result.error] ?? 'failed' };
@@ -595,7 +599,6 @@ export function closeRun(): void {
   if (!r || r.phase === 'running' || r.phase === 'cancelling') return;
   releaseHeld();
   run.value = null;
-  focusOpener();
 }
 
 /** COPY-action.change_settings: back to CMP-ExportPanel with the same settings. */

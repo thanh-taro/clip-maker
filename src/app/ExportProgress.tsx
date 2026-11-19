@@ -10,7 +10,17 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { formatDuration, formatNumber, language, t } from '../copy';
-import { cancelExport, changeSettings, closeRun, run, shareExport, tryAgain, type RunView } from './export';
+import {
+  cancelExport,
+  changeSettings,
+  closeRun,
+  focusOpener,
+  panelOpen,
+  run,
+  shareExport,
+  tryAgain,
+  type RunView,
+} from './export';
 import { Icon, type IconName } from './icons';
 
 const TITLE_ID = 'tk-run-title';
@@ -206,6 +216,9 @@ export function ExportProgress() {
     if (!d.open) d.showModal();
     return () => {
       if (d.open) d.close();
+      // Focus returns to the toolbar's Export when it closes (CMP-ExportProgress "Accessibility"); the panel
+      // takes it instead when Change settings reopens it.
+      if (!panelOpen.peek()) focusOpener();
     };
   }, [phase !== null]);
   // Focus starts on Cancel while running and on the first action in the end states.

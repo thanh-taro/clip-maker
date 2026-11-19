@@ -63,12 +63,13 @@ const QUALITIES: readonly {
   { value: 'best', label: 'export.q_best' },
 ];
 
+// Resolutions are names ("1440"), never grouped numbers ("1,440"): they are passed as text.
 /** The reason under the row for a size that isn't offered (always visible, CMP-ExportPanel). */
 const reasonOf = (o: ResolutionOffer): string | null =>
   o.state === 'needs_source'
-    ? t('export.res_needs_source', { res: o.resolution })
+    ? t('export.res_needs_source', { res: String(o.resolution) })
     : o.state === 'no_encoder'
-      ? t('export.res_no_encoder', { res: o.resolution })
+      ? t('export.res_no_encoder', { res: String(o.resolution) })
       : null;
 
 function Resolutions() {
@@ -202,8 +203,8 @@ function useAdvice() {
   if (target === null || r === null || advice.kind === 'none') return null;
   if (advice.kind === 'lower_res')
     return {
-      text: t('export.target_lower_res', { size: target, res: r, fit: advice.fit }),
-      action: t('action.use_res', { res: advice.fit }),
+      text: t('export.target_lower_res', { size: target, res: String(r), fit: String(advice.fit) }),
+      action: t('action.use_res', { res: String(advice.fit) }),
       run: () => chooseResolution(advice.fit as VideoResolution),
     };
   return {
