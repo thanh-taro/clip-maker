@@ -262,7 +262,7 @@ export function bindArrangeKeys(doc: Document = document): () => void {
   const mac = isMac(navigator.platform || navigator.userAgent);
   const onKey = (e: KeyboardEvent): void => {
     if (e.defaultPrevented || e.isComposing) return;
-    const action = resolveKey(e, scopeOf(focusInfo(doc.activeElement), e.code), mac);
+    const action = resolveKey(e, scopeOf(focusInfo(doc.activeElement), e.code, e), mac);
     if (action && runArrangeAction(action, e.repeat)) e.preventDefault();
   };
   doc.addEventListener('keydown', onKey);

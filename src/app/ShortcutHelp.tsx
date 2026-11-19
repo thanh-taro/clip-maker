@@ -26,7 +26,7 @@ export function ShortcutHelp() {
     if (!open || !d) return undefined;
     if (!d.open) d.showModal();
     close.current?.focus();
-    // A press and click on the scrim (the dialog element itself) closes it, as Esc does.
+    // A press and click on the scrim (the dialog element itself; its content fills it) closes it, as Esc does.
     let pressedOnScrim = false;
     const onPress = (e: PointerEvent): void => {
       pressedOnScrim = e.target === d;
@@ -73,6 +73,8 @@ export function ShortcutHelp() {
         if (helpOpen.peek()) closeHelp();
       }}
     >
+      {/* One element fills the dialog, so only the real scrim (the dialog element) counts as a press outside. */}
+      <div class="tk-help__inner">
       <span class="tk-help__grab" aria-hidden="true" />
       <div class="tk-help__head">
         <h2 id={TITLE_ID} class="tk-help__title" data-copy="help.title">
@@ -100,6 +102,7 @@ export function ShortcutHelp() {
       <p class="tk-help__scope" data-copy="help.scope">
         {t('help.scope')}
       </p>
+      </div>
     </dialog>
   );
 }

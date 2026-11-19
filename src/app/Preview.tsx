@@ -240,6 +240,8 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
     // Tab wraps inside the stage instead of leaving the page for the browser's own controls.
     const onTab = (e: KeyboardEvent): void => {
       if (e.key !== 'Tab') return;
+      // A modal dialog over the stage (CMP-ShortcutHelp from ?, F-017) keeps its own Tab order.
+      if (document.querySelector('dialog[open]')) return;
       const items = Array.from(stage.querySelectorAll<HTMLElement>('button:not(:disabled), [href], [tabindex="0"]'));
       if (!items.length) return;
       // Moved here for every engine alike (WebKit's Tab skips buttons by default).

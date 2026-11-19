@@ -96,6 +96,40 @@ describe('MOD-Keys RULE-20 view, file and help keys (F-017.R1)', () => {
     expect(scopeOf(focus({ tag: 'button' }), 'ArrowLeft')).toBe('none');
   });
 
+  it('F-017.R1 RULE-20 Alt/Shift+arrows on a focused toolbar button or tab reach RULE-20 (move), not the toolbar or the browser', () => {
+    for (const f of [focus({ tag: 'button', inToolbar: true }), focus({ tag: 'button', role: 'tab' })]) {
+      const alt = { altKey: true };
+      expect(scopeOf(f, 'ArrowLeft', alt)).toBe('none');
+      expect(resolveKey(key('ArrowLeft', alt), scopeOf(f, 'ArrowLeft', alt))).toBe('move-earlier');
+      expect(resolveKey(key('ArrowRight', alt), scopeOf(f, 'ArrowRight', alt))).toBe('move-later');
+      // Shift+Alt: a selected text layer or audio clip moves 1 s (RULE-20, F-011).
+      const both = { altKey: true, shiftKey: true };
+      expect(resolveKey(key('ArrowLeft', both), scopeOf(f, 'ArrowLeft', both))).toBe('move-earlier-second');
+      // Shift alone: the 1 s playhead step.
+      const shift = { shiftKey: true };
+      expect(resolveKey(key('ArrowRight', shift), scopeOf(f, 'ArrowRight', shift))).toBe('second-forward');
+      // Plain arrows stay with the toolbar or tab list.
+      expect(scopeOf(f, 'ArrowLeft')).toBe('control');
+    }
+  });
+
+  it('F-017.AC2 RULE-20 =, - and ? typed in a text or number field type the character (no zoom, no help)', () => {
+    for (const f of [
+      focus({ tag: 'input', type: 'text', editable: true }),
+      focus({ tag: 'input', type: 'number', editable: true }),
+      focus({ tag: 'textarea', editable: true }),
+    ]) {
+      for (const [code, k, shiftKey] of [
+        ['Equal', '=', false],
+        ['Minus', '-', false],
+        ['Slash', '?', true],
+      ] as const) {
+        expect(scopeOf(f, code, { shiftKey })).toBe('field');
+        expect(resolveKey(key(code, { key: k, shiftKey }), scopeOf(f, code, { shiftKey }))).toBeNull();
+      }
+    }
+  });
+
   it('F-017.R5 RULE-20 Scope: tabs keep Left, Right, Home and End', () => {
     const tab = focus({ tag: 'button', role: 'tab' });
     for (const code of ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Space', 'Enter']) {

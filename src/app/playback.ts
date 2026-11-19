@@ -343,7 +343,7 @@ export function bindPlaybackKeys(doc: Document = document): () => void {
     if (e.defaultPrevented || e.isComposing) return;
     const p = playback.peek();
     if (!p) return;
-    const action = resolveKey(e, scopeOf(focusInfo(doc.activeElement), e.code));
+    const action = resolveKey(e, scopeOf(focusInfo(doc.activeElement), e.code, e));
     if (!action) return;
     if (action === 'escape') {
       // One Esc does one thing: an open overlay (drop overlay, dialog, sheet, popover, menu) takes it.

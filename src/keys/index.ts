@@ -104,7 +104,12 @@ const COMPOSITE_KEYS = new Set([...SLIDER_KEYS, 'Space']);
  * the arrows, Home, End and Page keys; lists, grids and trees those and Space; a scrolling region the arrows, Space
  * and Page keys).
  */
-export function scopeOf(focus: FocusInfo | null, code: string): KeyScope {
+export function scopeOf(
+  focus: FocusInfo | null,
+  code: string,
+  /** The modifiers held: a tab list or toolbar claims only plain arrows, so Alt/Shift+arrows reach RULE-20. */
+  mods: Partial<Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>> = {},
+): KeyScope {
   if (!focus) return 'none';
   if (focus.editable) return 'field';
   if (focus.inDialog) return 'dialog';
@@ -117,9 +122,10 @@ export function scopeOf(focus: FocusInfo | null, code: string): KeyScope {
   const radio = focus.role === 'radio' || (focus.tag === 'input' && focus.type === 'radio');
   if (radio && ARROW_KEYS.has(code)) return 'control';
   // A tab list's tabs (the inspector's clip tabs, the phone tab bar) move between tabs with Left, Right, Home, End.
-  if (focus.role === 'tab' && TAB_KEYS.has(code)) return 'control';
+  const plain = !mods.altKey && !mods.ctrlKey && !mods.metaKey && !mods.shiftKey;
+  if (focus.role === 'tab' && plain && TAB_KEYS.has(code)) return 'control';
   // A toolbar's buttons move between each other with Left and Right (CMP-Toolbar, CMP-Timeline; build question 102).
-  if (focus.inToolbar && TOOLBAR_KEYS.has(code)) return 'control';
+  if (focus.inToolbar && plain && TOOLBAR_KEYS.has(code)) return 'control';
   if (focus.scrollable && SCROLL_KEYS.has(code)) return 'control';
   const button =
     focus.tag === 'button' ||

@@ -22,6 +22,14 @@
     flex-direction: column;
   }
 
+  /* Fills the dialog: a press anywhere in the sheet (beside the grab handle too) is inside it. */
+  .tk-help__inner {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-block-size: 0;
+  }
+
   .tk-help::backdrop {
     background: var(--tk-color-scrim);
   }
@@ -214,6 +222,10 @@
 
     .tk-help__column {
       display: contents;
+    }
+
+    .tk-help__inner {
+      flex: none;
     }
 
     /* The fade at the cut: content fades into the sheet's surface at its bottom edge while it scrolls. */
