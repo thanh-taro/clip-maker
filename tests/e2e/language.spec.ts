@@ -3,8 +3,8 @@
 // keeps everything; Vietnamese at 320 px; Vietnamese diacritics drawn with the bundled typefaces.
 // Standalone on `pnpm preview` of dist/; embedded on the multi-origin host harness (F-019).
 // Not covered yet (need later features):
-// AC6 for panels that don't exist yet (inspector, export panel, pickers: re-run as they land);
-// AC8's running export and text being edited (F-015, F-010). The unit side is tests/unit/copy.*.
+// AC6 for panels that don't exist yet (pickers: re-run as they land). AC8's running export and text being
+// edited run embedded below (F-015, F-010). The unit side is tests/unit/copy.*.
 import { expect, test, type Frame, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -344,7 +344,59 @@ test.describe('embedded', () => {
     await expect(redo).toHaveAttribute('aria-disabled', 'true');
   });
 
-  test.fixme('F-022.AC8 a running export continues when the host switches language; only its progress text changes', () => {
-    // Needs CMP-ExportProgress (F-015) and CMP-TextEditor (F-010); the open-dialog half is F-022.R2 above.
+  test('F-022.AC8 a running export continues when the host switches language; only its progress text changes; a text being edited keeps its state', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await page.goto(hostPageUrl(HOST_ALLOWED, TOOL_ALLOWED, { theme: 'dark', lang: 'vi-VN' }));
+    const frame = await toolFrame(page);
+    await expect(frame.locator(SHELL)).toHaveAttribute('data-device', 'supported');
+    const clip = readFileSync(fileURLToPath(new URL('../fixtures/media/mp4-faststart.mp4', import.meta.url)));
+    const chooser = page.waitForEvent('filechooser');
+    await frame
+      .getByRole('main')
+      .getByRole('button', { name: text('vi-VN', 'action.add_media') })
+      .click();
+    const names = Array.from({ length: 12 }, (_, i) => `c${i}.mp4`);
+    await (await chooser).setFiles(names.map((name) => ({ name, mimeType: 'video/mp4', buffer: clip })));
+    await expect(frame.locator('.tk-timeline .tk-clip')).toHaveCount(names.length, { timeout: 30_000 });
+    const bar = frame.getByRole('toolbar', { name: text('vi-VN', 'toolbar.label') });
+    await bar.getByRole('button', { name: text('vi-VN', 'action.export'), exact: true }).click();
+    const panel = frame.locator('.tk-export');
+    await panel.getByRole('radio', { name: text('vi-VN', 'export.q_best') }).check({ force: true });
+    const download = page.waitForEvent('download', { timeout: 150_000 });
+    await panel.getByRole('button', { name: text('vi-VN', 'action.export'), exact: true }).click();
+    const dialog = frame.locator('dialog.tk-run');
+    await expect(dialog).toHaveAttribute('data-phase', 'running');
+    const line = dialog.locator('.tk-run__text');
+    await expect(line).toHaveText(/^Đang xuất… /);
+    const cancel = dialog.getByRole('button', { name: text('vi-VN', 'action.cancel') });
+    await expect(cancel).toBeFocused();
+
+    await sendLanguage(page, 'en-US');
+    await expect(frame.locator('html')).toHaveAttribute('lang', 'en-US');
+    // Only the texts change: the same run goes on (still running or already done), focus stays on Cancel.
+    await expect(line).toHaveText(/^(Exporting… |Saved clip-)/);
+    if ((await dialog.getAttribute('data-phase')) === 'running')
+      await expect(dialog.getByRole('button', { name: text('en-US', 'action.cancel') })).toBeFocused();
+    const saved = await download;
+    await expect(dialog).toHaveAttribute('data-phase', 'done');
+    await expect(dialog.getByRole('status')).toHaveText(`Saved ${saved.suggestedFilename()}`);
+    await expect(frame.locator('.tk-timeline .tk-clip')).toHaveCount(names.length);
+    await dialog.getByRole('button', { name: text('en-US', 'action.close') }).click();
+
+    // A text being edited keeps its state across a switch (F-022.R2): the editor stays open with what was typed.
+    await frame
+      .getByRole('toolbar', { name: text('en-US', 'toolbar.label') })
+      .getByRole('button', { name: text('en-US', 'action.add_text'), exact: true })
+      .click();
+    const field = frame.getByRole('textbox', { name: text('en-US', 'text.field') });
+    await expect(field).toBeFocused();
+    await page.keyboard.type('Đà Lạt');
+    await sendLanguage(page, 'vi-VN');
+    await expect(frame.locator('html')).toHaveAttribute('lang', 'vi-VN');
+    const fieldVi = frame.getByRole('textbox', { name: text('vi-VN', 'text.field') });
+    await expect(fieldVi).toBeFocused();
+    await expect(fieldVi).toHaveValue('Đà Lạt');
   });
 });

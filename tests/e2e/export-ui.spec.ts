@@ -581,7 +581,7 @@ test.describe('F-015 export errors', () => {
     // (≈ 750 MB) has neither a scratch file nor memory to go to.
     await page.addInitScript(() => {
       Object.defineProperty(Navigator.prototype, 'deviceMemory', { get: () => 2, configurable: true });
-      if (navigator.storage) navigator.storage.estimate = async () => ({ quota: 1_000_000, usage: 0 });
+      if ('StorageManager' in window) StorageManager.prototype.estimate = async () => ({ quota: 1_000_000, usage: 0 });
     });
     await open(page);
     await longPhoto(page, 600);
