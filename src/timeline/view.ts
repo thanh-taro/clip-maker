@@ -26,7 +26,18 @@
 // double-click, opens CMP-TextEditor on it. The part past the project end is hatched (INV-07). Implements:
 // F-010.R4 (start and end on the timeline), F-004.R3 (text layers trimmed the same way), CMP-Timeline "text
 // item", RULE-21.
-import { effect, signal, type ReadonlySignal, type Signal } from '@preact/signals';
+// F-013 adds zoom and scroll: the lanes scroll (`host` is the scroller, `content` the lanes at the zoomed
+// width), from fitting the whole project to one frame being 12 px wide (RULE-14); Zoom in / Zoom out / Fit, a
+// two-finger pinch around the pinch point, Ctrl/⌘ + wheel; the ruler numbers frames at frame zoom and only
+// the part near the view is made, and thumbnail strips are drawn for the part near the view (NFR-03, NFR-05).
+// With a pointer the view follows the playhead during playback until a manual scroll, and again once playback
+// restarts or the playhead is back in view. On narrow layouts (D-013) the playhead stays at the view's centre
+// and scrolling moves the project under it: the scroll position is the playhead, so a one-finger drag (with
+// momentum ending on a frame start) scrubs, pausing playback first. RULE-14 snapping can be turned off
+// (`signals.snapping`); while on, a moved text layer or audio clip snaps by its start or end and a scrubbed
+// playhead snaps to the items' edges. Implements: F-013.R1–R4, RULE-14, RULE-21 (pinch, one-finger scroll),
+// CMP-Timeline "frames" and "narrow / no sheet".
+import { batch, effect, signal, type ReadonlySignal, type Signal } from '@preact/signals';
 import {
   frameStart,
   nearestFrame,
@@ -39,20 +50,32 @@ import {
 } from '../core';
 import {
   EMPTY_SPAN,
+  anchoredScroll,
   audioBoxes,
   audioDragStart,
   boundaryAt,
+  centredFit,
+  clampScale,
   clipBoxes,
   fitScale,
+  followScroll,
+  frameLabelStep,
+  framePx,
   itemSpan,
   labelFits,
+  moveSnap,
   moveTarget,
+  playheadSnapTargets,
   pointerTime,
   rulerTicks,
+  scrollTimeAt,
   snapTime,
   timeAt,
   trimSnapTargets,
+  zoomRange,
+  zoomedScale,
   type ClipBox,
+  type ZoomRange,
 } from './geometry';
 
 export interface TimelineSignals {
@@ -60,6 +83,27 @@ export interface TimelineSignals {
   readonly selection: ReadonlySignal<readonly string[]>;
   /** The session's one playhead (MOD-Project); the preview follows it (F-002 binding). */
   readonly playhead: Signal<Micros>;
+  /**
+   * F-013.R1: the zoom the user chose, in pixels per microsecond, or null to fit the project. MOD-App keeps it
+   * across New project (RULE-23); the view clamps it to RULE-14's range.
+   */
+  readonly zoom?: Signal<number | null>;
+  /** F-013.R3: RULE-14 snapping is on (default on). */
+  readonly snapping?: ReadonlySignal<boolean>;
+  /** F-013.R2: playback is running (the view follows the playhead). */
+  readonly playing?: ReadonlySignal<boolean>;
+}
+
+/** F-013: what the zoom controls show (CMP-Timeline toolbar, the narrow zoom pill). */
+export interface TimelineNav {
+  /** Zoom in is available (not at RULE-14's maximum, and the project has clips). */
+  readonly canZoomIn: boolean;
+  /** Zoom out and Fit are available (zoomed in past the fit). */
+  readonly canZoomOut: boolean;
+  /** CMP-Timeline "frames": the width of one frame in pixels while frames are numbered, else null. */
+  readonly framePx: number | null;
+  /** D-013: the playhead stays at the centre (narrow layouts). */
+  readonly centred: boolean;
 }
 
 /** What the view needs from the app: words (MOD-Copy), pictures (MOD-Media) and the edit actions. */
@@ -126,6 +170,15 @@ export interface TrimDrag {
 export interface TimelineView {
   /** Focus the clip at `index` (the nearest one that exists), or the track when there is none. */
   focusClip(index: number): void;
+  /** F-013.R1: one zoom step in or out, around the playhead when it is in view (else the view's centre). */
+  zoomIn(): void;
+  zoomOut(): void;
+  /** F-013.R1: fit the whole project in the view. */
+  fit(): void;
+  /** F-013.R2: bring the playhead into view and follow it again. */
+  scrollToPlayhead(): void;
+  /** F-013: the state of the zoom controls. */
+  readonly nav: ReadonlySignal<TimelineNav>;
   dispose(): void;
 }
 
@@ -141,6 +194,11 @@ const LABEL_GAP_PX = 56;
 const JOIN_HOVER_PX = 20;
 /** Ruler labels this close to the playhead hide under its head (D-039). */
 const HEAD_CLEAR_PX = 14;
+/** F-013: the touch scroll's momentum (per 16 ms) and the speed (px/ms) where it stops. */
+const MOMENTUM_DECAY = 0.92;
+const MOMENTUM_STOP = 0.05;
+/** F-013: Ctrl/⌘ + wheel zooms by e^(−deltaY × this). */
+const WHEEL_ZOOM = 0.01;
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -196,8 +254,12 @@ interface ClipEls {
   readonly button: HTMLButtonElement;
   readonly name: HTMLSpanElement;
   readonly length: HTMLSpanElement;
+  /** The band the thumbnails fill; the canvas covers only its part near the view (F-013, NFR-05). */
+  readonly film: HTMLSpanElement;
   readonly strip: HTMLCanvasElement;
   drawn: string;
+  /** The part of the clip (pixels from its left) the canvas covers, or null when none is near the view. */
+  win: readonly [number, number] | null;
 }
 
 /** F-004: a trim handle being dragged. */
@@ -235,16 +297,50 @@ interface Drag {
   dx: number;
 }
 
+/** A one-finger scroll (touch), or a mouse drag on the centred ruler. */
+interface Pan {
+  readonly id: number;
+  readonly mouse: boolean;
+  readonly onRuler: boolean;
+  readonly startX: number;
+  readonly startScroll: number;
+  readonly startTime: Micros;
+  readonly startHead: Micros;
+  moved: boolean;
+  /** Recent positions, for the momentum on release. */
+  samples: { x: number; at: number }[];
+}
+/** A two-finger pinch (RULE-21). */
+interface Pinch {
+  readonly a: number;
+  readonly b: number;
+  readonly startDist: number;
+  readonly startZoom: number | null;
+  readonly startScale: number;
+  readonly startScroll: number;
+  readonly startTime: Micros;
+  readonly startHead: Micros;
+  /** The time under the fingers' midpoint when the pinch began: it stays under it (F-013.AC4). */
+  readonly anchorT: Micros;
+}
+
 /**
  * Mounts CMP-Timeline's lanes into `host` (the region, its toolbar and the lane gutter are MOD-App's
- * chrome). Returns the view's commands and its unmount.
+ * chrome). `host` becomes the lanes' scroller (F-013); a narrow layout tells the view to keep the playhead
+ * at the centre by setting `--tk-tl-centred: 1` on it (timeline.css). Returns the view's commands and its
+ * unmount.
  */
 export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps: TimelineDeps): TimelineView {
   const { project, selection, playhead } = signals;
-  host.classList.add('tk-lanes');
-  const ruler = el('div', 'tk-ruler', host);
+  const zoom = signals.zoom ?? signal<number | null>(null);
+  const snapping = signals.snapping ?? signal(true);
+  const playing = signals.playing ?? signal(false);
+  host.classList.add('tk-scroller');
+  // The lanes at the zoomed width; `host` scrolls them (F-013).
+  const content = el('div', 'tk-lanes', host);
+  const ruler = el('div', 'tk-ruler', content);
   decorative(ruler);
-  const track = el('div', 'tk-track', host);
+  const track = el('div', 'tk-track', content);
   track.tabIndex = -1;
   // A group of the clips, named, so focus that lands here after the last clip was deleted is announced.
   track.setAttribute('role', 'group');
@@ -252,12 +348,12 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const drop = el('span', 'tk-track__drop', track);
   decorative(drop);
   // F-010: the text lane between the main track and the audio lane (F-011).
-  const textLane = el('div', 'tk-text-lane', host);
-  const audioLane = el('div', 'tk-audio-lane', host);
-  const end = el('span', 'tk-end', host);
+  const textLane = el('div', 'tk-text-lane', content);
+  const audioLane = el('div', 'tk-audio-lane', content);
+  const end = el('span', 'tk-end', content);
   decorative(end);
   const endLabel = el('span', 'tk-end__label', end);
-  const head = el('span', 'tk-playhead', host);
+  const head = el('span', 'tk-playhead', content);
   decorative(head);
   el('span', 'tk-playhead__head', head);
   // F-004: the selected item's trim handles (moved into its lane), the snap line and the trim readout.
@@ -270,20 +366,23 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     decorative(h);
     return h;
   });
-  const snapLine = el('span', 'tk-snap', host);
+  const snapLine = el('span', 'tk-snap', content);
   decorative(snapLine);
   snapLine.hidden = true;
-  const readout = el('div', 'tk-trim-readout', host);
+  const readout = el('div', 'tk-trim-readout', content);
   decorative(readout);
   const readLength = el('span', 'tk-trim-readout__length', readout);
   el('span', 'tk-trim-readout__sep', readout).textContent = '·';
   const readEnd = el('span', 'tk-trim-readout__end', readout);
   readout.hidden = true;
 
-  const width = signal(0);
+  /** The view's width and whether the playhead stays at its centre (narrow layouts, D-013). */
+  const size = signal<{ readonly w: number; readonly centred: boolean }>({ w: 0, centred: false });
   const resize = new ResizeObserver(() => {
-    const style = getComputedStyle(host);
-    width.value = host.clientWidth - parseFloat(style.paddingInlineStart) - parseFloat(style.paddingInlineEnd);
+    const w = host.clientWidth;
+    const centred = getComputedStyle(host).getPropertyValue('--tk-tl-centred').trim() === '1';
+    const now = size.peek();
+    if (now.w !== w || now.centred !== centred) size.value = { w, centred };
   });
   resize.observe(host);
 
@@ -295,6 +394,33 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   let boxes: ClipBox[] = [];
   let scale = 0;
   let labels: { at: Micros; node: HTMLElement }[] = [];
+  // ── F-013 view state ──
+  /** The view's width, the time axis' start and end padding in `content`, and the centred mode (D-013). */
+  let viewW = 0;
+  let padStart = 0;
+  let padEnd = 0;
+  let centred = false;
+  let range: ZoomRange = { min: 0, max: 0 };
+  /** The span the ruler covers and the part of it made (F-013: only near the view). */
+  let rulerSpan: Micros = EMPTY_SPAN;
+  let rulerClear = 0;
+  let rulerWin: readonly [Micros, Micros] = [0, 0];
+  /** The scroll the view last set itself; any other is the user's (a manual scroll). */
+  let expected = 0;
+  /** RULE-14 *During playback* (pointer): the view follows the playhead until a manual scroll. */
+  let following = true;
+  /** Centred mode: the time under the centre line, continuous during a touch scroll (the playhead is its frame). */
+  let scrollTime: Micros = 0;
+  /** A zoom asked for by a control, the wheel or a pinch: the time to keep at view x `x`. */
+  let anchor: { readonly t: Micros; readonly x: number } | null = null;
+  const nav = signal<TimelineNav>({ canZoomIn: false, canZoomOut: false, framePx: null, centred: false });
+  /** The touches down on the lanes, a one-finger scroll, a pinch, and the scroll's momentum (an animation frame). */
+  const touches = new Map<number, { x: number; y: number }>();
+  let pan: Pan | null = null;
+  let pinch: Pinch | null = null;
+  let glide = 0;
+  /** The pointer scrubbing on the ruler (F-002.R3). */
+  let scrubbing: number | null = null;
   let drag: Drag | null = null;
   let trim: Trim | null = null;
   /** A trim move is being applied: the project change it makes is the drag's own. */
@@ -305,8 +431,38 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
 
   const xOf = (t: Micros): string => `${t * scale}px`;
 
-  function drawStrip(c: ClipEls, clip: Clip, w: number): void {
-    const key = `${clip.sourceId}:${Math.round(w)}`;
+  /** The time axis' part near the view: the view and one view's width on each side (content pixels from 0). */
+  function nearView(): readonly [number, number] {
+    const left = host.scrollLeft - padStart;
+    return [left - viewW, left + 2 * viewW];
+  }
+  /** The time axis' part in the view. */
+  function inView(): readonly [number, number] {
+    const left = host.scrollLeft - padStart;
+    return [left, left + viewW];
+  }
+
+  /**
+   * The thumbnails along a clip (F-003): its source's picture repeated. F-013: the canvas covers only the part
+   * of the clip near the view, so a clip zoomed to frames (hundreds of thousands of pixels) never makes a
+   * canvas wider than three views (NFR-05).
+   */
+  function drawStrip(c: ClipEls, clip: Clip, box: ClipBox): void {
+    const [l, r] = nearView();
+    const a = Math.max(0, Math.floor(l - box.x));
+    const b = Math.min(Math.round(box.width), Math.ceil(r - box.x));
+    const win = b > a ? ([a, b] as const) : null;
+    c.win = win;
+    if (!win) {
+      c.drawn = '';
+      c.strip.width = 0;
+      c.strip.hidden = true;
+      return;
+    }
+    c.strip.hidden = false;
+    c.strip.style.left = `${win[0]}px`;
+    c.strip.style.width = `${win[1] - win[0]}px`;
+    const key = `${clip.sourceId}:${win[0]}:${win[1]}`;
     if (c.drawn === key) return;
     c.drawn = key;
     // Asked on every draw: MOD-Media's registry keeps the picture, frees it while its source is out of the
@@ -314,10 +470,26 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     void deps
       .picture(clip.sourceId)
       .catch(() => null)
-      .then((img) => paint(c, key, w, img));
+      .then((img) => paint(c, key, win, img));
   }
 
-  function paint(c: ClipEls, key: string, w: number, img: CanvasImageSource | null): void {
+  /** F-013: a scroll moved the view out of a clip's drawn part: draw the part near the view. */
+  function stripsFollow(): void {
+    const [l, r] = inView();
+    const p = project.peek();
+    p.clips.forEach((clip, i) => {
+      const box = boxes[i];
+      const c = clips.get(clip.id);
+      if (!box || !c) return;
+      const a = Math.max(0, l - box.x);
+      const b = Math.min(box.width, r - box.x);
+      if (b <= a) return;
+      if (c.win && c.win[0] <= a && c.win[1] >= Math.floor(b)) return;
+      drawStrip(c, clip, box);
+    });
+  }
+
+  function paint(c: ClipEls, key: string, win: readonly [number, number], img: CanvasImageSource | null): void {
     const iw = (img as { width: number } | null)?.width ?? 0;
     const ih = (img as { height: number } | null)?.height ?? 0;
     // A closed bitmap has no size: nothing to draw (the next layout asks again).
@@ -326,15 +498,17 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       return;
     }
     const ratio = devicePixelRatio || 1;
-    c.strip.width = Math.round(Math.max(1, Math.round(w)) * ratio);
-    c.strip.height = Math.round((c.strip.clientHeight || 1) * ratio);
+    c.strip.width = Math.round(Math.max(1, win[1] - win[0]) * ratio);
+    c.strip.height = Math.round((c.film.clientHeight || 1) * ratio);
     const ctx = c.strip.getContext('2d');
     if (!ctx) return;
     const tileH = c.strip.height;
     const tileW = Math.max(1, Math.round((tileH * iw) / ih));
+    // The tiles keep their places along the whole clip, wherever the drawn part starts.
+    const phase = Math.round(win[0] * ratio) % tileW;
     try {
       // The picture repeats along the clip, each tile cropped to fill it (cover).
-      for (let x = 0; x < c.strip.width; x += tileW) ctx.drawImage(img, x, 0, tileW, tileH);
+      for (let x = -phase; x < c.strip.width; x += tileW) ctx.drawImage(img, x, 0, tileW, tileH);
     } catch {
       // Closed between the size check and the draw: the next layout draws it again.
       c.drawn = '';
@@ -351,18 +525,30 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     decorative(label);
     const name = el('span', 'tk-clip__name', label);
     const length = el('span', 'tk-clip__length', label);
-    const strip = el('canvas', 'tk-clip__strip', button);
-    decorative(strip);
-    c = { button, name, length, strip, drawn: '' };
+    const film = el('span', 'tk-clip__film', button);
+    decorative(film);
+    const strip = el('canvas', 'tk-clip__strip', film);
+    c = { button, name, length, film, strip, drawn: '', win: null };
     clips.set(id, c);
     return c;
   }
 
-  /** `clearEnd`: pixels before the end of the ruler left free for the project-end label. */
+  /**
+   * `clearEnd`: pixels before the end of the ruler left free for the project-end label. F-013: only the part
+   * near the view is made (`rulerFollow` makes it again as the view scrolls); at frame zoom the frames between
+   * the seconds are numbered in muted text (CMP-Timeline "frames").
+   */
   function renderRuler(span: Micros, clearEnd: number): void {
+    rulerSpan = span;
+    rulerClear = clearEnd;
     ruler.replaceChildren();
     labels = [];
-    const ticks = rulerTicks(span, scale, LABEL_GAP_PX);
+    if (scale <= 0) return;
+    const [l, r] = nearView();
+    const from = Math.max(0, l / scale);
+    const to = Math.max(0, r / scale);
+    rulerWin = [from, to];
+    const ticks = rulerTicks(span, scale, LABEL_GAP_PX, { from, to, rate: project.peek().frame.frameRate });
     for (const t of ticks.minor) el('span', 'tk-ruler__tick tk-ruler__tick--minor', ruler).style.left = xOf(t);
     for (const t of ticks.labels) {
       el('span', 'tk-ruler__tick', ruler).style.left = xOf(t);
@@ -373,26 +559,97 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       node.style.left = xOf(t);
       labels.push({ at: t, node });
     }
+    for (const f of ticks.frames) {
+      if ((span - f.at) * scale < clearEnd) continue;
+      const node = el('span', 'tk-ruler__label tk-ruler__label--frame', ruler);
+      node.textContent = String(f.n);
+      node.style.left = xOf(f.at);
+      labels.push({ at: f.at, node });
+    }
+    placeHead(playhead.peek());
   }
 
-  // Project, selection, size or language changed: lay the track out again (never on playhead moves).
+  /** F-013: the view scrolled out of the ruler's made part: make the part near the view. */
+  function rulerFollow(): void {
+    if (scale <= 0) return;
+    const [l, r] = inView();
+    if (l / scale >= rulerWin[0] && Math.min(rulerSpan, r / scale) <= rulerWin[1]) return;
+    renderRuler(rulerSpan, rulerClear);
+  }
+
+  /** The scroll that ends `content`'s room (0 when it fits the view). */
+  const maxScroll = (): number => Math.max(0, host.scrollWidth - host.clientWidth);
+
+  /** Scrolls the view itself (never counted as the user's scroll). */
+  function setScroll(x: number): void {
+    const to = Math.min(maxScroll(), Math.max(0, x));
+    if (Math.abs(host.scrollLeft - to) >= 0.5) host.scrollLeft = to;
+    expected = host.scrollLeft;
+    afterScroll();
+  }
+
+  /** What follows the view: the ruler's made part, the drawn thumbnails, the centred playhead. */
+  function afterScroll(): void {
+    rulerFollow();
+    stripsFollow();
+    if (centred) placeHead(playhead.peek());
+  }
+
+  /** The playhead's place in `content` (pixels from its left edge). */
+  const headX = (t: Micros): number => padStart + t * scale;
+
+  /** Centred mode: put `scrollTime` at the centre. */
+  function syncCentre(): void {
+    setScroll(scrollTime * scale);
+  }
+
+  // Project, selection, size, zoom or language changed: lay the track out again (never on playhead moves).
   let laidOut: Project | null = null;
   const stopLayout = effect(() => {
     const p = project.value;
     void relayout.value;
+    const { w, centred: c } = size.value;
+    const chosen = zoom.value;
     // The project changed under a drag: its clip indexes are stale, so the drag ends without a move. A
     // trim's own moves change it too; any other change (a batch of media, undo) ends the trim.
     if (drag && laidOut && p !== laidOut) endDrag(false);
     if (trim && laidOut && p !== laidOut && !applying) endTrim('abort');
+    // F-013: nothing left to scroll or zoom ends a pan or pinch.
+    if (!p.clips.length) endGestures();
     laidOut = p;
     track.setAttribute('aria-label', deps.trackLabel());
     const selected = new Set(selection.value);
-    const w = width.value;
     const projEnd = projectEnd(p);
-    // During a trim the scale holds still, so the dragged edge stays under the pointer (F-004).
-    scale = trim ? trim.scale : fitScale(w, projEnd);
+    const span = projEnd > 0 ? projEnd : EMPTY_SPAN;
+    const rate = p.frame.frameRate;
+
+    // F-013: the view's width and padding. Centred (D-013): half a view on each side, so the project's start
+    // and end both reach the centre line.
+    const wasScale = scale;
+    const wasCentred = centred;
+    const keep = anchor ?? (wasScale > 0 && !wasCentred && !c ? defaultAnchor() : null);
+    viewW = w;
+    centred = c;
+    host.toggleAttribute('data-centred', c);
+    if (c) {
+      content.style.paddingInline = `${w / 2}px`;
+      padStart = padEnd = w / 2;
+    } else {
+      content.style.paddingInline = '';
+      const style = getComputedStyle(content);
+      padStart = parseFloat(style.paddingInlineStart) || 0;
+      padEnd = parseFloat(style.paddingInlineEnd) || 0;
+    }
+    const fit = c ? centredFit(w, projEnd) : fitScale(w - padStart - padEnd, projEnd);
+    range = zoomRange(fit, rate);
+    // During a trim the scale holds still, so the dragged edge stays under the pointer (F-004). An empty
+    // project always fits (its zoom controls are unavailable; the chosen zoom is kept, RULE-23).
+    scale = trim ? trim.scale : !p.clips.length || chosen === null ? fit : clampScale(chosen, range);
+    const total = padStart + span * scale + padEnd;
+    content.style.inlineSize = `${Math.abs(total - w) < 0.5 ? w : Math.max(w, total)}px`;
+    content.style.setProperty('--pad-start', `${padStart}px`);
     boxes = clipBoxes(p, scale);
-    host.toggleAttribute('data-empty', !p.clips.length);
+    content.toggleAttribute('data-empty', !p.clips.length);
     hint.hidden = p.clips.length > 0;
     hint.textContent = p.clips.length ? '' : deps.emptyHint();
 
@@ -402,18 +659,24 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     end.style.left = xOf(projEnd);
     endLabel.textContent = deps.endLabel();
     const labelWidth = end.hidden ? 0 : endLabel.offsetWidth;
-    const flip =
-      !end.hidden &&
-      projEnd * scale + labelWidth > host.clientWidth - parseFloat(getComputedStyle(host).paddingInlineStart);
+    const flip = !end.hidden && labelWidth > padEnd;
     end.toggleAttribute('data-flip', flip);
-    renderRuler(
-      projEnd > 0 ? projEnd : EMPTY_SPAN,
-      end.hidden ? 0 : flip ? labelWidth + LABEL_GAP_PX / 4 : LABEL_GAP_PX / 2,
-    );
 
-    const keep = new Set(p.clips.map((c) => c.id));
+    // The scroll: keep the anchor's time where it was (a zoom), or the playhead at the centre (D-013).
+    if (c) {
+      if (!gesture()) scrollTime = Math.min(playhead.peek(), projEnd);
+      syncCentre();
+    } else if (keep && scale !== wasScale) {
+      setScroll(anchoredScroll(keep.t, keep.x, padStart, scale));
+    } else {
+      expected = host.scrollLeft;
+    }
+    anchor = null;
+    renderRuler(span, end.hidden ? 0 : flip ? labelWidth + LABEL_GAP_PX / 4 : LABEL_GAP_PX / 2);
+
+    const keepIds = new Set(p.clips.map((c) => c.id));
     for (const [id, c] of clips) {
-      if (keep.has(id)) continue;
+      if (keepIds.has(id)) continue;
       c.button.remove();
       clips.delete(id);
     }
@@ -437,7 +700,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       c.button.style.zIndex = String(i + 1);
       // DOM order is track order: focus moves through the clips in order (CMP-Timeline accessibility).
       if (track.children[i] !== c.button) track.insertBefore(c.button, track.children[i] ?? drop);
-      drawStrip(c, clip, box.width);
+      drawStrip(c, clip, box);
       if (box.crossFadeOut > 0) {
         // The overlap's band (INV-03); the marker over it is the join's control (layoutJoins).
         const next = boxes[i + 1]!;
@@ -455,6 +718,15 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     layoutAudio(p, selected);
     placeHandles(p, selected);
     placeHead(playhead.peek());
+    const empty = !p.clips.length;
+    const step = frameLabelStep(scale, rate, LABEL_GAP_PX);
+    const eps = 1e-9;
+    nav.value = {
+      canZoomIn: !empty && scale < range.max * (1 - eps),
+      canZoomOut: !empty && scale > range.min * (1 + eps),
+      framePx: !empty && step !== undefined ? Math.round(framePx(scale, rate)) : null,
+      centred: c,
+    };
   });
 
   function joinEls(id: string): JoinEls {
@@ -722,28 +994,68 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   }
 
   function placeHead(t: Micros): void {
-    const x = t * scale;
+    // D-013: centred, the playhead is the time under the view's centre line, where the scroll put it.
+    const x = centred ? host.scrollLeft : t * scale;
     head.style.transform = `translateX(${x}px)`;
     // No playhead in an empty project: every label shows.
     const shown = project.peek().clips.length > 0;
     for (const l of labels)
       l.node.classList.toggle('tk-ruler__label--under', shown && Math.abs(l.at * scale - x) < HEAD_CLEAR_PX);
   }
-  // The playhead moves without re-laying anything out (playback ticks, scrubbing).
-  const stopHead = effect(() => placeHead(playhead.value));
+
+  /** The view keeps the playhead visible (a page turn at the edge) — RULE-14 *During playback*. */
+  function reveal(t: Micros): boolean {
+    const to = followScroll(headX(t), host.scrollLeft, viewW);
+    if (to === null) return false;
+    setScroll(to);
+    return true;
+  }
+
+  // The playhead moves without re-laying anything out (playback ticks, scrubbing). F-013: centred, the scroll
+  // follows it (unless a touch scroll or pinch is moving it); with a pointer, the view follows it while playing
+  // (until a manual scroll, and again once it is back in view), and shows it when it moves out of view while
+  // paused (a frame step, Home or End, an undo) — never during a scrub or drag.
+  const stopHead = effect(() => {
+    const t = playhead.value;
+    if (centred) {
+      if (!gesture() && project.peek().clips.length) {
+        scrollTime = t;
+        syncCentre();
+      }
+      placeHead(t);
+      return;
+    }
+    placeHead(t);
+    if (!project.peek().clips.length || scale <= 0) return;
+    if (playing.peek()) {
+      const x = headX(t);
+      const visible = x >= host.scrollLeft && x <= host.scrollLeft + viewW;
+      if (following) reveal(t);
+      else if (visible) following = true;
+    } else if (scrubbing === null && !drag?.active && !trim && !pan) {
+      reveal(t);
+    }
+  });
+
+  // RULE-14: playback (re)starting follows the playhead again, and shows it.
+  const stopPlaying = effect(() => {
+    if (!playing.value) return;
+    following = true;
+    if (!centred && project.peek().clips.length) reveal(playhead.peek());
+  });
 
   // ── Ruler: scrub (F-002.R3) ──────────────────────────────────────────────────────────────────────
-  const trackLeft = (): number =>
-    host.getBoundingClientRect().left + parseFloat(getComputedStyle(host).paddingInlineStart);
+  // F-013: with a pointer the scrubbed playhead snaps to the items' edges (RULE-14), when snapping is on.
+  // Centred (D-013) the ruler scrolls instead (the gestures below).
   function scrubTo(clientX: number): void {
     const p = project.peek();
-    const t = timeAt(clientX - trackLeft(), scale, projectEnd(p));
+    const t = timeAt(clientX - track.getBoundingClientRect().left, scale, projectEnd(p));
+    const snapped = snapping.peek() ? snapTime(t, playheadSnapTargets(p), scale) : null;
     const rate = p.frame.frameRate;
-    playhead.value = Math.min(projectEnd(p), frameStart(nearestFrame(t, rate), rate));
+    playhead.value = Math.min(projectEnd(p), frameStart(nearestFrame(snapped ?? t, rate), rate));
   }
-  let scrubbing: number | null = null;
   const onRulerDown = (e: PointerEvent): void => {
-    if (!project.peek().clips.length || e.button !== 0) return;
+    if (!project.peek().clips.length || e.button !== 0 || centred) return;
     e.preventDefault();
     scrubbing = e.pointerId;
     capture(ruler, e.pointerId);
@@ -752,7 +1064,13 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     scrubTo(e.clientX);
   };
   const onRulerMove = (e: PointerEvent): void => {
-    if (scrubbing === e.pointerId) scrubTo(e.clientX);
+    if (scrubbing !== e.pointerId) return;
+    // The button was released where the ruler never heard it: the scrub is over.
+    if (e.pointerType !== 'touch' && e.buttons === 0) {
+      scrubbing = null;
+      return;
+    }
+    scrubTo(e.clientX);
   };
   const onRulerUp = (e: PointerEvent): void => {
     if (scrubbing === e.pointerId) scrubbing = null;
@@ -762,6 +1080,305 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   ruler.addEventListener('pointerup', onRulerUp);
   ruler.addEventListener('pointercancel', onRulerUp);
 
+  // ── F-013: scroll, pan, pinch and wheel ─────────────────────────────────────────────────────────────
+  /** A touch scroll, pinch or its momentum is moving the view: the playhead follows it, not the reverse. */
+  function gesture(): boolean {
+    return (pan?.moved ?? false) || pinch !== null || glide !== 0;
+  }
+  const viewLeft = (): number => host.getBoundingClientRect().left;
+  const frameOf = (t: Micros): Micros => {
+    const p = project.peek();
+    const rate = p.frame.frameRate;
+    return Math.min(projectEnd(p), frameStart(nearestFrame(Math.max(0, t), rate), rate));
+  };
+  /** Centred: the time under the centre line is `t` (continuous); the playhead is its frame. */
+  function centreOn(t: Micros): void {
+    scrollTime = Math.min(projectEnd(project.peek()), Math.max(0, t));
+    syncCentre();
+    playhead.value = frameOf(scrollTime);
+  }
+  /** Centred: the scroll comes to rest on a frame start (D-013). */
+  function settle(): void {
+    if (!centred) return;
+    scrollTime = frameOf(scrollTime);
+    syncCentre();
+    playhead.value = scrollTime;
+  }
+  function stopGlide(): void {
+    if (glide) cancelAnimationFrame(glide);
+    glide = 0;
+  }
+  function endGestures(): void {
+    stopGlide();
+    pan = null;
+    pinch = null;
+  }
+  /** F-013.R1: one Zoom in / Zoom out step, around the playhead while it is in view (else the view's centre). */
+  function zoomStep(dir: 1 | -1): void {
+    stopGlide();
+    const next = zoomedScale(scale, dir, range);
+    if (centred) zoomAt(next, viewW / 2);
+    else zoomAt(next, defaultAnchor().x);
+  }
+  /** The default zoom anchor: the playhead while it is in view, else the view's centre. */
+  function defaultAnchor(): { t: Micros; x: number } {
+    const x = headX(playhead.peek()) - host.scrollLeft;
+    const at = x >= 0 && x <= viewW ? x : viewW / 2;
+    return { t: scrollTimeAt(at, host.scrollLeft, padStart, scale), x: at };
+  }
+  /**
+   * Zoom to `next` (clamped to RULE-14's range) keeping the time under view x `x` there (F-013.AC4). Centred,
+   * that moves the time under the centre line, so the playhead follows (a pinch scrubs).
+   */
+  function zoomAt(next: number, x: number): void {
+    const s = clampScale(next, range);
+    const t = scrollTimeAt(x, host.scrollLeft, padStart, scale);
+    batch(() => {
+      if (centred) scrollTime = Math.min(projectEnd(project.peek()), Math.max(0, t - (x - viewW / 2) / s));
+      else anchor = { t, x };
+      zoom.value = s <= range.min * (1 + 1e-9) ? null : s;
+    });
+    anchor = null;
+    if (centred) {
+      syncCentre();
+      if (gesture()) playhead.value = frameOf(scrollTime);
+      else settle();
+    }
+  }
+
+  const onScroll = (): void => {
+    const now = host.scrollLeft;
+    if (Math.abs(now - expected) > 1) {
+      // The user scrolled (wheel, trackpad, scroll bar, keyboard, focus).
+      expected = now;
+      if (centred && project.peek().clips.length && scale > 0 && !gesture()) {
+        // D-013: the scroll is the playhead; a scroll during playback pauses it first.
+        if (playing.peek()) deps.scrubStart?.();
+        scrollTime = Math.min(projectEnd(project.peek()), now / scale);
+        playhead.value = frameOf(scrollTime);
+      } else if (!centred && playing.peek()) {
+        // RULE-14: a manual scroll stops following until playback restarts or the playhead is back in view.
+        following = false;
+      }
+    }
+    afterScroll();
+  };
+
+  const onGestureDown = (e: PointerEvent): void => {
+    stopGlide();
+    const touch = e.pointerType === 'touch';
+    if (touch) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const onRuler = !!(e.target as Element).closest('.tk-ruler');
+    if (!project.peek().clips.length || scale <= 0) return;
+    // A mouse drags the project only on the centred ruler (elsewhere it selects, drags and trims).
+    if (!touch && !(centred && onRuler && e.button === 0)) return;
+    if (trim?.pointerId === e.pointerId) return;
+    if (touch && touches.size === 2 && !trim && !drag?.active) {
+      startPinch();
+      return;
+    }
+    if (pan || pinch || touches.size > 2) return;
+    pan = {
+      id: e.pointerId,
+      mouse: !touch,
+      onRuler,
+      startX: e.clientX,
+      startScroll: host.scrollLeft,
+      startTime: scrollTime,
+      startHead: playhead.peek(),
+      moved: false,
+      samples: [{ x: e.clientX, at: e.timeStamp }],
+    };
+    if (!touch) {
+      e.preventDefault();
+      capture(ruler, e.pointerId);
+    }
+  };
+
+  function startPinch(): void {
+    const [a, b] = [...touches.keys()];
+    const pa = touches.get(a!)!;
+    const pb = touches.get(b!)!;
+    // A pending hold is not a move any more; a scroll in progress stops where it is.
+    if (drag && !drag.active) endDrag(false);
+    if (pan?.moved) settle();
+    pan = null;
+    const mid = (pa.x + pb.x) / 2 - viewLeft();
+    pinch = {
+      a: a!,
+      b: b!,
+      startDist: Math.max(1, Math.hypot(pa.x - pb.x, pa.y - pb.y)),
+      startZoom: zoom.peek(),
+      startScale: scale,
+      startScroll: host.scrollLeft,
+      startTime: scrollTime,
+      startHead: playhead.peek(),
+      anchorT: scrollTimeAt(mid, host.scrollLeft, padStart, scale),
+    };
+    // Centred, a pinch moves the time under the centre line: it scrubs, so playback pauses first (RULE-14).
+    if (centred && playing.peek()) deps.scrubStart?.();
+  }
+
+  function movePinch(): void {
+    const g = pinch;
+    if (!g) return;
+    const pa = touches.get(g.a);
+    const pb = touches.get(g.b);
+    if (!pa || !pb) return;
+    const dist = Math.max(1, Math.hypot(pa.x - pb.x, pa.y - pb.y));
+    const mid = (pa.x + pb.x) / 2 - viewLeft();
+    const s = clampScale((g.startScale * dist) / g.startDist, range);
+    batch(() => {
+      if (centred) scrollTime = Math.min(projectEnd(project.peek()), Math.max(0, g.anchorT - (mid - viewW / 2) / s));
+      else anchor = { t: g.anchorT, x: mid };
+      zoom.value = s <= range.min * (1 + 1e-9) ? null : s;
+    });
+    anchor = null;
+    if (centred) {
+      syncCentre();
+      playhead.value = frameOf(scrollTime);
+    } else {
+      // The scale may not have changed (at a range end): the fingers still pan.
+      setScroll(anchoredScroll(g.anchorT, mid, padStart, scale));
+    }
+  }
+
+  function endPinch(cancel: boolean): void {
+    const g = pinch;
+    pinch = null;
+    if (!g) return;
+    if (cancel) {
+      // A cancelled pinch (the browser took the gesture) puts the zoom and the view back.
+      zoom.value = g.startZoom;
+      if (centred) {
+        scrollTime = g.startTime;
+        syncCentre();
+        playhead.value = g.startHead;
+      } else setScroll(g.startScroll);
+      return;
+    }
+    settle();
+  }
+
+  function applyPan(g: Pan, dx: number): void {
+    if (centred) {
+      scrollTime = Math.min(projectEnd(project.peek()), Math.max(0, g.startTime - dx / scale));
+      syncCentre();
+      playhead.value = frameOf(scrollTime);
+    } else setScroll(g.startScroll - dx);
+  }
+
+  const onGestureMove = (e: PointerEvent): void => {
+    const t = touches.get(e.pointerId);
+    if (t) {
+      t.x = e.clientX;
+      t.y = e.clientY;
+    }
+    if (pinch && (pinch.a === e.pointerId || pinch.b === e.pointerId)) {
+      if (e.cancelable) e.preventDefault();
+      movePinch();
+      return;
+    }
+    const g = pan;
+    if (!g || g.id !== e.pointerId) return;
+    if (g.mouse && e.buttons === 0) {
+      endPan(g, false);
+      return;
+    }
+    // A held item drags, or a trim handle trims: the scroll gives way (RULE-21).
+    if (drag?.active || trim) {
+      pan = null;
+      return;
+    }
+    const dx = e.clientX - g.startX;
+    if (!g.moved) {
+      if (Math.abs(dx) < DRAG_SLOP_PX) return;
+      g.moved = true;
+      // RULE-14: a touch scroll during playback pauses it first, then scrubs.
+      if (centred && playing.peek()) deps.scrubStart?.();
+    }
+    if (e.cancelable) e.preventDefault();
+    g.samples.push({ x: e.clientX, at: e.timeStamp });
+    if (g.samples.length > 6) g.samples.shift();
+    applyPan(g, dx);
+  };
+
+  function endPan(g: Pan, cancel: boolean, clientX?: number): void {
+    pan = null;
+    if (cancel) {
+      // A cancelled scroll (the browser took the pointer) puts the view and the playhead back.
+      if (centred) {
+        scrollTime = g.startTime;
+        syncCentre();
+        playhead.value = g.startHead;
+      } else setScroll(g.startScroll);
+      return;
+    }
+    if (!g.moved) {
+      // D-013, F-002.R3: a tap on the centred ruler scrolls that time to the centre.
+      if (centred && g.onRuler && clientX !== undefined) {
+        const at = clientX - viewLeft();
+        centreOn(scrollTimeAt(at, host.scrollLeft, padStart, scale));
+        settle();
+      }
+      return;
+    }
+    // Momentum: the scroll glides on at the release speed, slowing down, and comes to rest on a frame start.
+    const first = g.samples[0]!;
+    const last = g.samples[g.samples.length - 1]!;
+    const dt = last.at - first.at;
+    let v = dt > 0 && last.at - first.at < 200 ? (last.x - first.x) / dt : 0;
+    if (Math.abs(v) < MOMENTUM_STOP * 4) {
+      settle();
+      return;
+    }
+    let dx = last.x - g.startX;
+    let prev = performance.now();
+    const step = (now: number): void => {
+      const elapsed = Math.max(0, now - prev);
+      prev = now;
+      dx += v * elapsed;
+      v *= MOMENTUM_DECAY ** (elapsed / 16);
+      applyPan(g, dx);
+      const atEnd = centred ? scrollTime <= 0 || scrollTime >= projectEnd(project.peek()) : false;
+      if (Math.abs(v) < MOMENTUM_STOP || atEnd) {
+        glide = 0;
+        settle();
+        return;
+      }
+      glide = requestAnimationFrame(step);
+    };
+    glide = requestAnimationFrame(step);
+  }
+
+  const onGestureUp = (e: PointerEvent): void => {
+    touches.delete(e.pointerId);
+    const cancel = e.type === 'pointercancel';
+    if (pinch && (pinch.a === e.pointerId || pinch.b === e.pointerId)) {
+      // Lifting one finger ends the pinch; the other does not scroll until it is lifted too.
+      endPinch(cancel);
+      return;
+    }
+    if (pan?.id === e.pointerId) endPan(pan, cancel, e.clientX);
+  };
+
+  /** Ctrl/⌘ + wheel (and a trackpad pinch) zooms around the pointer; a vertical wheel scrolls along time. */
+  const onWheel = (e: WheelEvent): void => {
+    if (!project.peek().clips.length || scale <= 0) return;
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? viewW : 1;
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      stopGlide();
+      zoomAt(scale * Math.exp(-e.deltaY * unit * WHEEL_ZOOM), e.clientX - viewLeft());
+      return;
+    }
+    if (!e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX) && maxScroll() > 0) {
+      e.preventDefault();
+      host.scrollLeft += e.deltaY * unit;
+    }
+  };
+  host.addEventListener('scroll', onScroll, { passive: true });
+  host.addEventListener('wheel', onWheel, { passive: false });
   // ── Track: select (R1) and drag to move (R2) ────────────────────────────────────────────────────
   function endDrag(commit: boolean): void {
     const d = drag;
@@ -778,6 +1395,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     if (button) button.style.transform = '';
     track.classList.remove('tk-track--dragging');
     drop.hidden = true;
+    snapLine.hidden = true;
     if (!d.active) return;
     // The click that ends this drag (on the clip or the track) does not select again.
     suppressClick = true;
@@ -867,14 +1485,19 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     }
     e.preventDefault();
     d.dx = dx;
-    if (d.kind === 'text') {
-      const t = texts.get(d.id);
-      if (t) t.button.style.transform = `translateX(${dx}px)`;
-      return;
-    }
-    if (d.kind === 'audio') {
-      const a = audios.get(d.id);
-      if (a) a.button.style.transform = `translateX(${dx}px)`;
+    if (d.kind === 'text' || d.kind === 'audio') {
+      // F-013.R3 RULE-14: the moved item snaps by its start or end (when snapping is on), with the snap line.
+      const p = project.peek();
+      const span = itemSpan(p, d.id);
+      const snap =
+        span && snapping.peek() && scale > 0
+          ? moveSnap(span.start + dx / scale, span.end + dx / scale, trimSnapTargets(p, d.id, playhead.peek()), scale)
+          : null;
+      if (snap) d.dx = dx + snap.delta * scale;
+      snapLine.hidden = snap === null;
+      if (snap) snapLine.style.transform = `translateX(${snap.at * scale}px)`;
+      const item = d.kind === 'text' ? texts.get(d.id) : audios.get(d.id);
+      if (item) item.button.style.transform = `translateX(${d.dx}px)`;
       return;
     }
     const c = clips.get(d.id);
@@ -899,8 +1522,10 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const lane = t.lane === 'clip' ? track : t.lane === 'text' ? textLane : audioLane;
     const top = t.lane === 'clip' ? lane.offsetTop + lane.offsetHeight : lane.offsetTop - readout.offsetHeight;
     readout.style.top = `${top}px`;
-    const max = Math.max(0, host.clientWidth - readout.offsetWidth);
-    readout.style.left = `${Math.min(max, Math.max(0, span.start * t.scale))}px`;
+    // At the item, kept inside the view (F-013: the lanes scroll).
+    const [l, r] = inView();
+    const max = Math.max(l, r - readout.offsetWidth);
+    readout.style.left = `${Math.min(max, Math.max(l, span.start * t.scale))}px`;
   }
   /**
    * `commit`: the release keeps the trim. `cancel` (Esc): the edge goes back where it began, so the drag
@@ -972,7 +1597,9 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const mainStart = t.lane === 'clip' && t.edge === 'start';
     const raw = t.from + Math.round(dx / t.scale);
     const wanted = dx === 0 ? t.from : mainStart ? raw : pointerTime(t.from * t.scale + dx, t.scale);
-    const snapped = dx === 0 ? null : snapTime(wanted, trimSnapTargets(t.base, t.id, playhead.peek()), t.scale);
+    // F-013.R3: only while snapping is on (F-013.AC3).
+    const snapped =
+      dx === 0 || !snapping.peek() ? null : snapTime(wanted, trimSnapTargets(t.base, t.id, playhead.peek()), t.scale);
     applying = true;
     try {
       t.session.to(snapped ?? wanted);
@@ -986,6 +1613,11 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   };
   host.addEventListener('pointerdown', onTrimDown);
   host.addEventListener('pointermove', onTrimMove);
+  // F-013: after the trim handles, so a touch on a handle trims instead of scrolling.
+  host.addEventListener('pointerdown', onGestureDown);
+  window.addEventListener('pointermove', onGestureMove);
+  window.addEventListener('pointerup', onGestureUp);
+  window.addEventListener('pointercancel', onGestureUp);
 
   // Also on the window: a release outside the track (or outside the page) ends the drag there.
   const onUp = (e: PointerEvent): void => {
@@ -1113,9 +1745,30 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       const c = clip ? clips.get(clip.id) : undefined;
       (c?.button ?? track).focus();
     },
+    zoomIn(): void {
+      if (nav.peek().canZoomIn) zoomStep(1);
+    },
+    zoomOut(): void {
+      if (nav.peek().canZoomOut) zoomStep(-1);
+    },
+    fit(): void {
+      if (!project.peek().clips.length) return;
+      stopGlide();
+      zoom.value = null;
+      if (!centred) setScroll(0);
+      following = true;
+    },
+    scrollToPlayhead(): void {
+      if (!project.peek().clips.length || centred) return;
+      following = true;
+      setScroll(anchoredScroll(playhead.peek(), viewW / 2, padStart, scale));
+    },
+    nav,
     dispose(): void {
+      endGestures();
       stopLayout();
       stopHead();
+      stopPlaying();
       stopOpen();
       resize.disconnect();
       if (drag?.timer) clearTimeout(drag.timer);
@@ -1127,8 +1780,15 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       host.removeEventListener('pointerdown', onTrimDown);
       host.removeEventListener('pointermove', onTrimMove);
       host.removeEventListener('touchmove', onTouchMove);
+      host.removeEventListener('pointerdown', onGestureDown);
+      host.removeEventListener('scroll', onScroll);
+      host.removeEventListener('wheel', onWheel);
+      window.removeEventListener('pointermove', onGestureMove);
+      window.removeEventListener('pointerup', onGestureUp);
+      window.removeEventListener('pointercancel', onGestureUp);
       host.replaceChildren();
-      host.classList.remove('tk-lanes');
+      host.classList.remove('tk-scroller');
+      host.removeAttribute('data-centred');
     },
   };
 }

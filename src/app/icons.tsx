@@ -35,6 +35,7 @@ import {
   Keyboard,
   Layers,
   LoaderCircle,
+  Magnet,
   Maximize,
   Minimize,
   Minus,
@@ -65,6 +66,8 @@ import {
   Volume2,
   VolumeX,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-static';
 
 const SOURCES = {
@@ -151,6 +154,12 @@ const SOURCES = {
   alignRight: TextAlignEnd,
   bringForward: ArrowUpToLine,
   sendBack: ArrowDownToLine,
+  // F-013: the timeline's Snapping toggle and zoom controls (board CMP-Timeline: a magnet, the lenses, and Fit as
+  // arrows out to a centre line, drawn as the board draws it)
+  snapping: Magnet,
+  zoomIn: ZoomIn,
+  zoomOut: ZoomOut,
+  zoomFit: '<svg viewBox="0 0 24 24"><path d="M3 12h6M15 12h6M6 9l-3 3 3 3M18 9l3 3-3 3M12 4v16"/></svg>',
 } as const;
 
 export type IconName = keyof typeof SOURCES;
