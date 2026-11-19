@@ -2,8 +2,11 @@
 // recording 2D context (no DOM); the pixels themselves are checked in the browser (tests/e2e/text.spec.ts).
 import { describe, expect, it } from 'vitest';
 import { PALETTE_HEX, RULE_11 } from '../../src/core';
+import { graphemes } from '../../src/core';
 import {
   BOX_PAD_X,
+  bitmapSize,
+  bleedOf,
   BOX_PAD_Y,
   drawText,
   fontOf,
@@ -18,15 +21,55 @@ import { text } from '../support/project';
 const measure: Measure = (s) =>
   Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s)).length * 10;
 
+/** Each character is as wide as the font size (px), as real glyphs scale. */
+const pxOf = (font: string): number => parseFloat(font.split(' ')[1] ?? '0');
+const scaled: Measure = (s, font) => graphemes(s).length * pxOf(font);
+/** Like `scaled`, but whole pixels per character, as hinting rounds at small sizes. */
+const hinted: Measure = (s, font) => graphemes(s).length * Math.round(pxOf(font) * 0.55);
+
 describe('MOD-Preview text layout (RULE-11)', () => {
+  it('F-010.R5 INV-02 the line breaks are the same at the preview’s size and every export size', () => {
+    const layer = text('T', 0, 3, { content: 'Đà Lạt 2026 — mùa hoa dã quỳ, sương sớm và đồi thông', size: 7 });
+    const at = (W: number, H: number) => layoutText(layer, W, H, hinted).lines.map((l) => l.text);
+    const preview = at(203, 361);
+    expect(preview.length).toBeGreaterThan(1);
+    for (const [W, H] of [
+      [480, 848],
+      [720, 1280],
+      [1080, 1920],
+      [2160, 3840],
+    ] as const)
+      expect(at(W, H)).toEqual(preview);
+  });
+
+  it('ADR-0012 §3 a 500-character title at 20 % in 9:16 gets a bitmap no larger than can show (centred)', () => {
+    const layer = text('T', 0, 3, { content: 'Chúc mừng sinh nhật '.repeat(25).slice(0, 500), size: 20 });
+    const W = 1080;
+    const H = 1920;
+    const l = layoutText(layer, W, H, scaled);
+    expect(l.height).toBeGreaterThan(4 * H);
+    const bleed = bleedOf(layer, l, W);
+    const b = bitmapSize(l, bleed, W, H);
+    expect(b.height).toBeLessThanOrEqual(2 * H + 2 * bleed + 1);
+    expect(b.width).toBeLessThanOrEqual(2 * W + 2 * bleed + 1);
+    // Well inside every engine's canvas limits (WebKit: 16 384 px a side, 16.7 M px in all).
+    expect(b.width * b.height).toBeLessThan(16_777_216);
+    // A short title keeps its natural size.
+    const short = layoutText({ ...layer, content: 'Hi' }, W, H, scaled);
+    expect(bitmapSize(short, 4, W, H)).toEqual({
+      width: Math.ceil(short.width + 8),
+      height: Math.ceil(short.height + 8),
+    });
+  });
+
   it('RULE-11 lines break where typed', () => {
     expect(wrapLines('Đà Lạt\n2026', 1000, 'f', measure).map((l) => l.text)).toEqual(['Đà Lạt', '2026']);
   });
 
   it('RULE-11 text wraps at 90 % of the frame width by measured width, at spaces', () => {
-    // 100 px frame → 90 px: "aaaa bbbb" is 90 px and fits; "aaaa bbbb cc" does not.
-    const layer = text('T', 0, 3, { content: 'aaaa bbbb cc' });
-    const l = layoutText(layer, 100, 1000, measure);
+    // 100 px frame → 90 px; at size 10 % each character is 10 px: "aaaa bbbb" (90 px) fits, "… cc" does not.
+    const layer = text('T', 0, 3, { content: 'aaaa bbbb cc', size: 10 });
+    const l = layoutText(layer, 100, 1000, scaled);
     expect(l.lines.map((x) => x.text)).toEqual(['aaaa bbbb', 'cc']);
     expect(l.textWidth).toBe(90);
   });

@@ -20,6 +20,9 @@ export { clampTime, pausedAt, playFrom, previewSize, stepTime, PREVIEW_MAX_SHORT
 
 export {
   BOX_PAD_X,
+  LAYOUT_REFERENCE_S,
+  bitmapSize,
+  bleedOf,
   BOX_PAD_Y,
   LINE_HEIGHT,
   TEXT_FACES,

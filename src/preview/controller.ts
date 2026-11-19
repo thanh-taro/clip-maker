@@ -200,8 +200,16 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
   // F-010 (ADR-0012 §3): the text layers' bitmaps at the canvas's size, rasterised again only when they change.
   const texts = textSync((m, transfer) => engine.postMessage(m, transfer), deps.rasterise);
   let canvasSize = { width: 1, height: 1 };
-  const syncTexts = (): void =>
-    void texts.update(signals.project.peek().textLayers, canvasSize.width, canvasSize.height).catch(() => undefined);
+  // A resize and a project change in the same task rasterise once (the latest layers at the latest size).
+  let textsQueued = false;
+  const syncTexts = (): void => {
+    if (textsQueued) return;
+    textsQueued = true;
+    queueMicrotask(() => {
+      textsQueued = false;
+      void texts.update(signals.project.peek().textLayers, canvasSize.width, canvasSize.height).catch(() => undefined);
+    });
+  };
   const applySize = (): void => {
     if (!lastSize) return; // not transferred yet
     const s = sizeFor();

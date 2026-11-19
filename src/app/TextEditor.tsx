@@ -19,13 +19,14 @@ import { signal } from '@preact/signals';
 import type { RefObject } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { language, t } from '../copy';
-import { frameIndexAt, PALETTE_HEX, projectFrames, RULE_11, contrastOf } from '../core';
+import { clampText, frameIndexAt, PALETTE_HEX, projectFrames, RULE_11, contrastOf } from '../core';
 import { LINE_HEIGHT, canvasMeasure, layoutText } from '../preview';
 import { playhead, project } from '../project';
 import { Icon } from './icons';
 import { OptionGroup } from './OptionGroup';
 import { useCanvasBox } from './PlacementOverlay';
 import { playback } from './playback';
+import { watchKeyboard } from './keyboard-inset';
 import { colourOptions, faceOptions, styleOptions } from './TextSection';
 import {
   countOf,
@@ -34,6 +35,7 @@ import {
   finishEditing,
   insertWithin,
   onEditingClosed,
+  registerEditor,
   styleText,
   typeText,
 } from './text';
@@ -65,6 +67,13 @@ export function DoneButton({ variant }: { readonly variant: 'bar' | 'top' }) {
       // Done keeps focus in the editor until it acts (a blur would finish editing first).
       onPointerDown={(e) => e.preventDefault()}
       onClick={() => finishEditing()}
+      onKeyDown={(e) => {
+        // RULE-20: Esc finishes editing from Done too (the shortcuts are off while editing).
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          finishEditing();
+        }
+      }}
     >
       <Icon name="check" size={variant === 'bar' ? 16 : 20} />
       <span>{variant === 'bar' ? t('text.done') : t('action.done')}</span>
@@ -95,10 +104,15 @@ function NarrowBar({ count, root }: { readonly count: number; readonly root: Ref
       frame = requestAnimationFrame(() => editor.style.setProperty('--text-bar', `${Math.ceil(el.offsetHeight)}px`));
     });
     sizes.observe(el);
+    // The on-screen keyboard covers the layout's bottom: the bar sits on it and the stage keeps it free.
+    const stage = el.closest<HTMLElement>('.tk-stage') ?? editor;
+    const stopKeyboard = watchKeyboard(stage, (cover) => editor.style.setProperty('--keyboard', `${cover}px`));
     return () => {
       cancelAnimationFrame(frame);
       sizes.disconnect();
+      stopKeyboard();
       editor.style.removeProperty('--text-bar');
+      editor.style.removeProperty('--keyboard');
     };
   }, [layer !== null]);
   if (!layer) return null;
@@ -245,7 +259,24 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
     el.addEventListener('compositionstart', onStart);
     el.addEventListener('compositionend', onEnd);
     el.addEventListener('beforeinput', onBefore);
+    registerEditor({
+      // Done or focus leaving mid-composition: the word being composed is committed (NFC, within the limit).
+      flush: () => {
+        composing.current = null;
+        latest.current?.commit(el.value);
+      },
+      // A cut that keeps the layer (undo, an outside edit): the field shows the layer's text as it now is.
+      resync: () => {
+        if (composing.current) return;
+        const now = project.peek().textLayers.find((x) => x.id === id)?.content ?? '';
+        if (el.value.normalize('NFC') === now) return;
+        el.value = now;
+        el.setSelectionRange(now.length, now.length);
+        setCount(countOf(now));
+      },
+    });
     return () => {
+      registerEditor(null);
       el.removeEventListener('compositionstart', onStart);
       el.removeEventListener('compositionend', onEnd);
       el.removeEventListener('beforeinput', onBefore);
@@ -266,6 +297,20 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
     playback.peek()?.ctl.pause();
   }, [id]);
 
+  // RULE-20: Esc on the editor's own controls (Done, the narrow bar) finishes editing too.
+  useEffect(() => {
+    const el = root.current;
+    if (id === null || !el) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && e.target !== field.current && !e.defaultPrevented) {
+        e.preventDefault();
+        finishEditing();
+      }
+    };
+    el.addEventListener('keydown', onKey);
+    return () => el.removeEventListener('keydown', onKey);
+  }, [id]);
+
   // After editing ends from inside the editor, focus goes to the layer's timeline item (or Add text).
   useEffect(() => {
     onEditingClosed((closed, kept) => {
@@ -279,7 +324,7 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
   if (id === null) return null;
 
   const commit = (value: string): void => {
-    const nfc = value.normalize('NFC');
+    const nfc = clampText(value);
     typeText(nfc);
     setCount(countOf(nfc));
   };
@@ -291,7 +336,10 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
     el.setSelectionRange(caret, caret);
     commit(value);
   };
-  /** Inserts `data` at the selection within the limit; false when nothing fits. */
+  /**
+   * Inserts what fits of `data` at the selection (NFC, whole characters); false when nothing fits. Inserted as
+   * typing is (`insertText`), so the field's own undo keeps working; where that is not available, set directly.
+   */
   const insert = (data: string): boolean => {
     const el = field.current;
     if (!el) return false;
@@ -300,6 +348,11 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
       setCount(RULE_11.maxCharacters);
       return false;
     }
+    const head = el.value.slice(0, el.selectionStart);
+    const room = RULE_11.maxCharacters - countOf(head + el.value.slice(el.selectionEnd));
+    const piece = clampText(data, room);
+    // The inserted piece fits and is NFC, so the beforeinput check lets it through as typing.
+    if (piece && document.execCommand?.('insertText', false, piece)) return true;
     replace(r.value, r.caret);
     return true;
   };
@@ -407,10 +460,16 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
           }
         }}
         onPaste={(e) => {
-          const data = e.clipboardData?.getData('text/plain');
-          if (data === undefined) return;
+          const raw = e.clipboardData?.getData('text/plain');
+          if (raw === undefined) return;
+          const data = raw.replace(/\r\n?/g, '\n');
+          const el = e.currentTarget;
+          const room =
+            RULE_11.maxCharacters - countOf(el.value.slice(0, el.selectionStart) + el.value.slice(el.selectionEnd));
+          // A paste that fits and is already composed goes through natively (the field's undo keeps it).
+          if (data === raw && countOf(data) <= room && data.normalize('NFC') === data) return;
           e.preventDefault();
-          insert(data.replace(/\r\n?/g, '\n'));
+          insert(data);
         }}
         onInput={(e) => {
           if ((e as unknown as InputEvent).isComposing || composing.current) return;

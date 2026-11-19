@@ -505,12 +505,13 @@
       display: none;
     }
     .tk-editor[data-editing] .tk-stage {
-      padding-block: var(--tk-space-2) calc(var(--text-bar, var(--tk-size-touch-target)) + var(--tk-space-2));
+      padding-block: var(--tk-space-2)
+        calc(var(--text-bar, var(--tk-size-touch-target)) + var(--keyboard, 0px) + var(--tk-space-2));
     }
     .tk-texteditor__narrow {
       position: absolute;
       inset-inline: 0;
-      inset-block-end: 0;
+      inset-block-end: var(--keyboard, 0px);
       display: flex;
       flex-direction: column;
       border-block-start: var(--tk-border-width-hairline) solid var(--tk-color-line);

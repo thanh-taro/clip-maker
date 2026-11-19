@@ -20,6 +20,7 @@ import { t } from '../copy';
 import { watchSlow } from './device';
 import { dragging } from './MediaInput';
 import { showNotice } from './notice-stack';
+import { editingText } from './text';
 import { workers } from './workers';
 
 /** The mounted preview of the session (null until the workers run, and on SCR-Unsupported). */
@@ -276,8 +277,22 @@ export function mountPlayback(frame: HTMLElement, stage: HTMLElement): () => voi
 
 const TEXT_INPUTS = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number', '']);
 
-/** The focused element as MOD-Keys' scope check reads it. */
+/** The scope a text being edited gives every key, wherever focus is (F-010, RULE-20). */
+const EDITING: FocusInfo = {
+  tag: 'textarea',
+  role: null,
+  type: null,
+  editable: true,
+  inDialog: false,
+  scrollable: false,
+};
+
+/**
+ * The focused element as MOD-Keys' scope check reads it. RULE-20: while a text layer is edited (CMP-TextEditor
+ * open, focus in its field, on Done or on its bar's controls) every key is a field's: no shortcut acts.
+ */
 export function focusInfo(el: Element | null): FocusInfo | null {
+  if (editingText.peek() !== null) return EDITING;
   if (!el || el === document.body || el === document.documentElement) return null;
   const tag = el.tagName.toLowerCase();
   const type = tag === 'input' ? ((el as HTMLInputElement).type || '').toLowerCase() : null;

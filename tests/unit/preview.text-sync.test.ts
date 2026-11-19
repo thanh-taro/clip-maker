@@ -90,4 +90,21 @@ describe('MOD-Preview text bitmaps for the engine', () => {
     expect(posts.map((m) => m.bitmaps['A']!.bitmap)).toEqual([made[0], made[2]]);
     expect(made[1]!.closed).toBe(true);
   });
+
+  it('ADR-0012 §3 when rasterising fails partway, the bitmaps already made are closed', async () => {
+    const posts: unknown[] = [];
+    const made: FakeBitmap[] = [];
+    const sync = textSync(
+      (m) => posts.push(m),
+      async (l) => {
+        if (l.id === 'B') throw new Error('canvas too large');
+        const b = new FakeBitmap(l.content);
+        made.push(b);
+        return b as unknown as ImageBitmap;
+      },
+    );
+    await expect(sync.update([text('A', 0, 3), text('B', 0, 3)], 640, 360)).rejects.toThrow('canvas too large');
+    expect(made[0]!.closed).toBe(true);
+    expect(posts).toEqual([]);
+  });
 });

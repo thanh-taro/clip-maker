@@ -38,7 +38,13 @@ export function textSync(
         return;
       }
       const made: [TextLayer, ImageBitmap | null][] = [];
-      for (const l of stale) made.push([l, await rasterise(l, W, H)]);
+      try {
+        for (const l of stale) made.push([l, await rasterise(l, W, H)]);
+      } catch (e) {
+        // A layer failed: the bitmaps made so far are never sent, so they are closed here.
+        for (const [, b] of made) b?.close();
+        throw e;
+      }
       if (mine < posted || !live) {
         for (const [, b] of made) b?.close();
         return;

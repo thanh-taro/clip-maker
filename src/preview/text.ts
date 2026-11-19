@@ -104,12 +104,24 @@ export function wrapLines(content: string, maxWidth: number, font: string, measu
   return out;
 }
 
+/**
+ * Lines are measured with the frame scaled to this shorter side and then scaled to the output, so the line
+ * breaks are the same at every output size of a frame (the preview's canvas, each export resolution;
+ * F-010.R5, INV-02): font hinting at small sizes never moves a word to the next line in one and not the other.
+ */
+export const LAYOUT_REFERENCE_S = 1000;
+
 /** Implements: RULE-11 layout of `layer` for an output of `W` × `H` pixels (`s` = the shorter side). */
 export function layoutText(layer: TextLayer, W: number, H: number, measure: Measure): TextLayout {
   const s = Math.min(W, H);
   const px = (layer.size / 100) * s;
   const font = fontOf(layer.typeface, px);
-  const lines = wrapLines(layer.content.normalize('NFC'), RULE_11.wrapWidth * W, font, measure);
+  const k = s / LAYOUT_REFERENCE_S;
+  const refFont = fontOf(layer.typeface, (layer.size / 100) * LAYOUT_REFERENCE_S);
+  const lines = wrapLines(layer.content.normalize('NFC'), (RULE_11.wrapWidth * W) / k, refFont, measure).map((l) => ({
+    text: l.text,
+    width: l.width * k,
+  }));
   const lineHeight = LINE_HEIGHT * px;
   const textWidth = Math.max(0, ...lines.map((l) => l.width));
   const textHeight = lines.length * lineHeight;
@@ -223,6 +235,24 @@ export function canvasMeasure(): Measure {
   };
 }
 
+/**
+ * The bitmap's size: the block and its bleed, but never more than can show — a block centred anywhere in the
+ * frame shows at most the frame's size on each side of its centre — so a tall 500-character title never asks
+ * for a canvas past an engine's limits (WebKit's area limit would drop it silently). The block stays centred in
+ * the bitmap, so the compositor still centres the bitmap on the layer's position.
+ */
+export function bitmapSize(
+  layout: Pick<TextLayout, 'width' | 'height'>,
+  bleed: number,
+  W: number,
+  H: number,
+): { width: number; height: number } {
+  return {
+    width: Math.max(1, Math.ceil(Math.min(layout.width, 2 * W) + 2 * bleed)),
+    height: Math.max(1, Math.ceil(Math.min(layout.height, 2 * H) + 2 * bleed)),
+  };
+}
+
 /** Waits until the layer's face is loaded (all faces load at start-up, ADR-0012 §2; this never fetches again). */
 async function faceReady(layer: TextLayer, px: number): Promise<void> {
   if (typeof document === 'undefined' || !('fonts' in document)) return;
@@ -243,8 +273,7 @@ export async function rasteriseText(layer: TextLayer, W: number, H: number): Pro
   await faceReady(layer, (layer.size / 100) * s);
   const layout = layoutText(layer, W, H, canvasMeasure());
   const bleed = bleedOf(layer, layout, s);
-  const width = Math.max(1, Math.ceil(layout.width + 2 * bleed));
-  const height = Math.max(1, Math.ceil(layout.height + 2 * bleed));
+  const { width, height } = bitmapSize(layout, bleed, W, H);
   const canvas = makeCanvas(width, height);
   const g = canvas.getContext('2d') as Ctx2D | null;
   if (!g) return null;
