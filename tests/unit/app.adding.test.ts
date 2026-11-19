@@ -5,13 +5,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { layoutOf, projectEnd, type FrameRate, type Source } from '../../src/core';
 import { intakeBatch, SourceRegistry, type IntakeItem, type ProbeOutcome } from '../../src/media';
-import { canUndo, history, newProject, playhead, project, undo, isEmpty } from '../../src/project';
+import { canUndo, EMPTY_PROJECT, history, newProject, playhead, project, undo, isEmpty } from '../../src/project';
 import { language } from '../../src/copy';
 import { device, resetDeviceSession } from '../../src/app/device';
 import {
   addFiles,
   cancelAdding,
   configureAdding,
+  dropAdding,
   needsClip,
   openPanel,
   placeAgain,
@@ -403,6 +404,26 @@ describe('ADR-0009 §7 decoded pictures and file references follow the project a
     expect(reg.has(released[0]!)).toBe(false);
     expect(reg.size).toBe(1);
     expect(shown().at(-1)).toEqual(['error', 'refused_list', "Couldn't add:", 'tiny.video.0: too short']);
+  });
+
+  it('RULE-23 F-018.R3 a batch still being checked when a new project starts is dropped, its checked files released', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((r) => (release = r));
+    useProbe((name) => (name.startsWith('slow') ? held : Promise.resolve()));
+    const first = addFiles([file('done.video.2'), file('slow.video.2')]);
+    const second = addFiles([file('queued.video.2')]);
+    await expect.poll(() => progress.value?.position).toBe(2);
+    dropAdding();
+    newProject();
+    release();
+    await Promise.all([first, second]);
+    expect(project.value).toBe(EMPTY_PROJECT);
+    expect(queued.value).toBe(0);
+    expect(released).toHaveLength(1); // done.video.2 was checked: its file and pictures are freed
+    expect(reg.size).toBe(0);
+    // A later batch lands in the new project as usual.
+    await addFiles([file('later.video.2')]);
+    expect(project.value.sources.map((s) => s.name)).toEqual(['later.video.2']);
   });
 
   it('RULE-23 a new project forgets every source', async () => {

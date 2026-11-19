@@ -1,0 +1,212 @@
+/* MOD-App — F-018, tokens only: CMP-ConfirmDialog (board CMP-ConfirmDialog "default · wide", "focus on confirm ·
+   wide", "narrow", "default · vi-VN") and CMP-Toolbar's More menu (board CMP-Toolbar "narrow / More menu open").
+   Wide and compact: a centred dialog over the scrim, at most the popover width, Cancel quiet and New project
+   danger-outlined. Narrow: a bottom sheet with a grab handle, full-width touch-size actions stacked with
+   New project above Cancel. With reduced motion it appears without scaling or sliding. */
+@layer layout {
+  /* ── CMP-ConfirmDialog ── */
+  .tk-confirm {
+    inline-size: min(var(--tk-size-popover), calc(100vw - 2 * var(--tk-space-4)));
+    padding: 0;
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    line-height: var(--tk-font-line-height-normal);
+  }
+
+  .tk-confirm::backdrop {
+    background: var(--tk-color-scrim);
+  }
+
+  .tk-confirm__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-5);
+    padding: var(--tk-space-5);
+  }
+
+  .tk-confirm__grab {
+    display: none;
+  }
+
+  .tk-confirm__text {
+    margin: 0;
+    font-size: var(--tk-font-size-md);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-confirm__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-confirm__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: var(--tk-size-tool-button);
+    padding-inline: var(--tk-space-3);
+    border: var(--tk-border-width-hairline) solid transparent;
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .tk-confirm__button:hover {
+    background: var(--tk-color-surface2);
+  }
+
+  /* The destructive action: its wording and an outline, not colour alone (CMP-ConfirmDialog "Accessibility"). */
+  .tk-confirm__button--danger {
+    border-color: var(--tk-color-danger);
+    color: var(--tk-color-danger);
+  }
+
+  @media (pointer: coarse) {
+    .tk-confirm__button {
+      min-block-size: var(--tk-size-touch-target);
+    }
+  }
+
+  @container tk-editor (width < 700px) {
+    .tk-confirm {
+      inline-size: 100%;
+      max-inline-size: none;
+      margin: auto 0 0;
+      border-block-end: 0;
+      border-radius: var(--tk-radius-md) var(--tk-radius-md) 0 0;
+    }
+
+    .tk-confirm__body {
+      gap: var(--tk-space-4);
+      padding: 0 var(--tk-space-4) calc(var(--tk-space-4) + env(safe-area-inset-bottom));
+    }
+
+    .tk-confirm__grab {
+      display: block;
+      flex: none;
+      inline-size: var(--tk-space-8);
+      block-size: var(--tk-space-1);
+      margin: var(--tk-space-2) auto 0;
+      border-radius: var(--tk-radius-pill);
+      background: var(--tk-color-line-strong);
+    }
+
+    /* New project above Cancel; Cancel stays first in focus order (the safe choice). */
+    .tk-confirm__actions {
+      flex-direction: column-reverse;
+      align-items: stretch;
+    }
+
+    .tk-confirm__button {
+      min-block-size: var(--tk-size-touch-target);
+      font-size: var(--tk-font-size-md);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .tk-confirm[open] {
+      animation: tk-confirm-in var(--tk-motion-duration-base) var(--tk-motion-easing-standard);
+    }
+
+    @container tk-editor (width < 700px) {
+      .tk-confirm[open] {
+        animation-name: tk-confirm-rise;
+      }
+    }
+  }
+
+  @keyframes tk-confirm-in {
+    from {
+      transform: scale(0.96);
+      opacity: 0;
+    }
+  }
+
+  @keyframes tk-confirm-rise {
+    from {
+      transform: translateY(var(--tk-space-8));
+      opacity: 0;
+    }
+  }
+
+  /* ── CMP-Toolbar: the More menu (narrow) ── */
+  .tk-more {
+    display: contents;
+  }
+
+  .tk-tool--more[aria-expanded='true'] {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-more__menu {
+    position: absolute;
+    z-index: 20;
+    inset-block-start: calc(100% + var(--tk-space-1));
+    inset-inline-start: var(--tk-space-1);
+    display: flex;
+    flex-direction: column;
+    inline-size: max-content;
+    max-inline-size: calc(100% - 2 * var(--tk-space-2));
+    padding: var(--tk-space-1);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-surface);
+  }
+
+  .tk-more__item {
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-3);
+    min-block-size: var(--tk-size-touch-target);
+    padding-inline: var(--tk-space-3);
+    border: 0;
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-md);
+    font-weight: var(--tk-font-weight-medium);
+    text-align: start;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .tk-more__item svg {
+    flex: none;
+    color: var(--tk-color-muted);
+  }
+
+  .tk-more__item:hover:not([aria-disabled='true']),
+  .tk-more__item:focus-visible {
+    background: var(--tk-color-surface2);
+  }
+
+  /* Unavailable (Keyboard shortcuts until F-017): legible, muted, still focusable. */
+  .tk-more__item[aria-disabled='true'] {
+    color: var(--tk-color-muted);
+    cursor: default;
+  }
+
+  .tk-more__separator {
+    block-size: var(--tk-border-width-hairline);
+    margin: var(--tk-space-1) var(--tk-space-2);
+    background: var(--tk-color-line);
+  }
+
+  @media (forced-colors: active) {
+    .tk-confirm,
+    .tk-more__menu {
+      border-color: CanvasText;
+    }
+    .tk-confirm__button {
+      border-color: ButtonText;
+    }
+  }
+}

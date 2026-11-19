@@ -46,7 +46,9 @@ export function StatusBar() {
   current.current = view;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || current.current !== 'details') return;
+      if (e.key !== 'Escape' || current.current !== 'details' || e.defaultPrevented) return;
+      // A modal dialog above (CMP-ConfirmDialog, CMP-ExportProgress) takes its own Esc.
+      if (document.querySelector('dialog[open]')) return;
       e.preventDefault();
       close(true);
     };
