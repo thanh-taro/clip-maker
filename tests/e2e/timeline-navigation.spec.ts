@@ -520,7 +520,10 @@ test.describe('F-013 narrow playback (app harness)', () => {
     await page.getByRole('button', { name: text('en-US', 'action.play') }).click();
     await expect.poll(async () => (await preview(page)).playhead, { timeout: 15_000 }).toBeGreaterThan(4);
     await page.getByRole('button', { name: text('en-US', 'action.pause') }).click();
-    const { rebuilds, frames } = await page.evaluate(() => window as unknown as { rebuilds: number; frames: number[] });
+    const { rebuilds, frames } = await page.evaluate(() => {
+      const w = window as unknown as { rebuilds: number; frames: number[] };
+      return { rebuilds: w.rebuilds, frames: w.frames };
+    });
     // 3 s at the fit moves the view a fraction of the made part: a few rebuilds at most, not one a frame.
     expect(rebuilds).toBeLessThanOrEqual(3);
     const sorted = [...frames].sort((a, b) => a - b);
