@@ -15,7 +15,14 @@ export type ExportSettings =
       /** "Under X MB" (whole MB, 1–4000); replaces the quality level when set. */
       readonly targetMB?: number;
     }
-  | { readonly kind: 'gif'; readonly size: 320 | 480 | 640; readonly rate: 10 | 15; readonly from: Micros }
+  | {
+      readonly kind: 'gif';
+      readonly size: 320 | 480 | 640;
+      readonly rate: 10 | 15;
+      readonly from: Micros;
+      /** The range's end (RULE-16); left out, the project's end. At most 15 s after `from` is used. */
+      readonly to?: Micros;
+    }
   | { readonly kind: 'audio'; readonly format: 'compressed' | 'wav' };
 
 /** The video encoder an export uses (MOD-Codec trial record + MOD-Core tables). */

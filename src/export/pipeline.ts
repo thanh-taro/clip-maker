@@ -11,6 +11,7 @@ import { createCompositor, type Compositor, type LookTable, type PaintFrame } fr
 import { createOutput, serveSound, type MediaWriter, type OutPacket, type Sink } from '../container';
 import {
   frameStart,
+  gifCalibrationFrames,
   gifDelays,
   gopFrames,
   projectFrames,
@@ -337,6 +338,67 @@ function done(deps: PipelineDeps, m: Extract<FromExport, { type: 'export:done' }
 
 const beat = (deps: PipelineDeps) => (): void => deps.post({ type: 'export:alive' });
 
+type GifOut = Extract<ExportJob['output'], { kind: 'gif' }>;
+interface GifPainter {
+  readonly comp: Compositor;
+  readonly source: FrameSource;
+  readonly texts: ReadonlyMap<string, TextBitmap>;
+}
+
+/**
+ * GIF frame `i`: painted by the same `paint` as the preview at GIF size, quantised to 256 colours and
+ * written with its delay (hundredths of a second; the first frame carries the loop). Returns the paint time.
+ */
+async function gifFrame(
+  gif: ReturnType<typeof GIFEncoder>,
+  p: GifPainter,
+  project: Project,
+  out: GifOut,
+  i: number,
+  delayCs: number,
+): Promise<number> {
+  const plan = gifFramePlan(project, { from: out.from, rate: out.rate }, i);
+  const pictures = await p.source.frames(plan);
+  const t = performance.now();
+  paintFrame(p.comp, plan, pictures, p.texts);
+  const rgba = p.comp.readPixels();
+  const ms = performance.now() - t;
+  const palette = quantize(rgba, 256);
+  gif.writeFrame(applyPalette(rgba, palette), out.width, out.height, {
+    palette,
+    delay: delayCs * 10,
+    repeat: 0,
+    first: i === 0,
+  });
+  return ms;
+}
+
+/**
+ * Implements: the CMP-ExportPanel "gif" estimate (F-016) — the frames at 10, 50 and 90 % of the range
+ * encoded on their own (no sink); their bytes give the mean frame size.
+ */
+async function gifCalibration(job: Pick<ExportJob, 'project' | 'media' | 'looks' | 'texts' | 'output'>): Promise<Calibration> {
+  const out = job.output;
+  if (out.kind !== 'gif') throw new StageError('internal', 'not a GIF job');
+  const { comp } = compositorFor(job, out.width, out.height);
+  const source = new FrameSource(job.media);
+  const painter = { comp, source, texts: new Map(Object.entries(job.texts)) };
+  const gif = GIFEncoder({ auto: false });
+  const picked = gifCalibrationFrames(out.frames);
+  let bytes = 0;
+  try {
+    for (const i of picked) {
+      await gifFrame(gif, painter, job.project, out, i, 7);
+      bytes += gif.bytesView().length;
+      gif.reset();
+    }
+    return { keyBytes: bytes, keyCount: picked.length, deltaBytes: 0, deltaCount: 0 };
+  } finally {
+    await source.close();
+    comp.dispose();
+  }
+}
+
 /**
  * Implements: F-016.R1, RULE-16 GIF (loops forever, no sound, its own size and rate), ADR-0010 §10 —
  * frames from the same `paint` at GIF size, quantised per frame to 256 colours by gifenc (DEP-05), with
@@ -368,19 +430,7 @@ async function gifExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
   };
   try {
     for (let i = 0; i < out.frames; i++) {
-      const plan = gifFramePlan(job.project, { from: out.from, rate: out.rate }, i);
-      const pictures = await source.frames(plan);
-      const t = performance.now();
-      paintFrame(comp, plan, pictures, texts);
-      const rgba = comp.readPixels();
-      paintMs += performance.now() - t;
-      const palette = quantize(rgba, 256);
-      gif.writeFrame(applyPalette(rgba, palette), out.width, out.height, {
-        palette,
-        delay: delays[i]! * 10,
-        repeat: 0,
-        first: i === 0,
-      });
+      paintMs += await gifFrame(gif, { comp, source, texts }, job.project, out, i, delays[i]!);
       flush();
       if (now() - lastPost >= PROGRESS_POST_MS || i === out.frames - 1) {
         lastPost = now();
@@ -669,6 +719,7 @@ export async function runCalibration(
   ranges: readonly (readonly [number, number])[],
 ): Promise<Calibration> {
   const out = job.output;
+  if (out.kind === 'gif') return gifCalibration(job);
   if (out.kind !== 'video') throw new StageError('internal', 'not a video job');
   const v = out.video;
   const { comp, canvas } = compositorFor(job, v.width, v.height);

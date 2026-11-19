@@ -26,6 +26,7 @@ import {
   videoOutputSize,
   VIDEO_AUDIO_BPS,
   deliveredBps,
+  estimateGifBytes,
   type Calibration,
   type EngineMedia,
   type ExportAudioSpec,
@@ -347,7 +348,8 @@ export function planOutput(
   // RULE-16 GIF: at most 15 s from `from`, its own size and rate, no sound.
   const end = frameStart(frames, rate);
   const from = Math.max(0, Math.min(settings.from, end));
-  const length = Math.min(GIF_MAX_US, end - from);
+  const stop = Math.max(from, Math.min(end, settings.to ?? end));
+  const length = Math.min(GIF_MAX_US, stop - from);
   const gifFrames = Math.max(1, Math.ceil((length * settings.rate) / 1_000_000 - 1e-9));
   const { width, height } = gifOutputSize(frameAspect(project), settings.size);
   return {
@@ -371,7 +373,8 @@ export interface EstimateResult {
 
 /** Runs the calibration encode in the idle export worker (cancellable: `ctx.workers.renew()`). */
 function calibrate(ctx: ExportContext, project: Project, output: ExportOutput): Promise<Calibration> {
-  const { width, height } = output.kind === 'video' ? output.video : { width: 0, height: 0 };
+  const { width, height } =
+    output.kind === 'video' ? output.video : output.kind === 'gif' ? output : { width: 0, height: 0 };
   return ctx.workers.calibrate({
     project,
     media: ctx.media,
@@ -395,6 +398,9 @@ export async function estimate(
 ): Promise<EstimateResult> {
   const sound = hasSound(project);
   const planned = planOutput(project, settings, ctx.caps, sound);
+  // F-016, CMP-ExportPanel "gif": three of the GIF's frames encoded in the idle export worker.
+  if (planned.output.kind === 'gif')
+    return { bytes: estimateGifBytes(await calibrate(ctx, project, planned.output), planned.frames), reachable: true };
   if (planned.output.kind !== 'video' || settings.kind !== 'video')
     return { bytes: planned.nominalBytes, reachable: true };
   const out = planned.output;

@@ -189,6 +189,22 @@ export function gifDelays(rate: number, count: number): number[] {
   return Array.from({ length: count }, (_, i) => at(i + 1) - at(i));
 }
 
+/**
+ * The GIF frames the panel's estimate encodes (F-016, CMP-ExportPanel "gif"): those at 10, 50 and 90 % of
+ * the range, each on its own (a GIF frame doesn't depend on the others).
+ */
+export function gifCalibrationFrames(frames: number): number[] {
+  return [...new Set([0.1, 0.5, 0.9].map((f) => Math.max(0, Math.min(frames - 1, Math.floor(frames * f)))))];
+}
+
+/** The fixed parts of a GIF: header and screen descriptor (13), loop extension (19), trailer (1). */
+export const GIF_FIXED_BYTES = 33;
+
+/** Implements: CMP-ExportPanel "gif" estimate — the mean calibrated frame × frames, plus the fixed parts. */
+export function estimateGifBytes(cal: Pick<Calibration, 'keyBytes' | 'keyCount'>, frames: number): number {
+  return GIF_FIXED_BYTES + Math.round((cal.keyBytes / Math.max(1, cal.keyCount)) * frames);
+}
+
 const two = (n: number): string => String(n).padStart(2, '0');
 
 /** Implements: RULE-15 / F-015.AC5 — `clip-<YYYYMMDD-HHMMSS>.<ext>` in local time. */

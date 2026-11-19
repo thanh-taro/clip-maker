@@ -1,7 +1,7 @@
 ---
 id: F-016
 title: Export an animated image or audio
-status: ready
+status: building
 milestone: M-1
 priority: P2
 personas: [PER-01, PER-04]
