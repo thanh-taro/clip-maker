@@ -18,6 +18,8 @@
 // and the six quick segments, then the Exact slider and field at touch size (the fine control, F-005.R1).
 // F-006: with a video or photo clip selected, the placement rows come first, as in the inspector: the Position row (label on the left, Fit/Fill, the four
 // nudges), the Scale slider row, then Rotate, the flips and Reset at touch size (build question 135); then Speed.
+// F-004 (build question 150): with a photo clip selected, the Duration row (label on the left, slider and field at
+// touch size, F-004.R8) takes Speed's place.
 // F-007: the Adjust tab (COPY-inspector.adjust, last in the bar as style.md orders it) and its sheet
 // (`AdjustSheet`); the tab is unavailable unless a video or photo clip is selected (board SCR-Editor default
 // narrow), and the sheet closes when the selection stops being one.
@@ -61,6 +63,8 @@ import { placementTarget } from './placement';
 import { PositionSection } from './PositionSection';
 import { ARRANGE_ITEMS, CROSSFADE_ITEM, TRIM_ITEMS } from './Timeline';
 import { FadesSection } from './FadesSection';
+import { DurationSection } from './DurationSection';
+import { durationTarget } from './duration';
 import { addTextAndEdit, selectedText } from './text';
 import { TextReset, TextSection } from './TextSection';
 
@@ -309,6 +313,7 @@ export function EditSheet() {
         })}
         {placementTarget.value ? <PositionSection id="tk-sheet-place" touch /> : null}
         {speedTarget.value ? <SpeedSection id="tk-sheet-speed" touch /> : null}
+        {durationTarget.value ? <DurationSection id="tk-sheet-duration" touch /> : null}
         <FadesSection id="tk-sheet-fades" touch />
       </div>
     </section>

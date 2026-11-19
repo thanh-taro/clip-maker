@@ -22,7 +22,8 @@
 // CMP-LookGallery (./LookGallery.tsx): a video clip's tabs are Edit, Adjust, Looks and Sound; a photo clip's
 // Edit, Adjust and Looks (CMP-Inspector "Anatomy").
 // F-009: the Edit tab ends with Fades (./FadesSection.tsx: Fade in, Fade out, the quick toggles), after Speed
-// for a video clip and after Position for a photo clip (its Duration row is F-004's; build question 150).
+// for a video clip and after the Duration row for a photo clip (./DurationSection.tsx, F-004.R8; build
+// question 150).
 // Implements: F-009.R1, CMP-Inspector "Anatomy" (the Edit tab holds Position, Speed or Duration, and Fades),
 // Implements: F-007 UX notes, CMP-Inspector "clip Adjust", F-012.R1–R3 (the controls), F-012 UX notes, CMP-Inspector "Frame (nothing selected)" and
 // "Accessibility" (tabs are a tablist named COPY-inspector.label; single-section panels use a heading;
@@ -56,6 +57,7 @@ import { soundTarget } from './sound';
 import { SoundSection } from './SoundSection';
 import { SpeedSection } from './SpeedSection';
 import { FadesSection } from './FadesSection';
+import { DurationSection } from './DurationSection';
 import { selectedText } from './text';
 import { TextReset, TextSection } from './TextSection';
 
@@ -341,6 +343,7 @@ export function Inspector() {
               <div class="tk-inspector__sections">
                 <PositionSection id="tk-inspector-place" />
                 <SpeedSection id="tk-inspector-speed" />
+                <DurationSection id="tk-inspector-duration" />
                 <FadesSection id="tk-inspector-fades" />
               </div>
             ) : tab === 'looks' ? (

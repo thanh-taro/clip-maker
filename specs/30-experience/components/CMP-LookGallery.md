@@ -18,6 +18,7 @@ Group control (COPY-looks.groups); look tiles with live thumbnail and name (the 
 | focus | Keyboard focus on a tile outlines its thumbnail in violet and previews the look; a muted status line COPY-looks.previewing names it. The chosen look (in another group) stays chosen. |
 | None | None is chosen (mango outline and check); Intensity is unavailable; the hovered tile is outlined in violet and previewed. |
 | drawing | Placeholder thumbnails with a progress icon for tiles not yet drawn; names and choosing stay available. |
+| unavailable | A look that could not be loaded: a plain placeholder with its name; choosing it still works and it shows once it loads; no preview. |
 | narrow / chosen | Bottom sheet with a grabber: the touch-size pill group control, a single row of None and the four looks, and a touch-size Intensity row. |
 | narrow / drawing | Placeholders after the first ready tiles. |
 | narrow / vi-VN | Group and look names in Vietnamese (COPY-looks.title reads "Bộ lọc"); every label fits without truncation. Drawn at a 320 width: the sheet keeps `space.3` side insets, and below 360 the tile row shows four columns and scrolls sideways under a trailing fade to reach the fifth look. |

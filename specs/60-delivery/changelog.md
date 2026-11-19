@@ -2,6 +2,15 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-19 — Wave 4 owner review decisions
+- DEP-13 `approved`: the owner signed off all 16 looks as generated (build question 146); `check-licenses --release` now fails only on the placeholder music (DEP-14, deferred to pre-release).
+- RULE-08 *Drag detent*: a pointer drag of a −100…+100 adjustment slider landing within ±2 of the default lands on 0; keys and the number field still set ±1 and ±2. Built in MOD-App `beginAdjustDrag` (build question 140). CMP-Inspector "Behavior" says so, with the slider-movement rule of build question 129.
+- F-004.R8 and AC11–AC13 (new): a photo's Duration row in CMP-Inspector's Edit tab (Position, Duration, Fades) and the phone Edit sheet, 0.1–60 s in 0.1 s steps; RULE-05 *Photo duration* gains the step. Built (build question 150).
+- CMP-Inspector "clip Speed": a fade that a cross-fade replaces (RULE-10) is dimmed with the new COPY-fades.replaced and stays settable (build question 157); the quick fade toggles' behaviour is written there (build question 151).
+- F-011 and F-015 edge cases: an export whose bundled track can't be read fails with COPY-notice.music_unavailable and is never made without the track (build question 190).
+- Proposals accepted as written (build questions 122–192): F-004.R4 shows the item's length and end time (124); RULE-07 *Position* limit (132); RULE-08 *Quality* and F-007.AC2 name the frame the export encodes, with the file within NFR-08 (145); F-007.AC8 wording (141); RULE-09 *Intensity* starts at 100 for another look (147); RULE-11 *Size* in whole percent and the text nudge (161, 166); RULE-14 *On narrow layouts*, RULE-21 *Timeline* and F-013.R2 (174); RULE-20 *Edit* Mod+C with page text selected (144); CMP-Inspector "clip Adjust" Apply to all with one clip (139), "narrow / Adjust sheet" (138) and "text layer" Reset scope (162); CMP-LookGallery **unavailable** (149); CMP-Preview "clip selected" (133) and "text selected, moving" (165); CMP-TextEditor "Behavior" (160, 163, 164); CMP-Timeline "wide / default" availability (122), "narrow / sheet open" rows and Cross-fade tile (128, 135, 150, 152, 153), "cross-fade" chip (154), "narrow / no sheet" pill (173), "Behavior" popover focus and text-lane rows (155, 167). Recorded as accepted without a spec change: 127, 134, 168, 172, 176, 178, 181, 184, 191, 192.
+- `.build-my-app/reports/build-spec-questions.md` gains "Manual device checks (QA)", the real-device checks noted in the questions.
+
 ## 2026-11-19 — F-015 building
 - F-015 set to `building` (phase 4, wave 4).
 - COPY-export.progress_starting added: CMP-ExportProgress hides the time remaining until its first estimate (F-015.AC12), so the progress line needs a form without it (build question 181). COPY-export.size_unit added: the "MB" after the custom size field, drawn on the CMP-ExportPanel board without a COPY ID. COPY-export.target_unknown (a size target whose check failed, with COPY-action.try_again) and COPY-notice.busy_exporting (files dropped or pasted while exporting) added after the F-015 review (build question 181).

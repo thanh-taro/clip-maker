@@ -76,6 +76,8 @@ export const RULE_08 = /* @__PURE__ */ Object.freeze({
   bipolarMax: 100,
   unipolarMin: 0,
   unipolarMax: 100,
+  /** RULE-08 *Drag detent* (build question 140): a pointer drag of a bipolar slider within ±2 lands on 0. */
+  dragDetent: 2,
 });
 
 /** Implements: RULE-09 looks. */

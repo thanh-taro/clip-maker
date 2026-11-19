@@ -399,6 +399,47 @@ test.describe('F-009 fades and cross-fades (app harness)', () => {
     expect(JSON.parse(await stateOf(page)).clips[0].fadeOut).toBe(S);
   });
 
+  test('F-009.AC7 CMP-Inspector "clip Speed" Q157 a fade a cross-fade replaces is dimmed with COPY-fades.replaced and stays settable; the note goes with the cross-fade', async ({
+    page,
+    browserName,
+  }) => {
+    await twoPhotos(page);
+    await clipButton(page, 'A.png').click();
+    const panel = inspector(page);
+    await typeFade(panel, 'out', '1');
+    const note = panel.getByText(text('en-US', 'fades.replaced'), { exact: true });
+    await expect(note).toHaveCount(0);
+    await addCrossFade(page);
+    await page.keyboard.press('Escape');
+    // A's Fade out is replaced: the row is dimmed, the note describes its slider and field.
+    const outRow = panel.locator('.tk-fades__row[data-edge="out"]');
+    await expect(outRow).toHaveAttribute('data-replaced', '');
+    await expect(note).toHaveCount(1);
+    await expect(fadeSlider(panel, 'out')).toHaveAccessibleDescription(text('en-US', 'fades.replaced'));
+    await expect(fadeField(panel, 'out')).toHaveAccessibleDescription(text('en-US', 'fades.replaced'));
+    await expect(panel.locator('.tk-fades__row[data-edge="in"]')).not.toHaveAttribute('data-replaced', '');
+    expect(Number(await outRow.locator('.tk-fades__slider').evaluate((e) => getComputedStyle(e).opacity))).toBeLessThan(
+      1,
+    );
+    // Still settable (it applies again once the cross-fade goes).
+    await typeFade(panel, 'out', '1.5');
+    expect(JSON.parse(await stateOf(page)).clips[0].fadeOut).toBe(1.5 * S);
+    await shot(page, 'inspector-fade-replaced-wide-en-US', browserName);
+    await axe(page);
+    // B's Fade in is the one replaced on its side.
+    await clipButton(page, 'B.png').click();
+    await expect(panel.locator('.tk-fades__row[data-edge="in"]')).toHaveAttribute('data-replaced', '');
+    await expect(panel.locator('.tk-fades__row[data-edge="out"]')).not.toHaveAttribute('data-replaced', '');
+    await expect(fadeSlider(panel, 'in')).toHaveAccessibleDescription(text('en-US', 'fades.replaced'));
+    // Without the cross-fade, no note.
+    await clipButton(page, 'A.png').click();
+    await pressJoin(page);
+    await expect(popover(page)).toBeVisible();
+    await pop(page, 'action.remove_crossfade').click();
+    await expect(note).toHaveCount(0);
+    await expect(outRow).not.toHaveAttribute('data-replaced', '');
+  });
+
   test('F-009.AC4 F-009.R4 (preview) an audio clip with a 2 s fade out falls to silence along a straight line over its last 2 s', async ({
     page,
     browserName,

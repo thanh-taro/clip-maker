@@ -15,8 +15,8 @@ Frame area on the work area; transport with Previous frame (COPY-action.prev_fra
 | Variant / state | Description |
 |---|---|
 | default | The frame at the playhead with everything applied. The time reads m:ss for the current time, then the frame number as a separate muted suffix, then the muted total length in m:ss (D-039). |
-| clip selected | Violet placement outline and eight white placement handles around the selected clip (`size.handle`, hit area `size.handleHit` on touch). |
-| text selected, moving | Outline and handles around the text block; while moving with snapping on, the frame's centre lines and the safe margins show as dashed violet guides (RULE-11). |
+| clip selected | Violet placement outline and eight white placement handles around the selected clip while the playhead is within it (not during playback) (`size.handle`, hit area `size.handleHit` on touch); dragging anywhere in the frame moves it. |
+| text selected, moving | Outline and handles around the text block; while moving with snapping on, the frame's centre lines and the safe margins show as dashed violet guides, the snapped one stronger (RULE-11). Each text layer shown at the playhead can be clicked or tapped to select it and double-clicked or double-tapped to edit it; with a mouse a drag can start at once, on touch only the selected text drags. The four corner handles and a two-finger pinch scale its size. |
 | playing | Play becomes Pause; the time advances. |
 | empty | The frame in its empty-project shape (16:9) shows the black background with COPY-empty.title; the transport is unavailable and the time reads 0:00. |
 | full screen (maximised) | The frame fills the screen on black; Pause/Play, the time and Exit full screen (COPY-action.exit_full_screen) float on the translucent chrome bar at the bottom centre. |
