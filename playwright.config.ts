@@ -11,8 +11,9 @@ const CI = !!process.env['CI'];
 const PORT = PREVIEW_PORT;
 // Each worker is a browser decoding video, painting WebGL and exporting: about 1 GB at peak. The
 // machine's budget comes from the heavy-run wrapper (BMA_TEST_WORKERS, build-my-app bma_heavy.py);
-// without it, 2 — never "half the CPUs", which exhausted a 16 GB laptop.
-const WORKERS = Math.max(1, Number(process.env['BMA_TEST_WORKERS']) || 2);
+// without it, 1. Two browsers exporting real video at once crashed the 16 GB laptop (2026-11-16 and
+// 2026-11-20), so the e2e suite runs one browser at a time.
+const WORKERS = Math.max(1, Number(process.env['BMA_TEST_WORKERS']) || 1);
 
 export default defineConfig({
   testDir: './tests/e2e',
