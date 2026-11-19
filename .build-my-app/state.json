@@ -54,7 +54,7 @@
     "build": {
       "title": "4 Implementation",
       "status": "in_progress",
-      "step": "4 wave 5: wave 4 reviewed + decisions merged (843/844 e2e, F-020.AC4 passes alone); now F-016 GIF/audio export, then F-017 keyboard & touch",
+      "step": "4 wave 5: F-016 merged (check 9/9, 866 e2e at 1 worker); now F-017 keyboard & touch (last feature)",
       "gate": {
         "status": "pending",
         "at": null,
@@ -739,10 +739,6 @@
     }
   },
   "log": [
-    {
-      "at": "2026-11-03T06:11:11+00:00",
-      "event": "decision D-003 opened: MPL-2.0 muxer (mediabunny) vs permissive-only policy"
-    },
     {
       "at": "2026-11-03T06:11:11+00:00",
       "event": "decision D-004 opened: On-device storage"
@@ -1538,9 +1534,13 @@
     {
       "at": "2026-11-19T13:24:27+00:00",
       "event": "resources: 1 heavy slot(s), 1 builder(s), 1 test worker(s)"
+    },
+    {
+      "at": "2026-11-19T14:00:53+00:00",
+      "event": "build step: 4 wave 5: F-016 merged (check 9/9, 866 e2e at 1 worker); now F-017 keyboard & touch (last feature)"
     }
   ],
-  "updated": "2026-11-19T13:24:27+00:00",
+  "updated": "2026-11-19T14:00:53+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
