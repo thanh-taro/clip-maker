@@ -2,6 +2,10 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-19 — F-013 building
+- F-013 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 173, 174 and 176 (Snapping and Fit on the phone's zoom pill, the centred playhead on narrow layouts only, what snaps).
+- MOD-Timeline: a pinch zooms around the pinch point (F-013.AC4), so on phones it moves the time under the centre line and scrubs; "Public surface": the `zoom`, `snapping` and `playing` signals and the view's `zoomIn`, `zoomOut`, `fit`, `scrollToPlayhead` and `nav` (build question 175).
+
 ## 2026-11-19 — F-010 building
 - F-010 set to `building` (phase 4, wave 4); it stays `building` until the owner answers build questions 160–168 (editing a layer away from the playhead, the text nudges, the text Reset, editing from the keyboard, styling while editing, selecting and scaling text in the preview, whole-percent sizes, the drawing details, the phone editing layout).
 - MOD-Preview "Public surface": `rasteriseText(layer, W, H)` (an output size, not a scale: wrapping needs the frame's width), `textBitmaps`, `layoutText`, `fontOf`, `textSync`, and the text move geometry; MOD-Engine: `setTextBitmaps` takes `keep`.

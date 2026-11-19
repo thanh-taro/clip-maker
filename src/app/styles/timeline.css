@@ -101,11 +101,6 @@
     white-space: nowrap;
   }
 
-  .tk-tl-zoom-frames__px {
-    font-family: var(--tk-font-family-mono);
-    font-variant-numeric: tabular-nums;
-  }
-
   .tk-tl-tool--icon {
     justify-content: center;
     inline-size: var(--tk-size-tool-button);
