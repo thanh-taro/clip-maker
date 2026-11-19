@@ -470,6 +470,34 @@ test.describe('F-017 keyboard review checks (app harness)', () => {
     expect(page.url()).toBe(url);
   });
 
+  test('F-017.R3 ? pressed the moment the preview goes full screen opens the list with focus on Close (the list is never made inert)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    await add(page, [photo('P.png')]);
+    // The race behind a Chromium flake: ? arriving after the full-screen bar renders but before the preview's
+    // full-screen effect runs. Here ? is sent as soon as the bar appears (a mutation callback, ahead of any
+    // effect), so the list is open when that effect makes the rest of the editor inert.
+    await page.evaluate(() => {
+      const shell = document.querySelector('[data-screen="SCR-Editor"]')!;
+      const sendHelp = new MutationObserver(() => {
+        if (!document.querySelector('.tk-fullscreen-bar')) return;
+        sendHelp.disconnect();
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: '?', code: 'Slash', shiftKey: true, bubbles: true }),
+        );
+      });
+      sendHelp.observe(shell, { childList: true, subtree: true });
+      document.querySelector<HTMLButtonElement>('[aria-label="Full screen"]')!.click();
+    });
+    await expect(page.locator('.tk-fullscreen-bar')).toBeVisible();
+    const dialog = helpDialog(page);
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveJSProperty('inert', false);
+    await expect(dialog.getByRole('button', { name: text('en-US', 'action.close') })).toBeFocused();
+  });
+
   test('F-017.R3 with the preview maximised, ? opens the list and Tab / Shift+Tab move between its controls', async ({
     page,
     browserName,
