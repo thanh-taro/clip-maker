@@ -737,7 +737,7 @@ export type RunView =
   | { readonly phase: 'running'; readonly fraction: number; readonly remainingMs: number | null }
   | { readonly phase: 'cancelling'; readonly fraction: number }
   | { readonly phase: 'done'; readonly fileName: string; readonly share: File | null }
-  | { readonly phase: 'failed'; readonly reason?: 'music' }
+  | { readonly phase: 'failed'; readonly reason?: 'music'; readonly kind?: ExportKind }
   | { readonly phase: 'interrupted' | 'no_space' };
 
 /** The export dialog's state (null: no dialog). */
@@ -813,7 +813,10 @@ export async function startExport(settings?: ExportSettings): Promise<void> {
     closeTexts(texts);
     // A cancelled run ends quietly; a bundled track that can't be read says so (build question 120).
     if (!stale())
-      run.value = e instanceof MusicUnavailable ? { phase: 'failed', reason: 'music' } : { phase: 'failed' };
+      run.value =
+        e instanceof MusicUnavailable
+          ? { phase: 'failed', reason: 'music', kind: s.kind }
+          : { phase: 'failed', kind: s.kind };
     return;
   }
   // MOD-Export has posted the bitmaps to its worker (structured clones): ours are no longer needed.
@@ -852,7 +855,20 @@ function finish(result: ExportResult, mark: number, kind: ExportKind): void {
     run.value = null; // the dialog closes and gives focus back to the toolbar's Export
     return;
   }
-  run.value = { phase: ENDS[result.error] ?? 'failed' };
+  const phase = ENDS[result.error] ?? 'failed';
+  run.value = phase === 'failed' ? { phase, kind } : { phase };
+}
+
+/**
+ * Implements: F-016.R3 (build question 201) — the failed dialog's text by export kind: a GIF suggests a smaller
+ * size or a shorter range, audio only suggests WAV; video keeps COPY-error.export_failed.
+ */
+export function failedTextId(
+  kind: ExportKind | undefined,
+): 'error.export_failed' | 'error.export_failed_gif' | 'error.export_failed_audio' {
+  if (kind === 'gif') return 'error.export_failed_gif';
+  if (kind === 'audio') return 'error.export_failed_audio';
+  return 'error.export_failed';
 }
 
 /**

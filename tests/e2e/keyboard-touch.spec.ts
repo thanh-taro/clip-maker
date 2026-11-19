@@ -174,6 +174,66 @@ test.describe('F-017 keyboard (app harness)', () => {
     expect((await clipsOf(page))[0]!.end).toBeCloseTo(3, 2);
   });
 
+  test('F-017.R1 RULE-20 Scope (build question 205) with focus on a timeline clip, Space plays and pauses and does not select it; Enter selects it', async ({
+    page,
+  }) => {
+    await open(page);
+    await add(page, [photo('P.png'), photo('Q.png')]);
+    const item = clip(page, 'Q.png');
+    await item.focus();
+    await expect(item).toHaveAttribute('aria-pressed', 'false');
+    await page.keyboard.press('Space');
+    await expect.poll(async () => (await preview(page)).state).toBe('playing');
+    await expect(item).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect.poll(async () => (await preview(page)).state).toBe('paused');
+    // Space never selected the clip (no click from the button's own Space).
+    await expect(item).toHaveAttribute('aria-pressed', 'false');
+    expect((await clipsOf(page)).map((c) => c.selected)).toEqual([false, false]);
+    // Enter selects it, and playback stays paused.
+    await page.keyboard.press('Enter');
+    await expect(item).toHaveAttribute('aria-pressed', 'true');
+    expect((await clipsOf(page)).map((c) => c.selected)).toEqual([false, true]);
+    expect((await preview(page)).state).toBe('paused');
+    // With the clip selected and focused, Space still plays and keeps the selection.
+    await page.keyboard.press('Space');
+    await expect.poll(async () => (await preview(page)).state).toBe('playing');
+    await page.keyboard.press('Space');
+    await expect.poll(async () => (await preview(page)).state).toBe('paused');
+    await expect(item).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('CMP-MediaPanel (build question 208) Esc in the wide media drawer closes it and returns focus to Add media; an open dialog takes Esc first', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    const chooser = page.waitForEvent('filechooser');
+    await page
+      .locator('.tk-empty')
+      .getByRole('button', { name: text('en-US', 'action.add_media') })
+      .click();
+    await (await chooser).setFiles([photo('P.png')]);
+    await expect.poll(async () => (await clipsOf(page)).length, { timeout: 20_000 }).toBe(1);
+    const drawer = page.locator('.tk-media');
+    await expect(drawer).toHaveAttribute('data-variant', 'drawer');
+    const row = drawer.getByRole('button', { name: text('en-US', 'media.place_again') }).first();
+    await row.focus();
+    // Layering: the shortcut list opened from the drawer takes the first Esc; the drawer stays open.
+    await page.keyboard.press('Shift+Slash');
+    await expect(helpDialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(helpDialog(page)).toHaveCount(0);
+    await expect(drawer).toBeVisible();
+    // Esc with focus in the drawer closes it; focus returns to Add media.
+    await row.focus();
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+    await expect(mainToolbar(page).getByRole('button', { name: text('en-US', 'action.add_media') })).toBeFocused();
+    // The project is untouched (Esc is not an edit).
+    expect((await clipsOf(page)).length).toBe(1);
+  });
+
   test('F-017.AC2 while a text field is edited, S types an s and nothing splits; Mod+Enter finishes editing', async ({
     page,
     browserName,
@@ -408,6 +468,34 @@ test.describe('F-017 keyboard review checks (app harness)', () => {
     await expect.poll(() => order(page)).toEqual(['B.png', 'A.png']);
     await expect(split).toBeFocused();
     expect(page.url()).toBe(url);
+  });
+
+  test('F-017.R3 ? pressed the moment the preview goes full screen opens the list with focus on Close (the list is never made inert)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    await add(page, [photo('P.png')]);
+    // The race behind a Chromium flake: ? arriving after the full-screen bar renders but before the preview's
+    // full-screen effect runs. Here ? is sent as soon as the bar appears (a mutation callback, ahead of any
+    // effect), so the list is open when that effect makes the rest of the editor inert.
+    await page.evaluate(() => {
+      const shell = document.querySelector('[data-screen="SCR-Editor"]')!;
+      const sendHelp = new MutationObserver(() => {
+        if (!document.querySelector('.tk-fullscreen-bar')) return;
+        sendHelp.disconnect();
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: '?', code: 'Slash', shiftKey: true, bubbles: true }),
+        );
+      });
+      sendHelp.observe(shell, { childList: true, subtree: true });
+      document.querySelector<HTMLButtonElement>('[aria-label="Full screen"]')!.click();
+    });
+    await expect(page.locator('.tk-fullscreen-bar')).toBeVisible();
+    const dialog = helpDialog(page);
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveJSProperty('inert', false);
+    await expect(dialog.getByRole('button', { name: text('en-US', 'action.close') })).toBeFocused();
   });
 
   test('F-017.R3 with the preview maximised, ? opens the list and Tab / Shift+Tab move between its controls', async ({

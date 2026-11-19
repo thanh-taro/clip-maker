@@ -109,4 +109,19 @@ describe('MOD-Keys playback keys (RULE-20)', () => {
       expect(scopeOf(focus({ role }), 'Escape')).toBe('none');
     }
   });
+
+  it('RULE-20 Scope (build question 205) a focused timeline item takes Enter only: Space plays and pauses there', () => {
+    const item = focus({ tag: 'button', timelineItem: true });
+    expect(scopeOf(item, 'Space')).toBe('none');
+    expect(resolveKey(key('Space'), scopeOf(item, 'Space'))).toBe('play-pause');
+    expect(scopeOf(item, 'Enter')).toBe('control');
+    expect(resolveKey(key('Enter'), scopeOf(item, 'Enter'))).toBeNull();
+    // Shift+Space and a held Space still do nothing; the item's other keys are unchanged (S splits, Delete deletes).
+    expect(resolveKey(key('Space', { shiftKey: true }), scopeOf(item, 'Space'))).toBeNull();
+    expect(resolveKey(key('Space', { repeat: true }), scopeOf(item, 'Space'))).toBeNull();
+    expect(resolveKey(key('KeyS'), scopeOf(item, 'KeyS'))).toBe('split');
+    // Any other button keeps Space.
+    expect(scopeOf(focus({ tag: 'button' }), 'Space')).toBe('control');
+    expect(scopeOf(focus({ tag: 'button', timelineItem: false }), 'Space')).toBe('control');
+  });
 });

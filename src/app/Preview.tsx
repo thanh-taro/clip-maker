@@ -231,8 +231,11 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
     const main = mainRef.current;
     const editor = main?.parentElement;
     if (mode === 'off' || !stage || !main || !editor) return undefined;
+    // Dialogs are left alone: a modal dialog makes the page behind it inert itself, and one opened just before
+    // this effect runs (? pressed right after entering full screen, CMP-ShortcutHelp) would otherwise be made
+    // inert with its focused control, dropping focus to the page (F-017.R3).
     const outside = [
-      ...Array.from(editor.children).filter((el) => el !== main),
+      ...Array.from(editor.children).filter((el) => el !== main && !(el instanceof HTMLDialogElement)),
       ...Array.from(main.children).filter((el) => el !== stage),
     ] as HTMLElement[];
     const was = outside.map((el) => el.inert);

@@ -359,7 +359,7 @@ describe('F-015 the run (CMP-ExportProgress)', () => {
       detail: 'RangeError: Array buffer allocation failed',
     });
     await started;
-    expect(run.value).toEqual({ phase: 'failed' });
+    expect(run.value).toEqual({ phase: 'failed', kind: 'video' });
     expect(project.value).toBe(before);
     expect(unexported.value).toBe(true);
     expect(editorLocked.value).toBe(false);
@@ -389,7 +389,7 @@ describe('F-015 the run (CMP-ExportProgress)', () => {
     // MOD-Export reports a hand-over that did not happen as a failed export (never ok).
     fake.runs[0]!.end({ ok: false, error: 'error.export_failed', detail: 'AbortError: the save was cancelled' });
     await started;
-    expect(run.value).toEqual({ phase: 'failed' });
+    expect(run.value).toEqual({ phase: 'failed', kind: 'video' });
     expect(unexported.value).toBe(true);
   });
 
@@ -580,7 +580,7 @@ describe('F-015 review fixes', () => {
     fakeExport();
     setExportDeps({ context: async () => Promise.reject(new MusicUnavailable('placeholder-pad')) });
     await startVideoExport();
-    expect(run.value).toEqual({ phase: 'failed', reason: 'music' });
+    expect(run.value).toEqual({ phase: 'failed', reason: 'music', kind: 'video' });
   });
 
   it('SCR-Editor exporting files dropped or pasted during an export are refused with COPY-notice.busy_exporting', async () => {

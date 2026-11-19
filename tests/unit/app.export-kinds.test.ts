@@ -30,6 +30,7 @@ import {
   exportBlock,
   exportKind,
   exportSettings,
+  failedTextId,
   formatGifTime,
   gifChoice,
   gifRange,
@@ -48,6 +49,7 @@ import {
 } from '../../src/app/export';
 import { audioFormatLine, gifFormatLine } from '../../src/app/export-format';
 import { editorLocked } from '../../src/app/lock';
+import { CATALOG } from '../../src/copy/messages.gen';
 import { S, photo, proj, video } from '../support/project';
 
 const MP4: VideoFormat = { id: 'mp4-h264-aac', container: 'mp4', video: 'h264', audio: 'aac', fallback: false };
@@ -496,9 +498,35 @@ describe('F-016 the run (CMP-ExportProgress, F-016.R3)', () => {
     await tick();
     fake.runs[0]!.end({ ok: false, error: 'error.export_failed', detail: 'EncodingError: x' });
     await started;
-    expect(run.value).toEqual({ phase: 'failed' });
+    expect(run.value).toEqual({ phase: 'failed', kind: 'audio' });
     expect(unexported.value).toBe(true);
     closeRun();
+  });
+
+  it('F-016.R3 (build question 201) a failed GIF export names the GIF remedy, COPY-error.export_failed_gif', async () => {
+    await open();
+    chooseKind('gif');
+    const started = startExport();
+    await tick();
+    fake.runs[0]!.end({ ok: false, error: 'error.export_failed', detail: 'EncodingError: x' });
+    await started;
+    expect(run.value).toEqual({ phase: 'failed', kind: 'gif' });
+    closeRun();
+  });
+
+  it('F-016.R3 (build question 201) the failed text by kind: video keeps COPY-error.export_failed, GIF and audio get their own', () => {
+    expect(failedTextId('video')).toBe('error.export_failed');
+    expect(failedTextId(undefined)).toBe('error.export_failed');
+    expect(failedTextId('gif')).toBe('error.export_failed_gif');
+    expect(failedTextId('audio')).toBe('error.export_failed_audio');
+    expect(CATALOG['en-US']['error.export_failed_gif']).toBe(
+      'Your edits are safe. Try a smaller size or a shorter range.',
+    );
+    expect(CATALOG['vi-VN']['error.export_failed_gif']).toBe(
+      'Chỉnh sửa của bạn vẫn còn. Hãy thử kích thước nhỏ hơn hoặc đoạn ngắn hơn.',
+    );
+    expect(CATALOG['en-US']['error.export_failed_audio']).toBe('Your edits are safe. Try WAV.');
+    expect(CATALOG['vi-VN']['error.export_failed_audio']).toBe('Chỉnh sửa của bạn vẫn còn. Hãy thử WAV.');
   });
 
   it('F-016 edge case an audio export of a project without sound doesn’t start', async () => {

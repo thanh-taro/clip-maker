@@ -614,3 +614,40 @@ test.describe('F-016 layouts and accessibility', () => {
     });
   }
 });
+
+test.describe('F-016 failure text by kind (build question 201)', () => {
+  test('F-016.R3 a failed GIF export says COPY-error.export_failed_gif, a failed audio export COPY-error.export_failed_audio, in en-US and vi-VN', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    for (const lang of ['en-US', 'vi-VN'] as const) {
+      // ?exportFault=failed: the real export runs to its first progress, then ends as a failed export.
+      await open(page, lang, '&exportFault=failed');
+      const tone: ToneSpec = {
+        seconds: 3,
+        onset: 0.5,
+        freq: 440,
+        amp: 0.4,
+        codec: 'aac',
+        sampleRate: 48_000,
+        coded: true,
+      };
+      await add(page, [await toned(page, 'tone.mp4', tone)], lang);
+      for (const [kind, copy] of [
+        ['export.kind_gif', 'error.export_failed_gif'],
+        ['export.kind_audio', 'error.export_failed_audio'],
+      ] as const) {
+        const p = await openPanel(page, lang);
+        await tab(p, lang, kind).click();
+        if (kind === 'export.kind_audio') await pick(p, text(lang, 'export.audio_wav'));
+        await expect(go(p, lang)).toBeEnabled({ timeout: 30_000 });
+        await go(p, lang).click();
+        const alert = page.getByRole('alertdialog', { name: text(lang, 'export.failed_title') });
+        await expect(alert).toBeVisible({ timeout: 60_000 });
+        await expect(alert.locator('.tk-run__text')).toHaveText(text(lang, copy));
+        await alert.getByRole('button', { name: text(lang, 'action.close') }).click();
+        await expect(progress(page)).toHaveCount(0);
+      }
+    }
+  });
+});

@@ -29,6 +29,7 @@ Header with COPY-media.title, Add media (COPY-action.add_media) and Close (COPY-
 - Delete removes the source and all its clips as one undo step; the main track closes its gaps (F-001 AC6).
 - Cancel keeps finished files and drops the one being checked and the rest (F-001 R6).
 - Refused items stay listed until dismissed or the panel closes.
+- Esc with focus in the panel closes it and returns focus to the control that opened it (Add media): the narrow sheet, a modal dialog, from anywhere in it; the wide drawer, which isn't modal, too, unless an open dialog, popover or menu, or CMP-TextEditor, takes that Esc first (RULE-20).
 
 ## Accessibility
 - The panel is a complementary region (a dialog on narrow) named COPY-media.title; sources form a list.

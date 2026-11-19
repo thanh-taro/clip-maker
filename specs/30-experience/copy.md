@@ -170,6 +170,8 @@ Rules for every string:
 | **COPY-reason.codec** | this browser can't decode it | trình duyệt này không giải mã được | |
 | **COPY-reason.folder** | folders can't be added | không thể thêm thư mục | |
 | **COPY-error.export_failed** | Your edits are safe. Try a lower resolution. | Chỉnh sửa của bạn vẫn còn. Hãy thử độ phân giải thấp hơn. | |
+| **COPY-error.export_failed_gif** | Your edits are safe. Try a smaller size or a shorter range. | Chỉnh sửa của bạn vẫn còn. Hãy thử kích thước nhỏ hơn hoặc đoạn ngắn hơn. | A failed GIF export (F-016.R3) |
+| **COPY-error.export_failed_audio** | Your edits are safe. Try WAV. | Chỉnh sửa của bạn vẫn còn. Hãy thử WAV. | A failed audio-only export (F-016.R3) |
 | **COPY-error.export_interrupted** | Export stopped because the page was hidden. Your edits are safe. Keep this page open and try again. | Xuất bị dừng vì trang bị ẩn. Chỉnh sửa của bạn vẫn còn. Hãy giữ trang mở và thử lại. | |
 | **COPY-error.no_space** | Not enough free space on this device for this export. | Không đủ dung lượng trống trên máy để xuất. | |
 | **COPY-confirm.new_project** | Start a new project? Unexported changes will be lost. | Bắt đầu dự án mới? Các thay đổi chưa xuất sẽ bị mất. | |

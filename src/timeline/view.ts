@@ -521,6 +521,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const button = el('button', 'tk-clip');
     button.type = 'button';
     button.dataset['clipId'] = id;
+    // RULE-20 *Scope* (build question 205): a timeline item takes Enter only; Space plays and pauses.
+    button.dataset['timelineItem'] = '';
     const label = el('span', 'tk-clip__label', button);
     decorative(label);
     const name = el('span', 'tk-clip__name', label);
@@ -893,6 +895,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const button = el('button', 'tk-tclip');
     button.type = 'button';
     button.dataset['textId'] = id;
+    // RULE-20 *Scope* (build question 205): a timeline item takes Enter only; Space plays and pauses.
+    button.dataset['timelineItem'] = '';
     const name = el('span', 'tk-tclip__name', button);
     decorative(name);
     const past = el('span', 'tk-aclip__past', button);
@@ -955,6 +959,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const button = el('button', 'tk-aclip');
     button.type = 'button';
     button.dataset['audioId'] = id;
+    // RULE-20 *Scope* (build question 205): a timeline item takes Enter only; Space plays and pauses.
+    button.dataset['timelineItem'] = '';
     const wave = el('span', 'tk-aclip__wave', button);
     decorative(wave);
     const chip = el('span', 'tk-aclip__chip', button);
@@ -1758,6 +1764,14 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   track.addEventListener('pointerleave', onJoinLeave);
   track.addEventListener('contextmenu', onContext);
   document.addEventListener('keydown', onKey, true);
+  // Implements: RULE-20 *Scope* (build question 205) — Space on a focused timeline item is not the button's own
+  // key: the playback keys take it on keydown, and a native button's Space activation (on keyup) is stopped here
+  // so the item is not selected. Enter still selects it.
+  const onItemKeyUp = (e: KeyboardEvent): void => {
+    if (e.code !== 'Space') return;
+    if ((e.target as Element | null)?.closest?.('[data-timeline-item]')) e.preventDefault();
+  };
+  host.addEventListener('keyup', onItemKeyUp);
   drop.hidden = true;
 
   return {
@@ -1796,6 +1810,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       if (drag?.timer) clearTimeout(drag.timer);
       if (trim) endTrim('abort');
       document.removeEventListener('keydown', onKey, true);
+      host.removeEventListener('keyup', onItemKeyUp);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       host.removeEventListener('pointerdown', onLanesDown);
