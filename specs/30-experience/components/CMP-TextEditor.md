@@ -22,7 +22,7 @@ Editable text box at the layer's position (COPY-text.field); a floating bar with
 | narrow, keyboard open | The top bar collapses to Undo, Redo and Done (COPY-action.done; Done lives only in the top bar, never in the style bar); the preview shrinks above a touch-size text bar with Font (pressed while its picker is open), Colour and Style (COPY-text.style) only, plus the read-only count, sitting on the on-screen keyboard. Font opens the same two-by-two font picker as CMP-Inspector. |
 
 ## Behavior
-- Opens when a text layer is added or double-clicked/tapped, or when the selected text item on the timeline is activated again (Enter, Space or a second click; the first activation selects it); focus returns to the item when editing ends. Keyboard shortcuts are off while editing (RULE-20); Esc or Mod+Enter or Done finishes.
+- Opens when a text layer is added or double-clicked/tapped, or when the selected text item on the timeline is activated again (Enter or a second click; the first activation selects it; Space plays and pauses, RULE-20); focus returns to the item when editing ends. Keyboard shortcuts are off while editing (RULE-20); Esc or Mod+Enter or Done finishes.
 - Editing a layer that is not at the playhead moves the playhead into it (to its start, or after its text fade), which is not an undo step; editing pauses playback. When the preview can't draw the text (an empty main track), the field shows its letters in the layer's colour.
 - Focus leaving the editor ends the session, so an inspector change made then is its own step; the phone editor's own Font, Colour and Style choices keep the session open and join its step.
 - Adding plus typing until finish is one undo step; a layer left empty or whitespace is removed (RULE-11).

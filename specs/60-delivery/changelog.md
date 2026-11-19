@@ -2,6 +2,13 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-20 — Wave 5 owner review decisions
+- Build questions 198, 201, 205 and 208 accepted as proposed by the owner (the other wave 5 questions, 197–209, were already decided, fixed or informational).
+- RULE-20 *Scope* (question 205): timeline items (clips, text layers, audio clips) take Enter only, so Space plays and pauses there; Enter selects the item. CMP-TextEditor's "activated again" is now Enter or a second click.
+- F-016.R3 and CMP-ExportProgress (question 201): a failed GIF export says the new COPY-error.export_failed_gif, a failed audio-only export the new COPY-error.export_failed_audio; video keeps COPY-error.export_failed.
+- CMP-MediaPanel "Behavior" (question 208): Esc with focus in the wide drawer closes it and returns focus to Add media, unless an open dialog, popover or menu, or CMP-TextEditor, takes that Esc first.
+- CMP-ExportPanel "Behavior" GIF range fields (question 198): accepted as written.
+
 ## 2026-11-19 — Build gate: deferred acceptance tests
 - Tests only, no spec or behaviour change: F-019.AC2, F-019.AC6 and F-019.AC9 run embedded on the host harness (`tests/e2e/host-embedded.spec.ts`; AC9 uses the 60 s photo project that stands in for the NFR-04 fixture, as F-015.AC10 does), and F-022.AC4 compares en-US and vi-VN exports of the same project (`tests/e2e/language.export.spec.ts`), on both automated browser engines. F-001.AC9 stays a manual QA check on the reference phone (Q75).
 

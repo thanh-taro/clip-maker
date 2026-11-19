@@ -321,6 +321,8 @@ export function focusInfo(el: Element | null): FocusInfo | null {
     inDialog: el.closest('dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"]') !== null,
     // CMP-Toolbar / CMP-Timeline: a toolbar's Left and Right move between its buttons (./roving.ts, F-017).
     inToolbar: el.closest('[role="toolbar"]') !== null,
+    // RULE-20 *Scope*: timeline items take Enter only, so Space reaches playback (build question 205).
+    timelineItem: el.hasAttribute('data-timeline-item'),
   };
 }
 

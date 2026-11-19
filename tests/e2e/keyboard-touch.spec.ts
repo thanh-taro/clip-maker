@@ -174,6 +174,66 @@ test.describe('F-017 keyboard (app harness)', () => {
     expect((await clipsOf(page))[0]!.end).toBeCloseTo(3, 2);
   });
 
+  test('F-017.R1 RULE-20 Scope (build question 205) with focus on a timeline clip, Space plays and pauses and does not select it; Enter selects it', async ({
+    page,
+  }) => {
+    await open(page);
+    await add(page, [photo('P.png'), photo('Q.png')]);
+    const item = clip(page, 'Q.png');
+    await item.focus();
+    await expect(item).toHaveAttribute('aria-pressed', 'false');
+    await page.keyboard.press('Space');
+    await expect.poll(async () => (await preview(page)).state).toBe('playing');
+    await expect(item).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect.poll(async () => (await preview(page)).state).toBe('paused');
+    // Space never selected the clip (no click from the button's own Space).
+    await expect(item).toHaveAttribute('aria-pressed', 'false');
+    expect((await clipsOf(page)).map((c) => c.selected)).toEqual([false, false]);
+    // Enter selects it, and playback stays paused.
+    await page.keyboard.press('Enter');
+    await expect(item).toHaveAttribute('aria-pressed', 'true');
+    expect((await clipsOf(page)).map((c) => c.selected)).toEqual([false, true]);
+    expect((await preview(page)).state).toBe('paused');
+    // With the clip selected and focused, Space still plays and keeps the selection.
+    await page.keyboard.press('Space');
+    await expect.poll(async () => (await preview(page)).state).toBe('playing');
+    await page.keyboard.press('Space');
+    await expect.poll(async () => (await preview(page)).state).toBe('paused');
+    await expect(item).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('CMP-MediaPanel (build question 208) Esc in the wide media drawer closes it and returns focus to Add media; an open dialog takes Esc first', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    const chooser = page.waitForEvent('filechooser');
+    await page
+      .locator('.tk-empty')
+      .getByRole('button', { name: text('en-US', 'action.add_media') })
+      .click();
+    await (await chooser).setFiles([photo('P.png')]);
+    await expect.poll(async () => (await clipsOf(page)).length, { timeout: 20_000 }).toBe(1);
+    const drawer = page.locator('.tk-media');
+    await expect(drawer).toHaveAttribute('data-variant', 'drawer');
+    const row = drawer.getByRole('button', { name: text('en-US', 'media.place_again') }).first();
+    await row.focus();
+    // Layering: the shortcut list opened from the drawer takes the first Esc; the drawer stays open.
+    await page.keyboard.press('Shift+Slash');
+    await expect(helpDialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(helpDialog(page)).toHaveCount(0);
+    await expect(drawer).toBeVisible();
+    // Esc with focus in the drawer closes it; focus returns to Add media.
+    await row.focus();
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+    await expect(mainToolbar(page).getByRole('button', { name: text('en-US', 'action.add_media') })).toBeFocused();
+    // The project is untouched (Esc is not an edit).
+    expect((await clipsOf(page)).length).toBe(1);
+  });
+
   test('F-017.AC2 while a text field is edited, S types an s and nothing splits; Mod+Enter finishes editing', async ({
     page,
     browserName,

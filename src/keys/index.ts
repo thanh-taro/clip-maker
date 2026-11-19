@@ -85,6 +85,8 @@ export interface FocusInfo {
   readonly scrollable: boolean;
   /** Inside a toolbar, whose Left and Right move between its buttons (CMP-Toolbar "Accessibility"). */
   readonly inToolbar?: boolean;
+  /** A timeline item (clip, text layer, audio clip): a button that takes Enter only (RULE-20 *Scope*, Q205). */
+  readonly timelineItem?: boolean;
 }
 
 const BUTTON_ROLES = new Set(['button', 'switch', 'checkbox', 'radio', 'tab', 'menuitem', 'menuitemradio', 'option']);
@@ -132,6 +134,8 @@ export function scopeOf(
     focus.tag === 'summary' ||
     (focus.role !== null && BUTTON_ROLES.has(focus.role)) ||
     (focus.tag === 'input' && focus.type !== null && BUTTON_INPUTS.has(focus.type));
+  // A timeline item takes Enter only: Space plays and pauses there, as in video editors (build question 205).
+  if (button && focus.timelineItem && code === 'Space') return 'none';
   if (button && (code === 'Space' || code === 'Enter')) return 'control';
   return 'none';
 }

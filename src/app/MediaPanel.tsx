@@ -24,6 +24,8 @@ import {
 } from './adding';
 import { Icon, type IconName } from './icons';
 import { pickFiles } from './MediaInput';
+import { overlayOpen } from './playback';
+import { editingText } from './text';
 import { ProgressBar } from './NoticeStack';
 
 /** style.md "Layouts": narrow below 700 px of the tool's own width (the frame when embedded). */
@@ -263,6 +265,22 @@ export function MediaPanel() {
         const next = i < 0 ? (e.shiftKey ? n - 1 : 0) : (i + (e.shiftKey ? n - 1 : 1)) % n;
         items[next]?.focus();
       }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, isNarrow]);
+  // Implements: CMP-MediaPanel "Behavior" (build question 208) — the wide drawer isn't modal, but Esc with focus in
+  // it closes it and returns focus to Add media (its opener). An open dialog, sheet, popover or menu, or the text
+  // editor, keeps its own Esc: the drawer closes only when nothing else would take it.
+  useEffect(() => {
+    if (!open || isNarrow) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
+      const el = panel.current;
+      if (!el || !el.contains(document.activeElement)) return;
+      if (overlayOpen(document) || editingText.peek() !== null) return;
+      e.preventDefault();
+      closeAndReturn();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);

@@ -311,7 +311,7 @@ test.describe('F-003 arrange clips (app harness)', () => {
     expect(await order(page)).toEqual(['A.mp4', 'B.png']);
     // …then select another and duplicate it with the visible control.
     await clip(page, 'A.mp4').focus();
-    await page.keyboard.press('Space');
+    await page.keyboard.press('Enter');
     await tool(page, 'action.duplicate').focus();
     await page.keyboard.press('Enter');
     expect(await order(page)).toEqual(['A.mp4', 'A.mp4', 'B.png']);
