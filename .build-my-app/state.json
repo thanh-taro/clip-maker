@@ -54,7 +54,7 @@
     "build": {
       "title": "4 Implementation",
       "status": "in_progress",
-      "step": "4 wave 4: W4-prep, F-004..F-010, F-013, F-015 merged (check 9/9, 792 e2e); next F-018 warn before losing work (last of wave 4)",
+      "step": "4 wave 4 COMPLETE: all merged (check 9/9, 820 e2e; realtime 17/17); owner wave 4 review pending",
       "gate": {
         "status": "pending",
         "at": null,
@@ -739,10 +739,6 @@
     }
   },
   "log": [
-    {
-      "at": "2026-11-03T06:09:36+00:00",
-      "event": "product-spec step: 1.1 brainstorm: round 2 (positioning/MVP scope) — awaiting owner"
-    },
     {
       "at": "2026-11-03T06:11:11+00:00",
       "event": "decision D-001 opened: M-1 scope"
@@ -1538,9 +1534,13 @@
     {
       "at": "2026-11-19T09:41:59+00:00",
       "event": "build step: 4 wave 4: W4-prep, F-004..F-010, F-013, F-015 merged (check 9/9, 792 e2e); next F-018 warn before losing work (last of wave 4)"
+    },
+    {
+      "at": "2026-11-19T10:55:04+00:00",
+      "event": "build step: 4 wave 4 COMPLETE: all merged (check 9/9, 820 e2e; realtime 17/17); owner wave 4 review pending"
     }
   ],
-  "updated": "2026-11-19T09:41:59+00:00",
+  "updated": "2026-11-19T10:55:04+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
