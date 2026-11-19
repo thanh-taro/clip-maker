@@ -5,12 +5,16 @@
 // show three columns; narrow ones a bottom sheet with a grab handle and one scrolling column (shortcuts.css).
 // Implements: F-017.R3, F-017.AC4, CMP-ShortcutHelp "Variants & states", "Behavior" and "Accessibility".
 import { useEffect, useRef } from 'preact/hooks';
-import { language, t } from '../copy';
+import { language, t, type MessageId, type MessageParams } from '../copy';
 import { HELP_GROUPS, isMac, keyCaps, type HelpGroup, type HelpRow } from '../keys';
 import { Icon } from './icons';
 import { closeHelp, helpOpen, takeHelpOpener } from './shortcuts';
 
 const TITLE_ID = 'tk-help-title';
+
+/** A COPY ID without parameters: what MOD-Keys' list labels are (tests/unit/keys.map.test.ts checks each). */
+type Plain = { [K in MessageId]: MessageParams[K] extends undefined ? K : never }[MessageId];
+const label = (id: string): string => t(id as Plain);
 
 export function ShortcutHelp() {
   const open = helpOpen.value;
@@ -106,7 +110,7 @@ function Group({ group, mac }: { group: HelpGroup; mac: boolean }) {
   return (
     <section class="tk-help__group" aria-labelledby={id}>
       <h3 id={id} class="tk-help__heading" data-copy={group.title}>
-        {t(group.title)}
+        {label(group.title)}
       </h3>
       <dl class="tk-help__list">
         {group.rows.map((row) => (
@@ -121,7 +125,7 @@ function Row({ row, mac }: { row: HelpRow; mac: boolean }) {
   return (
     <div class="tk-help__row" data-row={row.label}>
       <dt class="tk-help__label" data-copy={row.label}>
-        {t(row.label)}
+        {label(row.label)}
       </dt>
       <dd class="tk-help__keys">
         {row.hold ? (

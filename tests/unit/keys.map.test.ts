@@ -169,8 +169,8 @@ describe('MOD-Keys the shortcut list (CMP-ShortcutHelp, F-017.R3)', () => {
       'help.finish_editing',
     ]);
     for (const r of rows) {
-      expect(CATALOG['en-US'][r.label]).toBeTruthy();
-      expect(CATALOG['vi-VN'][r.label]).toBeTruthy();
+      expect((CATALOG['en-US'] as Record<string, unknown>)[r.label], r.label).toEqual(expect.any(String));
+      expect((CATALOG['vi-VN'] as Record<string, unknown>)[r.label], r.label).toEqual(expect.any(String));
     }
     const listed = new Set(rows.flatMap((r) => r.actions));
     for (const a of ALL) expect(listed.has(a), a).toBe(true);

@@ -8,12 +8,11 @@
 // CMP-ShortcutHelp lists it.
 // Implements: RULE-20 (Scope, Playback, Edit, History, View, Files, Help), F-017.R1, F-017.R3 (the list),
 // F-017.R5 (a focused control that uses a key gets it), F-003.R6, F-014.R1.
-import type { MessageId, MessageParams } from '../copy/messages.gen';
-
-/** A COPY ID that takes no parameters (the list's titles and descriptions). */
-export type HelpLabel = {
-  [K in MessageId]: MessageParams[K] extends undefined ? K : never;
-}[MessageId];
+/**
+ * A COPY ID of the shortcut list (COPY-help.*, COPY-action.*). MOD-Keys imports only MOD-Core, so the ID is a
+ * string here; MOD-App's CMP-ShortcutHelp reads it from the catalogue, and a unit test checks every one exists.
+ */
+export type HelpLabel = `help.${string}` | `action.${string}`;
 
 /** Where focus is when a key is pressed (MOD-Keys "Responsibility"). */
 export type KeyScope = 'none' | 'field' | 'dialog' | 'control';

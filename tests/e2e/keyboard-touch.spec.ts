@@ -244,18 +244,28 @@ test.describe('F-017 keyboard (app harness)', () => {
     await page.keyboard.press(`${modOf(browserName)}+KeyC`);
     // B selected; the clipboard holds a video file: Mod+V adds it (the browser's paste event carries it).
     await clip(page, 'B.mp4').click();
-    await page.evaluate((bytes) => {
-      const mac = /mac/i.test(navigator.platform);
-      const target = document.activeElement ?? document.body;
-      target.dispatchEvent(
-        new KeyboardEvent('keydown', { code: 'KeyV', key: 'v', metaKey: mac, ctrlKey: !mac, bubbles: true, cancelable: true }),
-      );
-      const data = new DataTransfer();
-      data.items.add(new File([new Uint8Array(bytes)], 'C.mp4', { type: 'video/mp4' }));
-      const e = new Event('paste', { bubbles: true, cancelable: true });
-      Object.defineProperty(e, 'clipboardData', { value: data });
-      target.dispatchEvent(e);
-    }, [...VIDEO_BYTES]);
+    await page.evaluate(
+      (bytes) => {
+        const mac = /mac/i.test(navigator.platform);
+        const target = document.activeElement ?? document.body;
+        target.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            code: 'KeyV',
+            key: 'v',
+            metaKey: mac,
+            ctrlKey: !mac,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+        const data = new DataTransfer();
+        data.items.add(new File([new Uint8Array(bytes)], 'C.mp4', { type: 'video/mp4' }));
+        const e = new Event('paste', { bubbles: true, cancelable: true });
+        Object.defineProperty(e, 'clipboardData', { value: data });
+        target.dispatchEvent(e);
+      },
+      [...VIDEO_BYTES],
+    );
     await expect.poll(async () => (await clipsOf(page)).length, { timeout: 20_000 }).toBe(3);
     await page.waitForTimeout(100);
     expect((await clipsOf(page))[1]!.adjustments).toEqual({});
@@ -315,7 +325,10 @@ test.describe('F-017 keyboard (app harness)', () => {
     await (await chooser).setFiles([photo('P.png')]);
     await expect.poll(async () => (await clipsOf(page)).length, { timeout: 20_000 }).toBe(1);
     await expect(page.locator('.tk-media')).toBeVisible();
-    await page.locator('.tk-media').getByRole('button', { name: text('en-US', 'action.close') }).click();
+    await page
+      .locator('.tk-media')
+      .getByRole('button', { name: text('en-US', 'action.close') })
+      .click();
     await expect(page.locator('.tk-media')).toHaveCount(0);
     await page.locator('.tk-preview-area').click({ position: { x: 5, y: 5 } });
     await page.keyboard.press(`${mod}+KeyE`);
@@ -485,6 +498,7 @@ test.describe('F-017 roving focus (app harness)', () => {
     await page.keyboard.press('Enter');
     await expect(tab('tab.audio')).toHaveAttribute('aria-selected', 'true');
     expect(await tablist.locator('[tabindex="0"]').count()).toBe(1);
+    await shot(page, 'tabbar-audio-sheet', browserName);
   });
 });
 
@@ -504,7 +518,11 @@ test.describe('F-017 keyboard-only walkthrough (app harness)', () => {
     await (await chooser).setFiles([video('A.mp4'), photo('B.png')]);
     await expect.poll(() => order(page), { timeout: 20_000 }).toEqual(['A.mp4', 'B.png']);
     // The wide media drawer is not modal: Tab to its Close and press Enter.
-    await tabTo(page, page.locator('.tk-media').getByRole('button', { name: text('en-US', 'action.close') }), browserName);
+    await tabTo(
+      page,
+      page.locator('.tk-media').getByRole('button', { name: text('en-US', 'action.close') }),
+      browserName,
+    );
     await page.keyboard.press('Enter');
     await expect(page.locator('.tk-media')).toHaveCount(0);
     // Arrange: Tab to A on the timeline, select it with Enter, Alt+Right moves it after B.
@@ -523,12 +541,16 @@ test.describe('F-017 keyboard-only walkthrough (app harness)', () => {
     expect(here).toBeLessThan(a.end);
     await page.keyboard.press('KeyI');
     // A now starts at the playhead: shorter by what was before it (later clips none; it ends where it ended).
-    await expect.poll(async () => (await clipsOf(page))[1]!.end - (await clipsOf(page))[1]!.start).toBeCloseTo(a.end - here, 1);
+    await expect
+      .poll(async () => (await clipsOf(page))[1]!.end - (await clipsOf(page))[1]!.start)
+      .toBeCloseTo(a.end - here, 1);
     // Adjust: Tab to the inspector's clip tabs, Right selects Adjust, Tab to Brightness, Right raises it.
     const inspector = page.getByRole('complementary', { name: text('en-US', 'inspector.label') });
     const tabs = inspector.getByRole('tablist', { name: text('en-US', 'inspector.label') });
     await tabTo(page, tabs.getByRole('tab', { selected: true }), browserName);
-    while ((await tabs.getByRole('tab', { selected: true }).textContent())?.trim() !== text('en-US', 'inspector.adjust'))
+    while (
+      (await tabs.getByRole('tab', { selected: true }).textContent())?.trim() !== text('en-US', 'inspector.adjust')
+    )
       await page.keyboard.press('ArrowRight');
     const brightness = inspector
       .getByRole('group', { name: text('en-US', 'adjust.brightness'), exact: true })
@@ -622,9 +644,13 @@ test.describe('F-017 touch on a phone (app harness)', () => {
     // pinch zoom → zoom controls (the pill): Zoom in widens the timeline as a pinch out does (F-013.AC4).
     const track = page.locator('.tk-track');
     const width = (await track.boundingBox())!.width;
-    await timeline(page).getByRole('button', { name: text('en-US', 'action.zoom_in'), exact: true }).click();
+    await timeline(page)
+      .getByRole('button', { name: text('en-US', 'action.zoom_in'), exact: true })
+      .click();
     await expect.poll(async () => (await track.boundingBox())!.width).toBeGreaterThan(width * 1.2);
-    await timeline(page).getByRole('button', { name: text('en-US', 'action.zoom_fit'), exact: true }).click();
+    await timeline(page)
+      .getByRole('button', { name: text('en-US', 'action.zoom_fit'), exact: true })
+      .click();
     // hold-and-drag (clip) → Move later in the Edit sheet: the same new order as dragging A after B.
     await clip(page, 'A.png').click();
     await page.getByRole('tab', { name: text('en-US', 'inspector.edit') }).click();
@@ -643,7 +669,9 @@ test.describe('F-017 touch on a phone (app harness)', () => {
     await at(page, 3.5);
     const placement = (await clipsOf(page))[1]!.placement;
     await sheet.getByRole('button', { name: text('en-US', 'placement.nudge_right'), exact: true }).click();
-    await expect.poll(async () => JSON.stringify((await clipsOf(page))[1]!.placement)).not.toBe(JSON.stringify(placement));
+    await expect
+      .poll(async () => JSON.stringify((await clipsOf(page))[1]!.placement))
+      .not.toBe(JSON.stringify(placement));
     // scrub → frame step and play.
     await at(page, 1);
     await page.getByRole('button', { name: text('en-US', 'action.next_frame') }).click();
@@ -674,7 +702,10 @@ test.describe('F-017 touch on a phone (app harness)', () => {
     for (const b of await textSheet.getByRole('button').all()) {
       if (!(await b.isVisible())) continue;
       const box = (await b.boundingBox())!;
-      if (Math.min(box.width, box.height) < 44) small.push(`${await b.evaluate((el) => `${el.className} ${el.getAttribute('aria-labelledby') ?? ''} ${el.title}`)} ${box.width}x${box.height}`);
+      if (Math.min(box.width, box.height) < 44)
+        small.push(
+          `${await b.evaluate((el) => `${el.getAttribute('class') ?? ''} ${el.textContent ?? ''}`)} ${box.width}x${box.height}`,
+        );
     }
     expect(small).toEqual([]);
     await shot(page, 'touch-text-sheet', browserName);
