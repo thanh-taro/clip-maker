@@ -195,26 +195,21 @@ const soundTrials = (caps: Capabilities): Promise<ExportCaps['audio']> =>
  * MOD-Codec), with the trial's latency mode, acceleration and bitrate modes. Null: no video format works.
  */
 export async function exportCaps(caps: Capabilities, sound: boolean): Promise<ExportCaps | null> {
+  // A sound encoder whose trial failed leaves the formats that need it out (RULE-22, F-023.R5).
+  const audio = sound ? await soundTrials(caps) : {};
   const failed = new Set<VideoCodecId>();
   for (;;) {
-    const usable = { ...caps, encode: { ...caps.encode } };
+    const usable = {
+      ...caps,
+      encode: { ...caps.encode },
+      audioEncode: sound ? { aac: !!audio.aac, opus: !!audio.opus } : caps.audioEncode,
+    };
     for (const c of failed) usable.encode[c] = false;
     const f = chooseVideoFormat(usable, sound);
     if (!f) return null;
     const trial = await videoTrial(f.video).catch(() => null);
-    if (!trial?.ok) {
-      failed.add(f.video);
-      continue;
-    }
-    // A sound encoder whose trial failed leaves the formats that need it out (RULE-22, F-023.R5).
-    const audio = sound ? await soundTrials(caps) : {};
-    if (sound && f.audio && !audio[f.audio]) {
-      const withoutSound = { ...usable, audioEncode: { aac: !!audio.aac, opus: !!audio.opus } };
-      const g = chooseVideoFormat(withoutSound, true);
-      if (g && g.video === f.video) return capsOf(g, caps, trial, audio);
-      if (!g) return null;
-    }
-    return capsOf({ ...f, fallback: f.fallback || failed.size > 0 }, caps, trial, audio);
+    if (trial?.ok) return capsOf(f, caps, trial, audio);
+    failed.add(f.video);
   }
 }
 
@@ -265,8 +260,9 @@ export const exportGrid = signal<readonly GridCell[] | null>(null);
 /** RULE-15: the sizes the panel offers for the session's project. */
 export const offers = computed(() => {
   const caps = capabilities.value;
-  const encodes = caps ? Object.values(caps.encode).some(Boolean) : false;
-  return resolutionOffers(project.value, encodes, exportGrid.value);
+  // No format works after the trial encodes: every size reads COPY-export.res_no_encoder (PRN-07).
+  const encodes = caps && !noFormat.value ? Object.values(caps.encode).some(Boolean) : false;
+  return resolutionOffers(project.value, encodes, noFormat.value ? null : exportGrid.value);
 });
 export const resolution = computed(() => chosenResolution(videoChoice.value, offers.value));
 

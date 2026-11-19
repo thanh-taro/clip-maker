@@ -425,3 +425,11 @@ describe('F-015 the run (CMP-ExportProgress)', () => {
     }
   });
 });
+
+describe('ADR-0004 the export capability record', () => {
+  it('RULE-15 F-023.R5 with no sound encoder passing, a project with sound gets no format that needs one', async () => {
+    const { exportCaps } = await import('../../src/app/export');
+    const noAudio = { ...PROBE, audioEncode: { aac: false, opus: false } } as Capabilities;
+    expect(await exportCaps(noAudio, true)).toBeNull();
+  });
+});

@@ -20,7 +20,6 @@ import {
   chooseTarget,
   closePanel,
   estimateView,
-  noFormat,
   offers,
   panelOpen,
   parseTarget,
@@ -302,8 +301,6 @@ export function ExportPanel() {
             <span class="tk-export__note" data-notice="needs_clip">
               {t('notice.needs_clip')}
             </span>
-          ) : noFormat.value ? (
-            <span class="tk-export__note">{t('unsupported.missing_encode')}</span>
           ) : advice ? null : (
             <>
               <span class="tk-export__estimate" data-estimate={e.status}>
