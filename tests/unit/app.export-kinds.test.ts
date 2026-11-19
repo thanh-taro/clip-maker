@@ -141,15 +141,18 @@ describe('F-016 CMP-ExportPanel kinds', () => {
     capabilities.value = PROBE;
     sessionCaps.value = CAPS;
     capsSound.value = true;
-    setExportDeps({ caps: async () => CAPS, grid: async () => null, estimate: async () => ({ bytes: 1, reachable: true }) });
+    setExportDeps({
+      caps: async () => CAPS,
+      grid: async () => null,
+      estimate: async () => ({ bytes: 1, reachable: true }),
+    });
   });
   afterEach(() => {
     resetExportSession();
     capabilities.value = null;
   });
 
-  const forty = () =>
-    edit(() => ({ project: proj({ clips: [photo('A', 40)] }), notices: [], changed: [] }));
+  const forty = () => edit(() => ({ project: proj({ clips: [photo('A', 40)] }), notices: [], changed: [] }));
 
   it('F-016.AC1 RULE-16 picking GIF with the playhead at 10 s of a 40 s project gives 10–25 s at 480 and 15 fps', async () => {
     forty();
@@ -221,6 +224,19 @@ describe('F-016 CMP-ExportPanel kinds', () => {
     expect(exportSettings.value).toEqual({ kind: 'audio', format: 'wav' });
   });
 
+  it('F-023.R5 RULE-16 with sound and no sound encoder, video export is unavailable but GIF and WAV stay', async () => {
+    edit(() => ({ project: proj({ clips: [video('A', 4)] }), notices: [], changed: [] }));
+    const noVideo: ExportCaps = { ...CAPS, videoFormat: null, audioFormat: { id: 'wav', fallback: true }, audio: {} };
+    setExportDeps({ caps: async () => noVideo });
+    await open();
+    expect(canExport.value).toBe(false);
+    chooseKind('gif');
+    expect(canExport.value).toBe(true);
+    chooseKind('audio');
+    expect(exportSettings.value).toEqual({ kind: 'audio', format: 'wav' });
+    expect(canExport.value).toBe(true);
+  });
+
   it('F-016 edge case RULE-16 a project with no unmuted sound: audio only is unavailable with COPY-notice.no_sound_to_export', async () => {
     edit(() => ({ project: proj({ clips: [video('A', 4, { muted: true })] }), notices: [], changed: [] }));
     capsSound.value = false;
@@ -255,7 +271,7 @@ describe('F-016 CMP-ExportPanel kinds', () => {
         return { bytes: 2_400_000, reachable: true };
       },
     });
-    edit(() => ({ project: proj({ clips: [video("A", 40)] }), notices: [], changed: [] }));
+    edit(() => ({ project: proj({ clips: [video('A', 40)] }), notices: [], changed: [] }));
     playhead.value = 10 * S;
     await open();
     chooseKind('gif');

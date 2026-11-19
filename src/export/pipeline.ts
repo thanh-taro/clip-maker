@@ -377,7 +377,9 @@ async function gifFrame(
  * Implements: the CMP-ExportPanel "gif" estimate (F-016) — the frames at 10, 50 and 90 % of the range
  * encoded on their own (no sink); their bytes give the mean frame size.
  */
-async function gifCalibration(job: Pick<ExportJob, 'project' | 'media' | 'looks' | 'texts' | 'output'>): Promise<Calibration> {
+async function gifCalibration(
+  job: Pick<ExportJob, 'project' | 'media' | 'looks' | 'texts' | 'output'>,
+): Promise<Calibration> {
   const out = job.output;
   if (out.kind !== 'gif') throw new StageError('internal', 'not a GIF job');
   const { comp } = compositorFor(job, out.width, out.height);

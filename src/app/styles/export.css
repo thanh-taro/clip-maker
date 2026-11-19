@@ -1,5 +1,5 @@
-/* MOD-App — F-015 export, tokens only: CMP-ExportPanel (board CMP-ExportPanel "video · wide", "fallback",
-   "narrow 390 · lower res", "narrow 320 · vi-VN", "needs clip"; SCR-Editor "exporting-setup" wide and
+/* MOD-App — F-015 and F-016 export, tokens only: CMP-ExportPanel (board CMP-ExportPanel "video · wide",
+   "fallback", "narrow 390 · lower res", "narrow 320 · vi-VN", "gif", "audio · no sound", "needs clip"; SCR-Editor "exporting-setup" wide and
    narrow), CMP-ExportProgress (board CMP-ExportProgress; SCR-Editor "exporting" and "export-error") and the
    toolbar Export's opener states (CMP-ExportPanel "opener states"). Wide and compact: the panel docks in the
    inspector column in place of the inspector. Narrow: a bottom sheet above the tab bar (40 % of the height,
@@ -285,6 +285,106 @@
     box-shadow: none;
   }
 
+  /* ── F-016 GIF: From/To time fields, then Size and Frames per second side by side (board "gif") ── */
+  .tk-export__times,
+  .tk-export__pair {
+    display: flex;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-export__pair {
+    flex-wrap: wrap;
+  }
+
+  .tk-export__field--size {
+    flex: none;
+  }
+
+  .tk-export__field--rate {
+    flex: 1;
+  }
+
+  .tk-export__time {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+    min-inline-size: 0;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-export__time-input {
+    inline-size: 100%;
+    block-size: var(--tk-size-control);
+    padding-inline: var(--tk-space-2);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-sm);
+    background: var(--tk-color-bg);
+    color: var(--tk-color-fg);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-input);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* RULE-16: a project of 15 s or less is exported whole; the fields show it and can't be changed. */
+  .tk-export__time-input:read-only {
+    border-color: var(--tk-color-line);
+    background: var(--tk-color-surface2);
+    color: var(--tk-color-muted);
+  }
+
+  .tk-export__time-input:focus-visible {
+    outline: var(--tk-border-width-focus) solid var(--tk-color-focus);
+    outline-offset: 2px;
+  }
+
+  /* ── F-016 Audio only: the format as a list of radio rows (board "audio · no sound") ── */
+  .tk-export__radios {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-0-5);
+  }
+
+  .tk-export__radio {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-2);
+    min-block-size: var(--tk-size-control);
+    padding-inline: var(--tk-space-2);
+    border-radius: var(--tk-radius-sm);
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-semibold);
+    cursor: pointer;
+  }
+
+  .tk-export__radio:hover:not(:has(input:checked)) {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-export__radio:has(input:checked) {
+    background: var(--tk-color-selection);
+  }
+
+  .tk-export__radio:has(input:focus-visible) {
+    outline: var(--tk-border-width-focus) solid var(--tk-color-focus);
+    outline-offset: 2px;
+  }
+
+  .tk-export__dot {
+    flex: none;
+    inline-size: var(--tk-space-4);
+    block-size: var(--tk-space-4);
+    border: var(--tk-border-width-focus) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-pill);
+  }
+
+  .tk-export__radio:has(input:checked) .tk-export__dot {
+    border: calc(var(--tk-space-1) + var(--tk-border-width-hairline)) solid var(--tk-color-accent);
+  }
+
   .tk-export__advice {
     display: flex;
     flex-direction: column;
@@ -487,6 +587,16 @@
       block-size: var(--tk-size-touch-target);
     }
 
+    /* F-016: touch-size time fields and format rows; GIF size and rate each take the full row. */
+    .tk-export__time-input,
+    .tk-export__radio {
+      min-block-size: var(--tk-size-touch-target);
+    }
+
+    .tk-export__pair > .tk-export__field {
+      flex: 1 1 100%;
+    }
+
     .tk-export__use--body {
       display: none;
     }
@@ -550,6 +660,8 @@
     .tk-export__kind,
     .tk-export__button,
     .tk-export__custom-input,
+    .tk-export__time-input,
+    .tk-export__radio,
     .tk-export__icon-button {
       min-block-size: var(--tk-size-touch-target);
     }

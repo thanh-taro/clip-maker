@@ -1,7 +1,13 @@
 // MOD-Export / MOD-Core — F-016's GIF range end and the panel's GIF estimate (three of the GIF's frames
 // encoded in the idle export worker, here a fake worker answering the calibration).
 import { describe, expect, it } from 'vitest';
-import { estimateGifBytes, gifCalibrationFrames, GIF_FIXED_BYTES, type FromExport, type ToExport } from '../../src/core';
+import {
+  estimateGifBytes,
+  gifCalibrationFrames,
+  GIF_FIXED_BYTES,
+  type FromExport,
+  type ToExport,
+} from '../../src/core';
 import { estimate, planOutput } from '../../src/export';
 import { CAPS, harness } from '../support/export-session';
 import { proj, S, video } from '../support/project';

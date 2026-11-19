@@ -437,10 +437,13 @@ describe('F-015 the run (CMP-ExportProgress)', () => {
 });
 
 describe('ADR-0004 the export capability record', () => {
-  it('RULE-15 F-023.R5 with no sound encoder passing, a project with sound gets no format that needs one', async () => {
+  it('RULE-15 F-023.R5 with no sound encoder passing, a project with sound gets no format that needs one; WAV stays', async () => {
     const { exportCaps } = await import('../../src/app/export');
     const noAudio = { ...PROBE, audioEncode: { aac: false, opus: false } } as Capabilities;
-    expect(await exportCaps(noAudio, true)).toBeNull();
+    const ec = await exportCaps(noAudio, true);
+    expect(ec.videoFormat).toBeNull();
+    // F-016 / F-023.R5: the GIF and WAV exports need neither, so the record still exists with WAV.
+    expect(ec.audioFormat).toEqual({ id: 'wav', fallback: true });
   });
 });
 

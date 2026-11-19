@@ -302,9 +302,11 @@ const soundTrials = (caps: Capabilities): Promise<ExportCaps['audio']> =>
 /**
  * Implements: RULE-15 *Output*, ADR-0004 §3/§5 — the first format of the fallback order whose encoders pass
  * the start-up probe and whose video trial encode works (a failed trial drops that codec for the session,
- * MOD-Codec), with the trial's latency mode, acceleration and bitrate modes. Null: no video format works.
+ * MOD-Codec), with the trial's latency mode, acceleration and bitrate modes. The audio-only compressed format
+ * follows the sound trials too (RULE-16). When no video format works (`videoFormat` null), the GIF and WAV
+ * exports, which need no video or sound encoder, stay available (F-023.R5).
  */
-export async function exportCaps(caps: Capabilities, sound: boolean): Promise<ExportCaps | null> {
+export async function exportCaps(caps: Capabilities, sound: boolean): Promise<ExportCaps> {
   // A sound encoder whose trial failed leaves the formats that need it out (RULE-22, F-023.R5).
   const audio = sound ? await soundTrials(caps) : {};
   const failed = new Set<VideoCodecId>();
@@ -316,27 +318,26 @@ export async function exportCaps(caps: Capabilities, sound: boolean): Promise<Ex
     };
     for (const c of failed) usable.encode[c] = false;
     const f = chooseVideoFormat(usable, sound);
-    if (!f) return null;
+    if (!f) return capsOf(null, usable, null, audio);
     const trial = await videoTrial(f.video).catch(() => null);
-    // The audio-only compressed format also follows the sound trials (RULE-16, F-023.R5).
     if (trial?.ok) return capsOf(f, usable, trial, audio);
     failed.add(f.video);
   }
 }
 
 function capsOf(
-  f: NonNullable<ReturnType<typeof chooseVideoFormat>>,
-  caps: Capabilities,
-  trial: VideoTrial,
+  f: ReturnType<typeof chooseVideoFormat>,
+  caps: Pick<Capabilities, 'audioEncode'>,
+  trial: VideoTrial | null,
   audio: ExportCaps['audio'],
 ): ExportCaps {
   return {
     videoFormat: f,
     audioFormat: chooseAudioFormat(caps),
     video: {
-      latencyMode: trial.latencyMode ?? 'realtime',
-      acceleration: trial.acceleration ?? 'no-preference',
-      bitrateModes: trial.bitrateModes,
+      latencyMode: trial?.latencyMode ?? 'realtime',
+      acceleration: trial?.acceleration ?? 'no-preference',
+      bitrateModes: trial?.bitrateModes ?? [],
     },
     audio,
   };
@@ -646,7 +647,7 @@ async function refreshCaps(p: Project): Promise<void> {
   if (capsFor.caps !== caps || capsFor.sound !== sound) return;
   sessionCaps.value = ec;
   capsSound.value = sound;
-  noFormat.value = ec === null;
+  noFormat.value = ec === null || ec.videoFormat === null; // F-023.R5: GIF and WAV stay
   if (ec?.videoFormat) exportGrid.value = await deps.grid(ec.videoFormat.video);
 }
 
