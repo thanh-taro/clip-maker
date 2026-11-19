@@ -54,7 +54,7 @@
     "build": {
       "title": "4 Implementation",
       "status": "in_progress",
-      "step": "4 wave 4: W4-prep, F-004..F-010, F-013 merged (check 9/9, 763 e2e); next F-015 export video (+security audit), then F-018",
+      "step": "4 wave 4: F-015 merged to main (f06b1e4); full check NOT yet run (aborted twice: machine memory critical, swap ~13.7 GB used by other apps). Next: run pnpm check on a freed machine, then F-018",
       "gate": {
         "status": "pending",
         "at": null,
@@ -739,10 +739,6 @@
     }
   },
   "log": [
-    {
-      "at": "2026-11-03T06:08:11+00:00",
-      "event": "product-spec step: 1.1 brainstorm: round 1 done; product-strategist challenging scope"
-    },
     {
       "at": "2026-11-03T06:09:35+00:00",
       "event": "set spike_candidates"
@@ -1538,9 +1534,13 @@
     {
       "at": "2026-11-19T07:08:00+00:00",
       "event": "build step: 4 wave 4: W4-prep, F-004..F-010, F-013 merged (check 9/9, 763 e2e); next F-015 export video (+security audit), then F-018"
+    },
+    {
+      "at": "2026-11-19T09:00:21+00:00",
+      "event": "build step: 4 wave 4: F-015 merged to main (f06b1e4); full check NOT yet run (aborted twice: machine memory critical, swap ~13.7 GB used by other apps). Next: run pnpm check on a freed machine, then F-018"
     }
   ],
-  "updated": "2026-11-19T07:08:00+00:00",
+  "updated": "2026-11-19T09:00:21+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
