@@ -60,8 +60,13 @@ import {
   setSpeed,
   splitAt,
   undo,
+  unexported,
 } from '../../src/project';
-import { analyseTone, makeToneClip, type ToneReport, type ToneSpec } from './sound';
+import { openInput } from '../../src/container';
+import { setExportDeps } from '../../src/app/export';
+import { start as startExport, type ExportResult } from '../../src/export';
+import { scratchReady } from '../../src/app/workers';
+import { analyseTone, decodeWindow, makeToneClip, type ToneReport, type ToneSpec } from './sound';
 import { makeClip } from './video';
 
 /** The session's project as a test reads it (times in seconds). */
@@ -151,8 +156,121 @@ declare global {
        * of project time centred at `at` seconds (NaN where nothing was sent), and the project times sent.
        */
       heardTones(windows: readonly { at: number; freq: number }[]): { amplitudes: number[]; from: number; to: number };
+      /**
+       * F-015: reads a downloaded export (its bytes): the format, size and length, RGB at fractional `points` of
+       * the frames shown at `times` (s), the sound's RMS (dBFS) over 100 ms windows centred at `windows` (s) and
+       * the first time its channel L reaches `onsetAmp`, and whether any of `names` (or the library's name)
+       * appears in the file's bytes (F-015.AC4).
+       */
+      readExport(
+        bytes: number[],
+        times: readonly number[],
+        points: readonly (readonly [number, number])[],
+        windows: readonly number[],
+        onsetAmp: number,
+        names: readonly string[],
+      ): Promise<ExportRead>;
+      /** F-015.R7: the names in this session's scratch directory (MOD-Scratch), for storage inspection. */
+      scratchNames(): Promise<string[]>;
+      /** RULE-19: the project has unexported changes. */
+      unexported(): boolean;
     };
   }
+}
+
+/** What `readExport` found in a downloaded export. */
+export interface ExportRead {
+  readonly format: string;
+  readonly width: number;
+  readonly height: number;
+  readonly duration: number;
+  /** Per time: the frame's timestamp (s) and RGB at the points. */
+  readonly frames: readonly { readonly at: number; readonly rgb: number[][] }[];
+  readonly sound: { readonly duration: number; readonly rmsDb: number[]; readonly onset: number } | null;
+  readonly found: readonly string[];
+}
+
+async function readExport(
+  bytes: number[],
+  times: readonly number[],
+  points: readonly (readonly [number, number])[],
+  windows: readonly number[],
+  onsetAmp: number,
+  names: readonly string[],
+): Promise<ExportRead> {
+  const data = new Uint8Array(bytes);
+  const blob = new Blob([data]);
+  const text = new TextDecoder('latin1').decode(data);
+  const found = [...names, 'mediabunny', 'Mediabunny'].filter((n) => text.includes(n));
+  const input = await openInput(blob);
+  const v = input.video!;
+  const W = v.displayWidth;
+  const H = v.displayHeight;
+  const duration = input.duration;
+  const g = new OffscreenCanvas(W, H).getContext('2d', { willReadFrequently: true })!;
+  // The frame shown at t is the last one starting at or before t.
+  const stamps: number[] = [];
+  const shots = new Map<number, number[][]>();
+  const wanted = times.map((t) => Math.round(t * 1e6));
+  const decoded: { ts: number; rgb: number[][] }[] = [];
+  const dec = new VideoDecoder({
+    output: (f) => {
+      stamps.push(f.timestamp);
+      g.drawImage(f, 0, 0, W, H);
+      const rgb = points.map(([fx, fy]) =>
+        Array.from(
+          g
+            .getImageData(Math.min(W - 1, Math.floor(fx * W)), Math.min(H - 1, Math.floor(fy * H)), 1, 1)
+            .data.subarray(0, 3),
+        ),
+      );
+      decoded.push({ ts: f.timestamp, rgb });
+      f.close();
+    },
+    error: () => undefined,
+  });
+  dec.configure(v.decoderConfig);
+  for await (const p of input.packets('video'))
+    dec.decode(
+      new EncodedVideoChunk({ type: p.key ? 'key' : 'delta', timestamp: Math.round(p.timestamp * 1e6), data: p.data }),
+    );
+  await dec.flush();
+  dec.close();
+  decoded.sort((a, b) => a.ts - b.ts);
+  for (const w of wanted) {
+    const shown = decoded.filter((d) => d.ts <= w + 1).pop();
+    if (shown) shots.set(w, shown.rgb);
+  }
+  const frames = wanted.map((w) => {
+    const shown = decoded.filter((d) => d.ts <= w + 1).pop();
+    return { at: (shown?.ts ?? Number.NaN) / 1e6, rgb: shots.get(w) ?? [] };
+  });
+  const format = input.format;
+  const hasSound = input.audio !== null && input.audio !== undefined;
+  input.close();
+  let sound: ExportRead['sound'] = null;
+  if (hasSound) {
+    const [L] = await decodeWindow(blob, 0, duration);
+    const rms = (a: number, b: number): number => {
+      let x = 0;
+      for (let i = Math.max(0, a); i < Math.min(L.length, b); i++) x += L[i]! * L[i]!;
+      return 20 * Math.log10(Math.sqrt(x / Math.max(1, b - a)) || 1e-15);
+    };
+    let onset = Number.NaN;
+    for (let i = 0; i < L.length; i++)
+      if (Math.abs(L[i]!) >= onsetAmp) {
+        onset = i / 48_000;
+        break;
+      }
+    let end = L.length;
+    while (end > 0 && L[end - 1] === 0) end--;
+    sound = {
+      duration: L.length / 48_000,
+      rmsDb: windows.map((c) => rms(Math.round((c - 0.05) * 48_000), Math.round((c + 0.05) * 48_000))),
+      onset,
+    };
+  }
+  return { format, width: W, height: H, duration, frames, sound, found };
 }
 
 function heardTones(windows: readonly { at: number; freq: number }[]): {
@@ -281,6 +399,46 @@ function heardLevels(): { truePeakDb: number; rmsDb: number; seconds: number } {
 function params(): URLSearchParams {
   return new URLSearchParams(location.search);
 }
+// ?exportFault=failed|interrupted — fault injection for F-015.AC6 and the interrupted state (NFR-11 "fault-injection
+// tests"): the real export runs until its first progress, then it is cancelled (its workers terminated and its
+// scratch deleted as on any ending) and the run ends as MOD-Export reports a failed or interrupted export. An
+// encoder or memory failure inside the export worker can't be caused from a page (a worker's globals can't be
+// changed), so the ending is injected at MOD-Export's surface.
+const fault = params().get('exportFault');
+if (fault === 'failed' || fault === 'interrupted') {
+  setExportDeps({
+    start: async (p, s, ctx) => {
+      const h = await startExport(p, s, ctx);
+      let ended: (r: ExportResult) => void = () => undefined;
+      const result = new Promise<ExportResult>((r) => (ended = r));
+      let fired = false;
+      h.onProgress((v) => {
+        if (fired || v.fraction <= 0) return;
+        fired = true;
+        void h.cancel().then(() =>
+          ended({
+            ok: false,
+            error: fault === 'failed' ? 'error.export_failed' : 'error.export_interrupted',
+            detail: 'RangeError: injected by the app harness',
+          }),
+        );
+      });
+      // Before the fault fires, the real ending stands (a user's Cancel included).
+      void h.result.then((r) => {
+        if (!fired) ended(r);
+      });
+      return {
+        ...h,
+        onProgress: h.onProgress,
+        cancel: h.cancel,
+        result,
+        cleaned: h.cleaned,
+        scratchFile: h.scratchFile,
+      };
+    },
+  });
+}
+
 const effects = params().get('effects');
 const real = browserDevice(() => workers.get('engine'));
 let draw: () => void = () => undefined;
@@ -539,6 +697,12 @@ window.appHarness = {
   heard,
   heardLevels,
   heardTones,
+  readExport,
+  unexported: () => unexported.peek(),
+  async scratchNames() {
+    const scratch = await scratchReady;
+    return scratch ? scratch.names() : [];
+  },
 };
 
 const fixed = (ok: boolean, slow: boolean): EffectsRun => ({

@@ -20,6 +20,7 @@ import { t } from '../copy';
 import { watchSlow } from './device';
 import { dragging } from './MediaInput';
 import { showNotice } from './notice-stack';
+import { editorLocked } from './lock';
 import { editingText } from './text';
 import { workers } from './workers';
 
@@ -225,7 +226,7 @@ export function musicFailed(trackId: string): void {
 }
 
 /** The registry's file or bitmap for a source (pictures freed by ADR-0009 §7 are rebuilt first). */
-async function registryMedia(source: Source): Promise<EngineMedia | null> {
+export async function registryMedia(source: Source): Promise<EngineMedia | null> {
   const entry = await registry.load(source.id);
   if (!entry) return null;
   if (source.kind === 'video') return { id: source.id, kind: 'video', file: entry.file };
@@ -287,11 +288,17 @@ const EDITING: FocusInfo = {
   scrollable: false,
 };
 
+/** The scope every key gets while an export runs: a modal dialog's (only Esc acts, RULE-20). */
+const LOCKED: FocusInfo = { ...EDITING, tag: 'div', editable: false, inDialog: true };
+
 /**
  * The focused element as MOD-Keys' scope check reads it. RULE-20: while a text layer is edited (CMP-TextEditor
  * open, focus in its field, on Done or on its bar's controls) every key is a field's: no shortcut acts.
  */
 export function focusInfo(el: Element | null): FocusInfo | null {
+  // SCR-Editor "exporting": the editor is locked behind CMP-ExportProgress, a modal dialog; as in any open
+  // dialog only Esc acts (RULE-20), wherever focus is (build question 96).
+  if (editorLocked.peek()) return LOCKED;
   if (editingText.peek() !== null) return EDITING;
   if (!el || el === document.body || el === document.documentElement) return null;
   const tag = el.tagName.toLowerCase();

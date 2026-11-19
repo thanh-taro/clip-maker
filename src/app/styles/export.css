@@ -1,0 +1,769 @@
+/* MOD-App — F-015 export, tokens only: CMP-ExportPanel (board CMP-ExportPanel "video · wide", "fallback",
+   "narrow 390 · lower res", "narrow 320 · vi-VN", "needs clip"; SCR-Editor "exporting-setup" wide and
+   narrow), CMP-ExportProgress (board CMP-ExportProgress; SCR-Editor "exporting" and "export-error") and the
+   toolbar Export's opener states (CMP-ExportPanel "opener states"). Wide and compact: the panel docks in the
+   inspector column in place of the inspector. Narrow: a bottom sheet above the tab bar (40 % of the height,
+   60 % under 640 px tall). The progress dialog is a modal over the scrim; a bottom sheet on narrow layouts. */
+@layer layout {
+  /* ── Toolbar Export: pressed while the panel is open, busy while an export runs ── */
+  .tk-tool--export[aria-expanded='true'] {
+    border-color: var(--tk-color-accent);
+    background: var(--tk-color-surface2);
+    color: var(--tk-color-fg);
+  }
+
+  .tk-tool--export[aria-expanded='true']:hover:not(:disabled) {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-tool--export[aria-busy='true'] {
+    position: relative;
+  }
+
+  .tk-tool--export[aria-busy='true']::after {
+    content: '';
+    position: absolute;
+    inset-inline-start: var(--tk-space-1);
+    inset-block-end: var(--tk-space-0-5);
+    inline-size: 42%;
+    block-size: var(--tk-space-0-5);
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-on-accent);
+  }
+
+  /* ── CMP-ExportPanel: docked in the inspector column (wide, compact) ── */
+  .tk-editor[data-export='open'] > .tk-inspector {
+    display: none;
+  }
+
+  .tk-export {
+    display: flex;
+    flex-direction: column;
+    grid-column: 3;
+    grid-row: 2;
+    inline-size: var(--tk-size-inspector);
+    min-block-size: 0;
+    overflow: hidden;
+    border-inline-start: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  .tk-export__grab {
+    display: none;
+  }
+
+  .tk-export__head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--tk-space-2);
+    block-size: var(--tk-size-toolbar);
+    padding-inline: var(--tk-space-3-5) var(--tk-space-1);
+    border-block-end: var(--tk-border-width-hairline) solid var(--tk-color-line);
+  }
+
+  .tk-export__title {
+    flex: 1;
+    margin: 0;
+    font-size: var(--tk-font-size-md);
+    font-weight: var(--tk-font-weight-bold);
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  .tk-export__icon-button {
+    display: inline-grid;
+    place-items: center;
+    inline-size: var(--tk-size-tool-button);
+    block-size: var(--tk-size-tool-button);
+    border: 0;
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    color: var(--tk-color-muted);
+    cursor: pointer;
+  }
+
+  .tk-export__icon-button:hover {
+    background: var(--tk-color-surface2);
+    color: var(--tk-color-fg);
+  }
+
+  /* Kind tabs: sized to their labels and aligned to the start (wide). */
+  .tk-export__kinds {
+    display: flex;
+    flex: none;
+    padding-inline: var(--tk-space-1-5);
+    border-block-end: var(--tk-border-width-hairline) solid var(--tk-color-line);
+  }
+
+  .tk-export__kind {
+    block-size: var(--tk-size-tab);
+    margin-block-end: calc(-1 * var(--tk-border-width-hairline));
+    padding-inline: var(--tk-space-2-5);
+    border: 0;
+    border-block-end: var(--tk-border-width-focus) solid transparent;
+    background: transparent;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs-plus);
+    font-weight: var(--tk-font-weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .tk-export__kind[aria-selected='true'] {
+    border-block-end-color: var(--tk-color-accent);
+    color: var(--tk-color-fg);
+  }
+
+  /* The body scrolls, with a fade above the footer. */
+  .tk-export__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--tk-space-3);
+    min-block-size: 0;
+    padding: var(--tk-space-3) var(--tk-space-3-5);
+    overflow-y: auto;
+    mask-image: linear-gradient(to bottom, black calc(100% - var(--tk-space-4)), transparent);
+  }
+
+  .tk-export__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .tk-export__legend {
+    margin-block-end: var(--tk-space-1);
+    padding: 0;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+    letter-spacing: var(--tk-font-letter-spacing-caps);
+    line-height: var(--tk-font-line-height-tight);
+    text-transform: uppercase;
+  }
+
+  /* Native radios, visually replaced by their labels (the radio stays in the accessibility tree). */
+  .tk-export input[type='radio'] {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    opacity: 0;
+  }
+
+  .tk-export__segments {
+    display: flex;
+    gap: var(--tk-space-0-5);
+    padding: var(--tk-space-0-5);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-md);
+  }
+
+  .tk-export__seg {
+    position: relative;
+    display: grid;
+    flex: 1;
+    place-items: center;
+    min-inline-size: 0;
+    min-block-size: var(--tk-size-control);
+    padding-inline: var(--tk-space-1);
+    border-radius: var(--tk-radius-sm);
+    font-size: var(--tk-font-size-xs-plus);
+    font-weight: var(--tk-font-weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .tk-export__segments--mono .tk-export__seg {
+    font-family: var(--tk-font-family-mono);
+    font-weight: var(--tk-font-weight-medium);
+  }
+
+  .tk-export__seg:hover:not(:has(input:checked, input:disabled)) {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-export__seg:has(input:checked) {
+    background: var(--tk-color-selection);
+    box-shadow: inset 0 0 0 var(--tk-border-width-hairline) var(--tk-color-accent);
+  }
+
+  /* A size that isn't offered: disabled and struck through; its reason is always shown under the row. */
+  .tk-export__seg:has(input:disabled) {
+    color: var(--tk-color-muted);
+    text-decoration: line-through;
+    cursor: default;
+  }
+
+  .tk-export__seg:has(input:focus-visible),
+  .tk-export__chip:has(input:focus-visible) {
+    outline: var(--tk-border-width-focus) solid var(--tk-color-focus);
+    outline-offset: 2px;
+  }
+
+  .tk-export__why {
+    display: flex;
+    gap: var(--tk-space-1);
+    align-items: flex-start;
+    margin: 0;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    line-height: var(--tk-font-line-height-normal);
+  }
+
+  .tk-export__why .tk-icon {
+    margin-block-start: var(--tk-space-0-5);
+  }
+
+  .tk-export__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--tk-space-1);
+  }
+
+  .tk-export__chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--tk-size-control);
+    padding-inline: var(--tk-space-2);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-pill);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .tk-export__chip:hover:not(:has(input:checked)) {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-export__chip:has(input:checked) {
+    border-color: var(--tk-color-accent);
+    background: var(--tk-color-selection);
+  }
+
+  .tk-export__custom {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tk-space-1);
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-export__custom-input {
+    inline-size: var(--tk-size-field);
+    block-size: var(--tk-size-control);
+    padding-inline: var(--tk-space-2);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-sm);
+    background: var(--tk-color-bg);
+    color: var(--tk-color-fg);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-input);
+    text-align: end;
+  }
+
+  .tk-export__custom[data-on] .tk-export__custom-input {
+    border-color: var(--tk-color-accent);
+    box-shadow: inset 0 0 0 var(--tk-border-width-hairline) var(--tk-color-accent);
+  }
+
+  .tk-export__custom[data-bad] .tk-export__custom-input {
+    border-color: var(--tk-color-danger);
+    box-shadow: none;
+  }
+
+  .tk-export__advice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-export__warn {
+    display: flex;
+    gap: var(--tk-space-2);
+    align-items: flex-start;
+    margin: 0;
+    padding: var(--tk-space-2) var(--tk-space-2-5);
+    border-radius: var(--tk-radius-sm);
+    background: var(--tk-color-warn-bg);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    line-height: var(--tk-font-line-height-normal);
+  }
+
+  .tk-export__warn .tk-icon {
+    margin-block-start: var(--tk-space-0-5);
+    color: var(--tk-color-accent);
+  }
+
+  /* The sticky footer: the estimate (mono) and the format line, then Cancel and the outlined Export. */
+  .tk-export__foot {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--tk-space-2);
+    padding: var(--tk-space-3) var(--tk-space-3-5);
+    border-block-start: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    background: var(--tk-color-surface);
+  }
+
+  .tk-export__line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--tk-space-2);
+    align-items: baseline;
+    min-block-size: var(--tk-space-5);
+    margin: 0;
+  }
+
+  .tk-export__estimate {
+    color: var(--tk-color-fg);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tk-export__format,
+  .tk-export__note {
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+  }
+
+  .tk-export__actions {
+    display: flex;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-export__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--tk-space-2);
+    min-block-size: var(--tk-size-tool-button);
+    padding-inline: var(--tk-space-3);
+    border: var(--tk-border-width-hairline) solid transparent;
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .tk-export__button:hover:not(:disabled) {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-export__button--outlined {
+    border-color: var(--tk-color-accent);
+    color: var(--tk-color-accent);
+  }
+
+  .tk-export__go {
+    flex: 1;
+  }
+
+  /* Disabled buttons: the raised surface with a muted label and a hairline border (label stays readable). */
+  .tk-export__button:disabled {
+    border-color: var(--tk-color-line);
+    background: var(--tk-color-surface2);
+    color: var(--tk-color-muted);
+    cursor: default;
+  }
+
+  .tk-export__use--body {
+    align-self: flex-start;
+  }
+
+  .tk-export__use--foot {
+    display: none;
+  }
+
+  /* ── Narrow: a bottom sheet above the tab bar, under the transport and the timeline peek ── */
+  @container tk-editor (width < 700px) {
+    .tk-export {
+      grid-column: 1 / -1;
+      grid-row: 4;
+      inline-size: auto;
+      max-block-size: 40vh;
+      border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+      border-block-end: 0;
+      border-radius: var(--tk-radius-md) var(--tk-radius-md) 0 0;
+    }
+
+    .tk-export__grab {
+      display: block;
+      flex: none;
+      inline-size: var(--tk-space-8);
+      block-size: var(--tk-space-1);
+      margin: var(--tk-space-1-5) auto 0;
+      border-radius: var(--tk-radius-pill);
+      background: var(--tk-color-line-strong);
+    }
+
+    .tk-export__head {
+      block-size: var(--tk-size-touch-target);
+      padding-inline: var(--tk-space-4) var(--tk-space-1);
+      border-block-end: 0;
+    }
+
+    .tk-export__icon-button {
+      inline-size: var(--tk-size-touch-target);
+      block-size: var(--tk-size-touch-target);
+    }
+
+    /* The kinds as a full-width touch-size segmented row. */
+    .tk-export__kinds {
+      gap: var(--tk-space-1);
+      padding: 0 var(--tk-space-3) var(--tk-space-2);
+      border-block-end: 0;
+    }
+
+    .tk-export__kind {
+      flex: 1;
+      block-size: var(--tk-size-touch-target);
+      margin: 0;
+      border: var(--tk-border-width-hairline) solid var(--tk-color-line);
+      border-radius: var(--tk-radius-sm);
+      color: var(--tk-color-fg);
+      font-size: var(--tk-font-size-sm);
+    }
+
+    .tk-export__kind[aria-selected='true'] {
+      border-color: var(--tk-color-accent);
+      background: var(--tk-color-selection);
+    }
+
+    .tk-export__body {
+      padding: var(--tk-space-2) var(--tk-space-3);
+      mask-image: linear-gradient(
+        to bottom,
+        transparent,
+        black var(--tk-space-4),
+        black calc(100% - var(--tk-space-4)),
+        transparent
+      );
+    }
+
+    .tk-export__seg {
+      min-block-size: calc(var(--tk-size-touch-target) - var(--tk-space-1));
+      font-size: var(--tk-font-size-sm);
+    }
+
+    .tk-export__chips {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .tk-export__chip {
+      justify-content: center;
+      min-block-size: var(--tk-size-touch-target);
+      padding-inline: var(--tk-space-0-5);
+      border-color: var(--tk-color-line);
+      border-radius: var(--tk-radius-sm);
+    }
+
+    .tk-export__custom {
+      gap: var(--tk-space-2);
+      font-size: var(--tk-font-size-sm);
+    }
+
+    .tk-export__custom-input {
+      inline-size: calc(var(--tk-size-field) + var(--tk-space-4));
+      block-size: var(--tk-size-touch-target);
+    }
+
+    .tk-export__use--body {
+      display: none;
+    }
+
+    /* The footer stays one row; Close replaces Cancel in the sheet. */
+    .tk-export__foot {
+      flex-direction: row;
+      align-items: center;
+      padding: var(--tk-space-2) var(--tk-space-3) var(--tk-space-3);
+    }
+
+    .tk-export__line {
+      flex: 1;
+      flex-direction: column;
+      gap: 0;
+      min-inline-size: 0;
+    }
+
+    .tk-export__foot[data-state='blocked'] .tk-export__line {
+      display: none;
+    }
+
+    .tk-export__cancel {
+      display: none;
+    }
+
+    .tk-export__use--foot {
+      display: inline-flex;
+      flex: 1;
+    }
+
+    .tk-export__actions {
+      flex: none;
+    }
+
+    .tk-export__foot[data-state='blocked'] .tk-export__actions {
+      flex: 1;
+    }
+
+    .tk-export__button {
+      min-block-size: var(--tk-size-touch-target);
+    }
+
+    .tk-export__go {
+      flex: none;
+      padding-inline: var(--tk-space-5);
+    }
+  }
+
+  @media (max-height: 639.98px) {
+    @container tk-editor (width < 700px) {
+      .tk-export {
+        max-block-size: 60vh;
+      }
+    }
+  }
+
+  @media (pointer: coarse) {
+    .tk-export__seg,
+    .tk-export__chip,
+    .tk-export__kind,
+    .tk-export__button,
+    .tk-export__custom-input,
+    .tk-export__icon-button {
+      min-block-size: var(--tk-size-touch-target);
+    }
+  }
+
+  /* ── CMP-ExportProgress: a modal dialog over the scrim ── */
+  .tk-run {
+    inline-size: min(var(--tk-size-popover), calc(100vw - 2 * var(--tk-space-4)));
+    padding: var(--tk-space-3) var(--tk-space-4);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    line-height: var(--tk-font-line-height-normal);
+  }
+
+  .tk-run[open] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-run::backdrop {
+    background: var(--tk-color-scrim);
+  }
+
+  .tk-run__grab {
+    display: none;
+  }
+
+  .tk-run__title-row {
+    display: flex;
+    gap: var(--tk-space-2);
+    align-items: center;
+  }
+
+  .tk-run__title {
+    margin: 0;
+    font-size: var(--tk-font-size-md);
+    font-weight: var(--tk-font-weight-bold);
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  .tk-run__title--bad {
+    color: var(--tk-color-danger);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-run__icon--ok {
+    color: var(--tk-color-success);
+  }
+
+  .tk-run__icon--bad {
+    color: var(--tk-color-danger);
+  }
+
+  .tk-run__text {
+    margin: 0;
+  }
+
+  .tk-run__text[data-muted] {
+    color: var(--tk-color-muted);
+  }
+
+  .tk-run__mono {
+    font-family: var(--tk-font-family-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tk-run__live {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tk-run__bar {
+    inline-size: 100%;
+    block-size: var(--tk-space-1-5);
+    appearance: none;
+    overflow: hidden;
+    border: 0;
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-surface2);
+    accent-color: var(--tk-color-accent);
+  }
+
+  .tk-run__bar::-webkit-progress-bar {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-run__bar::-webkit-progress-value {
+    background: var(--tk-color-accent);
+  }
+
+  .tk-run__bar::-moz-progress-bar {
+    background: var(--tk-color-accent);
+  }
+
+  .tk-run__bar[data-stopped]::-webkit-progress-value {
+    background: var(--tk-color-line-strong);
+  }
+
+  .tk-run__bar[data-stopped]::-moz-progress-bar {
+    background: var(--tk-color-line-strong);
+  }
+
+  .tk-run__keep {
+    margin: 0;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+  }
+
+  .tk-run__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--tk-space-2);
+    margin-block-start: var(--tk-space-1);
+  }
+
+  .tk-run__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--tk-space-2);
+    min-block-size: var(--tk-size-tool-button);
+    padding-inline: var(--tk-space-3);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .tk-run__button:hover:not(:disabled) {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-run__button--outlined {
+    border-color: var(--tk-color-accent);
+    color: var(--tk-color-accent);
+  }
+
+  .tk-run__button:disabled {
+    border-color: var(--tk-color-line);
+    background: var(--tk-color-surface2);
+    color: var(--tk-color-muted);
+    cursor: default;
+  }
+
+  /* Narrow: the same states as a bottom sheet; full-width touch-size actions side by side. */
+  @container tk-editor (width < 700px) {
+    .tk-run {
+      inline-size: 100%;
+      max-inline-size: none;
+      margin: auto 0 0;
+      padding: 0 var(--tk-space-4) calc(var(--tk-space-4) + env(safe-area-inset-bottom));
+      border-block-end: 0;
+      border-radius: var(--tk-radius-md) var(--tk-radius-md) 0 0;
+    }
+
+    .tk-run__grab {
+      display: block;
+      flex: none;
+      inline-size: var(--tk-space-8);
+      block-size: var(--tk-space-1);
+      margin: var(--tk-space-2) auto 0;
+      border-radius: var(--tk-radius-pill);
+      background: var(--tk-color-line-strong);
+    }
+
+    .tk-run__button {
+      flex: 1;
+      min-block-size: var(--tk-size-touch-target);
+      font-size: var(--tk-font-size-md);
+    }
+  }
+
+  @media (pointer: coarse) {
+    .tk-run__button {
+      min-block-size: var(--tk-size-touch-target);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    @container tk-editor (width < 700px) {
+      .tk-export {
+        animation: tk-export-rise var(--tk-motion-duration-base) var(--tk-motion-easing-standard);
+      }
+    }
+  }
+
+  @keyframes tk-export-rise {
+    from {
+      transform: translateY(var(--tk-space-8));
+      opacity: 0;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .tk-export,
+    .tk-run {
+      border-color: CanvasText;
+    }
+    .tk-export__seg:has(input:checked),
+    .tk-export__chip:has(input:checked) {
+      outline: var(--tk-border-width-focus) solid Highlight;
+    }
+  }
+}

@@ -15,6 +15,7 @@ import {
 import { portFeed, SoundBank, webDecoders } from '../../src/audio';
 import { trialAudioEncode, withNormalisedDescription } from '../../src/codec';
 import { serveSound } from '../../src/container';
+import { BITS } from './video';
 
 export interface ToneSpec {
   readonly seconds: number;
@@ -29,6 +30,8 @@ export interface ToneSpec {
   readonly mono?: boolean;
   /** Default: MP4 for AAC, WebM for Opus. Opus in MP4 has its pre-skip in an edit list too. */
   readonly container?: 'mp4' | 'webm';
+  /** F-015: the frame index drawn as tests/harness/video.ts's code bars in the top half (`readCode`). */
+  readonly coded?: boolean;
 }
 
 const W = 320;
@@ -135,6 +138,11 @@ export async function makeToneClip(spec: ToneSpec): Promise<File> {
   for (let k = 0; k < frames; k++) {
     g.fillStyle = `hsl(${(k * 37) % 360} 70% 45%)`;
     g.fillRect(0, 0, W, H);
+    if (spec.coded)
+      for (let b = 0; b < BITS; b++) {
+        g.fillStyle = (k >> b) & 1 ? '#ffffff' : '#000000';
+        g.fillRect((b * W) / BITS, 0, W / BITS, H / 2);
+      }
     const ts = Math.floor((k * 1e6) / 30);
     const f = new VideoFrame(canvas, { timestamp: ts, duration: Math.floor(((k + 1) * 1e6) / 30) - ts });
     venc.encode(f, { keyFrame: k % 30 === 0 });

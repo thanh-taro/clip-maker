@@ -204,7 +204,18 @@ function newProjectNow(): void {
   exportedEpoch.value = epoch.value;
 }
 
-/** Implements: RULE-19 — a video or audio export clears unexported changes; a GIF never does (D-019). */
-export function markExported(kind: 'video' | 'gif' | 'audio'): void {
-  if (kind !== 'gif') exportedEpoch.value = epoch.value;
+/**
+ * The project's change mark now (RULE-19): an export takes it when it starts, so a change landing while it
+ * runs (a media batch already being checked) stays unexported after it succeeds.
+ */
+export function exportMark(): number {
+  return epoch.peek();
+}
+
+/**
+ * Implements: RULE-19 — a video or audio export clears unexported changes; a GIF never does (D-019). `mark`
+ * is the `exportMark()` taken when the export started (default: the project as it is now).
+ */
+export function markExported(kind: 'video' | 'gif' | 'audio', mark: number = epoch.peek()): void {
+  if (kind !== 'gif') exportedEpoch.value = mark;
 }

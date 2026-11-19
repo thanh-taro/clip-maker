@@ -339,6 +339,10 @@ Rules for every string:
 | **COPY-export.cancelling** | Cancelling… | Đang huỷ… | |
 | **COPY-export.progress_label** | Export progress | Tiến độ xuất | |
 | **COPY-export.keep_open** | Keep this page open until the export finishes. | Hãy giữ trang này mở cho đến khi xuất xong. | |
+| **COPY-export.size_unit** | MB | MB | The unit after the COPY-export.size_custom field (the board's "Other [  ] MB"); 1 MB = 1,000,000 bytes |
+| **COPY-export.target_unknown** | Couldn't check whether {size} MB can be met. Try again. | Không kiểm tra được giới hạn {size} MB. Hãy thử lại. | The size target's check failed (CMP-ExportPanel); with COPY-action.try_again |
+| **COPY-notice.busy_exporting** | Files can't be added while exporting. | Không thể thêm tệp khi đang xuất. | Files dropped or pasted during an export (SCR-Editor "exporting": the editor is locked) |
+| **COPY-export.progress_starting** | Exporting… {percent} % | Đang xuất… {percent} % | COPY-export.progress before the first time-remaining estimate (CMP-ExportProgress hides the time until then) |
 
 ## Licence notices
 | ID | en-US | vi-VN | Notes |

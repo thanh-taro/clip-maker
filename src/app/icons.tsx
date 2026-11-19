@@ -15,6 +15,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  CircleAlert,
   CircleCheck,
   CircleX,
   Clipboard,
@@ -25,11 +26,13 @@ import {
   EllipsisVertical,
   ExternalLink,
   Eye,
+  EyeOff,
   FilePlus2,
   Film,
   FlipHorizontal2,
   FlipVertical2,
   GripVertical,
+  HardDrive,
   Image,
   Info,
   Keyboard,
@@ -49,6 +52,7 @@ import {
   RotateCcw,
   RotateCw,
   Scissors,
+  Share2,
   ShieldCheck,
   SkipBack,
   SkipForward,
@@ -160,6 +164,11 @@ const SOURCES = {
   zoomIn: ZoomIn,
   zoomOut: ZoomOut,
   zoomFit: '<svg viewBox="0 0 24 24"><path d="M3 12h6M15 12h6M6 9l-3 3 3 3M18 9l3 3-3 3M12 4v16"/></svg>',
+  // CMP-ExportProgress (F-015): the failed, interrupted (page hidden) and no-space titles, and Share.
+  failed: CircleAlert,
+  pageHidden: EyeOff,
+  storage: HardDrive,
+  share: Share2,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

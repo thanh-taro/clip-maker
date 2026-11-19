@@ -688,7 +688,8 @@ export async function start(project: Project, settings: ExportSettings, ctx: Exp
           : { kind: 'memory' },
         audio: channel ? channel.port1 : null,
         soundFeed: feed && audioCodec ? feed.port1 : null,
-        ...(ctx.tap ? { tapFrame: ctx.tap.frame } : {}),
+        // Test hook only: production builds never ask the worker for a frame (security audit I1).
+        ...(!import.meta.env.PROD && ctx.tap ? { tapFrame: ctx.tap.frame } : {}),
       },
     } satisfies ToExport,
     [...(channel ? [channel.port1] : []), ...(feed && audioCodec ? [feed.port1] : [])],
