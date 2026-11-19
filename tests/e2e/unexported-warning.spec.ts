@@ -436,18 +436,25 @@ test.describe('F-018 New project (standalone)', () => {
     await expect(d).toHaveCount(0);
   });
 
-  test('CMP-Toolbar Keyboard shortcuts is unavailable until F-017 (toolbar and More menu); choosing it keeps the menu open; the menu closes when the layout widens', async ({
+  test('CMP-Toolbar Keyboard shortcuts is available (F-017) in the toolbar and the More menu; choosing it closes the menu; the menu closes when the layout widens', async ({
     page,
   }) => {
     await open(page);
-    await expect(toolButton(page, 'action.shortcuts')).toHaveAttribute('aria-disabled', 'true');
+    await expect(toolButton(page, 'action.shortcuts')).not.toHaveAttribute('aria-disabled', 'true');
     await page.setViewportSize({ width: 390, height: 844 });
     const more = toolButton(page, 'action.more');
     await more.click();
     const menu = page.getByRole('menu', { name: text('en-US', 'action.more') });
     const shortcuts = menu.getByRole('menuitem', { name: text('en-US', 'action.shortcuts') });
-    await expect(shortcuts).toHaveAttribute('aria-disabled', 'true');
-    await shortcuts.click({ force: true }); // a user can still press it: nothing happens
+    await expect(shortcuts).not.toHaveAttribute('aria-disabled', 'true');
+    await shortcuts.click();
+    await expect(menu).toHaveCount(0);
+    const help = page.getByRole('dialog', { name: text('en-US', 'help.title') });
+    await expect(help).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(help).toHaveCount(0);
+    await expect(more).toBeFocused();
+    await more.click();
     await expect(menu).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(menu).toHaveCount(0);

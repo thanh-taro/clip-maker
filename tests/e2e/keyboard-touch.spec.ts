@@ -396,6 +396,8 @@ test.describe('F-017 CMP-ShortcutHelp (app harness)', () => {
       await expect(dialog).toBeVisible();
       await expect(page.getByRole('menu')).toHaveCount(0);
       // A bottom sheet: full width, at the bottom, at most the D-038 sheet height (60 % under 640 px tall).
+      // Measured once its rise has finished (reduced motion is not set here).
+      await dialog.evaluate((el) => Promise.all(el.getAnimations().map((x) => x.finished)));
       const box = (await dialog.boundingBox())!;
       expect(box.width).toBeCloseTo(320, 0);
       expect(box.y + box.height).toBeCloseTo(640, 0);
@@ -549,6 +551,10 @@ test.describe('F-017 keyboard-only walkthrough (app harness)', () => {
     await expect(panel).toBeVisible();
     await shot(page, 'walkthrough-export-panel', browserName);
     const start = panel.getByRole('button', { name: text('en-US', 'action.export'), exact: true });
+    // The panel's Export is unavailable until its estimate is ready; then Tab reaches it from the panel.
+    await expect(start).toBeEnabled({ timeout: 20_000 });
+    // Mod+E put focus on the panel's selected kind (CMP-ExportPanel).
+    await expect(panel.getByRole('tab', { selected: true })).toBeFocused();
     await tabTo(page, start, browserName, 40);
     await page.keyboard.press('Enter');
     const progress = page.locator('dialog.tk-run');
