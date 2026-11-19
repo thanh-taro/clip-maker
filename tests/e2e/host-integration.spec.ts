@@ -3,8 +3,8 @@
 // sandbox and allow attributes for Clip Maker, the tool built with that stub as its one allowed host and
 // served with its real CSP. Covers the theme from the address and from messages, the device preference,
 // filling the host area, origin and source checks, frame-ancestors, the single ready signal and focus.
-// Not covered yet (need later features): AC2's edited project and playback (F-001, F-002), AC6 across
-// every M-1 feature, AC7/AC9 export from the frame (F-015's UI). AC8's "after a click, Space plays" came with F-017.
+// AC2 (theme switch during playback of an edited project), AC6 (every M-1 feature, observed at the host) and AC9
+// (the long 1080 export from the frame) are in host-embedded.spec.ts; AC7 is in language.spec.ts (F-022.AC8).
 import { expect, test, type Frame, type Page } from '@playwright/test';
 import {
   HOST_ALLOWED,

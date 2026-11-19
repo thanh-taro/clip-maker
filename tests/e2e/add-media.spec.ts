@@ -5,6 +5,10 @@
 // - on the production build (`pnpm preview` of dist/ with the real CSP) for the request log (NFR-01).
 // Drops and pastes are dispatched with a real DataTransfer holding real files (a test cannot reach the
 // OS clipboard or drag from the desktop).
+// F-001's ninth acceptance criterion (a 3.5 GB 4K video on the reference phone within NFR-05) has no
+// automated test: it is a manual QA check on the device with the large fixture kept outside git (ADR-0016 §5;
+// "Manual device checks (QA)" in .build-my-app/reports/build-spec-questions.md, Q75). Its ID is not written
+// here, so `spec_lint --coverage` keeps listing it.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
