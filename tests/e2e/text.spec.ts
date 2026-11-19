@@ -77,10 +77,11 @@ const GREY: Rgb = [90, 90, 90];
 
 /** A flat photo (`w` × `h`). */
 async function photo(page: Page, name: string, colour: Rgb, w = 180, h = 320): Promise<Payload> {
-  const bytes = await page.evaluate(
-    ([c, ww, hh]) => (window as unknown as Harness).appHarness.stripes(ww, hh, [c]),
-    [colour, w, h] as const,
-  );
+  const bytes = await page.evaluate(([c, ww, hh]) => (window as unknown as Harness).appHarness.stripes(ww, hh, [c]), [
+    colour,
+    w,
+    h,
+  ] as const);
   return { name, mimeType: 'image/png', buffer: Buffer.from(bytes) };
 }
 
@@ -144,7 +145,8 @@ async function inkAt(page: Page, points: readonly Point[], by = 60): Promise<num
 /** A grid of points over a band of the frame (fractions). */
 function band(x0: number, x1: number, y0: number, y1: number, n = 24): Point[] {
   const out: Point[] = [];
-  for (let i = 0; i < n; i++) for (let j = 0; j < 6; j++) out.push([x0 + ((x1 - x0) * i) / (n - 1), y0 + ((y1 - y0) * j) / 5]);
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < 6; j++) out.push([x0 + ((x1 - x0) * i) / (n - 1), y0 + ((y1 - y0) * j) / 5]);
   return out;
 }
 
@@ -216,5 +218,496 @@ test.describe('F-010 add text (app harness)', () => {
     // The timeline's text lane shows the item, selected.
     await expect(textItem(page, 'Đà Lạt 2026')).toHaveAttribute('aria-pressed', 'true');
     await shot(page, 'selected-wide-en-US', browserName);
+  });
+});
+
+/** A text layer for `load` (RULE-11 defaults unless given). */
+function layer(id: string, from: number, to: number, extra: Partial<Layer> = {}): Layer {
+  return {
+    id,
+    content: id,
+    start: Math.round(from * S),
+    end: Math.round(to * S),
+    typeface: 'sans',
+    size: 6,
+    colour: 'white',
+    style: 'outline',
+    align: 'centre',
+    x: 0.5,
+    y: 0.8,
+    fade: false,
+    ...extra,
+  };
+}
+
+/** Puts text layers into the session's project (one step through the harness). */
+async function withLayers(page: Page, layers: Layer[]): Promise<void> {
+  const p = JSON.parse(await page.evaluate(() => (window as unknown as Harness).appHarness.state())) as {
+    textLayers: Layer[];
+  };
+  p.textLayers = layers;
+  await page.evaluate((json) => (window as unknown as Harness).appHarness.load(json), JSON.stringify(p));
+}
+
+/** Pixels per second of the timeline (the track fits the project). */
+async function pxPerSecond(page: Page): Promise<number> {
+  const track = (await timeline(page).locator('.tk-track').boundingBox())!;
+  return track.width / 10;
+}
+
+test.describe('F-010 styling, placing and timing text (app harness)', () => {
+  test('F-010.AC2 Display, size 10 %, yellow and Box chosen in the inspector: the preview shows yellow letters on a 70 % black box', async ({
+    page,
+    browserName,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await withLayers(page, [layer('T', 0, 5, { content: 'MMM', y: 0.5 })]);
+    await textItem(page, 'MMM').click();
+    const panel = inspector(page);
+    await expect(panel.getByRole('heading', { name: text('en-US', 'inspector.text') })).toBeVisible();
+    const before = await stepsOf(page);
+    await panel
+      .getByRole('radiogroup', { name: text('en-US', 'text.typeface') })
+      .getByRole('radio', { name: text('en-US', 'text.display') })
+      .click();
+    const size = panel.getByRole('spinbutton', { name: text('en-US', 'text.size') });
+    await size.fill('10');
+    await size.press('Enter');
+    await panel
+      .getByRole('radiogroup', { name: text('en-US', 'text.colour') })
+      .getByRole('radio', { name: text('en-US', 'colour.yellow') })
+      .click();
+    await panel
+      .getByRole('radiogroup', { name: text('en-US', 'text.style') })
+      .getByRole('radio', { name: text('en-US', 'text.box') })
+      .click();
+    // Box colour appears with Box (the contrast colour, black, by default).
+    await expect(
+      panel
+        .getByRole('radiogroup', { name: text('en-US', 'text.box_colour') })
+        .getByRole('radio', { name: text('en-US', 'colour.black') }),
+    ).toHaveAttribute('aria-checked', 'true');
+    const [t] = await layersOf(page);
+    expect([t!.typeface, t!.size, t!.colour, t!.style]).toEqual(['display', 10, 'yellow', 'box']);
+    expect(await stepsOf(page)).toBe(before + 4);
+    // The preview: yellow letters (255, 214, 10) on the box, 70 % black over the grey (0.3 × 90 ≈ 27).
+    const pts = band(0.2, 0.8, 0.46, 0.54, 40);
+    await expect
+      .poll(async () => (await previewAt(page, pts)).filter((c) => c[0]! > 230 && c[1]! > 190 && c[2]! < 60).length, {
+        timeout: 10_000,
+      })
+      .toBeGreaterThan(5);
+    const at = await previewAt(page, pts);
+    expect(at.filter((c) => c.every((v) => Math.abs(v - 27) <= 6)).length).toBeGreaterThan(5);
+    await shot(page, 'inspector-box-wide-en-US', browserName);
+  });
+
+  test('F-010.AC3 RULE-11 dragging the text so its left edge comes within 8 px of the left safe margin snaps it there; the guides show while moving', async ({
+    page,
+    browserName,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await withLayers(page, [layer('T', 0, 5, { content: 'Snap me', y: 0.5 })]);
+    await textItem(page, 'Snap me').click();
+    const hit = page.locator('.tk-text-layer__hit[data-selected]');
+    await settled(hit);
+    const frame = (await canvas(page).boundingBox())!;
+    const b = (await hit.boundingBox())!;
+    const margin = frame.x + 0.05 * frame.width;
+    const dx = margin + 6 - b.x;
+    const before = await stepsOf(page);
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + dx / 2, b.y + b.height / 2, { steps: 4 });
+    await page.mouse.move(b.x + b.width / 2 + dx, b.y + b.height / 2, { steps: 4 });
+    await expect(page.locator('.tk-text-layer__guide[data-snapped]')).toHaveCount(1);
+    await shot(page, 'preview-text-moving-wide-en-US', browserName);
+    await page.mouse.up();
+    await expect.poll(async () => (await layersOf(page))[0]!.x).not.toBe(0.5);
+    const after = (await hit.boundingBox())!;
+    // Its left edge sits on the margin (within a pixel of layout rounding).
+    expect(Math.abs(after.x - margin)).toBeLessThanOrEqual(1.5);
+    expect(await stepsOf(page)).toBe(before + 1);
+  });
+
+  test('F-010.AC4 F-004.R3 dragging a 2–5 s layer’s end handle to 8 s on the text lane ends it at 8 s (one step)', async ({
+    page,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await withLayers(page, [layer('T', 2, 5, { content: 'Trim me' })]);
+    await textItem(page, 'Trim me').click();
+    const end = page.locator('.tk-text-lane .tk-trim--end');
+    await settled(end);
+    const px = await pxPerSecond(page);
+    const b = (await end.boundingBox())!;
+    const before = await stepsOf(page);
+    const grab = b.x + b.width - 1;
+    await page.mouse.move(grab, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grab + 1.5 * px, b.y + b.height / 2, { steps: 4 });
+    await page.mouse.move(grab + 3 * px, b.y + b.height / 2, { steps: 4 });
+    await page.mouse.up();
+    await expect.poll(async () => (await layersOf(page))[0]!.end).toBe(8 * S);
+    expect((await layersOf(page))[0]!.start).toBe(2 * S);
+    expect(await stepsOf(page)).toBe(before + 1);
+  });
+
+  test('F-004.AC5 F-004.R3 a text layer at 1–5 s split at 3 s with the Split control is two layers, 1–3 s and 3–5 s (text half)', async ({
+    page,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await withLayers(page, [layer('T', 1, 5, { content: 'Split me' })]);
+    await textItem(page, 'Split me').click();
+    await setPlayhead(page, 3);
+    await timeline(page)
+      .getByRole('toolbar')
+      .getByRole('button', { name: text('en-US', 'action.split') })
+      .click();
+    await expect
+      .poll(async () => (await layersOf(page)).map((t) => [t.start, t.end]))
+      .toEqual([
+        [1 * S, 3 * S],
+        [3 * S, 5 * S],
+      ]);
+    await expect(page.locator('.tk-tclip')).toHaveCount(2);
+  });
+
+  test('F-010.AC6 RULE-11 with 495 characters, pasting 20 more (with tone marks) adds only 5 whole characters; at 500 typing is refused and the limit notice shows', async ({
+    page,
+    browserName,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await addText(page).click();
+    await field(page).fill('a'.repeat(495));
+    await expect(page.locator('.tk-texteditor__bar')).toContainText('495 / 500');
+    // Decomposed letters (e + combining marks) are kept whole and composed (NFC).
+    const paste = 'ệ'.normalize('NFD').repeat(3) + 'Đà Lạt 2026 ok';
+    await field(page).evaluate((el, data) => {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', data);
+      el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, paste);
+    await expect(page.locator('.tk-texteditor__bar')).toContainText('500 / 500');
+    await expect(page.locator('.tk-texteditor__count[data-limit]')).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: text('en-US', 'text.char_limit') })).toBeVisible();
+    const value = await field(page).inputValue();
+    expect(value.slice(495)).toBe('ệệệĐà');
+    // Typing at the limit is not accepted.
+    await page.keyboard.type('xyz');
+    expect(await field(page).inputValue()).toBe(value);
+    await shot(page, 'editing-limit-wide-en-US', browserName);
+    await page.keyboard.press('Escape');
+    expect((await layersOf(page))[0]!.content.slice(495)).toBe('ệệệĐà');
+  });
+
+  test('F-010.AC7 with two overlapping layers, Send back on the top one puts the other on top in the preview', async ({
+    page,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    const big = { content: 'MMMM', size: 20, y: 0.5, style: 'box' } as const;
+    await withLayers(page, [
+      layer('A', 0, 5, { ...big, colour: 'red', boxColour: 'red' }),
+      layer('B', 0, 5, { ...big, content: 'MMMM ', colour: 'blue', boxColour: 'blue' }),
+    ]);
+    const centre: Point[] = [[0.5, 0.5]];
+    const dominant = async () => {
+      const [c] = await previewAt(page, centre);
+      return c![0]! > c![2]! ? 'red' : 'blue';
+    };
+    await expect.poll(dominant, { timeout: 10_000 }).toBe('blue');
+    await page.locator('.tk-tclip').nth(1).click();
+    await inspector(page)
+      .getByRole('button', { name: text('en-US', 'text.send_back') })
+      .click();
+    expect((await layersOf(page)).map((t) => t.id)).toEqual(['B', 'A']);
+    await expect.poll(dominant, { timeout: 10_000 }).toBe('red');
+    // Bring forward puts it back.
+    await inspector(page)
+      .getByRole('button', { name: text('en-US', 'text.bring_forward') })
+      .click();
+    await expect.poll(dominant, { timeout: 10_000 }).toBe('blue');
+  });
+
+  test('F-010.AC8 RULE-13 a layer of only spaces is removed when editing ends, leaving no step', async ({ page }) => {
+    await open(page);
+    await tenSeconds(page);
+    const before = await stepsOf(page);
+    await addText(page).click();
+    await page.keyboard.type('   ');
+    await page.keyboard.press('Escape');
+    await expect(field(page)).toHaveCount(0);
+    expect(await layersOf(page)).toEqual([]);
+    expect(await stepsOf(page)).toBe(before);
+    await expect(page.locator('.tk-tclip')).toHaveCount(0);
+  });
+
+  test('F-010.AC9 RULE-20 in an empty project, T adds a layer from 0 to 3 s and opens the editor; Mod+Enter finishes', async ({
+    page,
+    browserName,
+  }) => {
+    await open(page);
+    await page.locator('body').click();
+    await page.keyboard.press('t');
+    await expect(field(page)).toBeFocused();
+    await page.keyboard.type('Xin chào');
+    await page.keyboard.press(`${mod(browserName)}+Enter`);
+    await expect(field(page)).toHaveCount(0);
+    const [t] = await layersOf(page);
+    expect([t!.content, t!.start, t!.end]).toEqual(['Xin chào', 0, 3 * S]);
+  });
+
+  test('F-010.AC10 RULE-20 RULE-21 Later moves the selected text one frame later; Alt+Left one frame earlier; Shift+Alt+Right 1 s', async ({
+    page,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await withLayers(page, [layer('T', 2, 5, { content: 'Move me' })]);
+    await textItem(page, 'Move me').click();
+    const later = timeline(page)
+      .getByRole('toolbar')
+      .getByRole('button', { name: text('en-US', 'action.time_later') });
+    await later.click();
+    const frame = S / 30;
+    await expect.poll(async () => (await layersOf(page))[0]!.start).toBe(Math.floor(2 * S + frame));
+    await textItem(page, 'Move me').focus();
+    await page.keyboard.press('Alt+ArrowLeft');
+    await expect.poll(async () => (await layersOf(page))[0]!.start).toBe(2 * S);
+    await page.keyboard.press('Shift+Alt+ArrowRight');
+    await expect.poll(async () => (await layersOf(page))[0]!.start).toBe(3 * S);
+    expect((await layersOf(page))[0]!.end).toBe(6 * S);
+  });
+
+  test('F-010.AC11 RULE-10 with the text fade on, the text is fully transparent at its start and fully shown at 0.3 s', async ({
+    page,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await withLayers(page, [layer('T', 2, 5, { content: 'MMMM', size: 12, y: 0.5, style: 'plain' })]);
+    await textItem(page, 'MMMM').click();
+    await inspector(page)
+      .getByRole('button', { name: text('en-US', 'text.fade') })
+      .click();
+    expect((await layersOf(page))[0]!.fade).toBe(true);
+    const pts = band(0.2, 0.8, 0.46, 0.54, 40);
+    const white = async () => (await previewAt(page, pts)).filter((c) => c.every((v) => v > 240)).length;
+    await setPlayhead(page, 2);
+    await expect.poll(() => inkAt(page, pts, 8), { timeout: 10_000 }).toBe(0);
+    await setPlayhead(page, 2.3);
+    await expect.poll(white, { timeout: 10_000 }).toBeGreaterThan(5);
+  });
+
+  test('F-010.AC12 duplicating a layer and deleting the original leaves one layer with the same content and times', async ({
+    page,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await withLayers(page, [layer('T', 2, 5, { content: 'Twin' })]);
+    await textItem(page, 'Twin').click();
+    const tools = timeline(page).getByRole('toolbar');
+    await tools.getByRole('button', { name: text('en-US', 'action.duplicate') }).click();
+    await expect(page.locator('.tk-tclip')).toHaveCount(2);
+    // The copy is selected and on top; select the original and delete it.
+    await page.locator('.tk-tclip[data-text-id="T"]').click();
+    await tools.getByRole('button', { name: text('en-US', 'action.delete') }).click();
+    const left = await layersOf(page);
+    expect(left.map((t) => [t.content, t.start, t.end])).toEqual([['Twin', 2 * S, 5 * S]]);
+    expect(left[0]!.id).not.toBe('T');
+  });
+
+  test('CMP-TextEditor double-clicking a text item edits it; one later session is one step; activating the selected item again edits it', async ({
+    page,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await withLayers(page, [layer('T', 2, 5, { content: 'Hi' })]);
+    const before = await stepsOf(page);
+    await textItem(page, 'Hi').dblclick();
+    await expect(field(page)).toBeFocused();
+    await expect(field(page)).toHaveValue('Hi');
+    await page.keyboard.press('End');
+    await page.keyboard.type(' there');
+    // Keys inside the field are text, never shortcuts (RULE-20): Space typed, no playback; Delete edits.
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Escape');
+    expect((await layersOf(page))[0]!.content).toBe('Hi ther');
+    expect(await stepsOf(page)).toBe(before + 1);
+    await expect(textItem(page, 'Hi ther')).toBeFocused();
+    // Enter on the selected item opens the editor again.
+    await page.keyboard.press('Enter');
+    await expect(field(page)).toBeFocused();
+    await page.keyboard.press('Escape');
+  });
+
+  test('RULE-20 IME: Vietnamese composition is never committed half-composed, and Esc mid-composition does not finish editing', async ({
+    page,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await addText(page).click();
+    await page.keyboard.type('Vi');
+    const before = (await layersOf(page))[0]!.content;
+    expect(before).toBe('Vi');
+    // Telex-style composition "e" → "ê" → "ệ" (synthetic composition events, as an input method sends them).
+    await field(page).evaluate((el: HTMLTextAreaElement) => {
+      el.dispatchEvent(new CompositionEvent('compositionstart', { data: '', bubbles: true }));
+      for (const step of ['e', 'ê', 'ệ']) {
+        el.value = `Vi${step}`;
+        el.dispatchEvent(
+          new InputEvent('input', { data: step, inputType: 'insertCompositionText', isComposing: true, bubbles: true }),
+        );
+      }
+      el.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Escape',
+          code: 'Escape',
+          isComposing: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      el.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Delete',
+          code: 'Delete',
+          isComposing: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    // Mid-composition nothing is committed and the editor stays open.
+    expect((await layersOf(page))[0]!.content).toBe('Vi');
+    await expect(field(page)).toBeFocused();
+    await field(page).evaluate((el: HTMLTextAreaElement) => {
+      el.value = 'Việ';
+      el.dispatchEvent(new CompositionEvent('compositionend', { data: 'ệ', bubbles: true }));
+    });
+    await expect.poll(async () => (await layersOf(page))[0]!.content).toBe('Việ');
+    await expect(page.locator('.tk-texteditor__bar')).toContainText('3 / 500');
+    await page.keyboard.press('Escape');
+    await expect(field(page)).toHaveCount(0);
+  });
+
+  test('Q96 F-014 an edit landing while typing (a media batch) keeps what was typed as its own step; typing goes on in the editor', async ({
+    page,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    const before = await stepsOf(page);
+    await addText(page).click();
+    await page.keyboard.type('Hel');
+    // An outside edit (as a batch of media landing) cuts the editing session's step.
+    const p = await stateOf(page);
+    await page.evaluate(
+      (json) => (window as unknown as Harness).appHarness.load(json),
+      JSON.stringify({ ...p, frame: { ...p.frame, background: 'red' } }),
+    );
+    await expect(field(page)).toBeFocused();
+    await page.keyboard.type('lo');
+    await page.keyboard.press('Escape');
+    expect((await layersOf(page))[0]!.content).toBe('Hello');
+    expect(await stepsOf(page)).toBe(before + 3);
+    await undoButton(page).click();
+    expect((await layersOf(page))[0]!.content).toBe('Hel');
+  });
+});
+
+test.describe('F-010 layouts and languages (app harness)', () => {
+  for (const lang of ['en-US', 'vi-VN'] as const) {
+    test(`NFR-06 F-010 CMP-TextEditor and CMP-Inspector "text layer" at 1280 px pass axe (${lang})`, async ({
+      page,
+      browserName,
+    }) => {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await open(page, lang);
+      await tenSeconds(page, lang);
+      await addText(page, lang).click();
+      await page.keyboard.type('Đà Lạt 2026 — mùa hoa dã quỳ');
+      await expect(page.locator('.tk-texteditor__bar')).toContainText('27 / 500');
+      await shot(page, `editing-vi-wrap-wide-${lang}`, browserName);
+      await axe(page);
+      await page.keyboard.press('Escape');
+      await expect(inspector(page, lang).getByRole('heading', { name: text(lang, 'inspector.text') })).toBeVisible();
+      await shot(page, `inspector-text-wide-${lang}`, browserName);
+      await axe(page);
+    });
+
+    test(`NFR-06 RULE-21 F-010 the phone Text tab adds text; editing shows Done in the top bar and the Font, Colour and Style bar; axe at 320 px (${lang})`, async ({
+      page,
+      browserName,
+    }) => {
+      await page.setViewportSize({ width: 320, height: 640 });
+      await open(page, lang);
+      await tenSeconds(page, lang);
+      await page.getByRole('tab', { name: text(lang, 'inspector.text') }).click();
+      const sheet = page.locator('#tk-sheet-text');
+      await expect(sheet).toBeVisible();
+      await axe(page);
+      await sheet.getByRole('button', { name: text(lang, 'action.add_text') }).click();
+      await expect(field(page, lang)).toBeFocused();
+      await page.keyboard.type('Chúc mừng sinh nhật');
+      const top = toolbar(page, lang).getByRole('button', { name: text(lang, 'action.done') });
+      await expect(top).toBeVisible();
+      await page.locator('[data-action="text-font"]').click();
+      await expect(page.locator('[data-action="text-font"]')).toHaveAttribute('aria-pressed', 'true');
+      await page
+        .locator('.tk-texteditor__picker')
+        .getByRole('radio', { name: text(lang, 'text.rounded') })
+        .click();
+      await expect(field(page, lang)).toBeFocused();
+      await shot(page, `editing-narrow-${lang}`, browserName);
+      await axe(page);
+      await top.click();
+      await expect(field(page, lang)).toHaveCount(0);
+      const [t] = await layersOf(page);
+      expect([t!.content, t!.typeface]).toEqual(['Chúc mừng sinh nhật', 'rounded']);
+      // The Text tab's sheet holds the selected layer's section at touch size.
+      await page.getByRole('tab', { name: text(lang, 'inspector.text') }).click();
+      await expect(sheet.locator('[data-section="text"]')).toBeVisible();
+      await shot(page, `text-sheet-narrow-${lang}`, browserName);
+      await axe(page);
+    });
+  }
+});
+
+test.describe('F-010 text in the export (media harness, INV-02)', () => {
+  test('F-010.AC5 F-010.R5 INV-02 NFR-08 NFR-01 every typeface with every Vietnamese tone mark: the decoded export matches the preview paint, the bundled faces draw the glyphs, and no font is requested', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await page.goto(HARNESS);
+    await page.waitForFunction(() => 'harness' in window);
+    const fonts: string[] = [];
+    page.on('request', (r) => {
+      if (/\.woff2?(\?|$)/.test(r.url())) fonts.push(r.url());
+    });
+    const spec: TextExportSpec = {
+      lines: ['Chúc mừng sinh nhật', 'à á ả ã ạ ằ ắ ẳ ẵ ặ ầ ấ ẩ ẫ ậ', 'ề ế ể ễ ệ ờ ớ ở ỡ ợ ừ ứ ử ữ ự Đđ'],
+    };
+    // A first export loads every export module; the measured one then runs offline.
+    await page.evaluate((s) => (window as unknown as Harness).harness.export.textExport(s), { lines: ['Hi'] });
+    fonts.length = 0;
+    await page.context().setOffline(true);
+    const r = await page.evaluate((s) => (window as unknown as Harness).harness.export.textExport(s), spec);
+    await page.context().setOffline(false);
+    expect(r.ok).toBe(true);
+    expect(fonts).toEqual([]);
+    for (const face of r.faces) {
+      // The bundled face is loaded and is what drew the text (not a fallback): its glyphs differ from a generic one.
+      expect(face.loaded, face.typeface).toBe(true);
+      expect(face.differsFromFallback, face.typeface).toBe(true);
+      // Tone marks draw: "ệ" has ink where "e" has none (above and below the letter).
+      expect(face.marksDrawn, face.typeface).toBe(true);
+      // INV-02 / NFR-08: the decoded export's text matches the paint (the preview's picture) of the same frame.
+      expect(face.inkExport, face.typeface).toBeGreaterThan(200);
+      expect(Math.abs(face.inkExport - face.inkPaint) / face.inkPaint, face.typeface).toBeLessThan(0.15);
+      expect(face.meanDiff, face.typeface).toBeLessThan(6);
+    }
   });
 });

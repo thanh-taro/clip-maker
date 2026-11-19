@@ -42,6 +42,10 @@ import {
   type ExportResult,
 } from '../../src/export';
 import { FrameSource } from '../../src/export/pipeline';
+// F-010: the bundled typefaces (ADR-0012) for the text export; MOD-Host loads every face, as the app does.
+import '../../src/app/styles/fonts.css';
+import { loadFonts } from '../../src/host/fonts';
+import { rasteriseText, textBitmaps, TEXT_FACES } from '../../src/preview';
 import { framePlan, voices } from '../../src/plan';
 import { browserScratchEnv, browserStorage, lockName, Scratch, SCRATCH_DIR } from '../../src/scratch';
 import { de00, lab, type Rgb } from '../support/colour';
@@ -1285,6 +1289,7 @@ async function exportFile(
   project: Project,
   settings: ExportSettings,
   parts: Pick<ExportContext, 'media' | 'pcm'>,
+  texts: ExportContext['texts'] = () => ({}),
 ): Promise<Blob | null> {
   workers ??= new ExportWorkers();
   let saved: Blob | null = null;
@@ -1294,7 +1299,7 @@ async function exportFile(
     caps: await caps(),
     ...parts,
     looks: {},
-    texts: () => ({}),
+    texts,
     phone: false,
     gains: new Map(),
     save: (blob) => {
@@ -1543,7 +1548,176 @@ async function lookContactSheet(
   return { width: sheet.width, height: sheet.height, looks: ids.length };
 }
 
+/** F-010.AC5: text lines drawn once per typeface, one second each. */
+export interface TextExportSpec {
+  readonly lines: readonly string[];
+}
+
+export interface TextFaceReport {
+  readonly typeface: string;
+  /** The bundled face is loaded for the text (`document.fonts.check`). */
+  readonly loaded: boolean;
+  /** The rasterised text differs from the same text in a generic fallback face (the bundled face drew it). */
+  readonly differsFromFallback: boolean;
+  /** "ệ" has ink where "e" has none: the tone marks are drawn. */
+  readonly marksDrawn: boolean;
+  /** Pixels of text ink (differing from the grey background by more than 60) in the decoded export / the paint. */
+  readonly inkExport: number;
+  readonly inkPaint: number;
+  /** Mean absolute difference (0–255) between the decoded export and the paint over the text's band. */
+  readonly meanDiff: number;
+}
+
+export interface TextExportReport {
+  readonly ok: boolean;
+  readonly faces: readonly TextFaceReport[];
+}
+
+const TEXT_GREY: Sample = [90, 90, 90];
+
+/** Ink pixels of an RGBA image: channels away from the grey background by more than 60. */
+function inkOf(px: ArrayLike<number>, n: number): number {
+  let ink = 0;
+  for (let i = 0; i < n; i++) {
+    const o = i * 4;
+    if (
+      Math.abs(px[o]! - TEXT_GREY[0]) > 60 ||
+      Math.abs(px[o + 1]! - TEXT_GREY[1]) > 60 ||
+      Math.abs(px[o + 2]! - TEXT_GREY[2]) > 60
+    )
+      ink++;
+  }
+  return ink;
+}
+
+/** Pixels of a bitmap as RGBA. */
+function bitmapPixels(b: ImageBitmap): Uint8ClampedArray {
+  const c = new OffscreenCanvas(b.width, b.height);
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  g.drawImage(b, 0, 0);
+  return g.getImageData(0, 0, b.width, b.height).data;
+}
+
+/**
+ * F-010.AC5 / F-010.R5 / INV-02: the text in each RULE-11 typeface (white with the default outline, on a flat
+ * grey photo) rasterised by MOD-Preview's rasteriser at the output size, exported at 480p Balanced through the
+ * real export workers, one second per face; the middle frame of each second decoded next to the compositor's
+ * paint of the same frame with the same bitmaps (the preview's picture). Also checks the bundled faces: each is
+ * loaded, draws differently from a generic fallback, and draws Vietnamese tone marks.
+ */
+async function textExport(spec: TextExportSpec): Promise<TextExportReport> {
+  await loadFonts();
+  const faces = ['sans', 'display', 'serif', 'rounded'] as const;
+  const us = (s: number): number => Math.round(s * 1e6);
+  const content = spec.lines.join('\n');
+  const base = {
+    content,
+    size: 5,
+    colour: 'white',
+    style: 'outline',
+    align: 'centre',
+    x: 0.5,
+    y: 0.5,
+    fade: false,
+  } as const;
+  const project: Project = {
+    frame: { aspect: '16:9', frameRate: 30, background: 'black' },
+    sources: [{ id: 'src-g', kind: 'photo', name: 'g', bytes: 1, width: 320, height: 180 }],
+    clips: [
+      {
+        id: 'g',
+        sourceId: 'src-g',
+        kind: 'photo',
+        duration: us(faces.length),
+        placement: DEFAULT_PLACEMENT,
+        adjustments: {},
+        look: null,
+        fadeIn: 0,
+        fadeOut: 0,
+        crossFadeNext: 0,
+      },
+    ],
+    textLayers: faces.map((typeface, i) => ({ ...base, id: `t-${typeface}`, typeface, start: us(i), end: us(i + 1) })),
+    audioClips: [],
+  };
+  const media: EngineMedia[] = [{ id: 'src-g', kind: 'photo', bitmap: await flatBitmap(TEXT_GREY) }];
+  const settings = { kind: 'video', resolution: 480, quality: 'balanced' } as const;
+  // The output size of a 16:9 480p export (RULE-15): the bitmaps are made for it, as the export asks.
+  const W = 854;
+  const H = 480;
+  const texts = await textBitmaps(project.textLayers, W, H);
+  const video = await exportFile(project, settings, { media, pcm: [] }, () => texts);
+  if (!video) return { ok: false, faces: [] };
+  const ks = faces.map((_, i) => i * 30 + 15);
+  const decoded = await decodeFrames(video, ks, 30);
+  if (decoded.W !== W || decoded.H !== H) return { ok: false, faces: [] };
+  const comp = createCompositor(new OffscreenCanvas(W, H), new Map(), { preserve: true });
+  const source = new FrameSource(media);
+  const out: TextFaceReport[] = [];
+  for (const [i, typeface] of faces.entries()) {
+    const k = ks[i]!;
+    const plan = framePlan(project, k);
+    comp.paint(plan, await source.frames(plan), new Map(Object.entries(texts)));
+    const painted = comp.readPixels();
+    const exported = decoded.px.get(k)!;
+    let diff = 0;
+    let n = 0;
+    // The text's band: the middle third of the frame's height.
+    for (let y = Math.floor(H / 3); y < Math.floor((2 * H) / 3); y++)
+      for (let x = 0; x < W; x++) {
+        const o = (y * W + x) * 4;
+        for (let c = 0; c < 3; c++) diff += Math.abs(exported[o + c]! - painted[o + c]!);
+        n += 3;
+      }
+    // The bundled face against a generic fallback, and "ệ" against "e", rasterised the same way.
+    const layer = project.textLayers[i]!;
+    const face = TEXT_FACES[typeface];
+    const loaded = document.fonts.check(`${face.weight} 32px "${face.family}"`, content);
+    const own = await rasteriseText({ ...layer, content: 'Chúc mừng' }, W, H);
+    const plain = await rasteriseText({ ...layer, content: 'e', style: 'plain', size: 20 }, W, H);
+    const marked = await rasteriseText({ ...layer, content: 'ệ', style: 'plain', size: 20 }, W, H);
+    const fallbackCanvas = new OffscreenCanvas(own?.width ?? 1, own?.height ?? 1);
+    const fg = fallbackCanvas.getContext('2d')!;
+    fg.font = `${face.weight} ${(layer.size / 100) * H}px monospace`;
+    fg.textBaseline = 'middle';
+    fg.fillStyle = '#fff';
+    fg.fillText('Chúc mừng', 0, fallbackCanvas.height / 2);
+    const fallback = fallbackCanvas.transferToImageBitmap();
+    const a = own ? bitmapPixels(own) : new Uint8ClampedArray();
+    const fb = bitmapPixels(fallback);
+    let differs = a.length !== fb.length;
+    for (let j = 3; !differs && j < a.length; j += 4) if (a[j]! > 128 !== fb[j]! > 128) differs = true;
+    // Ink rows of "e" and "ệ": the marks add rows above and below the letter.
+    const rows = (b: ImageBitmap | null): number => {
+      if (!b) return 0;
+      const px = bitmapPixels(b);
+      let r = 0;
+      for (let y = 0; y < b.height; y++) {
+        let any = false;
+        for (let x = 0; x < b.width && !any; x++) any = px[(y * b.width + x) * 4 + 3]! > 128;
+        if (any) r++;
+      }
+      return r;
+    };
+    out.push({
+      typeface,
+      loaded,
+      differsFromFallback: differs,
+      marksDrawn: rows(marked) > rows(plain) * 1.2,
+      inkExport: inkOf(exported, W * H),
+      inkPaint: inkOf(painted, W * H),
+      meanDiff: diff / n,
+    });
+    for (const b of [own, plain, marked, fallback]) b?.close();
+  }
+  await source.close();
+  comp.dispose();
+  for (const t of Object.values(texts)) t.bitmap.close();
+  return { ok: true, faces: out };
+}
+
 export const exportHarness = {
+  textExport,
   lookContactSheet,
   fadeExport,
   caps,
