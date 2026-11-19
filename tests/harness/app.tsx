@@ -331,7 +331,14 @@ export interface AudioRead {
 }
 
 /** RIFF/WAVE: format tag, channels, rate, bits and the samples as floats (16-bit PCM). */
-function parseWav(b: Uint8Array): { tag: number; channels: number; rate: number; bits: number; L: Float32Array; R: Float32Array } {
+function parseWav(b: Uint8Array): {
+  tag: number;
+  channels: number;
+  rate: number;
+  bits: number;
+  L: Float32Array;
+  R: Float32Array;
+} {
   const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
   let at = 12;
   let fmt = { tag: 0, channels: 0, rate: 0, bits: 0 };
@@ -366,7 +373,10 @@ async function readAudio(bytes: number[], windows: readonly number[]): Promise<A
   let L: Float32Array;
   let R: Float32Array;
   let info: Pick<AudioRead, 'container' | 'codec' | 'sampleRate' | 'channels' | 'bits' | 'duration'>;
-  if (String.fromCharCode(...data.subarray(0, 4)) === 'RIFF' && String.fromCharCode(...data.subarray(8, 12)) === 'WAVE') {
+  if (
+    String.fromCharCode(...data.subarray(0, 4)) === 'RIFF' &&
+    String.fromCharCode(...data.subarray(8, 12)) === 'WAVE'
+  ) {
     const w = parseWav(data);
     ({ L, R } = w);
     info = {

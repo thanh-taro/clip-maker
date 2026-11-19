@@ -339,6 +339,8 @@ function done(deps: PipelineDeps, m: Extract<FromExport, { type: 'export:done' }
 const beat = (deps: PipelineDeps) => (): void => deps.post({ type: 'export:alive' });
 
 type GifOut = Extract<ExportJob['output'], { kind: 'gif' }>;
+/** How long the GIF loop works before it lets the worker handle its messages (an abort). */
+const GIF_YIELD_MS = 50;
 interface GifPainter {
   readonly comp: Compositor;
   readonly source: FrameSource;
@@ -430,6 +432,7 @@ async function gifExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
     at += b.length;
     gif.reset();
   };
+  let lastYield = now();
   try {
     for (let i = 0; i < out.frames; i++) {
       paintMs += await gifFrame(gif, { comp, source, texts }, job.project, out, i, delays[i]!);
@@ -437,6 +440,14 @@ async function gifExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
       if (now() - lastPost >= PROGRESS_POST_MS || i === out.frames - 1) {
         lastPost = now();
         deps.post({ type: 'export:progress', done: i + 1, total: out.frames });
+      }
+      // F-016.AC3, F-015.R7: nothing here waits on another task (pictures already decoded, quantising,
+      // synchronous scratch writes), so the loop yields now and then for `export:abort` to be handled:
+      // the abort closes and deletes the scratch file before the worker is terminated.
+      if (now() - lastYield >= GIF_YIELD_MS) {
+        await new Promise((r) => setTimeout(r, 0));
+        lastYield = now();
+        if (deps.gate?.aborted) throw new StageError('internal', 'AbortError: the export was cancelled');
       }
     }
     gif.finish();

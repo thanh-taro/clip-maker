@@ -36,6 +36,17 @@ SP-mem-phone (ADR-0010 outcome).
 - Hand-over by `<a download>` (no fresh activation needed); MOD-Scratch's 10 s rule follows. Share
   (where RULE-17's grant and the device allow) only after the G3 spec change.
 
+### GIF and audio only (F-016 build, 2026-11-19)
+- GIF settings carry the range's end (`to`); the GIF covers `from` to the earlier of `to`, the project's
+  end and 15 s later.
+- The panel's GIF estimate encodes the frames at 10, 50 and 90 % of the range on their own in the idle
+  export worker (the calibration request) and multiplies their mean size by the frame count, plus the
+  fixed parts.
+- The GIF loop yields to the worker's event loop at least every 50 ms, so `export:abort` is handled (scratch
+  closed and deleted) before the worker is terminated; nothing else in that loop waits on another task.
+- The capability record exists even when no video format works (`videoFormat` null): GIF and WAV need no
+  video or sound encoder and stay available (F-023.R5).
+
 ## Not responsible for
 - Storage housekeeping (MOD-Scratch), codec capability (MOD-Codec), the export panel UI (MOD-App).
 

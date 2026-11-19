@@ -37,7 +37,8 @@ describe('GIF reader (test harness)', () => {
     expect(read.delays).toEqual([7, 6]);
     expect(read.rgba).toHaveLength(2);
     expect(Math.max(...read.palettes)).toBeLessThanOrEqual(256);
-    const at = (f: number, x: number, y: number) => Array.from(read.rgba[f]!.subarray((y * w + x) * 4, (y * w + x) * 4 + 3));
+    const at = (f: number, x: number, y: number) =>
+      Array.from(read.rgba[f]!.subarray((y * w + x) * 4, (y * w + x) * 4 + 3));
     expect(at(0, 2, 2)).toEqual([255, 0, 0]);
     expect(at(0, 30, 10)).toEqual([0, 0, 255]);
     // Quantised to 256 colours: each pixel close to its original.

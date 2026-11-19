@@ -181,3 +181,7 @@ Owner decisions on `.build-my-app/reports/build-spec-questions.md` items 1–7, 
 
 ## 2026-11-19 — F-018 build (wave 4)
 - F-018 edge cases: New project while files are being checked drops the batch (files already checked are not added); New project closes an open export panel, keeping its settings (RULE-23; build question 192).
+
+## 2026-11-19 — F-016 build (wave 5)
+- CMP-ExportPanel "Behavior" (GIF range): the frame separators of the From/To fields, when a field takes its time, how one end follows the other, when the range is worked out from the playhead, and that Change settings keeps it (build question 198).
+- MOD-Export: GIF settings carry the range's end; the panel's GIF estimate from three encoded frames; the GIF loop yields so a cancel deletes its scratch; the capability record without a video format keeps GIF and WAV available (F-023.R5; build questions 197, 199, 200).
