@@ -286,8 +286,11 @@ test.describe('F-017 keyboard (app harness)', () => {
       .first()
       .getByRole('button', { name: text('en-US', 'action.snapping') });
     await page.locator('body').focus();
+    // Empty state: a single N leaves Snapping as it was (unavailable), after the key has been handled.
+    expect(await snap.getAttribute('aria-pressed')).toBe('true');
     await page.keyboard.press('KeyN');
-    await expect(snap).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    expect(await snap.getAttribute('aria-pressed')).toBe('true');
     await add(page, [photo('P.png')]);
     // 60 s, so the fitted view can zoom in (RULE-14's range).
     await page.evaluate(() => (window as unknown as Harness).appHarness.setClip(0, { seconds: 60 }));
@@ -351,6 +354,105 @@ test.describe('F-017 keyboard (app harness)', () => {
     expect((await preview(page)).state).toBe('paused');
     await page.keyboard.press('Escape');
     await expect(helpDialog(page)).toHaveCount(0);
+  });
+});
+
+test.describe('F-017 keyboard review checks (app harness)', () => {
+  test('F-017.AC2 =, - and ? typed in the text editor and in a number field type the character; no zoom, no help', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    await add(page, [video('A.mp4')]);
+    const track = page.locator('.tk-track');
+    const width = (await track.boundingBox())!.width;
+    // A number field: the Brightness field of the Adjust tab.
+    await clip(page, 'A.mp4').click();
+    const inspector = page.getByRole('complementary', { name: text('en-US', 'inspector.label') });
+    await inspector.getByRole('tab', { name: text('en-US', 'inspector.adjust') }).click();
+    const field = inspector
+      .getByRole('group', { name: text('en-US', 'adjust.brightness'), exact: true })
+      .getByRole('spinbutton');
+    await field.click();
+    await field.selectText();
+    await page.keyboard.type('-=?');
+    await expect(field).toHaveValue('-=?');
+    await page.keyboard.press('Escape');
+    // The text editor.
+    await timeline(page)
+      .getByRole('group', { name: text('en-US', 'timeline.main_track') })
+      .focus();
+    await page.keyboard.press('KeyT');
+    const editor = page.locator('.tk-texteditor__field');
+    await expect(editor).toBeFocused();
+    await page.keyboard.type('a=b-c?');
+    await expect(editor).toHaveValue(/a=b-c\?$/);
+    await expect(helpDialog(page)).toHaveCount(0);
+    expect((await track.boundingBox())!.width).toBeCloseTo(width, 0);
+  });
+
+  test('F-017.R1 RULE-20 Alt+Left on a focused toolbar button moves the selected clip earlier (not the toolbar, not browser Back)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    await add(page, [photo('A.png'), photo('B.png')]);
+    await clip(page, 'B.png').click();
+    const url = page.url();
+    const split = timeline(page)
+      .getByRole('toolbar')
+      .first()
+      .getByRole('button', { name: text('en-US', 'action.split'), exact: true });
+    await split.focus();
+    await page.keyboard.press('Alt+ArrowLeft');
+    await expect.poll(() => order(page)).toEqual(['B.png', 'A.png']);
+    await expect(split).toBeFocused();
+    expect(page.url()).toBe(url);
+  });
+
+  test('F-017.R3 with the preview maximised, ? opens the list and Tab / Shift+Tab move between its controls', async ({
+    page,
+    browserName,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    await add(page, [photo('P.png')]);
+    await page.getByRole('button', { name: text('en-US', 'action.full_screen') }).click();
+    await expect(page.locator('.tk-fullscreen-bar')).toBeVisible();
+    await page.keyboard.press('Shift+Slash');
+    const dialog = helpDialog(page);
+    await expect(dialog).toBeVisible();
+    const close = dialog.getByRole('button', { name: text('en-US', 'action.close') });
+    const list = dialog.getByRole('region', { name: text('en-US', 'help.title') });
+    await expect(close).toBeFocused();
+    await page.keyboard.press(tabKey(browserName));
+    await expect(list).toBeFocused();
+    await page.keyboard.press(browserName === 'webkit' ? 'Alt+Shift+Tab' : 'Shift+Tab');
+    await expect(close).toBeFocused();
+    // In the browser's real full screen (WebKit here) the browser takes the first Esc to leave it; the next
+    // Esc reaches the list. Maximised in the page (Chromium here), one Esc closes the list.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    if ((await dialog.count()) > 0) await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  });
+
+  test('CMP-ShortcutHelp narrow: a press beside the grab handle stays inside the sheet; a press on the scrim closes it', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await open(page);
+    await page.locator('body').focus();
+    await page.keyboard.press('Shift+Slash');
+    const dialog = helpDialog(page);
+    await expect(dialog).toBeVisible();
+    await dialog.evaluate((el) => Promise.all(el.getAnimations().map((x) => x.finished)));
+    const box = (await dialog.boundingBox())!;
+    await page.mouse.click(box.x + 20, box.y + 4);
+    await page.mouse.click(box.x + box.width - 20, box.y + 4);
+    await expect(dialog).toBeVisible();
+    await page.mouse.click(box.x + 20, box.y - 40);
+    await expect(dialog).toHaveCount(0);
   });
 });
 
@@ -501,6 +603,19 @@ test.describe('F-017 roving focus (app harness)', () => {
     await page.keyboard.press('Enter');
     await expect(tab('tab.audio')).toHaveAttribute('aria-selected', 'true');
     expect(await tablist.locator('[tabindex="0"]').count()).toBe(1);
+    // Space opens a tab's sheet too (a focused tab keeps Space; playback does not toggle).
+    await tab('tab.audio').click();
+    await expect(tab('tab.audio')).toHaveAttribute('aria-selected', 'false');
+    await tab('inspector.text').focus();
+    await page.keyboard.press('Space');
+    await expect(tab('inspector.text')).toHaveAttribute('aria-selected', 'true');
+    expect((await preview(page)).state).toBe('paused');
+    // Alt+Right on a focused tab is not the tab list's: it reaches RULE-20 (no tab moves, no browser Back).
+    const url = page.url();
+    await tab('inspector.text').focus();
+    await page.keyboard.press('Alt+ArrowRight');
+    await expect(tab('inspector.text')).toBeFocused();
+    expect(page.url()).toBe(url);
     await shot(page, 'tabbar-audio-sheet', browserName);
   });
 });

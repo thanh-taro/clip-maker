@@ -75,33 +75,33 @@ export function ShortcutHelp() {
     >
       {/* One element fills the dialog, so only the real scrim (the dialog element) counts as a press outside. */}
       <div class="tk-help__inner">
-      <span class="tk-help__grab" aria-hidden="true" />
-      <div class="tk-help__head">
-        <h2 id={TITLE_ID} class="tk-help__title" data-copy="help.title">
-          {t('help.title')}
-        </h2>
-        <button
-          ref={close}
-          type="button"
-          class="tk-icon-button tk-help__close"
-          aria-label={t('action.close')}
-          title={t('action.close')}
-          data-copy="action.close"
-          onClick={closeHelp}
-        >
-          <Icon name="close" size={20} />
-        </button>
-      </div>
-      {/* NFR-06: the list scrolls inside the dialog and is reachable by keyboard (axe scrollable-region-focusable). */}
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
-      <div class="tk-help__body" role="region" aria-labelledby={TITLE_ID} tabIndex={0}>
-        {column(1)}
-        {column(2)}
-        {column(3)}
-      </div>
-      <p class="tk-help__scope" data-copy="help.scope">
-        {t('help.scope')}
-      </p>
+        <span class="tk-help__grab" aria-hidden="true" />
+        <div class="tk-help__head">
+          <h2 id={TITLE_ID} class="tk-help__title" data-copy="help.title">
+            {t('help.title')}
+          </h2>
+          <button
+            ref={close}
+            type="button"
+            class="tk-icon-button tk-help__close"
+            aria-label={t('action.close')}
+            title={t('action.close')}
+            data-copy="action.close"
+            onClick={closeHelp}
+          >
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+        {/* NFR-06: the list scrolls inside the dialog and is reachable by keyboard (axe scrollable-region-focusable). */}
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
+        <div class="tk-help__body" role="region" aria-labelledby={TITLE_ID} tabIndex={0}>
+          {column(1)}
+          {column(2)}
+          {column(3)}
+        </div>
+        <p class="tk-help__scope" data-copy="help.scope">
+          {t('help.scope')}
+        </p>
       </div>
     </dialog>
   );
