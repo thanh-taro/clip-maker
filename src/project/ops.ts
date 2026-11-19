@@ -12,6 +12,7 @@ import {
   RULE_11,
   RULE_12,
   TEXT_DEFAULTS,
+  contrastOf,
   audioEnd,
   clampAdjustments,
   clampLook,
@@ -778,6 +779,23 @@ export function setTextStyle(p: Project, id: string, change: TextStyle): EditRes
   return updateText(p, id, (t) => {
     const next = { ...t, ...change };
     next.size = clamp(next.size, RULE_11.minSize, RULE_11.maxSize);
+    // RULE-11 *Position*: the block's centre, as fractions of the frame (kept within it, to 1/10 000).
+    next.x = Math.round(clamp(next.x, 0, 1) * 10_000) / 10_000;
+    next.y = Math.round(clamp(next.y, 0, 1) * 10_000) / 10_000;
+    // Q104: a default value is not stored — the box colour is kept only while it differs from the default.
+    if (next.boxColour === undefined || next.boxColour === contrastOf(next.colour)) delete next.boxColour;
+    return sameJson(next, t) ? t : next;
+  });
+}
+
+/**
+ * Implements: CMP-Inspector "text layer" Reset — every RULE-11 setting back to its default (typeface, size,
+ * colour, style, box colour, alignment, position, fade); the content and times stay. One step, none when
+ * already there.
+ */
+export function resetTextStyle(p: Project, id: string): EditResult {
+  return updateText(p, id, (t) => {
+    const next: TextLayer = { id: t.id, content: t.content, start: t.start, end: t.end, ...TEXT_DEFAULTS };
     return sameJson(next, t) ? t : next;
   });
 }
