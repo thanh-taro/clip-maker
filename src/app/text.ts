@@ -67,6 +67,18 @@ interface Session {
 }
 let session: Session | null = null;
 
+/** CMP-TextEditor's field, as the session needs it (registered while the editor is mounted). */
+export interface EditorHooks {
+  /** Commits what the field holds now (NFC, within the limit), even mid-composition. */
+  flush(): void;
+  /** Shows the layer's current text in the field (after a cut), unless an input method is composing. */
+  resync(): void;
+}
+let editorHooks: EditorHooks | null = null;
+export function registerEditor(hooks: EditorHooks | null): void {
+  editorHooks = hooks;
+}
+
 /** Called when the editing session ends (CMP-TextEditor moves focus). */
 let onClosed: ((id: string, kept: boolean) => void) | null = null;
 export function onEditingClosed(fn: ((id: string, kept: boolean) => void) | null): void {
@@ -79,7 +91,11 @@ function openSession(id: string): Session {
     gesture: beginGesture(() => {
       // Q96: an outside edit, undo, redo or New project cut the session. The layer gone: close without a
       // stale id. Still there: what was typed stays its own step; the next keystroke starts a new one.
-      if (session === s && !project.peek().textLayers.some((t) => t.id === id)) closeSession(false);
+      // Still there: the field shows the layer as it now is (undo may have restored older text), so the next
+      // keystroke types into that text instead of writing the undone text back.
+      if (session !== s) return;
+      if (!project.peek().textLayers.some((t) => t.id === id)) closeSession(false);
+      else editorHooks?.resync();
     }),
   };
   session = s;
@@ -159,6 +175,9 @@ export function typeText(content: string): void {
  * a layer left empty or only whitespace is removed as part of the session's step.
  */
 export function finishEditing(): void {
+  if (!session) return;
+  // A word still being composed (Telex, a phone keyboard) is part of the text: commit it first.
+  editorHooks?.flush();
   const s = session;
   if (!s) return;
   const before = project.peek();
