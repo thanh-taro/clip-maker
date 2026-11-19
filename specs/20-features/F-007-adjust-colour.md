@@ -32,13 +32,13 @@ Phone footage is often too dark, flat or blue. Strong, precise colour and light 
 
 ## Acceptance criteria
 - **AC1** Given a dark clip, when the user raises Brightness to +40 while paused, then the preview updates continuously during the drag and settles at +40. (R1)
-- **AC2** Given the 256-step grey-ramp fixture with Grain at 0, when previewed and exported at default settings, then output matches input within ΔE00 < 0.5; and at each adjustment's minimum and maximum, the full-precision result never reverses, keeps non-clipped steps distinct and has no adjacent steps differing by more than twice the default's largest difference, while the 8-bit preview and export reverse by no more than ΔL* 0.5 and stay within ΔE00 1 of the full-precision result, with Vignette judged at each position separately (RULE-08). (R2)
+- **AC2** Given the 256-step grey-ramp fixture with Grain at 0, when previewed and exported at default settings, then output matches input within ΔE00 < 0.5; and at each adjustment's minimum and maximum, the full-precision result never reverses, keeps non-clipped steps distinct and has no adjacent steps differing by more than twice the default's largest difference, while the 8-bit preview and the frame the export encodes reverse by no more than ΔL* 0.5 and stay within ΔE00 1 of the full-precision result, with Vignette judged at each position separately, and the exported file matches the preview within NFR-08 (RULE-08). (R2)
 - **AC3** Given every adjustment at a non-zero value, when the user resets Temperature, then only Temperature returns to 0; when the user picks Reset all, then all return to default. (R3)
 - **AC4** Given three clips and clip 1 with adjustments and a look, when the user picks Apply to all, then clips 2 and 3 get the same values, and one undo restores their previous values. (R4)
 - **AC5** Given clip 1's adjustments copied, when the user pastes them onto clip 3, then clip 3 matches clip 1's adjustments and look. (R4)
 - **AC6** Given a 1080p clip with every adjustment non-zero on the reference phone, when it plays, then it meets NFR-03, and its export matches the preview within NFR-08's colour tolerance. (R5)
 - **AC7** Given keyboard focus on Saturation, when the user presses the arrow keys or types 25, then the value changes by 1 per key press, or is set to 25. (R6)
-- **AC8** Given Grain 50, when the same frame is shown twice in the preview and once exported at the preview's resolution, then the grain is pixel-identical each time. (R2)
+- **AC8** Given Grain 50, when the same frame is shown twice in the preview and once exported at the preview's resolution, then the grain is pixel-identical each time in the preview and in the frame the export encodes. (R2)
 - **AC9** Given a clip with a look and Brightness +50, when the user holds compare, then the preview shows the clip without them; on release they return, and no undo step exists. (R7)
 
 ## UX notes

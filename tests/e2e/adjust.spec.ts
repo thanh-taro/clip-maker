@@ -188,7 +188,8 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
    * Drags the held thumb until the slider reads `target`, a quarter pixel at a time (engines map the pointer
    * a little differently). The docked inspector's slider is about 93 px for 201 values; WebKit places the
    * pointer on whole CSS pixels (about 2.5 values per pixel), so there some values can't be reached by
-   * pointer (build question 140) and the drag settles on the nearest one it passes.
+   * pointer (build question 140) and the drag settles on the nearest one it passes; the default is always
+   * reached through RULE-08's drag detent.
    */
   async function settle(page: Page, s: Locator, from: number, y: number, target: number): Promise<number> {
     let x = from;
@@ -253,15 +254,12 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
 
   test('F-014.AC4 Q104 a Brightness slider dragged through many values is undone in one step; dragged away and back to where it began it leaves no step and keeps redo', async ({
     page,
-    browserName,
   }) => {
     await setUp(page);
     const panel = adjustPanel(page);
-    // Chromium starts at the default (0); WebKit can't point at 0 on this slider (question 140), so it starts
-    // at +39, a value it reaches (Q104's "back at the start" holds for any start; the default case is in
-    // tests/unit/app.adjust.test.ts).
-    const home = browserName === 'chromium' ? 0 : 39;
-    if (home !== 0) await type(panel, 'adjust.brightness', String(home));
+    // Both engines start at the default (0): WebKit's whole-pixel pointer reaches it through RULE-08's drag
+    // detent (build question 140).
+    const home = 0;
     // A redo step to keep: Contrast +10, undone.
     await type(panel, 'adjust.contrast', '10');
     await undoButton(page).click();
@@ -300,6 +298,49 @@ test.describe('F-007 adjust colour and light (app harness)', () => {
     await undoButton(page).click();
     expect(await stateOf(page)).toBe(before);
     await expect(s).toHaveValue(String(home));
+  });
+
+  test('RULE-08 drag detent (Q140): a pointer drag of a bipolar slider never lands on ±1 or ±2 — it lands on 0, which both engines reach; keys and the field still set ±1 and ±2', async ({
+    page,
+  }) => {
+    await setUp(page);
+    const panel = adjustPanel(page);
+    await type(panel, 'adjust.brightness', '12');
+    const s = slider(panel, 'adjust.brightness');
+    const box = (await s.boundingBox())!;
+    const y = box.y + box.height / 2;
+    const steps = await stepsOf(page);
+    // From +12 to about −12 a quarter pixel at a time: every value the slider shows while held.
+    let x = await thumbX(s, 14);
+    const perUnit = (box.width - 14) / 200;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    const seen = new Set<number>();
+    const xEnd = x - 24 * perUnit;
+    while (x > xEnd) {
+      x -= 0.25;
+      await page.mouse.move(x, y);
+      seen.add(Number(await s.inputValue()));
+    }
+    expect(seen.has(0), `seen ${[...seen].join(' ')}`).toBe(true);
+    for (const v of [1, 2, -1, -2]) expect(seen.has(v), `seen ${[...seen].join(' ')}`).toBe(false);
+    // Back to the default and released: 0 is stored as the default (nothing stored), one step.
+    expect(await settle(page, s, x, y, 0)).toBe(0);
+    await page.mouse.up();
+    await expect(s).toHaveValue('0');
+    await expect(field(panel, 'adjust.brightness')).toHaveValue('0');
+    expect(await adjOf(page)).toEqual({});
+    expect(await stepsOf(page)).toBe(steps + 1);
+    // The arrow keys still step 1 at a time (F-007.R6), and the field still takes ±2.
+    await s.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(s).toHaveValue('1');
+    await page.keyboard.press('ArrowRight');
+    await expect(s).toHaveValue('2');
+    expect(await adjOf(page)).toEqual({ brightness: 2 });
+    await type(panel, 'adjust.brightness', '-2');
+    await expect(s).toHaveValue('-2');
+    expect(await adjOf(page)).toEqual({ brightness: -2 });
   });
 
   test('F-007.AC3 F-007.R3 with every adjustment non-zero, Reset on Temperature returns only it to 0; Reset all returns all to default', async ({

@@ -23,7 +23,7 @@ Precise edits need zoom, and fast edits need snapping. Both must work by pointer
 
 ## Requirements
 - **R1** The user can zoom the timeline in and out within the range of RULE-14, and fit the whole project.
-- **R2** The user can scroll the timeline. While playing, the view follows the playhead; a manual scroll stops following until playback restarts or the playhead is back in view (RULE-14). On touch, the playhead stays centred and scrolling scrubs (RULE-14).
+- **R2** The user can scroll the timeline. While playing, the view follows the playhead; a manual scroll stops following until playback restarts or the playhead is back in view (RULE-14). On narrow layouts (phones), the playhead stays centred and scrolling scrubs (RULE-14).
 - **R3** Snapping works per RULE-14, by the start and end of the dragged item, and can be turned on or off for both the timeline and the preview.
 - **R4** On touch, a pinch zooms the timeline and a one-finger drag scrolls it (RULE-21).
 

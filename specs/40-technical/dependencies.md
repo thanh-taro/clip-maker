@@ -9,8 +9,8 @@ audit re-verifies every row against the real lockfile before approval.
 Kinds: **runtime** = shipped to the browser (main bundle, a worker or the worklet; no lazy chunks,
 ADR-0002); **asset** = shipped non-code file; **build** / **dev** = never shipped.
 Status: `proposed` → `approved` → `removed` (or `needs-owner`). The licence audit of 2026-11-04 approved every
-verified row; open items: DEP-12, DEP-13 (authored, look sign-off pending), DEP-14 (own work, music) and DEP-26 (`needs-owner`). Owner approvals so far: DEP-04 (D-042) and
-DEP-34 (D-035). Spike outcomes (2026-11-04) removed the fallbacks DEP-37 … DEP-40.
+verified row; open items: DEP-12, DEP-14 (own work, music) and DEP-26 (`needs-owner`). Owner approvals so far: DEP-04 (D-042),
+DEP-34 (D-035) and DEP-13 (look sign-off, 2026-11-19). Spike outcomes (2026-11-04) removed the fallbacks DEP-37 … DEP-40.
 
 ## Runtime (shipped)
 | ID | Name | Version range | License | Kind | Purpose | Status | Decided by |
@@ -33,7 +33,7 @@ DEP-34 (D-035). Spike outcomes (2026-11-04) removed the fallbacks DEP-37 … DEP
 | **DEP-10** | @fontsource/nunito | ^5 | OFL-1.1; audited 2026-11-04, OFL file verified, vietnamese subset present | asset | Rounded text typeface, weight 800; `latin` + `vietnamese` | approved (licence only; design sign-off still pending) | ADR-0012 |
 | **DEP-11** | lucide-static | ^1.55 | ISC (+ Feather MIT notice); audited 2026-11-04, verified 1.55.0, keep the Feather MIT notice | asset | Icons, only used SVGs inlined at build | approved | ADR-0002 |
 | **DEP-12** | Portal design tokens (`tokens.json`) | copy pinned to a portal commit | Owner's own work | asset (source) | Colours, spacing, radii, motion shared with the portal | approved (owner's own work, pinned to portal commit 4c4ae94, D-048) | ADR-0002 |
-| **DEP-13** | Clip Maker looks pack (16 `.cube` sources → 33³ PNG strips) | versioned in the repository with checksums: `src/assets/looks/looks.json` (per strip: bytes, SHA-256, the `.cube` source's SHA-256, 8-bit storage ΔE00); 16 strips, 167,723 bytes, 3.4–17.4 KB each | Owner's own work: authored 2026-11-17 as parametric colour transforms in `scripts/make-looks.mjs` (no third-party look, table or image; nothing downloaded), which writes the `.cube` sources and converts them | asset | RULE-09 looks (`30-experience/looks.md`, F-008) | proposed — authored; awaiting the owner's look sign-off (F-008 edge case, build question 146) | ADR-0007, ADR-0013 |
+| **DEP-13** | Clip Maker looks pack (16 `.cube` sources → 33³ PNG strips) | versioned in the repository with checksums: `src/assets/looks/looks.json` (per strip: bytes, SHA-256, the `.cube` source's SHA-256, 8-bit storage ΔE00); 16 strips, 167,723 bytes, 3.4–17.4 KB each | Owner's own work: authored 2026-11-17 as parametric colour transforms in `scripts/make-looks.mjs` (no third-party look, table or image; nothing downloaded), which writes the `.cube` sources and converts them | asset | RULE-09 looks (`30-experience/looks.md`, F-008) | approved — owner's look sign-off 2026-11-19, all 16 looks as generated (F-008 edge case, build question 146) | ADR-0007, ADR-0013 |
 | **DEP-14** | Clip Maker music pack (manifest) | versioned with checksums | Each track CC0 1.0 or public domain (D-010); one row per track below | asset | RULE-12 bundled music, AAC-LC 128 kbps M4A, ≤ 10 MB total | proposed (placeholder tracks only: DEP-41 … DEP-43) | ADR-0013 |
 
 ### Music tracks

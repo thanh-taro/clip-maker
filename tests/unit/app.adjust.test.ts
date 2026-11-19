@@ -156,6 +156,33 @@ describe('F-007 adjustments in the editor', () => {
     expect(adj('A')).toEqual({ brightness: 12 });
   });
 
+  it('RULE-08 drag detent (Q140): a bipolar slider movement landing within ±2 of the default lands on 0; keys and fields still reach ±1 and ±2', () => {
+    setAdjustmentOnce('A', 'brightness', 30);
+    for (const landing of [2, 1, -1, -2]) {
+      const d = beginAdjustDrag('A', 'brightness', () => undefined);
+      d.set(landing);
+      expect(adj('A').brightness ?? 0).toBe(0);
+      d.set(-3);
+      expect(adj('A').brightness).toBe(-3);
+      d.set(landing);
+      d.end();
+      expect(adj('A')).toEqual({});
+      setAdjustmentOnce('A', 'brightness', 30);
+    }
+    expect(RULE_08.dragDetent).toBe(2);
+    const d = beginAdjustDrag('A', 'tint', () => undefined);
+    d.set(3);
+    d.end();
+    expect(adj('A').tint).toBe(3);
+    // A unipolar slider has no detent: its default is the end of the track, which every engine reaches.
+    const u = beginAdjustDrag('A', 'grain', () => undefined);
+    u.set(1);
+    u.end();
+    expect(adj('A').grain).toBe(1);
+    // The keys (one step each) and the number field are not movements: ±1 and ±2 stay reachable.
+    for (const v of [1, 2, -1, -2]) expect(setAdjustmentOnce('A', 'saturation', v)).toBe(v);
+  });
+
   it('RULE-13 F-014 undo during a slider movement cuts it: onCut runs and the next move starts a new step', () => {
     setAdjustmentOnce('A', 'vignette', 5);
     let cut = 0;

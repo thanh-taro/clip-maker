@@ -44,11 +44,41 @@ describe('F-009 fades in the editor', () => {
   it('F-009.R1 F-009.R4 the Fades rows follow the selection: a clip has 0–3 s, an audio clip 0–5 s, nothing selected none', () => {
     expect(fadeTarget.value).toBeNull();
     selectClip('A');
-    expect(fadeTarget.value).toEqual({ id: 'A', kind: 'clip', fadeIn: 0, fadeOut: 0, maxTenths: 30 });
+    expect(fadeTarget.value).toEqual({
+      id: 'A',
+      kind: 'clip',
+      fadeIn: 0,
+      fadeOut: 0,
+      maxTenths: 30,
+      replacedIn: false,
+      replacedOut: false,
+    });
     selectClip('P');
     expect(fadeTarget.value?.kind).toBe('clip');
     selectClip('M');
-    expect(fadeTarget.value).toEqual({ id: 'M', kind: 'audio', fadeIn: 0, fadeOut: 0, maxTenths: 50 });
+    expect(fadeTarget.value).toEqual({
+      id: 'M',
+      kind: 'audio',
+      fadeIn: 0,
+      fadeOut: 0,
+      maxTenths: 50,
+      replacedIn: false,
+      replacedOut: false,
+    });
+  });
+
+  it('CMP-Inspector "clip Speed" Q157 RULE-10 a cross-fade replaces the earlier clip’s fade out and the later clip’s fade in; they are kept and settable', () => {
+    selectClip('A');
+    setFadeOnce('A', 'out', 10);
+    expect(addCrossFade('A')).toBe(true);
+    expect(fadeTarget.value).toMatchObject({ replacedIn: false, replacedOut: true, fadeOut: 10 });
+    expect(setFadeOnce('A', 'out', 5)).toBe(5);
+    selectClip('P');
+    expect(fadeTarget.value).toMatchObject({ replacedIn: true, replacedOut: false });
+    undo(); // the fade out change
+    undo(); // the cross-fade
+    selectClip('A');
+    expect(fadeTarget.value).toMatchObject({ replacedIn: false, replacedOut: false, fadeOut: 10 });
   });
 
   it('F-009.R1 RULE-13 a typed fade in is one step; undo takes it back', () => {

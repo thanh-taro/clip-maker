@@ -276,7 +276,8 @@ Rules for every string:
 | **COPY-fades.out** | Fade out | Mờ dần | |
 | **COPY-fades.quick_in** | Quick fade in | Hiện nhanh | |
 | **COPY-fades.quick_out** | Quick fade out | Mờ nhanh | |
-| **COPY-fades.unit** | s | s | The seconds symbol after a fade or cross-fade length ("0.5 s"), its field and its slider's value |
+| **COPY-fades.unit** | s | s | The seconds symbol after a fade or cross-fade length ("0.5 s"), or a photo's duration, its field and its slider's value |
+| **COPY-fades.replaced** | Replaced by the cross-fade | Đã được thay bằng chuyển mờ | Under a clip's Fade out (or Fade in) row while a cross-fade at that end replaces it (RULE-10); the row is dimmed but still settable |
 | **COPY-sound.volume** | Volume | Âm lượng | |
 | **COPY-photo.duration** | Duration | Thời lượng | |
 

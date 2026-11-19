@@ -9,7 +9,8 @@
 // Implements: F-009.R1 (fade in and out on a clip), F-009.R4 (on an audio clip), F-009.R5 (0.1 s steps,
 // clamped to the rule's range), CMP-Inspector "Behavior" (slider drags update the preview live and are one
 // undo step per movement; fields accept typed values and clamp; quick fade sets the rule's quick value) and
-// "Accessibility" (every slider has a paired field with the same label; toggles expose a pressed state).
+// "Accessibility" (every slider has a paired field with the same label; toggles expose a pressed state),
+// CMP-Inspector "clip Speed" (a fade a cross-fade replaces is dimmed with COPY-fades.replaced; RULE-10).
 import { t } from '../copy';
 import { NumberField } from './NumberField';
 import { useSliderGesture } from './slider-gesture';
@@ -35,8 +36,17 @@ function FadeRow({ id, edge, touch }: { readonly id: string; readonly edge: Fade
   });
   if (!target) return null;
   const labelId = `${id}-${edge}-label`;
-  return (
-    <div class="tk-fades__row" data-changed={value > 0 ? '' : undefined}>
+  // RULE-10: a cross-fade at this end replaces the fade; the row is dimmed with a note, and stays settable
+  // (the fade applies again when the cross-fade goes). CMP-Inspector "clip Speed", build question 157.
+  const replaced = edge === 'in' ? target.replacedIn : target.replacedOut;
+  const noteId = replaced ? `${id}-${edge}-replaced` : undefined;
+  const row = (
+    <div
+      class="tk-fades__row"
+      data-changed={value > 0 ? '' : undefined}
+      data-replaced={replaced ? '' : undefined}
+      data-edge={edge}
+    >
       <span class="tk-fades__label" id={labelId}>
         {t(LABEL[edge])}
       </span>
@@ -49,6 +59,7 @@ function FadeRow({ id, edge, touch }: { readonly id: string; readonly edge: Fade
         value={value}
         aria-labelledby={labelId}
         aria-valuetext={secondsLabel(value)}
+        aria-describedby={noteId}
         data-control={`fade-${edge}-slider`}
         {...gesture}
       />
@@ -63,6 +74,7 @@ function FadeRow({ id, edge, touch }: { readonly id: string; readonly edge: Fade
           fixedDigits
           value={value / 10}
           labelledBy={labelId}
+          describedBy={noteId}
           onCommit={(v) => setFadeOnce(target.id, edge, Math.round(v * 10)) / 10}
         />
         <span class="tk-fades__unit" aria-hidden="true">
@@ -70,6 +82,15 @@ function FadeRow({ id, edge, touch }: { readonly id: string; readonly edge: Fade
         </span>
       </span>
     </div>
+  );
+  if (!noteId) return row;
+  return (
+    <>
+      {row}
+      <p class="tk-fades__note" id={noteId} data-edge={edge}>
+        {t('fades.replaced')}
+      </p>
+    </>
   );
 }
 

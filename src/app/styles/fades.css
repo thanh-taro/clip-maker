@@ -34,12 +34,14 @@
     min-block-size: var(--tk-size-control);
   }
 
+  /* A label never clips (F-022.R6): the column keeps its width, so the rows stay aligned, and a long label
+     (vi-VN "Thời lượng") wraps to a second line instead. */
   .tk-fades__label {
-    overflow: hidden;
+    min-inline-size: 0;
     color: var(--tk-color-fg);
     font-size: var(--tk-font-size-sm);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: var(--tk-font-line-height-tight);
+    overflow-wrap: break-word;
   }
 
   /* Thin track, accent fill from the start (the native range input, as Speed's Exact). */
@@ -81,6 +83,21 @@
   .tk-fades__unit {
     color: var(--tk-color-muted);
     font-family: var(--tk-font-family-mono);
+  }
+
+  /* RULE-10: a fade a cross-fade replaces is dimmed as the muted Sound row is (still settable), with a note
+     under it (CMP-Inspector "clip Speed", COPY-fades.replaced); the note itself is not dimmed. */
+  .tk-fades__row[data-replaced] .tk-fades__label,
+  .tk-fades__row[data-replaced] .tk-fades__slider,
+  .tk-fades__row[data-replaced] .tk-fades__field {
+    opacity: 0.6;
+  }
+
+  .tk-fades__note {
+    margin: 0;
+    padding-inline-start: calc(var(--tk-space-12) + var(--tk-space-4) + var(--tk-space-2));
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
   }
 
   /* Quick fade in / Quick fade out: two equal toggles. */

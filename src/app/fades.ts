@@ -38,6 +38,13 @@ export interface FadeTarget {
   readonly fadeOut: number;
   /** RULE-10's longest fade in tenths: 3 s for a clip, 5 s for an audio clip. */
   readonly maxTenths: number;
+  /**
+   * RULE-10: a cross-fade at the clip's start replaces its fade in, one at its end its fade out; the fade is
+   * kept (it applies again when the cross-fade goes) but not applied now (CMP-Inspector "clip Speed", build
+   * question 157). Always false for an audio clip.
+   */
+  readonly replacedIn: boolean;
+  readonly replacedOut: boolean;
 }
 
 export const fadeTarget = computed<FadeTarget | null>(() => {
@@ -49,16 +56,23 @@ export const fadeTarget = computed<FadeTarget | null>(() => {
       fadeIn: tenthsOf(a.fadeIn),
       fadeOut: tenthsOf(a.fadeOut),
       maxTenths: RULE_10.audioFadeMaxSeconds * 10,
+      replacedIn: false,
+      replacedOut: false,
     };
   const c = selectedClip.value;
-  if (c)
+  if (c) {
+    const clips = project.value.clips;
+    const before = clips[clips.indexOf(c) - 1];
     return {
       id: c.id,
       kind: 'clip',
       fadeIn: tenthsOf(c.fadeIn),
       fadeOut: tenthsOf(c.fadeOut),
       maxTenths: RULE_10.clipFadeMaxSeconds * 10,
+      replacedIn: (before?.crossFadeNext ?? 0) > 0,
+      replacedOut: c.crossFadeNext > 0,
     };
+  }
   return null;
 });
 

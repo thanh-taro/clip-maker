@@ -134,7 +134,8 @@ export interface AdjustDrag {
 }
 
 /**
- * Implements: RULE-13 (one slider movement is one step), Q104 (a value back at the start is no change).
+ * Implements: RULE-13 (one slider movement is one step), Q104 (a value back at the start is no change),
+ * RULE-08 *Drag detent* (a bipolar movement within ±2 of the default lands on it).
  * Each move sets the value on the project as it was when the movement began, so a movement back to the
  * starting value puts the project back exactly and leaves no step (redo is kept). `onCut` runs when undo,
  * redo, New project or an edit outside the movement cut it.
@@ -152,7 +153,11 @@ export function beginAdjustDrag(id: string, name: AdjustmentName, onCut: () => v
     set(value) {
       if (ended || !gesture.active || !Number.isFinite(value)) return;
       const { min, max } = rangeOf(name);
-      const v = Math.min(max, Math.max(min, Math.round(value)));
+      const r = Math.min(max, Math.max(min, Math.round(value)));
+      // Implements: RULE-08 *Drag detent* (build question 140) — a pointer movement of a bipolar slider that
+      // lands within ±2 of the default lands on it (WebKit's whole-pixel thumb can't reach 0 otherwise); keys
+      // and the number field still reach ±1 and ±2 (they are not movements).
+      const v = isBipolar(name) && Math.abs(r) <= RULE_08.dragDetent ? 0 : r;
       gesture.edit((): EditResult =>
         v === origin ? { project: base, notices: [], changed: [] } : setAdjustments(base, id, { [name]: v }),
       );

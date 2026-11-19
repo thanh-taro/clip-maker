@@ -27,6 +27,8 @@ export interface NumberFieldProps {
    */
   readonly onCommit: (value: number) => number;
   readonly labelledBy: string;
+  /** A note that describes the field (CMP-Inspector "clip Speed": a fade a cross-fade replaces). */
+  readonly describedBy?: string | undefined;
   readonly class?: string;
   readonly control?: string;
   /** Unavailable (F-008: Intensity while None is chosen). */
@@ -94,6 +96,7 @@ export function NumberField(props: NumberFieldProps) {
       spellcheck={false}
       class={props.class}
       aria-labelledby={props.labelledBy}
+      aria-describedby={props.describedBy}
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={value}
