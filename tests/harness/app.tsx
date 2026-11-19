@@ -291,6 +291,8 @@ export interface GifRead {
   readonly delays: number[];
   /** Colours in each frame's table. */
   readonly palettes: number[];
+  /** The file ends with the 0x3B trailer (the reader throws on a missing trailer or short image data). */
+  readonly trailer: boolean;
   /** Per frame: RGB at the points. */
   readonly frames: number[][][];
 }
@@ -306,7 +308,16 @@ function readGif(bytes: number[], points: readonly (readonly [number, number])[]
       return [px[i]!, px[i + 1]!, px[i + 2]!];
     }),
   );
-  return { header: g.header, width: W, height: H, loop: g.loop, delays: g.delays, palettes: g.palettes, frames };
+  return {
+    header: g.header,
+    width: W,
+    height: H,
+    loop: g.loop,
+    delays: g.delays,
+    palettes: g.palettes,
+    trailer: g.trailer,
+    frames,
+  };
 }
 
 /** F-016: what `readAudio` found in a downloaded audio-only export. */

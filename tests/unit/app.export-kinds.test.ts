@@ -15,7 +15,9 @@ import {
   canExport,
   capsSound,
   chooseAudio,
+  chooseGifFrom,
   chooseGifRate,
+  chooseGifTo,
   chooseGifSize,
   chooseKind,
   chosenAudio,
@@ -198,6 +200,35 @@ describe('F-016 CMP-ExportPanel kinds', () => {
     chooseKind('gif');
     expect(gifRange.value).toEqual({ from: 0, to: 12 * S });
     expect(gifRangeFixed.value).toBe(true);
+  });
+
+  it('RULE-16 CMP-ExportPanel a project made shorter with the panel open keeps the range’s length and slides it to fit', async () => {
+    forty();
+    playhead.value = 20 * S;
+    await open();
+    chooseKind('gif');
+    expect(gifRange.value).toEqual({ from: 20 * S, to: 35 * S });
+    // The photo shortened to 30 s: still 15 s long, now 15–30 s (not cut to a sliver at the end).
+    edit(() => ({ project: proj({ clips: [photo('A', 30)] }), notices: [], changed: [] }));
+    expect(gifRange.value).toEqual({ from: 15 * S, to: 30 * S });
+    // A shorter range keeps its own length.
+    chooseGifTo(18 * S);
+    chooseGifFrom(16 * S);
+    expect(gifRange.value).toEqual({ from: 16 * S, to: 18 * S });
+    edit(() => ({ project: proj({ clips: [photo('A', 17)] }), notices: [], changed: [] }));
+    expect(gifRange.value).toEqual({ from: 15 * S, to: 17 * S });
+    expect(clampGifRange({ from: 20 * S, to: 35 * S }, 30 * S, 30)).toEqual({ from: 15 * S, to: 30 * S });
+  });
+
+  it('RULE-16 a range taken on a project of 15 s or less makes way for the default from the playhead once the project grows past 15 s', async () => {
+    edit(() => ({ project: proj({ clips: [photo('A', 12)] }), notices: [], changed: [] }));
+    playhead.value = 5 * S;
+    await open();
+    chooseKind('gif');
+    expect(gifRange.value).toEqual({ from: 0, to: 12 * S });
+    edit(() => ({ project: proj({ clips: [photo('A', 40)] }), notices: [], changed: [] }));
+    expect(gifRangeFixed.value).toBe(false);
+    expect(gifRange.value).toEqual({ from: 5 * S, to: 20 * S });
   });
 
   it('RULE-16 F-016.R2 audio only offers the compressed format the device can encode (default) and WAV', async () => {

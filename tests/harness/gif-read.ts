@@ -15,6 +15,8 @@ export interface GifFrames {
   readonly palettes: number[];
   /** Each frame's pixels, RGBA top-down. */
   readonly rgba: Uint8Array[];
+  /** The file ends with the 0x3B trailer (the reader throws otherwise). */
+  readonly trailer: true;
 }
 
 /** GIF's variable-length LZW (89a), up to `count` indices. */
@@ -40,7 +42,7 @@ function lzw(minSize: number, data: Uint8Array, count: number): Uint8Array {
   let pos = 0;
   while (o < count) {
     while (bits < size) {
-      if (pos >= data.length) return out;
+      if (pos >= data.length) throw new Error(`GIF: LZW data ended after ${o} of ${count} pixels`);
       cur |= data[pos++]! << bits;
       bits += 8;
     }
@@ -54,7 +56,7 @@ function lzw(minSize: number, data: Uint8Array, count: number): Uint8Array {
       old = -1;
       continue;
     }
-    if (code === eoi) break;
+    if (code === eoi) throw new Error(`GIF: end of image after ${o} of ${count} pixels`);
     if (old === -1) {
       out[o++] = suffix[code]!;
       old = code;
@@ -107,6 +109,8 @@ export function readGifFrames(b: Uint8Array): GifFrames {
     const parts: Uint8Array[] = [];
     let total = 0;
     while (b[i]! !== 0) {
+      if (i >= b.length || i + 1 + b[i]! > b.length)
+        throw new Error('GIF: data sub-blocks run past the end of the file');
       const len = b[i]!;
       parts.push(b.subarray(i + 1, i + 1 + len));
       total += len;
@@ -157,7 +161,8 @@ export function readGifFrames(b: Uint8Array): GifFrames {
         }
       rgba.push(frame);
       palettes.push(table ? table.length / 3 : 0);
-    } else break;
+    } else throw new Error(`GIF: unknown block 0x${b[i]!.toString(16)} at byte ${i}`);
   }
-  return { header, width, height, loop, delays, palettes, rgba };
+  if (b[i] !== 0x3b) throw new Error('GIF: no 0x3B trailer');
+  return { header, width, height, loop, delays, palettes, rgba, trailer: true };
 }

@@ -240,9 +240,17 @@ export function setGifTo(r: GifRange, to: Micros, length: Micros, rate: FrameRat
   return { from: clamp(r.from, Math.max(0, t - GIF_MAX_US), t - min), to: t };
 }
 
-/** RULE-16: a range kept within the project as it is now (the project may change while the panel is open). */
-export const clampGifRange = (r: GifRange, length: Micros, rate: FrameRate): GifRange =>
-  setGifFrom(r, r.from, length, rate);
+/**
+ * RULE-16, CMP-ExportPanel "Behavior": a range kept within the project as it is now (the project may change
+ * while the panel is open). It keeps its length (at most the project's) and slides to fit, rather than
+ * shrinking.
+ */
+export function clampGifRange(r: GifRange, length: Micros, rate: FrameRate): GifRange {
+  if (length <= GIF_MAX_US) return { from: 0, to: length };
+  const len = Math.min(Math.max(r.to - r.from, minDuration(rate)), length, GIF_MAX_US);
+  const from = clamp(r.from, 0, length - len);
+  return { from, to: from + len };
+}
 
 /**
  * CMP-ExportPanel "gif": From/To accept m:ss with optional frames after "·", "." or ":" (the transport shows
@@ -467,6 +475,19 @@ function pickDefaultRange(): void {
   const p = project.peek();
   gifPicked.value = defaultGifRange(lengthNow.peek(), playhead.peek(), p.frame.frameRate);
 }
+
+// RULE-16: a range picked while the project was 15 s or less (the whole project) doesn't carry over once the
+// project grows past 15 s: the default from the playhead applies again (and the other way round).
+let wasFixed = gifRangeFixed.peek();
+effect(() => {
+  const fixed = gifRangeFixed.value;
+  if (fixed === wasFixed) return;
+  wasFixed = fixed;
+  untracked(() => {
+    gifPicked.value = null;
+    if (panelOpen.peek() && exportKind.peek() === 'gif') pickDefaultRange();
+  });
+});
 export function chooseGifSize(size: GifSize): void {
   gifChoice.value = { ...gifChoice.value, size };
 }

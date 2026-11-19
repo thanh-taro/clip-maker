@@ -285,7 +285,8 @@ test.describe('F-016 GIF through the panel', () => {
     expect([g.width, g.height]).toEqual([320, 240]);
     expect(g.frames).toHaveLength(100);
     expect(new Set(g.delays)).toEqual(new Set([10]));
-    expect(Math.max(...g.palettes)).toBeLessThanOrEqual(256);
+    // Every frame decoded in full and the file ends with its trailer (the reader throws otherwise).
+    expect(g.trailer).toBe(true);
     // The photo's colour (quantised to the frame's palette).
     expect(dE(g.frames[0]![0]!, [120, 140, 160])).toBeLessThan(3);
     // F-016.R4: a GIF never clears unexported changes; NFR-01: nothing left the device.

@@ -30,13 +30,15 @@ describe('GIF reader (test harness)', () => {
       gif.writeFrame(applyPalette(rgba, palette), w, h, { palette, delay: [70, 60][i]!, repeat: 0, first: i === 0 });
     });
     gif.finish();
-    const read = readGifFrames(gif.bytesView().slice());
+    const file = gif.bytesView().slice();
+    const read = readGifFrames(file);
     expect(read.header).toBe('GIF89a');
     expect([read.width, read.height]).toEqual([w, h]);
     expect(read.loop).toBe(0);
     expect(read.delays).toEqual([7, 6]);
     expect(read.rgba).toHaveLength(2);
-    expect(Math.max(...read.palettes)).toBeLessThanOrEqual(256);
+    expect(read.trailer).toBe(true);
+    expect(read.palettes).toEqual([2, 256]); // each frame its own table: 2 colours, then 256 for the ramp
     const at = (f: number, x: number, y: number) =>
       Array.from(read.rgba[f]!.subarray((y * w + x) * 4, (y * w + x) * 4 + 3));
     expect(at(0, 2, 2)).toEqual([255, 0, 0]);
@@ -50,5 +52,8 @@ describe('GIF reader (test harness)', () => {
         worst = Math.max(worst, ...want.map((v, c) => Math.abs(v - got[c]!)));
       }
     expect(worst).toBeLessThan(48);
+    // A file cut short (no trailer, or image data ending early) is refused, never read as fewer pixels.
+    expect(() => readGifFrames(file.subarray(0, file.length - 1))).toThrow(/trailer/);
+    expect(() => readGifFrames(file.subarray(0, file.length - 40))).toThrow(/GIF/);
   });
 });

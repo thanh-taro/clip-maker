@@ -358,6 +358,7 @@ async function gifFrame(
   out: GifOut,
   i: number,
   delayCs: number,
+  first = i === 0,
 ): Promise<number> {
   const plan = gifFramePlan(project, { from: out.from, rate: out.rate }, i);
   const pictures = await p.source.frames(plan);
@@ -370,7 +371,7 @@ async function gifFrame(
     palette,
     delay: delayCs * 10,
     repeat: 0,
-    first: i === 0,
+    first,
   });
   return ms;
 }
@@ -392,7 +393,7 @@ async function gifCalibration(
   let bytes = 0;
   try {
     for (const i of picked) {
-      await gifFrame(gif, painter, job.project, out, i, 7);
+      await gifFrame(gif, painter, job.project, out, i, 7, false); // no header or loop: frame bytes only
       bytes += gif.bytesView().length;
       gif.reset();
     }
@@ -436,6 +437,7 @@ async function gifExport(job: ExportJob, deps: PipelineDeps): Promise<void> {
   try {
     for (let i = 0; i < out.frames; i++) {
       paintMs += await gifFrame(gif, { comp, source, texts }, job.project, out, i, delays[i]!);
+      if (deps.gate?.aborted) throw new StageError('internal', 'AbortError: the export was cancelled');
       flush();
       if (now() - lastPost >= PROGRESS_POST_MS || i === out.frames - 1) {
         lastPost = now();
