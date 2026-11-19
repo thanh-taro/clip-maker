@@ -107,7 +107,15 @@ function NarrowBar({ count, root }: { readonly count: number; readonly root: Ref
   };
   const back = (): void => root.current?.querySelector<HTMLTextAreaElement>(`#${FIELD_ID}`)?.focus();
   return (
-    <div class="tk-texteditor__narrow" ref={bar}>
+    <div
+      class="tk-texteditor__narrow"
+      ref={bar}
+      // A press on the bar's controls keeps focus in the text field (WebKit would move it to the page and end
+      // editing); keyboard focus may still move into the bar, which stays inside the editor.
+      onPointerDown={(e) => {
+        if ((e.target as Element).closest('button')) e.preventDefault();
+      }}
+    >
       {open ? (
         <div class="tk-texteditor__picker" data-picker={open}>
           {open === 'font' ? (

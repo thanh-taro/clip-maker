@@ -311,6 +311,27 @@ describe('MOD-Engine messages', () => {
     expect(r.comp.overlays).toBeGreaterThan(0);
   });
 
+  it('F-010 ADR-0012 §3 text bitmaps: kept ids keep theirs, replaced and dropped ones are closed', async () => {
+    const r = rig(twoClips());
+    const made = (label: string) => {
+      const b = { label, width: 10, height: 10, closed: false, close: () => (b.closed = true) };
+      return b;
+    };
+    const a1 = made('a1');
+    const b1 = made('b1');
+    const c1 = made('c1');
+    const as = (b: object) => b as unknown as ImageBitmap;
+    await r.send({
+      type: 'engine:setTextBitmaps',
+      bitmaps: { a: { bitmap: as(a1), s: 360 }, b: { bitmap: as(b1), s: 360 }, c: { bitmap: as(c1), s: 360 } },
+    });
+    const a2 = made('a2');
+    // a replaced, b kept, c dropped.
+    await r.send({ type: 'engine:setTextBitmaps', bitmaps: { a: { bitmap: as(a2), s: 360 } }, keep: ['b'] });
+    expect([a1.closed, b1.closed, c1.closed, a2.closed]).toEqual([true, false, true, false]);
+    expect(r.comp.paints.at(-1)!.texts).toBe(2);
+  });
+
   it('RULE-22 the effects check runs in the engine and answers with the measured rate', async () => {
     const r = rig(twoClips());
     r.engine.handle({ type: 'engine:effectsCheck' });

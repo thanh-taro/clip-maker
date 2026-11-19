@@ -690,6 +690,7 @@ test.describe('F-010 layouts and languages (app harness)', () => {
 test.describe('F-010 text in the export (media harness, INV-02)', () => {
   test('F-010.AC5 F-010.R5 INV-02 NFR-08 NFR-01 every typeface with every Vietnamese tone mark: the decoded export matches the preview paint, the bundled faces draw the glyphs, and no font is requested', async ({
     page,
+    browserName,
   }) => {
     test.setTimeout(120_000);
     await page.goto(HARNESS);
@@ -704,9 +705,12 @@ test.describe('F-010 text in the export (media harness, INV-02)', () => {
     // A first export loads every export module; the measured one then runs offline.
     await page.evaluate((s) => (window as unknown as Harness).harness.export.textExport(s), { lines: ['Hi'] });
     fonts.length = 0;
-    await page.context().setOffline(true);
+    // Offline on Chromium; WebKit's offline emulation also fails reading the in-memory result (a Blob), so
+    // there the check is that no font is requested at all.
+    const offline = browserName === 'chromium';
+    if (offline) await page.context().setOffline(true);
     const r = await page.evaluate((s) => (window as unknown as Harness).harness.export.textExport(s), spec);
-    await page.context().setOffline(false);
+    if (offline) await page.context().setOffline(false);
     expect(r.ok, r.reason).toBe(true);
     expect(fonts).toEqual([]);
     for (const face of r.faces) {
