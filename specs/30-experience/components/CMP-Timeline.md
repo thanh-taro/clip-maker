@@ -34,7 +34,7 @@ Toolbar (wide); time ruler with m:ss labels; playhead (head in the ruler band); 
 - Zoom controls and pinch zoom are equivalent; Fit shows the whole project. With an empty project zoom controls are unavailable.
 
 ## Accessibility
-- The region is named COPY-timeline.label; its action row is a toolbar.
+- The region is named COPY-timeline.label; its action row (and the narrow zoom pill) is a toolbar: one Tab stop, Left and Right move between its buttons (as CMP-Toolbar).
 - Items are focusable in order (main track, then text, then audio) and are named by their name and duration; Alt+Left/Right move them per RULE-20. The main track's clips form a group named COPY-timeline.main_track.
 - Kind is shown by lane icon and position, not by colour alone.
 - Every drag has a visible control (RULE-21); handles and the cross-fade marker get a `size.handleHit` hit area on touch.

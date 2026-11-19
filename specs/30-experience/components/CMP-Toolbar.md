@@ -31,7 +31,7 @@ Add media (COPY-action.add_media); Music (COPY-action.music); Add text (COPY-act
 - The More menu closes on Esc, on choosing an item, or on a tap outside it, and returns focus to More.
 
 ## Accessibility
-- The bar is a toolbar named COPY-toolbar.label; arrow keys move between its buttons.
+- The bar is a toolbar named COPY-toolbar.label and one stop in the Tab order (the button last used, else the first available); Left and Right move between its buttons, wrapping (RULE-20 *Scope*).
 - Icon-only buttons carry their COPY label as the accessible name; unavailable buttons are disabled, not hidden, and stay legible.
 - More has a popup indicator and an expanded state; its items are menu items. Export exposes an expanded state while the export panel is open.
 - Every target meets RULE-21 on touch (`size.touchTarget`) and `size.targetMin` with a fine pointer; focus uses the focus ring token (NFR-06).

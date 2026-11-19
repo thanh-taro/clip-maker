@@ -185,3 +185,8 @@ Owner decisions on `.build-my-app/reports/build-spec-questions.md` items 1–7, 
 ## 2026-11-19 — F-016 build (wave 5)
 - CMP-ExportPanel "Behavior" (GIF range): the frame separators of the From/To fields, when a field takes its time, how one end follows the other, when the range is worked out from the playhead, that Change settings keeps it, and how it follows a project that gets shorter or grows past 15 s (build question 198).
 - MOD-Export: GIF settings carry the range's end; the panel's GIF estimate from three encoded frames; the GIF loop yields so a cancel deletes its scratch; the capability record without a video format keeps GIF and WAV available (F-023.R5; build questions 197, 199, 200).
+
+## 2026-11-19 — F-017 build (wave 5)
+- RULE-20 *Scope*: tab lists (the inspector's clip tabs, the phone tab bar) get Left, Right, Home and End; a toolbar's buttons get Left and Right, which move between them. *View*: + zooms in too. =, - and ? follow the character the layout types (letters keep the US position) (build questions 102, 203, 204).
+- CMP-Toolbar and CMP-Timeline "Accessibility": each toolbar is one Tab stop with Left/Right roving focus; style.md D-038: the phone tab bar is one Tab stop, arrows move between tabs and Enter or Space opens one (build question 204).
+- MOD-Keys public surface: the shortcut list (`HELP_GROUPS`, `keyCaps`) comes from the key map itself.

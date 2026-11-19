@@ -4,7 +4,7 @@
 // served with its real CSP. Covers the theme from the address and from messages, the device preference,
 // filling the host area, origin and source checks, frame-ancestors, the single ready signal and focus.
 // Not covered yet (need later features): AC2's edited project and playback (F-001, F-002), AC6 across
-// every M-1 feature, AC7/AC9 export from the frame (F-015's UI), AC8's "Space plays" (F-002, F-017).
+// every M-1 feature, AC7/AC9 export from the frame (F-015's UI). AC8's "after a click, Space plays" came with F-017.
 import { expect, test, type Frame, type Page } from '@playwright/test';
 import {
   HOST_ALLOWED,
@@ -329,6 +329,42 @@ test('F-019.R6 focus moves into the tool only when the host moves it after the r
   await page.keyboard.press('KeyN');
   await expect.poll(() => frame.evaluate(() => (window as ToolWindow).__keys)).toEqual(['KeyN']);
   expect(await frame.locator('[autofocus]').count()).toBe(0);
+});
+
+test('F-019.AC8 F-017.R1 embedded with focus never moved, Space does nothing in the tool; after a click in the tool, Space plays', async ({
+  page,
+}) => {
+  await openHost(page, { theme: 'dark', lang: 'en-US', focus: false });
+  const tool = page.frameLocator('#tool');
+  // A project to play: a 1 × 1 photo (3 s) through the tool's own Add media.
+  const chooser = page.waitForEvent('filechooser');
+  await tool.locator('.tk-empty').getByRole('button', { name: 'Add media' }).click();
+  await (
+    await chooser
+  ).setFiles({
+    name: 'P.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      'base64',
+    ),
+  });
+  await expect(tool.locator('.tk-clip')).toHaveCount(1, { timeout: 20_000 });
+  await tool.locator('.tk-media').getByRole('button', { name: 'Close' }).click();
+  // Focus back on the host page (the host never moved it into the frame): Space stays with the host.
+  await page.evaluate(() => {
+    (document.activeElement as HTMLElement | null)?.blur();
+    document.body.focus();
+  });
+  const play = tool.getByRole('button', { name: 'Play', exact: true });
+  await expect(play).toBeVisible();
+  await page.keyboard.press('Space');
+  await settle(page);
+  await expect(play).toBeVisible();
+  // A click in the tool (the timeline): Space now plays.
+  await tool.locator('.tk-timeline').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Space');
+  await expect(tool.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
 });
 
 test('F-019.R6 until focus moves into the tool, keys go to the host page; after a click they reach the tool', async ({
