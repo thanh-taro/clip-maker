@@ -44,6 +44,7 @@ interface Harness {
     clips(): ClipSummary[];
     state(): string;
     load(json: string): void;
+    undo(): void;
     setPlayhead(seconds: number): void;
     stripes(width: number, height: number, colours: readonly (readonly number[])[]): Promise<number[]>;
     pixels(png: string, points: readonly Point[]): Promise<{ width: number; height: number; at: number[][] }>;
@@ -705,8 +706,8 @@ test.describe('F-010 text in the export (media harness, INV-02)', () => {
     // A first export loads every export module; the measured one then runs offline.
     await page.evaluate((s) => (window as unknown as Harness).harness.export.textExport(s), { lines: ['Hi'] });
     fonts.length = 0;
-    // Offline on Chromium; WebKit's offline emulation also fails reading the in-memory result (a Blob), so
-    // there the check is that no font is requested at all.
+    // Offline on Chromium only. WebKit's offline emulation also fails reading the in-memory result (a Blob), so
+    // on WebKit this test checks that no font is requested, not that the export works offline.
     const offline = browserName === 'chromium';
     if (offline) await page.context().setOffline(true);
     const r = await page.evaluate((s) => (window as unknown as Harness).harness.export.textExport(s), spec);
@@ -723,6 +724,12 @@ test.describe('F-010 text in the export (media harness, INV-02)', () => {
       expect(face.inkExport, face.typeface).toBeGreaterThan(200);
       expect(Math.abs(face.inkExport - face.inkPaint) / face.inkPaint, face.typeface).toBeLessThan(0.15);
       expect(face.meanDiff, face.typeface).toBeLessThan(6);
+      // The preview's own bitmaps (made at its canvas's size, scaled up) draw the same text: the same lines in
+      // the same place (the ink box within 3 px), and about the same ink (scaling softens the edges).
+      expect(face.boxShift, face.typeface).toBeLessThanOrEqual(3);
+      expect(Math.abs(face.inkPreview - face.inkPaint) / face.inkPaint, face.typeface).toBeLessThan(0.4);
+      // Every character is drawn by the bundled face itself, none by a fallback.
+      expect(face.fallbackGlyphs, face.typeface).toEqual([]);
     }
   });
 });
@@ -778,5 +785,95 @@ test.describe('F-002 the preview with everything applied (app harness)', () => {
     // The text layer is drawn over it (white letters near the top).
     const ink = await previewAt(page, band(0.25, 0.75, 0.16, 0.24, 30));
     expect(ink.filter((c) => c.every((v) => v > 235)).length).toBeGreaterThan(5);
+  });
+});
+
+test.describe('F-010 editing-session edges (app harness)', () => {
+  test('RULE-11 IME Done mid-composition keeps the word being composed', async ({ page }) => {
+    await open(page);
+    await tenSeconds(page);
+    await addText(page).click();
+    await page.keyboard.type('Đà ');
+    // A phone keyboard or Telex composes "Lạt" and Done is tapped before the composition ends.
+    await field(page).evaluate((el: HTMLTextAreaElement) => {
+      el.dispatchEvent(new CompositionEvent('compositionstart', { data: '', bubbles: true }));
+      for (const step of ['L', 'La', 'Lạ', 'Lạt']) {
+        el.value = `Đà ${step}`;
+        el.dispatchEvent(
+          new InputEvent('input', { data: step, inputType: 'insertCompositionText', isComposing: true, bubbles: true }),
+        );
+      }
+    });
+    expect((await layersOf(page))[0]!.content).toBe('Đà ');
+    await done(page).click();
+    await expect(field(page)).toHaveCount(0);
+    expect((await layersOf(page))[0]!.content).toBe('Đà Lạt');
+  });
+
+  test('RULE-20 while editing no shortcut acts, even with focus on Done: Backspace, T, Mod+Z and the arrows are ignored; Esc finishes', async ({
+    page,
+    browserName,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await addText(page).click();
+    await page.keyboard.type('Hi');
+    // Focus on Done (WebKit's Tab skips buttons, so it is moved there directly).
+    await done(page).focus();
+    await expect(done(page)).toBeFocused();
+    const before = await stateOf(page);
+    for (const key of ['Backspace', 'Delete', 't', 's', `${mod(browserName)}+KeyZ`, 'Alt+ArrowRight', 'ArrowRight'])
+      await page.keyboard.press(key);
+    expect(await stateOf(page)).toEqual(before);
+    await expect(field(page)).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(field(page)).toHaveCount(0);
+    expect((await layersOf(page)).map((t) => t.content)).toEqual(['Hi']);
+  });
+
+  test('Q96 undo while editing an existing layer: the field shows the restored text and the next keystroke types into it', async ({
+    page,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await withLayers(page, [layer('T', 0, 5, { content: 'Hi' })]);
+    await textItem(page, 'Hi').dblclick();
+    await expect(field(page)).toBeFocused();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' there');
+    expect((await layersOf(page))[0]!.content).toBe('Hi there');
+    // Undo from outside the field (as the toolbar's would, without moving focus): the session is cut.
+    await page.evaluate(() => (window as unknown as Harness).appHarness.undo());
+    await expect(field(page)).toHaveValue('Hi');
+    await expect(field(page)).toBeFocused();
+    await page.keyboard.type('!');
+    expect((await layersOf(page))[0]!.content).toBe('Hi!');
+    await page.keyboard.press('Escape');
+    expect((await layersOf(page))[0]!.content).toBe('Hi!');
+  });
+
+  test('F-010.R6 a paste that fits goes in as typed, so the field’s own undo takes it back', async ({
+    page,
+    browserName,
+  }) => {
+    await open(page);
+    await tenSeconds(page);
+    await addText(page).click();
+    await page.keyboard.type('Xin ');
+    // An over-long or decomposed paste is shortened and inserted as typing (the field's undo keeps working).
+    await field(page).evaluate((el, data) => {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', data);
+      el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, 'chào'.normalize('NFD'));
+    await expect(field(page)).toHaveValue('Xin chào');
+    expect((await layersOf(page))[0]!.content).toBe('Xin chào');
+    await page.keyboard.press(`${mod(browserName)}+KeyZ`);
+    // The paste is undone (WebKit groups it with the typing before it), and the layer follows the field.
+    await expect(field(page)).not.toHaveValue('Xin chào');
+    const now = await field(page).inputValue();
+    expect(['Xin ', '']).toContain(now);
+    expect((await layersOf(page))[0]!.content).toBe(now);
+    await page.keyboard.press('Escape');
   });
 });

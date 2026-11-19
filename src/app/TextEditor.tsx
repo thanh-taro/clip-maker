@@ -57,6 +57,18 @@ const modDown = (e: KeyboardEvent): boolean =>
 const VIETNAMESE = /[ăâđêôơưĂÂĐÊÔƠƯạ-ỹẠ-Ỹ]/u;
 const langOf = (content: string): string | undefined => (VIETNAMESE.test(content) ? 'vi' : undefined);
 
+/**
+ * RULE-20 on the editor's own controls (Done, the narrow bar): no shortcut acts while editing, and the
+ * browser's own meaning of these keys is held back too — its undo would act on the field behind the session,
+ * Backspace and Alt+Left/Right may go back in history (and leave the tool).
+ */
+function holdBack(e: KeyboardEvent): void {
+  const undo = (e.ctrlKey || e.metaKey) && (e.code === 'KeyZ' || e.code === 'KeyY');
+  const back = e.key === 'Backspace' || e.key === 'Delete';
+  const history = e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight');
+  if (undo || back || history) e.preventDefault();
+}
+
 /** The editor's Done (the floating bar on wide layouts; the top bar's on narrow ones, ./Toolbar.tsx). */
 export function DoneButton({ variant }: { readonly variant: 'bar' | 'top' }) {
   return (
@@ -68,11 +80,12 @@ export function DoneButton({ variant }: { readonly variant: 'bar' | 'top' }) {
       onPointerDown={(e) => e.preventDefault()}
       onClick={() => finishEditing()}
       onKeyDown={(e) => {
-        // RULE-20: Esc finishes editing from Done too (the shortcuts are off while editing).
+        // RULE-20: Esc finishes editing from Done too (the shortcuts are off while editing); the browser's own
+        // undo would act on the field from here, so it is held back.
         if (e.key === 'Escape') {
           e.preventDefault();
           finishEditing();
-        }
+        } else holdBack(e);
       }}
     >
       <Icon name="check" size={variant === 'bar' ? 16 : 20} />
@@ -302,10 +315,12 @@ export function TextEditor({ stage }: { readonly stage: RefObject<HTMLElement> }
     const el = root.current;
     if (id === null || !el) return undefined;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape' && e.target !== field.current && !e.defaultPrevented) {
+      if (e.target === field.current || e.defaultPrevented) return;
+      if (e.key === 'Escape') {
         e.preventDefault();
         finishEditing();
       }
+      holdBack(e);
     };
     el.addEventListener('keydown', onKey);
     return () => el.removeEventListener('keydown', onKey);

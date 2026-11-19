@@ -1568,6 +1568,15 @@ export interface TextFaceReport {
   readonly inkPaint: number;
   /** Mean absolute difference (0–255) between the decoded export and the paint over the text's band. */
   readonly meanDiff: number;
+  /** Ink of the same frame painted with the bitmaps the preview makes (rasterised at a preview canvas's size). */
+  readonly inkPreview: number;
+  /** Largest move (px) of the text's ink box (left, top, right, bottom) between those two paints. */
+  readonly boxShift: number;
+  /**
+   * Characters of the text this face does not draw itself (a fallback face would): measured in the face with two
+   * different generic fallbacks, a character the face covers measures the same.
+   */
+  readonly fallbackGlyphs: readonly string[];
 }
 
 export interface TextExportReport {
@@ -1577,6 +1586,8 @@ export interface TextExportReport {
 }
 
 const TEXT_GREY: Sample = [90, 90, 90];
+const graphemesOf = (s: string): string[] =>
+  Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s.normalize('NFC')), (x) => x.segment);
 
 /** Ink pixels of an RGBA image: channels away from the grey background by more than 60. */
 function inkOf(px: ArrayLike<number>, n: number): number {
@@ -1591,6 +1602,24 @@ function inkOf(px: ArrayLike<number>, n: number): number {
       ink++;
   }
   return ink;
+}
+
+/** The box (left, top, right, bottom) of the ink pixels of an RGBA image. */
+function inkBox(px: ArrayLike<number>, W: number, H: number): [number, number, number, number] {
+  let l = W;
+  let t = H;
+  let r = -1;
+  let b = -1;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const o = (y * W + x) * 4;
+      if (Math.max(...[0, 1, 2].map((c) => Math.abs(px[o + c]! - TEXT_GREY[c]!))) <= 60) continue;
+      l = Math.min(l, x);
+      r = Math.max(r, x);
+      t = Math.min(t, y);
+      b = Math.max(b, y);
+    }
+  return [l, t, r, b];
 }
 
 /** Pixels of a bitmap as RGBA. */
@@ -1648,6 +1677,8 @@ async function textExport(spec: TextExportSpec): Promise<TextExportReport> {
   // The output size of the 480p export (RULE-15): the bitmaps are made for it, as the export asks.
   const { width: W, height: H } = videoOutputSize(frameAspect(project), 480);
   const texts = await textBitmaps(project.textLayers, W, H);
+  // The preview's own bitmaps: a 16:9 preview canvas (640 × 360), scaled by the compositor as the preview is.
+  const previewTexts = await textBitmaps(project.textLayers, 640, 360);
   const video = await exportFile(project, settings, { media, pcm: [] }, () => texts);
   if (!video) return { ok: false, reason: 'export failed', faces: [] };
   const ks = faces.map((_, i) => i * 30 + 15);
@@ -1661,6 +1692,10 @@ async function textExport(spec: TextExportSpec): Promise<TextExportReport> {
     const plan = framePlan(project, k);
     comp.paint(plan, await source.frames(plan), new Map(Object.entries(texts)));
     const painted = comp.readPixels();
+    comp.paint(plan, await source.frames(plan), new Map(Object.entries(previewTexts)));
+    const previewPixels = comp.readPixels();
+    const inkPreview = inkOf(previewPixels, W * H);
+    const boxPreview = inkBox(previewPixels, W, H);
     const exported = decoded.px.get(k)!;
     let diff = 0;
     let n = 0;
@@ -1674,6 +1709,14 @@ async function textExport(spec: TextExportSpec): Promise<TextExportReport> {
     // The bundled face against a generic fallback, and "ệ" against "e", rasterised the same way.
     const layer = project.textLayers[i]!;
     const face = TEXT_FACES[typeface];
+    const probe = new OffscreenCanvas(1, 1).getContext('2d')!;
+    const widthIn = (ch: string, fallback: string): number => {
+      probe.font = `${face.weight} 40px "${face.family}", ${fallback}`;
+      return probe.measureText(ch).width;
+    };
+    const fallbackGlyphs = [...new Set(graphemesOf(content.replace(/\s/g, '')))].filter(
+      (ch) => Math.abs(widthIn(ch, 'monospace') - widthIn(ch, 'serif')) > 0.01,
+    );
     const loaded = document.fonts.check(`${face.weight} 32px "${face.family}"`, content);
     const own = await rasteriseText({ ...layer, content: 'Chúc mừng' }, W, H);
     const plain = await rasteriseText({ ...layer, content: 'e', style: 'plain', size: 20 }, W, H);
@@ -1708,13 +1751,16 @@ async function textExport(spec: TextExportSpec): Promise<TextExportReport> {
       marksDrawn: rows(marked) > rows(plain) * 1.2,
       inkExport: inkOf(exported, W * H),
       inkPaint: inkOf(painted, W * H),
+      inkPreview,
+      boxShift: Math.max(...boxPreview.map((v, j) => Math.abs(v - inkBox(painted, W, H)[j]!))),
+      fallbackGlyphs,
       meanDiff: diff / n,
     });
     for (const b of [own, plain, marked, fallback]) b?.close();
   }
   await source.close();
   comp.dispose();
-  for (const t of Object.values(texts)) t.bitmap.close();
+  for (const t of [...Object.values(texts), ...Object.values(previewTexts)]) t.bitmap.close();
   return { ok: true, faces: out };
 }
 
