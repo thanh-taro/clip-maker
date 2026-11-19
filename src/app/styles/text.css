@@ -1,0 +1,589 @@
+/* MOD-App / MOD-Timeline — F-010 text, tokens only: CMP-Timeline's text lane ("text item"), CMP-Preview "text
+   selected, moving" (hit areas, the violet outline and white handles, dashed violet guides), CMP-TextEditor
+   (caret, selection, vi-VN wrap guides, at the limit, narrow keyboard open), CMP-Inspector "text layer" (the
+   font tiles, the alignment segments, the Fade toggle, the action rows), the phone Text sheet, and SCR-Editor
+   "Phone editing-text" (the keyboard replaces the timeline and the tab bar; the top bar collapses to Undo, Redo
+   and Done). The colours drawn in the video come from the palette constants, never these (INV-05). */
+@layer layout {
+  /* ── Text lane (CMP-Timeline "text item"): `trackText` items showing their text ── */
+  .tk-text-lane {
+    position: relative;
+    block-size: var(--tk-size-timeline-lane);
+    margin-block-start: var(--tk-space-1);
+    touch-action: pan-x pan-y;
+  }
+
+  .tk-tl-gutter__text {
+    margin-block-start: calc(var(--tk-size-timeline-track) / 2 + var(--tk-space-1) + var(--tk-space-1));
+  }
+
+  .tk-tl-gutter__text + .tk-tl-gutter__audio {
+    margin-block-start: calc(
+      var(--tk-size-timeline-lane) / 2 + var(--tk-space-1) + var(--tk-size-audio-lane) / 2 - var(--tk-space-4)
+    );
+  }
+
+  .tk-tclip {
+    position: absolute;
+    inset-block: 0;
+    display: flex;
+    align-items: center;
+    min-inline-size: 0;
+    padding: 0 var(--tk-space-1-5);
+    overflow: hidden;
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    border-radius: var(--tk-radius-track-item);
+    background: var(--tk-color-track-text);
+    color: var(--tk-color-track-label);
+    cursor: grab;
+    touch-action: pan-x pan-y;
+    -webkit-touch-callout: none;
+  }
+
+  .tk-tclip[aria-pressed='true'] {
+    border-color: var(--tk-color-accent);
+    box-shadow: inset 0 0 0 var(--tk-border-width-hairline) var(--tk-color-accent);
+    padding-inline: calc(var(--tk-size-handle) + var(--tk-space-1));
+  }
+
+  .tk-tclip:focus-visible {
+    outline-offset: 0;
+  }
+
+  .tk-tclip__name {
+    position: sticky;
+    inset-inline-start: 0;
+    overflow: hidden;
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+    line-height: var(--tk-font-line-height-tight);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tk-text-lane .tk-trim::after {
+    block-size: var(--tk-space-2-5);
+  }
+
+  .tk-lanes--trimming .tk-tclip {
+    cursor: ew-resize;
+  }
+
+  /* RULE-21: a touch-size hit area around the 24 px item. */
+  @media (pointer: coarse) {
+    .tk-tclip {
+      overflow: visible;
+    }
+    .tk-tclip::before {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      inset-block: calc((var(--tk-size-timeline-lane) - var(--tk-size-touch-target)) / 2);
+    }
+  }
+
+  /* ── Preview: the text layers' hit areas, the selected one's outline and handles, the move guides ── */
+  .tk-text-layer {
+    position: absolute;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .tk-text-layer[hidden] {
+    display: none;
+  }
+
+  .tk-text-layer__hit {
+    position: absolute;
+    box-sizing: border-box;
+    pointer-events: auto;
+    touch-action: none;
+    cursor: pointer;
+  }
+
+  .tk-text-layer__hit[data-selected] {
+    border: var(--tk-border-width-focus) solid var(--tk-color-preview-outline);
+    cursor: move;
+  }
+
+  .tk-text-layer .tk-place-layer__handle {
+    pointer-events: auto;
+  }
+
+  .tk-text-layer__guide {
+    position: absolute;
+    border-color: var(--tk-color-preview-outline);
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .tk-text-layer__guide[data-snapped] {
+    opacity: 1;
+  }
+
+  .tk-text-layer__guide--v {
+    inset-block: 0;
+    border-inline-start: var(--tk-border-width-hairline) dashed var(--tk-color-preview-outline);
+  }
+
+  .tk-text-layer__guide--h {
+    inset-inline: 0;
+    border-block-start: var(--tk-border-width-hairline) dashed var(--tk-color-preview-outline);
+  }
+
+  /* ── CMP-TextEditor ── */
+  .tk-texteditor {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .tk-texteditor > * {
+    pointer-events: auto;
+  }
+
+  .tk-texteditor__field {
+    position: absolute;
+    box-sizing: content-box;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    outline: var(--tk-border-width-hairline) dashed var(--tk-color-preview-outline);
+    outline-offset: var(--tk-space-1);
+    background: transparent;
+    color: transparent;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    resize: none;
+  }
+
+  .tk-texteditor__field:focus-visible {
+    outline: var(--tk-border-width-hairline) dashed var(--tk-color-preview-outline);
+  }
+
+  .tk-texteditor__field::selection {
+    background: var(--tk-color-preview-outline);
+    color: transparent;
+  }
+
+  /* RULE-11: the wrap limits (90 % of the frame's width) as dashed guides while editing. */
+  .tk-texteditor__guide {
+    position: absolute;
+    border-inline-start: var(--tk-border-width-hairline) dashed var(--tk-color-preview-outline);
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  /* The floating bar above the frame: the count and an outlined Done. */
+  .tk-texteditor__bar {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-2);
+    padding: var(--tk-space-1);
+    padding-inline-start: var(--tk-space-3);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-chrome);
+    transform: translate(-50%, calc(-100% - var(--tk-space-2)));
+  }
+
+  .tk-texteditor__count {
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .tk-texteditor__count[data-limit] {
+    color: var(--tk-color-danger);
+  }
+
+  .tk-texteditor__done {
+    min-block-size: var(--tk-size-target-min);
+    gap: var(--tk-space-1);
+    padding-inline: var(--tk-space-2);
+    border-color: var(--tk-color-accent);
+    border-radius: var(--tk-radius-pill);
+    color: var(--tk-color-accent);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  .tk-texteditor__done:hover {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-texteditor__hint {
+    position: absolute;
+    inset-inline: 0;
+    margin: var(--tk-space-1) 0 0;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  /* At the limit: an error notice (danger icon, text in the normal colour on the danger background). */
+  .tk-texteditor__limit {
+    position: absolute;
+    inset-block-end: var(--tk-space-4);
+    inset-inline-start: 50%;
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-2);
+    max-inline-size: var(--tk-size-message-column);
+    margin: 0;
+    padding: var(--tk-space-2) var(--tk-space-3);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-danger-bg);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    transform: translateX(-50%);
+  }
+
+  .tk-texteditor__limit .tk-icon {
+    flex: none;
+    color: var(--tk-color-danger);
+  }
+
+  .tk-texteditor__status {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tk-texteditor__narrow {
+    display: none;
+  }
+
+  /* ── CMP-Inspector "text layer" ── */
+  .tk-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-3);
+  }
+
+  .tk-options--tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tk-options--tiles .tk-option {
+    justify-content: flex-start;
+    gap: var(--tk-space-2);
+    block-size: var(--tk-size-touch-target);
+    padding-inline: var(--tk-space-2);
+    font-family: var(--tk-font-family-body);
+  }
+
+  .tk-face__sample {
+    flex: none;
+    inline-size: var(--tk-space-6);
+    font-size: var(--tk-font-size-lg);
+    line-height: 1;
+    text-align: center;
+  }
+
+  .tk-face__name {
+    min-inline-size: 0;
+    overflow: hidden;
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-semibold);
+    text-overflow: ellipsis;
+  }
+
+  /* Style words read in the body face; the alignment segments are icons. */
+  .tk-text .tk-option,
+  .tk-texteditor__picker .tk-option {
+    font-family: var(--tk-font-family-body);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-text__row {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--tk-space-4);
+  }
+
+  .tk-text__align {
+    flex: 1;
+  }
+
+  .tk-text__align .tk-options--segments {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tk-text__fade {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--tk-space-1-5);
+  }
+
+  /* The Fade toggle (a pressed state, CMP-Inspector "Accessibility"). */
+  .tk-switch {
+    position: relative;
+    inline-size: var(--tk-space-10);
+    block-size: var(--tk-size-tool-button);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .tk-switch::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    inset-block-start: 50%;
+    block-size: var(--tk-space-5);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-surface2);
+    transform: translateY(-50%);
+  }
+
+  .tk-switch__knob {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: var(--tk-space-0-5);
+    inline-size: var(--tk-space-4);
+    block-size: var(--tk-space-4);
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-muted);
+    transform: translateY(-50%);
+    transition: inset-inline-start var(--tk-motion-duration-fast);
+  }
+
+  .tk-switch[aria-pressed='true']::before {
+    border-color: var(--tk-color-accent);
+    background: var(--tk-color-accent);
+  }
+
+  .tk-switch[aria-pressed='true'] .tk-switch__knob {
+    inset-inline-start: calc(var(--tk-space-10) - var(--tk-space-4) - var(--tk-space-0-5));
+    background: var(--tk-color-on-accent);
+  }
+
+  .tk-text .tk-place__buttons {
+    margin-block-start: var(--tk-space-1);
+  }
+
+  .tk-text__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--tk-space-1);
+  }
+
+  .tk-text__action {
+    justify-content: center;
+    gap: var(--tk-space-1-5);
+    min-inline-size: 0;
+    padding-inline: var(--tk-space-2);
+    border-color: var(--tk-color-line-strong);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-medium);
+  }
+
+  .tk-text__action span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tk-text__action:hover:not([aria-disabled='true']) {
+    background: var(--tk-color-surface2);
+  }
+
+  .tk-text__action[aria-disabled='true'] {
+    color: var(--tk-color-muted);
+    cursor: default;
+  }
+
+  /* Touch size (the phone Text sheet, CMP-Inspector "narrow sheets"). */
+  .tk-text--touch .tk-option,
+  .tk-text--touch .tk-text__action,
+  .tk-text--touch .tk-switch,
+  .tk-text--touch .tk-place__button {
+    min-block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-text--touch .tk-place__number {
+    font-size: var(--tk-font-size-input);
+  }
+
+  .tk-text--touch .tk-options--swatches .tk-swatch {
+    inline-size: var(--tk-size-touch-target);
+    block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-text--touch .tk-text__actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .tk-text--touch .tk-text__action {
+    flex-direction: column;
+    gap: var(--tk-space-0-5);
+  }
+
+  .tk-text--touch .tk-text__action span {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .tk-sheet__head--text {
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .tk-sheet__add--text {
+    inline-size: auto;
+    margin-inline-start: auto;
+  }
+
+  .tk-sheet__reset {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .tk-inspector__head .tk-place__reset {
+    margin-inline-start: auto;
+  }
+
+  /* Done in the narrow top bar: only while editing, only on narrow layouts. */
+  .tk-tool--done {
+    display: none;
+    color: var(--tk-color-accent);
+    border-color: var(--tk-color-accent);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  /* ── SCR-Editor "Phone editing-text" / CMP-TextEditor "narrow, keyboard open" ── */
+  @container tk-editor (width < 700px) {
+    .tk-editor[data-editing] .tk-tool--done {
+      display: inline-flex;
+      margin-inline-start: auto;
+      padding-inline: var(--tk-space-3);
+    }
+    .tk-editor[data-editing] .tk-tool--more,
+    .tk-editor[data-editing] .tk-tool--export,
+    .tk-editor[data-editing] .tk-needs-clip {
+      display: none;
+    }
+    .tk-editor[data-editing] > .tk-timeline,
+    .tk-editor[data-editing] > .tk-tabbar,
+    .tk-editor[data-editing] > .tk-sheet {
+      display: none;
+    }
+    .tk-editor[data-editing] .tk-transport {
+      display: none;
+    }
+    .tk-texteditor__bar,
+    .tk-texteditor__hint {
+      display: none;
+    }
+    .tk-texteditor__narrow {
+      position: absolute;
+      inset-inline: 0;
+      inset-block-end: 0;
+      display: flex;
+      flex-direction: column;
+      border-block-start: var(--tk-border-width-hairline) solid var(--tk-color-line);
+      background: var(--tk-color-surface);
+    }
+    .tk-texteditor__quick {
+      display: flex;
+      align-items: center;
+      gap: var(--tk-space-2);
+      padding: var(--tk-space-2);
+    }
+    .tk-texteditor__quick-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--tk-space-1-5);
+      min-inline-size: var(--tk-size-touch-target);
+      block-size: var(--tk-size-touch-target);
+      padding-inline: var(--tk-space-2);
+      border: var(--tk-border-width-hairline) solid var(--tk-color-line);
+      border-radius: var(--tk-radius-sm);
+      background: transparent;
+      cursor: pointer;
+    }
+    .tk-texteditor__quick-button[aria-pressed='true'] {
+      border-color: var(--tk-color-accent);
+      background: var(--tk-color-selection);
+    }
+    .tk-texteditor__count--quick {
+      margin-inline-start: auto;
+    }
+    .tk-texteditor__picker {
+      padding: var(--tk-space-2);
+      border-block-end: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    }
+    .tk-texteditor__picker .tk-option,
+    .tk-texteditor__picker .tk-swatch {
+      min-block-size: var(--tk-size-touch-target);
+    }
+    .tk-texteditor__dot {
+      inline-size: var(--tk-size-swatch);
+      block-size: var(--tk-size-swatch);
+      border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+      border-radius: var(--tk-radius-pill);
+    }
+    .tk-texteditor__dot[data-value='white'] {
+      background: var(--tk-text-color-white);
+    }
+    .tk-texteditor__dot[data-value='black'] {
+      background: var(--tk-text-color-black);
+    }
+    .tk-texteditor__dot[data-value='red'] {
+      background: var(--tk-text-color-red);
+    }
+    .tk-texteditor__dot[data-value='orange'] {
+      background: var(--tk-text-color-orange);
+    }
+    .tk-texteditor__dot[data-value='yellow'] {
+      background: var(--tk-text-color-yellow);
+    }
+    .tk-texteditor__dot[data-value='green'] {
+      background: var(--tk-text-color-green);
+    }
+    .tk-texteditor__dot[data-value='cyan'] {
+      background: var(--tk-text-color-cyan);
+    }
+    .tk-texteditor__dot[data-value='blue'] {
+      background: var(--tk-text-color-blue);
+    }
+    .tk-texteditor__dot[data-value='purple'] {
+      background: var(--tk-text-color-purple);
+    }
+    .tk-texteditor__dot[data-value='pink'] {
+      background: var(--tk-text-color-pink);
+    }
+    .tk-editor[data-sheet] .tk-text-lane,
+    .tk-editor[data-sheet] .tk-tl-gutter__text {
+      display: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .tk-tclip {
+      border-color: CanvasText;
+    }
+    .tk-tclip[aria-pressed='true'] {
+      outline: var(--tk-border-width-focus) solid Highlight;
+    }
+    .tk-text-layer__hit[data-selected],
+    .tk-texteditor__field {
+      border-color: Highlight;
+      outline-color: Highlight;
+    }
+  }
+}

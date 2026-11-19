@@ -5,6 +5,7 @@
 // focused radio its arrows, RULE-20). A click always reports the pick, even of the chosen option (the
 // action decides whether that changes anything: a frame rate not yet chosen becomes chosen, F-012).
 // Implements: CMP-Inspector "Accessibility" (radio groups; swatches named by colour).
+import type { ComponentChildren } from 'preact';
 import { useRef } from 'preact/hooks';
 
 export interface Option<T> {
@@ -15,6 +16,12 @@ export interface Option<T> {
   readonly key: string;
   /** A swatch (a colour dot) instead of a text segment. */
   readonly swatch?: boolean;
+  /**
+   * What the option shows instead of its label (F-010: an alignment icon, a font tile's "Aa" sample and name).
+   * With `named`, the label is its accessible name; otherwise the content carries the name itself.
+   */
+  readonly content?: ComponentChildren;
+  readonly named?: boolean;
 }
 
 const NEXT: Readonly<Record<string, number>> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
@@ -35,8 +42,11 @@ export function OptionGroup<T>({
   readonly options: readonly Option<T>[];
   readonly value: T;
   readonly onChoose: (value: T) => void;
-  /** `segments`: equal columns; `swatches`: a grid of colour dots, text options as chips. */
-  readonly variant: 'segments' | 'swatches';
+  /**
+   * `segments`: equal columns; `swatches`: a grid of colour dots, text options as chips; `tiles`: a two-column
+   * grid of touch-size tiles (F-010's font picker).
+   */
+  readonly variant: 'segments' | 'swatches' | 'tiles';
   /**
    * The id of a label shown elsewhere (the Speed section heading, the Edit sheet's row label): the group is
    * named by it and shows no label of its own.
@@ -81,11 +91,12 @@ export function OptionGroup<T>({
               tabIndex={on || (chosen < 0 && i === 0) ? 0 : -1}
               class={o.swatch ? 'tk-swatch' : 'tk-option'}
               data-value={o.key}
-              aria-label={o.swatch ? o.label : undefined}
+              aria-label={o.swatch || o.named ? o.label : undefined}
+              title={o.named ? o.label : undefined}
               onClick={() => onChoose(o.value)}
               onKeyDown={(e) => onKey(e, i)}
             >
-              {o.swatch ? <span class="tk-swatch__dot" aria-hidden="true" /> : o.label}
+              {o.swatch ? <span class="tk-swatch__dot" aria-hidden="true" /> : (o.content ?? o.label)}
             </button>
           );
         })}

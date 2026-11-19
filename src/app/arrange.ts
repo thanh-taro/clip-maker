@@ -137,9 +137,7 @@ export function deleteSelected(): boolean {
     if (done && had)
       setTimeout(() => {
         if (document.activeElement && document.activeElement !== document.body) return;
-        (
-          document.querySelector<HTMLElement>('.tk-tclip') ?? document.querySelector<HTMLElement>('.tk-track')
-        )?.focus();
+        (document.querySelector<HTMLElement>('.tk-tclip') ?? document.querySelector<HTMLElement>('.tk-track'))?.focus();
       }, 0);
     return done;
   }

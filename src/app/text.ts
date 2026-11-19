@@ -14,7 +14,16 @@
 // dragging), RULE-11, RULE-13, RULE-20 (T; Alt / Shift+Alt arrows move a text layer one frame / 1 s),
 // RULE-21 (time controls for text layers), F-010 edge case (50 layers: COPY-notice.text_limit).
 import { computed, signal } from '@preact/signals';
-import { clampText, characterCount, frameIndexAt, frameStart, RULE_07, RULE_11, textFadeFrames, type TextLayer } from '../core';
+import {
+  clampText,
+  characterCount,
+  frameIndexAt,
+  frameStart,
+  RULE_07,
+  RULE_11,
+  textFadeFrames,
+  type TextLayer,
+} from '../core';
 import {
   addText,
   beginGesture,

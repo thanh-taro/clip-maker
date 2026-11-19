@@ -15,7 +15,8 @@ import {
 import { text } from '../support/project';
 
 /** Every user-perceived character is 10 px wide at any font (a predictable measure). */
-const measure: Measure = (s) => Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s)).length * 10;
+const measure: Measure = (s) =>
+  Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s)).length * 10;
 
 describe('MOD-Preview text layout (RULE-11)', () => {
   it('RULE-11 lines break where typed', () => {

@@ -32,6 +32,11 @@
 // clip and opens its popover; unavailable with its reason between clips too short), and the Fades row (two
 // toggles, each with its length) with the Fade in / Fade out slider rows follows Speed. Implements: F-009.R1,
 // F-009.R2, F-009.R7 on narrow layouts, CMP-Timeline "narrow / sheet open".
+// F-010: the Text tab (COPY-inspector.text, between Audio and Looks as style.md orders it) and its sheet
+// (`TextSheet`, board SCR-Editor editing-text narrow "Text tab"): the title with the selected layer's text as
+// muted meta, Add text (COPY-action.add_text) as an outlined touch-size button, then the selected layer's text
+// section at touch size with Reset. The Edit sheet's tiles act on a selected text layer too (Earlier / Later in
+// time). Implements: F-010.R1–R4, F-010.R7, F-010.R8 on narrow layouts, RULE-21.
 import { effect, signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
@@ -56,8 +61,10 @@ import { placementTarget } from './placement';
 import { PositionSection } from './PositionSection';
 import { ARRANGE_ITEMS, CROSSFADE_ITEM, TRIM_ITEMS } from './Timeline';
 import { FadesSection } from './FadesSection';
+import { addTextAndEdit, selectedText } from './text';
+import { TextReset, TextSection } from './TextSection';
 
-type Sheet = 'edit' | 'audio' | 'looks' | 'adjust';
+type Sheet = 'edit' | 'audio' | 'text' | 'looks' | 'adjust';
 
 /** The open sheet of the narrow tab bar (null: none, the default). */
 export const openSheet = signal<Sheet | null>(null);
@@ -93,20 +100,30 @@ const SOUND_HEAD_ID = 'tk-sheet-sound-title';
 const ADJUST_TAB_ID = 'tk-tab-adjust';
 const ADJUST_SHEET_ID = 'tk-sheet-adjust';
 const LOOKS_TAB_ID = 'tk-tab-looks';
+const TEXT_TAB_ID = 'tk-tab-text';
+const TEXT_SHEET_ID = 'tk-sheet-text';
 const LOOKS_SHEET_ID = 'tk-sheet-looks';
 
-/** The tab bar's tabs in style.md order (Edit, Audio, Text, Looks, Adjust; Text joins with F-010). */
+/** The tab bar's tabs in style.md order (Edit, Audio, Text, Looks, Adjust). */
 const TABS: readonly {
   sheet: Sheet;
   id: string;
   panel: string;
-  icon: 'edit' | 'music' | 'looks' | 'adjust';
-  label: 'inspector.edit' | 'tab.audio' | 'looks.title' | 'inspector.adjust';
+  icon: 'edit' | 'music' | 'text' | 'looks' | 'adjust';
+  label: 'inspector.edit' | 'tab.audio' | 'inspector.text' | 'looks.title' | 'inspector.adjust';
   /** The tab can open its sheet now (SCR-Editor default narrow: Adjust needs a video or photo clip). */
   available: () => boolean;
 }[] = [
   { sheet: 'edit', id: TAB_ID, panel: SHEET_ID, icon: 'edit', label: 'inspector.edit', available: () => true },
   { sheet: 'audio', id: AUDIO_TAB_ID, panel: AUDIO_SHEET_ID, icon: 'music', label: 'tab.audio', available: () => true },
+  {
+    sheet: 'text',
+    id: TEXT_TAB_ID,
+    panel: TEXT_SHEET_ID,
+    icon: 'text',
+    label: 'inspector.text',
+    available: () => true,
+  },
   {
     sheet: 'looks',
     id: LOOKS_TAB_ID,
@@ -175,6 +192,15 @@ function useSheetEsc(open: boolean, ref: { readonly current: HTMLElement | null 
 
 /** The selection's name and length as muted meta in the sheet header. */
 function SelectionMeta() {
+  const text = selectedText.value;
+  if (text) {
+    return (
+      <span class="tk-sheet__meta">
+        <span class="tk-sheet__name">{text.content.replace(/\s+/g, ' ').trim()}</span>
+        <span class="tk-sheet__length">{formatDuration(text.end - text.start)}</span>
+      </span>
+    );
+  }
   const audio = selectedAudio.value;
   if (audio) {
     const p = project.value;
@@ -213,7 +239,7 @@ export function EditSheet() {
   useKeepFocus(ref, title, frame);
   useSheetEsc(open, ref, TAB_ID);
   if (!open) return null;
-  const clip = selectedClip.value ?? selectedAudio.value;
+  const clip = selectedClip.value ?? selectedAudio.value ?? selectedText.value;
   // Tile order of the board: Split, Start here, End here, Cross-fade / Move earlier, Move later, Duplicate,
   // Delete (in danger).
   const tiles = [
@@ -284,6 +310,51 @@ export function EditSheet() {
         {placementTarget.value ? <PositionSection id="tk-sheet-place" touch /> : null}
         {speedTarget.value ? <SpeedSection id="tk-sheet-speed" touch /> : null}
         <FadesSection id="tk-sheet-fades" touch />
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The Text sheet (style.md "Layouts" narrow: Text holds Add text and the text style; board SCR-Editor
+ * editing-text narrow "Text tab"): grabber, the title COPY-inspector.text with the selected layer's text as
+ * muted meta and Add text, then the selected layer's text section at touch size, with Reset.
+ */
+export function TextSheet() {
+  const open = openSheet.value === 'text';
+  const ref = useRef<HTMLElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
+  const layer = selectedText.value;
+  useKeepFocus(ref, title, layer?.id ?? null);
+  useSheetEsc(open, ref, TEXT_TAB_ID);
+  if (!open) return null;
+  return (
+    <section ref={ref} id={TEXT_SHEET_ID} class="tk-sheet tk-sheet--text" role="tabpanel" aria-labelledby={TEXT_TAB_ID}>
+      <span class="tk-sheet__grabber" aria-hidden="true" />
+      <div class="tk-sheet__body">
+        <header class="tk-sheet__head tk-sheet__head--text">
+          <h2 ref={title} class="tk-sheet__title" tabIndex={-1}>
+            {t('inspector.text')}
+          </h2>
+          <SelectionMeta />
+          <button
+            type="button"
+            class="tk-button tk-button--outlined-accent tk-sheet__add tk-sheet__add--text"
+            data-action="add-text"
+            onClick={() => void addTextAndEdit()}
+          >
+            <Icon name="addMedia" size={16} />
+            {t('action.add_text')}
+          </button>
+        </header>
+        {layer ? (
+          <>
+            <div class="tk-sheet__reset">
+              <TextReset layer={layer} />
+            </div>
+            <TextSection id="tk-sheet-text" touch />
+          </>
+        ) : null}
       </div>
     </section>
   );

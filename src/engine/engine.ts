@@ -202,16 +202,16 @@ export class Engine {
       case 'engine:seek':
         return this.request({ t: m.t, playing: false, seek: true });
       case 'engine:setTextBitmaps':
-      {
-        // F-010: kept ids keep their bitmap; the others are replaced or dropped (and closed).
-        const keep = new Set(m.keep ?? []);
-        const next = new Map(Object.entries(m.bitmaps));
-        for (const [id, t] of this.texts) {
-          if (keep.has(id) && !next.has(id)) next.set(id, t);
-          else if (next.get(id)?.bitmap !== t.bitmap) t.bitmap.close();
+        {
+          // F-010: kept ids keep their bitmap; the others are replaced or dropped (and closed).
+          const keep = new Set(m.keep ?? []);
+          const next = new Map(Object.entries(m.bitmaps));
+          for (const [id, t] of this.texts) {
+            if (keep.has(id) && !next.has(id)) next.set(id, t);
+            else if (next.get(id)?.bitmap !== t.bitmap) t.bitmap.close();
+          }
+          this.texts = next;
         }
-        this.texts = next;
-      }
         return this.repaint();
       case 'engine:compare':
         this.compare = m.clipId;

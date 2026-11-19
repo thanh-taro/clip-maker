@@ -28,6 +28,8 @@
 // "Accessibility" (tabs are a tablist named COPY-inspector.label; single-section panels use a heading;
 // option groups are radio groups; swatches carry colour names), F-005 UX notes, F-006 UX notes,
 // CMP-Inspector "clip Position" and "compact".
+// F-010: a selected text layer shows its single section (./TextSection.tsx) under a plain title row
+// COPY-inspector.text with Reset (CMP-Inspector "text layer"). Implements: F-010.R2, F-010.R3, F-010.R7, F-010.R8.
 import { signal } from '@preact/signals';
 import { t } from '../copy';
 import type { Frame, FrameRate } from '../core';
@@ -54,6 +56,8 @@ import { soundTarget } from './sound';
 import { SoundSection } from './SoundSection';
 import { SpeedSection } from './SpeedSection';
 import { FadesSection } from './FadesSection';
+import { selectedText } from './text';
+import { TextReset, TextSection } from './TextSection';
 
 const aspectLabel = (a: Frame['aspect']): string => (a === 'original' ? t('frame.original') : a);
 const backgroundLabel = (b: Frame['background']): string => (b === 'blur' ? t('frame.blur') : t(`colour.${b}`));
@@ -302,13 +306,14 @@ export function Inspector() {
   const frame = frameSectionShown.value;
   const clip = frame ? null : placementTarget.value;
   const tabs = clip ? tabsOf(clip.kind) : null;
-  const sound = !frame && !tabs && soundTarget.value !== null;
+  const text = frame || tabs ? null : selectedText.value;
+  const sound = !frame && !tabs && !text && soundTarget.value !== null;
   // A tab the clip doesn't have (Sound on a photo) shows its Edit tab; the choice stays for the next video.
   const tab: ClipTab = tabs?.includes(clipTab.value) ? clipTab.value : 'edit';
   const panel = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const selectedTab = useRef<HTMLButtonElement>(null);
-  const section = frame ? 'frame' : tabs ? `clip-${tab}` : sound ? 'sound' : 'selection';
+  const section = frame ? 'frame' : tabs ? `clip-${tab}` : text ? 'text' : sound ? 'sound' : 'selection';
   useKeepFocus(panel, tabs ? selectedTab : heading, section);
   if (tabs)
     return (
@@ -347,7 +352,13 @@ export function Inspector() {
         )}
       </aside>
     );
-  const title = frame ? t('inspector.frame') : sound ? t('inspector.sound') : t('inspector.label');
+  const title = frame
+    ? t('inspector.frame')
+    : text
+      ? t('inspector.text')
+      : sound
+        ? t('inspector.sound')
+        : t('inspector.label');
   return (
     <aside ref={panel} class="tk-inspector" aria-labelledby={HEAD_ID} data-section={section}>
       <ResizeGrip panel={panel} />
@@ -355,9 +366,16 @@ export function Inspector() {
         <h2 ref={heading} class="tk-inspector__title" id={HEAD_ID} tabIndex={-1}>
           {title}
         </h2>
+        {text ? <TextReset layer={text} /> : null}
       </header>
       <div class="tk-inspector__body">
-        {frame ? <FrameSection id="tk-inspector" /> : sound ? <SoundSection id="tk-inspector-sound" /> : null}
+        {frame ? (
+          <FrameSection id="tk-inspector" />
+        ) : text ? (
+          <TextSection id="tk-inspector-text" />
+        ) : sound ? (
+          <SoundSection id="tk-inspector-sound" />
+        ) : null}
       </div>
     </aside>
   );

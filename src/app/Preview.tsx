@@ -12,7 +12,9 @@
 // `setCompare`) and the pill COPY-preview.comparing sits in the top-left corner (CMP-Preview "holding
 // compare"); the F-007 keys (Mod+C, Mod+V, hold \) are bound while the editor is mounted. Implements:
 // F-007.R7, F-007.AC9, RULE-08 *Compare*, RULE-20. F-008: a look previewed in the gallery is drawn on the
-// selected clip (MOD-Preview `setLookPreview`; F-008.R2, RULE-09).
+// selected clip (MOD-Preview `setLookPreview`; F-008.R2, RULE-09). F-010: the text layers' hit areas, the
+// selected text's outline, handles and move guides (./TextOverlay.tsx), and CMP-TextEditor over the frame while
+// a text layer is edited (./TextEditor.tsx).
 import { computed, effect, signal } from '@preact/signals';
 import type { Ref } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
@@ -24,6 +26,8 @@ import { previewing } from './looks';
 import { Icon, type IconName } from './icons';
 import { Notices } from './NoticeStack';
 import { PlacementOverlay } from './PlacementOverlay';
+import { TextEditor } from './TextEditor';
+import { TextOverlay } from './TextOverlay';
 import { bindPlaybackKeys, mountPlayback, playback } from './playback';
 import { workersReady } from './workers';
 
@@ -270,6 +274,8 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
       <div class="tk-stage" ref={stageRef}>
         <div class="tk-frame" ref={frameRef} role="img" aria-label={frameLabel} data-empty={empty ? '' : undefined} />
         {empty ? null : <PlacementOverlay stage={stageRef} />}
+        {empty ? null : <TextOverlay stage={stageRef} />}
+        {empty ? null : <TextEditor stage={stageRef} />}
         {/* CMP-Preview "holding compare": a quiet pill, a status message (CMP-Preview "Accessibility"). */}
         <p class="tk-preview-pill" role="status" data-shown={holding ? '' : undefined}>
           {holding ? (

@@ -11,12 +11,13 @@
 import { contrastOf, graphemes, PALETTE_HEX, RULE_11, type TextLayer } from '../core';
 
 /** The four RULE-11 typefaces as canvas font families and their one weight (ADR-0012 §1). */
-export const TEXT_FACES: Readonly<Record<TextLayer['typeface'], { readonly family: string; readonly weight: number }>> = {
-  sans: { family: 'Manrope', weight: 700 },
-  display: { family: 'Anton', weight: 400 },
-  serif: { family: 'Playfair Display', weight: 700 },
-  rounded: { family: 'Nunito', weight: 800 },
-};
+export const TEXT_FACES: Readonly<Record<TextLayer['typeface'], { readonly family: string; readonly weight: number }>> =
+  {
+    sans: { family: 'Manrope', weight: 700 },
+    display: { family: 'Anton', weight: 400 },
+    serif: { family: 'Playfair Display', weight: 700 },
+    rounded: { family: 'Nunito', weight: 800 },
+  };
 
 /** Line height as a multiple of the font size (room for Vietnamese stacked marks, e.g. "Ệ"). */
 export const LINE_HEIGHT = 1.3;
@@ -169,7 +170,11 @@ export function drawText(g: Ctx2D, layer: TextLayer, layout: TextLayout, x0: num
   g.lineJoin = 'round';
   g.miterLimit = 2;
   const xOf = (line: TextLine): number =>
-    layer.align === 'left' ? tx0 : layer.align === 'right' ? tx0 + textWidth - line.width : tx0 + (textWidth - line.width) / 2;
+    layer.align === 'left'
+      ? tx0
+      : layer.align === 'right'
+        ? tx0 + textWidth - line.width
+        : tx0 + (textWidth - line.width) / 2;
   const each = (fn: (line: TextLine, x: number, y: number) => void): void =>
     lines.forEach((line, i) => {
       if (line.text) fn(line, xOf(line), ty0 + (i + 0.5) * lineHeight);

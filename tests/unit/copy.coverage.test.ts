@@ -37,6 +37,8 @@ const TEXT_SET_ATTRIBUTE = /^(aria-.+|title|alt|placeholder|label)$/;
  */
 const EXCEPTIONS: readonly { readonly text: string; readonly at: RegExp }[] = [
   { text: 'Clip Maker', at: /^app\/app\.tsx:\d+ document\.title$/ },
+  // F-010: the type specimen on each font tile (a sample of the face, not a word; CMP-Inspector "text layer").
+  { text: 'Aa', at: /^app\/TextSection\.tsx:\d+ jsx-child$/ },
 ];
 
 const LETTER = /\p{L}/u;

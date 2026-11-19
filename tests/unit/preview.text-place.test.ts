@@ -21,7 +21,14 @@ describe('F-010 moving a text layer in the preview', () => {
   it('RULE-11 the centre snaps to the centre lines; the right and bottom edges to their margins', () => {
     const c = moveText({ x: 0.3, y: 0.3 }, 0.2 * 360 - 5, 0.2 * 640 + 6, frame, block, true);
     expect([c.x, c.y, c.snapX, c.snapY]).toEqual([0.5, 0.5, 0.5, 0.5]);
-    const right = moveText({ x: 0.5, y: 0.5 }, 360 * 0.95 - 50 - 180 - 3, 640 * 0.95 - 20 - 320 + 4, frame, block, true);
+    const right = moveText(
+      { x: 0.5, y: 0.5 },
+      360 * 0.95 - 50 - 180 - 3,
+      640 * 0.95 - 20 - 320 + 4,
+      frame,
+      block,
+      true,
+    );
     expect(right.snapX).toBe(1 - RULE_11.safeMargin);
     expect(right.snapY).toBe(1 - RULE_11.safeMargin);
   });
@@ -30,7 +37,12 @@ describe('F-010 moving a text layer in the preview', () => {
     const off = moveText({ x: 0.3, y: 0.3 }, 0.2 * 360 - 5, 0, frame, block, false);
     expect(off.snapX).toBeNull();
     expect(off.x).toBeCloseTo((0.3 * 360 + 0.2 * 360 - 5) / 360, 4);
-    expect(moveText({ x: 0.1234, y: 0.8 }, 0, 0, frame, block, true)).toEqual({ x: 0.1234, y: 0.8, snapX: null, snapY: null });
+    expect(moveText({ x: 0.1234, y: 0.8 }, 0, 0, frame, block, true)).toEqual({
+      x: 0.1234,
+      y: 0.8,
+      snapX: null,
+      snapY: null,
+    });
   });
 
   it('RULE-11 the block’s centre stays within the frame', () => {
