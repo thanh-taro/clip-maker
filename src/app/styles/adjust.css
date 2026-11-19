@@ -87,11 +87,13 @@
     min-block-size: var(--tk-size-control);
   }
 
+  /* A label never clips (F-022.R6): the column keeps its width, so the rows stay aligned, and a long label
+     wraps to a second line instead. */
   .tk-adjust__label {
-    overflow: hidden;
+    min-inline-size: 0;
     font-size: var(--tk-font-size-sm);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: var(--tk-font-line-height-tight);
+    overflow-wrap: break-word;
   }
 
   .tk-adjust__slider {
