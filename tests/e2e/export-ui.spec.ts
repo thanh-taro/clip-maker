@@ -141,8 +141,9 @@ async function exportNow(
   page: Page,
   p: Locator,
   lang: Language = 'en-US',
+  timeout = 90_000,
 ): Promise<{ download: Download; bytes: number[] }> {
-  const download = page.waitForEvent('download', { timeout: 90_000 });
+  const download = page.waitForEvent('download', { timeout });
   await p.getByRole('button', { name: text(lang, 'action.export'), exact: true }).click();
   const d = await download;
   const path = await d.path();
@@ -506,7 +507,7 @@ test.describe('F-015 size target', () => {
   test('F-015.AC10 a 10 MB target at 1080 gives a file of at most 10,000,000 bytes (a 60 s project of a photo standing in for the NFR-04 fixture, which lives outside git)', async ({
     page,
   }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(300_000);
     await open(page);
     await longPhoto(page, 60);
     const p = await openPanel(page);
@@ -515,7 +516,8 @@ test.describe('F-015 size target', () => {
     await expect(radio(p, '1080')).toBeChecked();
     const go = p.getByRole('button', { name: text('en-US', 'action.export'), exact: true });
     await expect(go).toBeEnabled({ timeout: 30_000 });
-    const { bytes } = await exportNow(page, p);
+    // A 60 s 1080 export: slower than the others when the machine is shared (not a speed check, NFR-04).
+    const { bytes } = await exportNow(page, p, 'en-US', 240_000);
     expect(bytes.length).toBeGreaterThan(0);
     expect(bytes.length).toBeLessThanOrEqual(10_000_000);
   });
