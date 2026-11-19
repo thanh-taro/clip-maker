@@ -174,7 +174,7 @@ function Done({ view }: { view: Extract<RunView, { phase: 'done' }> }) {
   );
 }
 
-function Ended({ phase }: { phase: keyof typeof ERRORS }) {
+function Ended({ phase, music = false }: { phase: keyof typeof ERRORS; music?: boolean }) {
   const e = ERRORS[phase];
   return (
     <>
@@ -185,7 +185,8 @@ function Ended({ phase }: { phase: keyof typeof ERRORS }) {
         </h2>
       </div>
       <p id={TEXT_ID} class="tk-run__text">
-        {t(e.text)}
+        {/* A bundled track that couldn't be read is named as the reason (build question 120). */}
+        {music ? t('notice.music_unavailable') : t(e.text)}
       </p>
       <div class="tk-run__actions">
         <button type="button" class="tk-run__button" data-action="close-export" onClick={closeRun}>
@@ -257,7 +258,7 @@ export function ExportProgress() {
       ) : view.phase === 'done' ? (
         <Done view={view} />
       ) : (
-        <Ended phase={view.phase} />
+        <Ended phase={view.phase} music={view.phase === 'failed' && view.reason === 'music'} />
       )}
     </dialog>
   );

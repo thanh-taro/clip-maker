@@ -214,7 +214,11 @@ async function runBatch(items: readonly IntakeItem[], gen: number): Promise<void
  */
 export function addFiles(items: readonly IntakeItem[]): Promise<void> {
   // SCR-Editor "exporting": the editor is locked; files dropped or pasted on it then are not taken.
-  if (editorLocked.peek()) return Promise.resolve();
+  if (editorLocked.peek()) {
+    // Review: never silently: COPY-notice.busy_exporting says why the files were not taken.
+    showNotice({ kind: 'info', tag: 'busy_exporting', text: () => t('notice.busy_exporting') });
+    return Promise.resolve();
+  }
   const gen = generation;
   queued.value++;
   const run = chain.then(() => runBatch(items, gen));

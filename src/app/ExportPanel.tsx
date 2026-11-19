@@ -25,6 +25,7 @@ import {
   parseTarget,
   QUICK_TARGETS,
   resolution,
+  retryEstimate,
   sessionCaps,
   startVideoExport,
   targetAdvice,
@@ -192,11 +193,12 @@ function SizeLimit({ blocked }: { readonly blocked: boolean }) {
 
 /**
  * Implements: F-015.R2 / AC2, D-020 — when the size target can't be met: COPY-export.target_lower_res with
- * COPY-action.use_res, or COPY-export.target_unreachable with COPY-action.use_target.
+ * COPY-action.use_res, or COPY-export.target_unreachable with COPY-action.use_target; a check that failed reads
+ * COPY-export.target_unknown with COPY-action.try_again.
  */
 function useAdvice() {
   const e = estimateView.value;
-  const advice = targetAdvice(e.status === 'ready' ? e.result : null);
+  const advice = targetAdvice(e.status === 'ready' ? e.result : e.status === 'failed' ? 'failed' : null);
   const target = videoChoice.value.targetMB;
   const r = resolution.value;
   if (target === null || r === null || advice.kind === 'none') return null;
@@ -206,6 +208,9 @@ function useAdvice() {
       action: t('action.use_res', { res: String(advice.fit) }),
       run: () => chooseResolution(advice.fit as VideoResolution),
     };
+  if (advice.kind === 'unknown')
+    // Review: a failed check never leaves Export disabled without a reason; it can be run again.
+    return { text: t('export.target_unknown', { size: target }), action: t('action.try_again'), run: retryEstimate };
   return {
     text: t('export.target_unreachable', { size: target, min: advice.min }),
     action: t('action.use_target', { size: advice.min }),

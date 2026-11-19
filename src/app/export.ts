@@ -55,7 +55,7 @@ import { needsClip } from './adding';
 import { capabilities } from './device';
 import { editorLocked } from './lock';
 import { lookTables } from './looks';
-import { musicIds, playback, registryMedia } from './playback';
+import { musicFailed, musicIds, playback, registryMedia } from './playback';
 import { editingText, finishEditing } from './text';
 import { exportWorkers, scratchReady } from './workers';
 
@@ -146,15 +146,18 @@ export function parseTarget(text: string): number | null {
 /** What the panel says about the size target (CMP-ExportPanel "lower res", RULE-15, D-020). */
 export type TargetAdvice =
   | { readonly kind: 'none' }
+  /** The reachability check failed or gave no answer: Export waits, with a reason and a retry. */
+  | { readonly kind: 'unknown' }
   | { readonly kind: 'lower_res'; readonly fit: VideoResolution }
   | { readonly kind: 'unreachable'; readonly min: number };
 
 /** Implements: F-015.R2 / AC2 — the advice of an estimate: a lower resolution, or the smallest whole-MB target. */
-export function targetAdvice(e: EstimateResult | null): TargetAdvice {
+export function targetAdvice(e: EstimateResult | 'failed' | null): TargetAdvice {
+  if (e === 'failed') return { kind: 'unknown' };
   if (!e || e.reachable) return { kind: 'none' };
   if (e.suggestedResolution) return { kind: 'lower_res', fit: e.suggestedResolution };
   if (e.smallestTargetMB) return { kind: 'unreachable', min: e.smallestTargetMB };
-  return { kind: 'none' };
+  return { kind: 'unknown' };
 }
 
 /** The MIME type of a finished file, for the File given to the share sheet (RULE-15 formats). */
@@ -166,7 +169,7 @@ export const mimeOf = (fileName: string): string =>
 /** Trial encodes once per codec per session; a codec whose trial fails is dropped for the session. */
 const videoTrials = new Map<VideoCodecId, Promise<VideoTrial>>();
 let audioTrials: Promise<ExportCaps['audio']> | null = null;
-const grids = new Map<VideoCodecId, Promise<GridCell[]>>();
+const grids = new Map<VideoCodecId, Promise<GridCell[] | null>>();
 
 const videoTrial = (codec: VideoCodecId): Promise<VideoTrial> => {
   let p = videoTrials.get(codec);
@@ -232,10 +235,11 @@ function capsOf(
 }
 
 /** The size × rate grid of a codec, probed once per session when the panel first needs it (ADR-0004). */
-const gridOf = (codec: VideoCodecId): Promise<GridCell[]> => {
+const gridOf = (codec: VideoCodecId): Promise<GridCell[] | null> => {
   let p = grids.get(codec);
   if (!p) {
-    p = probeExportGrid(codec).catch(() => []);
+    // A probe that fails leaves the start-up answer standing (null), never "nothing can be encoded".
+    p = probeExportGrid(codec).catch(() => null);
     grids.set(codec, p);
   }
   return p;
@@ -252,6 +256,10 @@ export const panelOpen = signal(false);
 export const videoChoice = signal<VideoChoice>(DEFAULT_CHOICE);
 /** The capability record for the project's sound, once known (null while being worked out). */
 export const sessionCaps = signal<ExportCaps | null>(null);
+/** Whether `sessionCaps` was worked out for a project with sound (null: not yet). */
+export const capsSound = signal<boolean | null>(null);
+/** The capability record matches the project's sound now (sound added while the panel is open waits). */
+export const capsReady = computed(() => sessionCaps.value !== null && capsSound.value === hasSound(project.value));
 /** No video format works on this device after the trial encodes (RULE-22 left the editor open). */
 export const noFormat = signal(false);
 /** The grid of the chosen codec (null until probed). */
@@ -278,7 +286,7 @@ export const estimateView = signal<EstimateView>({ status: 'pending' });
  * resolution, and a size target is known to be reachable at the chosen size.
  */
 export const canExport = computed(() => {
-  if (needsClip.value || noFormat.value || resolution.value === null || !sessionCaps.value) return false;
+  if (needsClip.value || noFormat.value || resolution.value === null || !capsReady.value) return false;
   if (videoChoice.value.targetMB === null) return true;
   const e = estimateView.value;
   return e.status === 'ready' && e.result.reachable;
@@ -328,12 +336,29 @@ export function closePanel(returnFocus = true): void {
 /** ADR-0008 outcome item 2: the final gain per mix, shared by the session's exports. */
 const gains = new Map<string, number>();
 
-/** Every source's file or picture (MOD-Media's registry) and the bundled tracks the audio clips play. */
+/** A bundled track's file could not be read: the export stops with COPY-notice.music_unavailable (Q120). */
+export class MusicUnavailable extends Error {
+  constructor(readonly trackId: string) {
+    super(`NotReadableError: bundled track ${trackId} could not be read`);
+  }
+}
+
+/**
+ * Every source's file or picture (MOD-Media's registry) and the bundled tracks the audio clips play. A track
+ * that can't be read shows COPY-notice.music_unavailable (F-011.R7) and fails the export: it is never
+ * exported without the track (build question 120; the proposed rule is question 190).
+ */
 async function mediaOf(p: Project): Promise<EngineMedia[]> {
-  const sources = await Promise.all(p.sources.map((s) => registryMedia(s)));
-  const music = await Promise.all(
-    musicIds(p, null).map(async (id): Promise<EngineMedia> => ({ id, kind: 'audio', file: await musicBlob(id) })),
-  );
+  const sources = await Promise.all(p.sources.map((src) => registryMedia(src)));
+  const music: EngineMedia[] = [];
+  for (const id of musicIds(p, null)) {
+    try {
+      music.push({ id, kind: 'audio', file: await deps.music(id) });
+    } catch {
+      musicFailed(id);
+      throw new MusicUnavailable(id);
+    }
+  }
   return [...sources.filter((m): m is EngineMedia => m !== null), ...music];
 }
 
@@ -352,9 +377,12 @@ export interface ExportDeps {
   readonly context: (p: Project, caps: ExportCaps, texts: Texts) => Promise<ExportContext>;
   readonly texts: (p: Project, width: number, height: number) => Promise<Texts>;
   readonly now: () => number;
+  /** A bundled track's packaged file (MOD-Assets). */
+  readonly music: (trackId: string) => Promise<Blob>;
 }
 
-async function browserContext(p: Project, caps: ExportCaps, texts: Texts): Promise<ExportContext> {
+/** The browser's context of an export (tests reach `mediaOf` through it with a faked `music`). */
+export async function browserContext(p: Project, caps: ExportCaps, texts: Texts): Promise<ExportContext> {
   const workers = exportWorkers;
   const scratch = await scratchReady;
   if (!workers || !scratch) throw new Error('InvalidStateError: the export workers are not running');
@@ -376,6 +404,7 @@ let deps: ExportDeps = {
   context: browserContext,
   texts: (p, w, h) => textBitmaps(p.textLayers, w, h),
   now: () => Date.now(),
+  music: musicBlob,
 };
 /** Tests replace MOD-Export and the browser context (unit tests of the panel's and the run's logic). */
 export function setExportDeps(d: Partial<ExportDeps>): void {
@@ -396,9 +425,13 @@ async function refreshCaps(p: Project): Promise<void> {
   const sound = hasSound(p);
   if (capsFor && capsFor.caps === caps && capsFor.sound === sound && (sessionCaps.peek() || noFormat.peek())) return;
   capsFor = { caps, sound };
+  // Review: the record of the old sound state never serves the new one (a format without a sound track).
+  sessionCaps.value = null;
+  capsSound.value = null;
   const ec = await exportCaps(caps, sound);
   if (capsFor.caps !== caps || capsFor.sound !== sound) return;
   sessionCaps.value = ec;
+  capsSound.value = sound;
   noFormat.value = ec === null;
   if (ec?.videoFormat) exportGrid.value = await gridOf(ec.videoFormat.video);
 }
@@ -425,6 +458,11 @@ async function runEstimate(seq: number, p: Project, settings: ExportSettings, ca
   } finally {
     closeTexts(texts);
   }
+}
+
+/** COPY-action.try_again beside an unknown size-target answer: the estimate is worked out again. */
+export function retryEstimate(): void {
+  scheduleEstimate();
 }
 
 function scheduleEstimate(): void {
@@ -465,12 +503,18 @@ export type RunView =
   | { readonly phase: 'running'; readonly fraction: number; readonly remainingMs: number | null }
   | { readonly phase: 'cancelling'; readonly fraction: number }
   | { readonly phase: 'done'; readonly fileName: string; readonly share: File | null }
-  | { readonly phase: 'failed' | 'interrupted' | 'no_space' };
+  | { readonly phase: 'failed'; readonly reason?: 'music' }
+  | { readonly phase: 'interrupted' | 'no_space' };
 
 /** The export dialog's state (null: no dialog). */
 export const run = signal<RunView | null>(null);
 
 let handle: ExportHandle | null = null;
+/**
+ * Each start takes a token; a cancel before MOD-Export's handle exists, a Try again or a reset makes it stale,
+ * and a stale run stops at its next step (closing its text bitmaps, cancelling a handle that arrived late).
+ */
+let runToken = 0;
 /** The settings of the last start (COPY-action.try_again uses the same). */
 let lastSettings: ExportSettings | null = null;
 /** The share window keeps the scratch file until the dialog closes (ADR-0010 outcome item 11). */
@@ -494,7 +538,7 @@ const ENDS: Readonly<Record<string, 'failed' | 'interrupted' | 'no_space'>> = {
  */
 export async function startVideoExport(settings?: ExportSettings): Promise<void> {
   if (editorLocked.peek()) return;
-  const caps = sessionCaps.peek();
+  const caps = capsReady.peek() ? sessionCaps.peek() : null;
   const r = resolution.peek();
   const s = settings ?? (r !== null ? settingsOf(videoChoice.peek(), r) : null);
   if (!caps || !s || s.kind !== 'video' || project.peek().clips.length === 0) return;
@@ -504,6 +548,8 @@ export async function startVideoExport(settings?: ExportSettings): Promise<void>
   lastSettings = s;
   panelOpen.value = false;
   estimateSeq++; // any estimate still on its way is dropped
+  const token = ++runToken;
+  const stale = (): boolean => token !== runToken;
   const p = project.peek();
   const mark = exportMark();
   run.value = { phase: 'running', fraction: 0, remainingMs: null };
@@ -513,34 +559,41 @@ export async function startVideoExport(settings?: ExportSettings): Promise<void>
   try {
     const { width, height } = outputSize(p, s.resolution);
     texts = await deps.texts(p, width, height);
+    if (stale()) return closeTexts(texts);
     const base = await deps.context(p, caps, texts);
+    if (stale()) return closeTexts(texts);
     // The hand-over (RULE-15, D-018: a `blob:` URL clicked through `<a download>`), noted for Share (R9).
     const ctx: ExportContext = {
       ...base,
       save: (blob, fileName) => {
         const url = (base.save ?? downloadBlob)(blob, fileName);
-        handedOver = { blob, fileName, url };
+        if (!stale()) handedOver = { blob, fileName, url };
         return url;
       },
     };
-    if (run.peek()?.phase !== 'running') return closeTexts(texts); // cancelled while getting ready
     h = await deps.start(p, s, ctx);
-  } catch {
+  } catch (e) {
     closeTexts(texts);
-    if (run.peek() !== null) run.value = { phase: 'failed' };
+    // A cancelled run ends quietly; a bundled track that can't be read says so (build question 120).
+    if (!stale()) run.value = e instanceof MusicUnavailable ? { phase: 'failed', reason: 'music' } : { phase: 'failed' };
+    return;
+  }
+  // MOD-Export has posted the bitmaps to its worker (structured clones): ours are no longer needed.
+  closeTexts(texts);
+  if (stale()) {
+    void h.cancel(); // Cancel was pressed while it started
     return;
   }
   handle = h;
   // The scratch file of this run, so the share window can hold it (ADR-0010 outcome item 11).
   handleScratch = h.scratchFile;
-  if (run.peek()?.phase !== 'running') void h.cancel(); // Cancel was pressed while it started
   h.onProgress((v) => {
-    const now = run.peek();
-    if (now?.phase === 'running') run.value = { phase: 'running', fraction: v.fraction, remainingMs: v.remainingMs };
+    if (!stale() && run.peek()?.phase === 'running')
+      run.value = { phase: 'running', fraction: v.fraction, remainingMs: v.remainingMs };
   });
   const result = await h.result;
-  closeTexts(texts);
-  handle = null;
+  if (handle === h) handle = null;
+  if (stale()) return;
   finish(result, mark);
 }
 
@@ -552,6 +605,7 @@ function finish(result: ExportResult, mark: number): void {
     const file = saved ? new File([saved.blob], saved.fileName, { type: mimeOf(saved.fileName) }) : null;
     const share = file && canShareFile(file) ? file : null;
     if (share && saved) holdForShare(saved.url);
+    handedOver = null; // the Blob is kept only through the share File, and only while Share is offered
     run.value = { phase: 'done', fileName: result.fileName, share };
     return;
   }
@@ -564,7 +618,8 @@ function finish(result: ExportResult, mark: number): void {
 
 /**
  * ADR-0010 outcome item 11: while Share is offered the scratch file is kept (sharing reads the File later
- * than the download); when the dialog closes the 10 s rule starts again from then.
+ * than the download); when the dialog closes, the share sheet settles or the page is hidden, the 10 s rule
+ * starts again from then.
  */
 function holdForShare(url: string): void {
   const scratch = handleScratch;
@@ -581,12 +636,29 @@ function releaseHeld(): void {
   heldFile = null;
 }
 
+/**
+ * Security audit L1: a held file must not outlive the page. On `pagehide` the hold ends and MOD-Scratch's
+ * best-effort clean-up starts (ADR-0010 outcome item 6); what it can't finish, the next start-up sweeps.
+ */
+export function onPageHide(): void {
+  releaseHeld();
+  void scratchReady?.then((sc) => sc.pagehide()).catch(() => undefined);
+}
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function')
+  window.addEventListener('pagehide', onPageHide);
+
 /** Implements: F-015.R3 / AC3, NFR-11 — Cancel (or Esc) while running: stops within 1 s, nothing saved. */
 export function cancelExport(): void {
   const r = run.peek();
   if (r?.phase !== 'running') return;
+  if (!handle) {
+    // Still getting ready (text, media, MOD-Export's start): nothing runs yet, so it ends now.
+    runToken++;
+    run.value = null;
+    return;
+  }
   run.value = { phase: 'cancelling', fraction: r.fraction };
-  if (handle) void handle.cancel();
+  void handle.cancel();
 }
 
 /** Closes the dialog after an ending (Close); focus returns to the toolbar's Export. */
@@ -594,6 +666,7 @@ export function closeRun(): void {
   const r = run.peek();
   if (!r || r.phase === 'running' || r.phase === 'cancelling') return;
   releaseHeld();
+  handedOver = null;
   run.value = null;
 }
 
@@ -607,6 +680,8 @@ export function changeSettings(): void {
 export function tryAgain(): void {
   const s = lastSettings;
   releaseHeld();
+  handedOver = null;
+  runToken++;
   run.value = null;
   if (s) void startVideoExport(s);
 }
@@ -619,6 +694,8 @@ export async function shareExport(): Promise<void> {
     await navigator.share({ files: [r.share] });
   } catch {
     /* dismissed or refused: the download already happened (R9: sharing never replaces it) */
+  } finally {
+    releaseHeld(); // security audit L1: the hold ends once the share sheet has taken the file or closed
   }
 }
 
@@ -633,6 +710,8 @@ export function resetExportSession(): void {
   exportGrid.value = null;
   capsFor = null;
   handle = null;
+  runToken++;
+  capsSound.value = null;
   handedOver = null;
   heldFile = null;
   handleScratch = null;
