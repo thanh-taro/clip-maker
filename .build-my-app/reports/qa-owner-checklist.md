@@ -1,5 +1,7 @@
 # Owner checklist — QA (phase 5)
 
+> **Status (2026-11-20): waived by the owner (QA-5).** None of these checks was run on a device; they stay listed for a later pass.
+
 About 60–90 minutes in total; do it in any order, over several sittings. Note **pass / fail + a word on what you saw** next to each line (or just tell Claude). Android is skipped (QA-4).
 
 ## 0. Setup (once)
