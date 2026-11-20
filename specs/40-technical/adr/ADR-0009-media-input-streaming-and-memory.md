@@ -123,3 +123,11 @@ items marked (pending) may change with it.**
    default; on the iPhone `VideoFrame(canvas)` costs 51 ms per frame at 3322 × 2160 vs ≈ 12 ms at
    1080 × 1920, so the export estimate (F-015.AC12) uses the measured per-pixel cost when the user
    picks 1440 or 2160.
+
+## Note (QA batch 2, 2026-11-20): text-bitmap budget built
+The text-bitmap row of §4 is enforced in MOD-Preview (owner decision QA-6, build question 172): an LRU
+by bytes over the engine's text bitmaps, with the device class's budget (32 MB phone, 96 MB laptop,
+MOD-Engine `BUDGETS.textBytes`). Only layers near the playhead (showing, ended within 1 s, or starting
+within 5 s) are rasterised, nearest first; the least recently used others are let go when the budget is
+passed and rasterised again when the playhead comes near. A layer showing at the playhead is never let go.
+Exports still rasterise every layer at the output size (`textBitmaps`). No decision changes.

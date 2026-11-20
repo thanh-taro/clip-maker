@@ -102,3 +102,41 @@ test('NFR-01 the CSP refuses a fetch to another origin; the tool requests only i
   await page.waitForLoadState('networkidle');
   expect(requests.filter((u) => new URL(u).origin !== origin)).toEqual([]);
 });
+
+test('NFR-09 QA-3 Trusted Types: the workers start through the tool’s policy; an HTML sink, another policy or a data: worker is refused', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  const editor = page.locator('[data-screen="SCR-Editor"]');
+  await expect(editor).toBeVisible();
+  // Every dedicated worker was created from a trusted script URL and answered its handshake.
+  await expect(editor).toHaveAttribute('data-workers', '5');
+  const csp = (await page.request.get('/')).headers()['content-security-policy'] ?? '';
+  expect(csp).toContain("require-trusted-types-for 'script'");
+  expect(csp).toContain('trusted-types clip-maker');
+  const probe = await page.evaluate(() => {
+    const out: Record<string, string> = {};
+    const tt = (window as unknown as { trustedTypes?: { createPolicy(n: string, r: object): unknown } }).trustedTypes;
+    out['supported'] = tt ? 'yes' : 'no';
+    const attempt = (name: string, fn: () => void) => {
+      try {
+        fn();
+        out[name] = 'allowed';
+      } catch (e) {
+        out[name] = (e as Error).name;
+      }
+    };
+    attempt('innerHTML', () => {
+      document.createElement('div').innerHTML = '<b>x</b>';
+    });
+    attempt('policy', () => tt?.createPolicy('another', { createHTML: (s: string) => s }));
+    attempt('worker', () => new Worker('data:text/javascript,0'));
+    return out;
+  });
+  if (probe['supported'] === 'yes') {
+    expect(probe).toEqual({ supported: 'yes', innerHTML: 'TypeError', policy: 'TypeError', worker: 'TypeError' });
+  }
+  expect(errors).toEqual([]);
+});
