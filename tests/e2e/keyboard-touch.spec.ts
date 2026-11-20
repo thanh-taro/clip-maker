@@ -219,8 +219,11 @@ test.describe('F-017 keyboard (app harness)', () => {
     await expect(drawer).toHaveAttribute('data-variant', 'drawer');
     const row = drawer.getByRole('button', { name: text('en-US', 'media.place_again') }).first();
     await row.focus();
-    // Layering: the shortcut list opened from the drawer takes the first Esc; the drawer stays open.
+    // RULE-20 *Scope* (F-017.R6): ? does nothing in the drawer (not the preview, timeline or transport).
     await page.keyboard.press('Shift+Slash');
+    await expect(helpDialog(page)).toHaveCount(0);
+    // Layering: the shortcut list opened with the drawer open takes the first Esc; the drawer stays open.
+    await mainToolbar(page).getByRole('button', { name: text('en-US', 'action.shortcuts') }).click();
     await expect(helpDialog(page)).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(helpDialog(page)).toHaveCount(0);
@@ -530,7 +533,8 @@ test.describe('F-017 keyboard review checks (app harness)', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await open(page);
-    await page.locator('body').focus();
+    // RULE-20 *Scope* (F-017.R6): ? acts with focus on the preview.
+    await page.locator('.tk-preview-area').focus();
     await page.keyboard.press('Shift+Slash');
     const dialog = helpDialog(page);
     await expect(dialog).toBeVisible();
@@ -764,10 +768,14 @@ test.describe('F-017 keyboard-only walkthrough (app harness)', () => {
     await tabTo(page, brightness, browserName);
     for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
     await expect.poll(async () => (await clipsOf(page))[1]!.adjustments.brightness ?? 0).toBeGreaterThan(0);
-    // Text: T adds a layer at the playhead and opens the editor; type, then Mod+Enter finishes.
+    // RULE-20 *Scope* (F-017.R6): T does nothing on the inspector's slider; back on the timeline (the
+    // clip) it adds a layer at the playhead and opens the editor; type, then Mod+Enter finishes.
+    await page.keyboard.press('KeyT');
+    await expect(page.locator('.tk-texteditor__field')).toHaveCount(0);
+    await clip(page, 'A.mp4').focus();
     await page.keyboard.press('KeyT');
     await expect(page.locator('.tk-texteditor__field')).toBeFocused();
-    // The inspector held focus (the slider): focus stays in the editor after the next frame (F-017 audit).
+    // Focus stays in the editor after the next frame (F-017 audit).
     await page.waitForTimeout(300);
     await expect(page.locator('.tk-texteditor__field')).toBeFocused();
     await page.keyboard.type('Hello');

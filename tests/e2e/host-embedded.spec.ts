@@ -374,6 +374,8 @@ test('F-019.AC6 F-019.R5 INV-08 embedded use of every M-1 feature: the only mess
   // F-014 timeline zoom (=) and F-017 shortcuts help (?).
   const scale = tbar.getByText(/^1 frame = /);
   const before = await scale.textContent();
+  // RULE-20 *Scope* (F-017.R6): = and ? act with focus on the timeline (Redo in the editor toolbar has it now).
+  await tool.locator('.tk-timeline .tk-ruler').focus();
   await page.keyboard.press('=');
   await expect(scale).not.toHaveText(before ?? '');
   await page.keyboard.press('?');
