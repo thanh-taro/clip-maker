@@ -53,12 +53,12 @@
     },
     "build": {
       "title": "4 Implementation",
-      "status": "in_progress",
+      "status": "done",
       "step": "4 wave 5: F-016 merged (check 9/9, 866 e2e at 1 worker); now F-017 keyboard & touch (last feature)",
       "gate": {
-        "status": "pending",
-        "at": null,
-        "note": null
+        "status": "passed",
+        "at": "2026-11-20T02:55:01+00:00",
+        "note": "M-1: 23 features and E1-E6 merged; full check 9/9 (1060 unit, 927 browser), realtime 17/17; coverage complete except F-001.AC9 (device). Device checks, Q25/39/45/172 and placeholder music carried to QA and release. Owner approved 2026-11-20."
       }
     },
     "qa": {
@@ -739,14 +739,6 @@
     }
   },
   "log": [
-    {
-      "at": "2026-11-03T06:11:11+00:00",
-      "event": "decision D-004 opened: On-device storage"
-    },
-    {
-      "at": "2026-11-03T06:11:17+00:00",
-      "event": "decision D-001 answered: light multi-track in M-1 (owner chose against recommendation; accepts ~2-3x larger M-1 + audio-mix spike)"
-    },
     {
       "at": "2026-11-03T06:11:17+00:00",
       "event": "decision D-002 answered: full editor on phone in M-1 (owner chose against recommendation; accepts phone design/QA + memory risk)"
@@ -1538,9 +1530,17 @@
     {
       "at": "2026-11-19T14:00:53+00:00",
       "event": "build step: 4 wave 5: F-016 merged (check 9/9, 866 e2e at 1 worker); now F-017 keyboard & touch (last feature)"
+    },
+    {
+      "at": "2026-11-20T02:55:01+00:00",
+      "event": "phase build -> gate"
+    },
+    {
+      "at": "2026-11-20T02:55:01+00:00",
+      "event": "gate build passed: M-1: 23 features and E1-E6 merged; full check 9/9 (1060 unit, 927 browser), realtime 17/17; coverage complete except F-001.AC9 (device). Device checks, Q25/39/45/172 and placeholder music carried to QA and release. Owner approved 2026-11-20."
     }
   ],
-  "updated": "2026-11-19T14:00:53+00:00",
+  "updated": "2026-11-20T02:55:01+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",

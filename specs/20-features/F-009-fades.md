@@ -1,7 +1,7 @@
 ---
 id: F-009
 title: Fade and cross-fade
-status: building
+status: shipped
 milestone: M-1
 priority: P1
 personas: [PER-03, PER-02]

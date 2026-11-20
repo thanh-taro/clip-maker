@@ -1,7 +1,7 @@
 ---
 id: F-018
 title: Warn before losing work
-status: building
+status: shipped
 milestone: M-1
 priority: P1
 personas: [PER-03]

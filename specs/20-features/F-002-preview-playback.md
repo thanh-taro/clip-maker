@@ -1,7 +1,7 @@
 ---
 id: F-002
 title: Play and scrub the preview
-status: building
+status: shipped
 milestone: M-1
 priority: P0
 personas: [PER-01, PER-02, PER-03, PER-04]

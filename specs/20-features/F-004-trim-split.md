@@ -1,7 +1,7 @@
 ---
 id: F-004
 title: Trim and split clips
-status: building
+status: shipped
 milestone: M-1
 priority: P0
 personas: [PER-01, PER-04, PER-02]

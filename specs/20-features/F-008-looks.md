@@ -1,7 +1,7 @@
 ---
 id: F-008
 title: Apply a look
-status: building
+status: shipped
 milestone: M-1
 priority: P0
 personas: [PER-02, PER-03]

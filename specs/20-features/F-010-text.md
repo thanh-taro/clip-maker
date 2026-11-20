@@ -1,7 +1,7 @@
 ---
 id: F-010
 title: Add text
-status: building
+status: shipped
 milestone: M-1
 priority: P0
 personas: [PER-01, PER-02, PER-03]

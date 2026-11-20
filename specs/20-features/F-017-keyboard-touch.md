@@ -1,7 +1,7 @@
 ---
 id: F-017
 title: Control by keyboard and touch
-status: building
+status: shipped
 milestone: M-1
 priority: P1
 personas: [PER-01, PER-02]

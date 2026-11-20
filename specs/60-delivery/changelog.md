@@ -2,6 +2,9 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-20 — Build gate passed (owner approval): M-1 features shipped
+- All 23 M-1 features (F-001 … F-023) moved from `building` to `shipped` after the owner approved the build gate (`.build-my-app/reports/gate-build.md`). Automated acceptance tests pass on both test browser engines; F-001.AC9 and the other real-device checks are tracked in QA (phase 5).
+
 ## 2026-11-20 — Wave 5 owner review decisions
 - Build questions 198, 201, 205 and 208 accepted as proposed by the owner (the other wave 5 questions, 197–209, were already decided, fixed or informational).
 - RULE-20 *Scope* (question 205): timeline items (clips, text layers, audio clips) take Enter only, so Space plays and pauses there; Enter selects the item. CMP-TextEditor's "activated again" is now Enter or a second click.

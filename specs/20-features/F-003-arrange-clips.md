@@ -1,7 +1,7 @@
 ---
 id: F-003
 title: Arrange clips on the main track
-status: building
+status: shipped
 milestone: M-1
 priority: P0
 personas: [PER-02, PER-03, PER-04]
