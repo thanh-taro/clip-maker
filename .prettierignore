@@ -18,3 +18,4 @@ src/host/boot.js
 *.gen.css
 *.md
 design/
+licences/

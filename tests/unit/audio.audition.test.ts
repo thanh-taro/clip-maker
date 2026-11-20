@@ -15,9 +15,13 @@ import {
   type ToAudioWorker,
   type ToWorklet,
 } from '../../src/audio';
+import { MUSIC_TRACKS } from '../../src/core';
 import { voices } from '../../src/plan';
 import { audio, proj, S, video } from '../support/project';
 import { hash, material, SR } from '../support/audio';
+
+// A bundled track of the shipped pack (read from the generated manifest, not hard-coded).
+const PAD = MUSIC_TRACKS[1]!.id;
 
 function fakePort() {
   const sent: ToWorklet[] = [];
@@ -102,14 +106,14 @@ describe('MOD-Audio audition (audio worker)', () => {
   it('F-011.R5 Q87 the sound decoded is every source with sound plus each bundled track an audio clip plays', () => {
     const p = proj({
       clips: [video('a', 3)],
-      audioClips: [audio('m', 0, 2, { sourceId: 'placeholder-pad' }), audio('n', 2, 3)],
+      audioClips: [audio('m', 0, 2, { sourceId: PAD }), audio('n', 2, 3)],
     });
     // A bundled track is not one of the project's sources (ENT-MusicTrack); the video has sound.
     const withSound = {
       ...p,
-      sources: p.sources.filter((s) => s.id !== 'placeholder-pad').map((s) => ({ ...s, hasSound: true })),
+      sources: p.sources.filter((s) => s.id !== PAD).map((s) => ({ ...s, hasSound: true })),
     };
-    expect(soundSourceIds(withSound).sort()).toEqual(['placeholder-pad', 'src-a', 'src-n'].sort());
+    expect(soundSourceIds(withSound).sort()).toEqual([PAD, 'src-a', 'src-n'].sort());
   });
 });
 

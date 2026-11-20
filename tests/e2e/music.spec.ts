@@ -21,8 +21,11 @@ const SHOTS = '.build-my-app/reports/screens/F-011';
 type CopyId = keyof (typeof CATALOG)['en-US'];
 const text = (lang: Language, id: CopyId): string => CATALOG[lang][id] as string;
 const S = 1_000_000;
-const CHORDS = MUSIC_TRACKS.find((t) => t.id === 'placeholder-chords')!; // 60 s
-const PAD = MUSIC_TRACKS.find((t) => t.id === 'placeholder-pad')!; // 20 s
+// Two tracks of the shipped pack, read from the generated manifest: the first 60 s track, and another one.
+const CHORDS = MUSIC_TRACKS.find((t) => t.duration === 60 * S)!;
+const PAD = MUSIC_TRACKS.find((t) => t.id !== CHORDS.id)!;
+/** PAD's span in seconds when added at 0. */
+const PAD_S = PAD.duration / S;
 
 interface Harness {
   appHarness: {
@@ -225,7 +228,7 @@ test.describe('F-011 music picker and audio track (app harness)', () => {
     await row(PAD)
       .getByRole('button', { name: text('en-US', 'music.add') })
       .click();
-    expect(await spans(page)).toEqual([[0, 20]]);
+    expect(await spans(page)).toEqual([[0, PAD_S]]);
     // Whole project taken: Add at playhead is unavailable and the row says why (CMP-MusicPicker "no audio room").
     await setPlayhead(page, 5);
     await expect(row(CHORDS).getByText(text('en-US', 'notice.no_audio_room'))).toBeVisible();
@@ -767,7 +770,7 @@ test.describe('F-011 narrow layout and languages (app harness)', () => {
         .filter({ hasText: PAD.title })
         .getByRole('button', { name: text(lang, 'music.add') })
         .click();
-      expect(await spans(page)).toEqual([[0, 20]]);
+      expect(await spans(page)).toEqual([[0, PAD_S]]);
       // The new clip is selected: its sound section shows in the sheet, at touch size.
       await expect(sheet.getByRole('heading', { name: text(lang, 'inspector.sound') })).toBeVisible();
       const field = sheet.getByRole('spinbutton', { name: text(lang, 'sound.volume') });

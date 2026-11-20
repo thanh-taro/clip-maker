@@ -28,17 +28,24 @@ function distWith(file: string): string {
 
 describe('MOD-Build dist scan: bundled music', () => {
   const registry = (readRegistry() as { status: string }[]).filter(isActive);
-  const placeholder = (musicPack() as { tracks: { file: string; placeholder?: boolean }[] }).tracks.find(
-    (t) => t.placeholder,
-  );
+  const tracks = (musicPack() as { tracks: { file: string; placeholder?: boolean }[] }).tracks;
 
-  it('DEP-14 a registered placeholder track passes the everyday scan and fails with --release', () => {
-    expect(placeholder).toBeDefined();
-    const dist = distWith(placeholder!.file);
-    expect((scanDist(dist, registry) as { problems: string[] }).problems).toEqual([]);
-    const release = scanDist(dist, registry, { release: true }) as { problems: string[] };
-    expect(release.problems).toHaveLength(1);
-    expect(release.problems[0]).toMatch(/placeholder music track .* ships in a release/);
+  it('DEP-14 RULE-12 the shipped pack is 8+ real tracks, each registered: the everyday and the --release scans pass', () => {
+    expect(tracks.length).toBeGreaterThanOrEqual(8);
+    expect(tracks.filter((t) => t.placeholder)).toEqual([]);
+    for (const t of tracks) {
+      const dist = distWith(t.file);
+      expect((scanDist(dist, registry) as { problems: string[] }).problems).toEqual([]);
+      expect((scanDist(dist, registry, { release: true }) as { problems: string[] }).problems).toEqual([]);
+    }
+  });
+
+  it('DEP-14 a pack track without an active registry row fails', () => {
+    const t = tracks[0]!;
+    const without = (registry as { label: string }[]).filter((r) => !r.label.includes(t.file));
+    expect((scanDist(distWith(t.file), without) as { problems: string[] }).problems[0]).toMatch(
+      /ships without its registry row/,
+    );
   });
 
   it('DEP-14 a music file outside the checked pack fails', () => {
