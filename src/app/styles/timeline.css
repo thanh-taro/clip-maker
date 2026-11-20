@@ -32,6 +32,11 @@
       height: auto;
       min-height: 100%;
     }
+    /* The editor scrolls, so a sheet may take most of the window; its body still scrolls inside it. */
+    .tk-editor[data-screen='SCR-Editor'] > .tk-sheet,
+    .tk-editor[data-screen='SCR-Editor'] > .tk-export {
+      max-block-size: 85dvh;
+    }
   }
 
   .tk-editor[data-screen='SCR-Editor'] > .tk-sheet {

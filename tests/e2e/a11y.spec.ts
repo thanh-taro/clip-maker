@@ -82,7 +82,8 @@ const tool = (page: Page, id: CopyId, lang: Language = 'en-US') =>
 const status = (page: Page) => page.locator('.tk-preview-status');
 /** The status region's text (a repeated message carries a trailing no-break space). */
 const said = async (page: Page) => ((await status(page).textContent()) ?? '').replace(/\u00a0$/, '');
-const ruler = (page: Page, lang: Language = 'en-US') => page.getByRole('slider', { name: text(lang, 'timeline.ruler') });
+const ruler = (page: Page, lang: Language = 'en-US') =>
+  page.getByRole('slider', { name: text(lang, 'timeline.ruler') });
 const modOf = (browserName: string) => (browserName === 'webkit' ? 'Meta' : 'ControlOrMeta');
 
 async function axe(page: Page): Promise<void> {
@@ -123,7 +124,10 @@ test.describe('QA accessibility: keys, announcements, phone seek (app harness)',
     const addMedia = page
       .getByRole('toolbar', { name: text('en-US', 'toolbar.label') })
       .getByRole('button', { name: text('en-US', 'action.add_media') });
-    for (const focus of [() => addMedia.focus(), () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())]) {
+    for (const focus of [
+      () => addMedia.focus(),
+      () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur()),
+    ]) {
       await focus();
       for (const key of ['KeyS', 'KeyT', 'Equal', 'Shift+Slash', 'KeyN']) await page.keyboard.press(key);
       await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -240,7 +244,9 @@ test.describe('QA accessibility: keys, announcements, phone seek (app harness)',
       const box = (await b.boundingBox())!;
       expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
     }
-    expect(await page.locator('.tk-transport').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    expect(await page.locator('.tk-transport').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(
+      0,
+    );
     await noSideways(page);
     await shot(page, 'phone-transport-320', browserName);
   });
@@ -300,7 +306,10 @@ test.describe('QA accessibility: keys, announcements, phone seek (app harness)',
     await page.setViewportSize({ width: 390, height: 844 });
     await open(page);
     const chooser = page.waitForEvent('filechooser');
-    await page.locator('.tk-empty').getByRole('button', { name: text('en-US', 'action.add_media') }).click();
+    await page
+      .locator('.tk-empty')
+      .getByRole('button', { name: text('en-US', 'action.add_media') })
+      .click();
     await (await chooser).setFiles([photo('A.png')]);
     await expect.poll(async () => (await clipsOf(page)).length, { timeout: 20_000 }).toBe(1);
     const sheet = page.locator('.tk-media[data-variant="sheet"]');
@@ -369,7 +378,9 @@ test.describe('NFR-06 NFR-07 layouts and themes (app harness)', () => {
           expect(body.scrolls).toBe(true);
           expect(body.top).toBeGreaterThanOrEqual(-1);
           expect(body.bottom).toBeLessThanOrEqual(size.height + 1);
-          expect((await page.locator('.tk-stage').boundingBox())!.height).toBeGreaterThanOrEqual(size.height * 0.25 - 1);
+          expect((await page.locator('.tk-stage').boundingBox())!.height).toBeGreaterThanOrEqual(
+            size.height * 0.25 - 1,
+          );
           await shot(page, `edit-sheet-${size.name}-${scheme}`, browserName);
           await page.locator('.tk-tabbar__tab').first().click();
         }

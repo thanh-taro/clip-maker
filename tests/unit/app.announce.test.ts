@@ -39,7 +39,11 @@ describe('F-017.R7 announcements', () => {
   });
 
   it('F-017.AC9 a text layer or audio clip move says its new start time; a refused edit says nothing', () => {
-    project.value = proj({ clips: [video('A', 10)], textLayers: [text('Hello', 2, 4)], audioClips: [audio('M', 0, 3)] });
+    project.value = proj({
+      clips: [video('A', 10)],
+      textLayers: [text('Hello', 2, 4)],
+      audioClips: [audio('M', 0, 3)],
+    });
     selectClip('Hello');
     runArrangeAction('move-later-second');
     expect(said()).toBe('Moved Hello to 0:03');

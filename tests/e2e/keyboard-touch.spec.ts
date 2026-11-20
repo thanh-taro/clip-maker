@@ -223,7 +223,9 @@ test.describe('F-017 keyboard (app harness)', () => {
     await page.keyboard.press('Shift+Slash');
     await expect(helpDialog(page)).toHaveCount(0);
     // Layering: the shortcut list opened with the drawer open takes the first Esc; the drawer stays open.
-    await mainToolbar(page).getByRole('button', { name: text('en-US', 'action.shortcuts') }).click();
+    await mainToolbar(page)
+      .getByRole('button', { name: text('en-US', 'action.shortcuts') })
+      .click();
     await expect(helpDialog(page)).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(helpDialog(page)).toHaveCount(0);
