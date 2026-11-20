@@ -221,10 +221,15 @@ const shown = (el: Element | null): el is HTMLElement =>
 function closeAndReturn(): void {
   const opener = panelOpener;
   closePanel();
+  // The editor behind the narrow sheet must be reachable again before focus returns to it.
+  liftInert?.();
   const add = document.querySelector('.tk-toolbar [data-action="add-media"]');
   const target = shown(opener) ? opener : shown(add) ? add : document.querySelector<HTMLElement>('.tk-preview-area');
   target?.focus();
 }
+
+/** Undoes the narrow sheet's `inert` on the editor behind it (set while the sheet is open). */
+let liftInert: (() => void) | null = null;
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([type="hidden"]), [tabindex]:not([tabindex="-1"])';
 
@@ -240,6 +245,36 @@ export function MediaPanel() {
     focusNext = null;
     next()?.focus();
   });
+  // CMP-MediaPanel "Accessibility" (QA a11y m12): the narrow sheet is modal for every input, touch exploration
+  // included: the editor behind it is inert (the file picker's input and open dialogs are left alone).
+  useEffect(() => {
+    const sheet = panel.current;
+    const editor = sheet?.parentElement;
+    if (!open || !isNarrow || !sheet || !editor) return undefined;
+    // The notice stack and the status region stay live: what the sheet adds is still announced (CMP-Notice
+    // "placement · narrow" puts the stack just above the sheet).
+    const live = (el: Element): boolean =>
+      el.matches('.tk-preview-area, .tk-stage, .tk-notice-stack, .tk-preview-status');
+    const keep = (el: Element): boolean =>
+      el === sheet || el instanceof HTMLDialogElement || el instanceof HTMLInputElement || live(el);
+    const behind: HTMLElement[] = [];
+    const visit = (parent: Element): void => {
+      for (const el of Array.from(parent.children)) {
+        if (!(el instanceof HTMLElement) || el === sheet) continue;
+        if (el.matches('.tk-preview-area, .tk-stage')) visit(el);
+        else if (!keep(el)) behind.push(el);
+      }
+    };
+    visit(editor);
+    const was = behind.map((el) => el.inert);
+    for (const el of behind) el.inert = true;
+    const lift = (): void => {
+      behind.forEach((el, i) => (el.inert = was[i] ?? false));
+      if (liftInert === lift) liftInert = null;
+    };
+    liftInert = lift;
+    return lift;
+  }, [open, isNarrow]);
   // The narrow sheet is a modal dialog: focus moves into it when it opens and when the file picker
   // closes; Tab stays inside it; Esc from anywhere in it closes it and returns focus to its opener.
   useEffect(() => {

@@ -17,6 +17,7 @@ import { registry } from '../media';
 import { fullscreen, mountPreview, type Fullscreen, type PreviewController } from '../preview';
 import { playhead, project } from '../project';
 import { t } from '../copy';
+import { announce } from './announce';
 import { watchSlow } from './device';
 import { dragging } from './MediaInput';
 import { showNotice } from './notice-stack';
@@ -323,6 +324,9 @@ export function focusInfo(el: Element | null): FocusInfo | null {
     inToolbar: el.closest('[role="toolbar"]') !== null,
     // RULE-20 *Scope*: timeline items take Enter only, so Space reaches playback (build question 205).
     timelineItem: el.hasAttribute('data-timeline-item'),
+    // RULE-20 *Scope* (F-017.R6, QA-1): single-character keys act only on the preview (with its transport) and
+    // the timeline.
+    inShortcutArea: el.closest('.tk-preview-area, .tk-timeline') !== null,
   };
 }
 
@@ -356,7 +360,12 @@ export function bindPlaybackKeys(doc: Document = document): () => void {
       }
       return;
     }
-    if (runAction(p.ctl, action, project.peek().frame.frameRate)) e.preventDefault();
+    const starting = action === 'play-pause' && p.ctl.state.peek() !== 'playing';
+    if (runAction(p.ctl, action, project.peek().frame.frameRate)) {
+      e.preventDefault();
+      // F-017.R7: playback started by Space (focus is never on Play here: a focused button keeps Space).
+      if (starting) announce(t('announce.playing'));
+    }
   };
   doc.addEventListener('keydown', onKey);
   return () => doc.removeEventListener('keydown', onKey);

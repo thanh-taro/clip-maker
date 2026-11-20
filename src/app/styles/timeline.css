@@ -263,6 +263,14 @@
     outline: none;
   }
 
+  /* CMP-Timeline "Accessibility": the main track's group shows focus (it takes it after the last clip is
+     deleted), and the ruler slider (F-002.R8) shows its ring inside the scroller, which would clip it. */
+  .tk-track:focus-visible,
+  .tk-ruler:focus-visible {
+    outline: var(--tk-border-width-focus) solid var(--tk-color-focus);
+    outline-offset: calc(-1 * var(--tk-border-width-focus));
+  }
+
   .tk-lanes[data-empty] .tk-track {
     border: var(--tk-border-width-hairline) dashed var(--tk-color-line-strong);
     border-radius: var(--tk-radius-clip);

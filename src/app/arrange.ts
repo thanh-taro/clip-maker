@@ -27,6 +27,8 @@ import {
   setMuted,
 } from '../project';
 import { nextItemId, showResultNotices } from './adding';
+import { announce, itemName, labelLastStep, type StepLabel } from './announce';
+import { formatDuration, t } from '../copy';
 import { focusInfo } from './playback';
 import {
   addTextAndEdit,
@@ -119,6 +121,42 @@ export function moveAudioBy(frames: number): boolean {
  * Earlier / Later — the selected audio clip one frame in time.
  */
 export function moveSelected(direction: 'earlier' | 'later'): boolean {
+  return announced(direction, () => moveSelectedNow(direction));
+}
+
+/**
+ * F-017.R7: a move that changed the project names its undo step and is announced: a main-track clip by its new
+ * place, a text layer or audio clip by its new start time.
+ */
+function announced(direction: 'earlier' | 'later', move: () => boolean): boolean {
+  const id = selection.peek()[0];
+  const done = move();
+  if (!done || id === undefined) return done;
+  labelLastStep(direction === 'earlier' ? 'action.move_left' : 'action.move_right');
+  const p = project.peek();
+  const name = itemName(id, p);
+  const index = p.clips.findIndex((c) => c.id === id);
+  if (index >= 0) announce(t('announce.moved_place', { name, place: index + 1, count: p.clips.length }));
+  else {
+    const start = (p.textLayers.find((l) => l.id === id) ?? p.audioClips.find((a) => a.id === id))?.start ?? 0;
+    announce(t('announce.moved_time', { name, time: formatDuration(start) }));
+  }
+  return done;
+}
+
+/** Runs `act` on the selected item; when it changed the project, names the step and announces `message`. */
+function withAnnouncement(label: StepLabel, message: ((name: string) => string) | null, act: () => boolean): boolean {
+  const id = selection.peek()[0];
+  const name = id === undefined ? '' : itemName(id);
+  const done = act();
+  if (done) {
+    labelLastStep(label);
+    if (message) announce(message(name));
+  }
+  return done;
+}
+
+function moveSelectedNow(direction: 'earlier' | 'later'): boolean {
   if (selectedText.peek()) return moveTextBy(direction === 'earlier' ? -1 : 1);
   if (selectedAudio.peek()) return moveAudioBy(direction === 'earlier' ? -1 : 1);
   const clip = selectedClip.peek();
@@ -130,6 +168,10 @@ export function moveSelected(direction: 'earlier' | 'later'): boolean {
 
 /** F-003.R3: delete the selected clip; later clips close the gap and nothing is selected afterwards. */
 export function deleteSelected(): boolean {
+  return withAnnouncement('action.delete', (name) => t('announce.deleted', { name }), deleteSelectedNow);
+}
+
+function deleteSelectedNow(): boolean {
   if (selectedText.peek()) {
     const had = typeof document === 'undefined' ? null : (document.activeElement?.closest?.('.tk-tclip') ?? null);
     const done = deleteSelectedText();
@@ -171,6 +213,10 @@ export function deleteSelected(): boolean {
 
 /** F-003.R4: duplicate the selected clip right after it; the original stays selected. */
 export function duplicateSelected(): boolean {
+  return withAnnouncement('action.duplicate', (name) => t('announce.duplicated', { name }), duplicateSelectedNow);
+}
+
+function duplicateSelectedNow(): boolean {
   if (selectedText.peek()) return duplicateSelectedText();
   const audio = selectedAudio.peek();
   if (audio) return commit((p) => duplicateAudio(p, audio.id, nextItemId));
@@ -186,7 +232,7 @@ export function toggleMuteSelected(): boolean {
   const target = audio ?? (clip?.kind === 'video' ? clip : null);
   if (!target) return false;
   const muted = target.muted === true;
-  return commit((p) => setMuted(p, target.id, !muted));
+  return withAnnouncement('action.mute', null, () => commit((p) => setMuted(p, target.id, !muted)));
 }
 
 /** RULE-20 Edit keys of F-003: true when the action applied (the key is then taken from the browser). */
@@ -214,9 +260,10 @@ export function runArrangeAction(action: Action, repeat = false): boolean {
     case 'move-later-second': {
       // RULE-20 (Q93): Shift+Alt moves a text layer or an audio clip 1 s; for a main-track clip Shift makes
       // no difference, so it moves one place like Alt+Left/Right and the key is taken.
+      const direction = action === 'move-earlier-second' ? 'earlier' : 'later';
       if (selectedText.peek()) {
         const second = project.peek().frame.frameRate;
-        moveTextBy(action === 'move-earlier-second' ? -second : second);
+        announced(direction, () => moveTextBy(direction === 'earlier' ? -second : second));
         return true;
       }
       if (!selectedAudio.peek()) {
@@ -224,7 +271,7 @@ export function runArrangeAction(action: Action, repeat = false): boolean {
         return true;
       }
       const second = project.peek().frame.frameRate;
-      moveAudioBy(action === 'move-earlier-second' ? -second : second);
+      announced(direction, () => moveAudioBy(direction === 'earlier' ? -second : second));
       return true;
     }
     case 'mute': {

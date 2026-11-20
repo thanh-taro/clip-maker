@@ -106,8 +106,8 @@
     font-size: var(--tk-font-size-xs);
   }
 
-  /* Narrow (D-038): a touch-size row under the stage; Full screen at the end. Go to start / Go to end
-     stay on the keyboard (Home/End) so the frame-step controls fit at 320 px (RULE-21; CMP-Preview Behavior, build question 77). */
+  /* Narrow (D-038): a touch-size row under the stage with every transport control (F-002.R4, CMP-Preview
+     "Behavior"); Full screen at the end. Under 400 px the time shows the current time only, so the row fits 320 px. */
   @container tk-editor (width < 700px) {
     .tk-stage {
       padding: var(--tk-space-2);
@@ -129,12 +129,15 @@
       margin-inline: 0;
       background: transparent;
     }
-    .tk-transport__button[data-action='go-start'],
-    .tk-transport__button[data-action='go-end'] {
-      display: none;
-    }
     .tk-transport .tk-time {
       margin-inline: var(--tk-space-1) auto;
+    }
+  }
+
+  @container tk-editor (width < 400px) {
+    .tk-transport .tk-time__frame,
+    .tk-transport .tk-time__length {
+      display: none;
     }
   }
 
@@ -189,8 +192,9 @@
     inset-block-end: calc(var(--tk-space-10) + var(--tk-space-4));
   }
 
-  /* Visually hidden live region: the time when playback stops (CMP-Preview accessibility). */
-  .tk-preview-status {
+  /* Visually hidden: the editor's status region (CMP-Preview "Accessibility") and top heading (SCR-Editor). */
+  .tk-preview-status,
+  .tk-preview-heading {
     position: absolute;
     inline-size: 1px;
     block-size: 1px;

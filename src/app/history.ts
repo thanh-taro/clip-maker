@@ -3,10 +3,12 @@
 // the playhead per RULE-13; the preview and the timeline follow the restored project through its signals
 // (the preview seeks to a limited playhead through the playhead binding, and keeps playing).
 // Implements: F-014.R1 (undo, redo, keys), F-014.R3 (restore through the session's signals), RULE-20
-// History.
+// History, F-017.R7 (undo and redo are announced with the step's action).
 import { computed } from '@preact/signals';
 import { isMac, resolveKey, scopeOf, type Action } from '../keys';
-import { canRedo, canUndo, redo, undo } from '../project';
+import { t } from '../copy';
+import { canRedo, canUndo, history, redo, undo } from '../project';
+import { announce, stepName } from './announce';
 import { editorLocked } from './lock';
 import { focusInfo } from './playback';
 
@@ -22,14 +24,20 @@ export const historyAvailable = computed(() => ({
 /** F-014.R1: undo the last edit; false when there is nothing to undo. */
 export function undoEdit(): boolean {
   if (editorLocked.peek() || !canUndo.peek()) return false;
+  const step = history.peek().past.at(-1);
   undo();
+  // F-017.R7: undo says what it undid.
+  announce(t('announce.undone', { action: stepName(step) }));
   return true;
 }
 
 /** F-014.R1: redo the last undone edit; false when there is nothing to redo. */
 export function redoEdit(): boolean {
   if (editorLocked.peek() || !canRedo.peek()) return false;
+  const step = history.peek().future.at(-1);
   redo();
+  // F-017.R7: redo says what it redid.
+  announce(t('announce.redone', { action: stepName(step) }));
   return true;
 }
 

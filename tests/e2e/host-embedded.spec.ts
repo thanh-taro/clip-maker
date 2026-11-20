@@ -138,7 +138,7 @@ async function closeNotices(tool: FrameLocator): Promise<void> {
 
 const editorBar = (tool: FrameLocator) => tool.getByRole('toolbar', { name: en('toolbar.label') });
 const timelineBar = (tool: FrameLocator) =>
-  tool.getByRole('region', { name: en('timeline.label') }).getByRole('toolbar', { name: en('timeline.label') });
+  tool.getByRole('region', { name: en('timeline.label') }).getByRole('toolbar', { name: en('timeline.actions') });
 const clips = (tool: FrameLocator) => tool.locator('.tk-timeline .tk-clip');
 const inspector = (tool: FrameLocator) => tool.getByRole('complementary', { name: en('inspector.label') });
 const frameInspector = (tool: FrameLocator) => tool.getByRole('complementary', { name: en('inspector.frame') });

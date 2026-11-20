@@ -118,6 +118,10 @@ export interface TimelineDeps {
   emptyHint(): string;
   /** COPY-timeline.main_track: the name of the main track's group of clips. */
   trackLabel(): string;
+  /** F-002.R8: the time ruler's name as a slider (COPY-timeline.ruler). */
+  rulerLabel?(): string;
+  /** F-002.R8: the ruler's value read aloud: the playhead time with the project length (COPY-time.position). */
+  rulerValue?(t: Micros, end: Micros): string;
   /** The picture drawn along a clip: a video's first frame, a photo; null when there is none. */
   picture(sourceId: string): Promise<CanvasImageSource | null>;
   select(id: string | null): void;
@@ -194,6 +198,9 @@ const LABEL_GAP_PX = 56;
 const JOIN_HOVER_PX = 20;
 /** Ruler labels this close to the playhead hide under its head (D-039). */
 const HEAD_CLEAR_PX = 14;
+/** F-002.R8: the ruler slider's steps: the arrow keys and the Page keys. */
+const RULER_STEP_US = 1_000_000;
+const RULER_PAGE_US = 10_000_000;
 /** F-013: the touch scroll's momentum (per 16 ms) and the speed (px/ms) where it stops. */
 const MOMENTUM_DECAY = 0.92;
 const MOMENTUM_STOP = 0.05;
@@ -339,7 +346,10 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   // The lanes at the zoomed width; `host` scrolls them (F-013).
   const content = el('div', 'tk-lanes', host);
   const ruler = el('div', 'tk-ruler', content);
-  decorative(ruler);
+  // F-002.R8 (QA-2): the ruler is the playhead's slider for keyboard and assistive technology; its labels and
+  // ticks are presentational (a slider's children are).
+  ruler.setAttribute('role', 'slider');
+  ruler.setAttribute('aria-valuemin', '0');
   const track = el('div', 'tk-track', content);
   track.tabIndex = -1;
   // A group of the clips, named, so focus that lands here after the last clip was deleted is announced.
@@ -393,7 +403,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   const joins = new Map<string, JoinEls>();
   let boxes: ClipBox[] = [];
   let scale = 0;
-  let labels: { at: Micros; node: HTMLElement }[] = [];
+  let labels: { at: Micros; node: HTMLElement; width: number }[] = [];
   // ── F-013 view state ──
   /** The view's width, the time axis' start and end padding in `content`, and the centred mode (D-013). */
   let viewW = 0;
@@ -559,15 +569,17 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       const node = el('span', 'tk-ruler__label', ruler);
       node.textContent = deps.time(t);
       node.style.left = xOf(t);
-      labels.push({ at: t, node });
+      labels.push({ at: t, node, width: 0 });
     }
     for (const f of ticks.frames) {
       if ((span - f.at) * scale < clearEnd) continue;
       const node = el('span', 'tk-ruler__label tk-ruler__label--frame', ruler);
       node.textContent = String(f.n);
       node.style.left = xOf(f.at);
-      labels.push({ at: f.at, node });
+      labels.push({ at: f.at, node, width: 0 });
     }
+    // A label is drawn from its time to the right (CMP-Timeline "Behavior"): measured once per render.
+    for (const l of labels) l.width = l.node.offsetWidth;
     placeHead(playhead.peek());
   }
 
@@ -1008,8 +1020,15 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     head.style.transform = `translateX(${x}px)`;
     // No playhead in an empty project: every label shows.
     const shown = project.peek().clips.length > 0;
-    for (const l of labels)
-      l.node.classList.toggle('tk-ruler__label--under', shown && Math.abs(l.at * scale - x) < HEAD_CLEAR_PX);
+    // D-039, CMP-Timeline "Behavior": a label anywhere under the head hides, including the text to the right of its
+    // time (QA a11y m11: the head struck through "0:05" when it sat over the label's text).
+    for (const l of labels) {
+      const dx = x - l.at * scale;
+      l.node.classList.toggle(
+        'tk-ruler__label--under',
+        shown && dx > -HEAD_CLEAR_PX && dx < l.width + HEAD_CLEAR_PX / 2,
+      );
+    }
   }
 
   /** The view keeps the playhead visible (a page turn at the edge) — RULE-14 *During playback*. */
@@ -1091,6 +1110,48 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
   ruler.addEventListener('pointermove', onRulerMove);
   ruler.addEventListener('pointerup', onRulerUp);
   ruler.addEventListener('pointercancel', onRulerUp);
+
+  // ── Ruler as a slider (F-002.R8) ─────────────────────────────────────────────────────────────────────
+  // Its value is the playhead, read as the time with the project length; unavailable in an empty project.
+  const stopRulerValue = effect(() => {
+    const p = project.value;
+    const t = playhead.value;
+    const end = projectEnd(p);
+    const has = p.clips.length > 0;
+    ruler.tabIndex = has ? 0 : -1;
+    if (has) ruler.removeAttribute('aria-disabled');
+    else ruler.setAttribute('aria-disabled', String(true));
+    const label = deps.rulerLabel?.();
+    if (label) ruler.setAttribute('aria-label', label);
+    ruler.setAttribute('aria-valuemax', String(Math.round(end / 1000) / 1000));
+    ruler.setAttribute('aria-valuenow', String(Math.round(Math.min(t, end) / 1000) / 1000));
+    const text = deps.rulerValue?.(Math.min(t, end), end);
+    if (text) ruler.setAttribute('aria-valuetext', text);
+  });
+  // Arrows 1 s, Page Up / Page Down 10 s, Home / End the project's start and end; on a frame start.
+  const onRulerKey = (e: KeyboardEvent): void => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+    const p = project.peek();
+    if (!p.clips.length) return;
+    const end = projectEnd(p);
+    const t = playhead.peek();
+    const by: Record<string, Micros> = {
+      ArrowRight: t + RULER_STEP_US,
+      ArrowUp: t + RULER_STEP_US,
+      ArrowLeft: t - RULER_STEP_US,
+      ArrowDown: t - RULER_STEP_US,
+      PageUp: t + RULER_PAGE_US,
+      PageDown: t - RULER_PAGE_US,
+      Home: 0,
+      End: end,
+    };
+    const to = by[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    const rate = p.frame.frameRate;
+    playhead.value = Math.max(0, Math.min(end, to === end ? end : frameStart(nearestFrame(to, rate), rate)));
+  };
+  ruler.addEventListener('keydown', onRulerKey);
 
   // ── F-013: scroll, pan, pinch and wheel ─────────────────────────────────────────────────────────────
   /** A touch scroll, pinch or its momentum is moving the view: the playhead follows it, not the reverse. */
@@ -1352,7 +1413,9 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
     const dt = last.at - first.at;
     // A finger that rested before lifting does not glide.
     const rested = releasedAt !== undefined && releasedAt - last.at > 100;
-    let v = !rested && dt > 0 && dt < 200 ? (last.x - first.x) / dt : 0;
+    // CMP-Timeline "Behavior": with reduced motion requested the scroll stops where the finger lifts (no glide).
+    const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let v = !still && !rested && dt > 0 && dt < 200 ? (last.x - first.x) / dt : 0;
     if (Math.abs(v) < MOMENTUM_STOP * 4) {
       settle();
       return;
@@ -1805,6 +1868,8 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       stopLayout();
       stopHead();
       stopPlaying();
+      stopRulerValue();
+      ruler.removeEventListener('keydown', onRulerKey);
       stopOpen();
       resize.disconnect();
       if (drag?.timer) clearTimeout(drag.timer);

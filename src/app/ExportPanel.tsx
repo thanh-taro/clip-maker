@@ -51,6 +51,7 @@ import {
   type ExportKind,
   type ResolutionOffer,
 } from './export';
+import { announce } from './announce';
 import { openSheet } from './EditSheet';
 import { audioFormatLine, audioFormatName, gifFormatLine, videoFormatLine } from './export-format';
 import { Icon } from './icons';
@@ -230,12 +231,24 @@ function TimeField(props: {
   const rate = project.value.frame.frameRate;
   const shown = formatGifTime(props.value, rate, language.value);
   const [text, setText] = useState(shown);
+  /** F-017.R8: the last commit was rejected or limited (cleared by the next edit). */
+  const [invalid, setInvalid] = useState(false);
   useEffect(() => setText(shown), [shown]);
   const commit = (): void => {
     const at = parseGifTime(text, rate);
     if (at !== null) props.onCommit(at);
     // The range may have been clamped to the same value: show what is in effect either way.
-    setText(formatGifTime(gifRange.peek()[props.name], rate, language.peek()));
+    const now = gifRange.peek()[props.name];
+    const nowText = formatGifTime(now, rate, language.peek());
+    setText(nowText);
+    // F-017.R8: text that isn't a time, or a time the range limited, is marked and announced, never silent.
+    if (at === null && text.trim() !== shown) {
+      setInvalid(true);
+      announce(t('announce.kept', { value: nowText }));
+    } else if (at !== null && now !== at && formatGifTime(at, rate, language.peek()) !== nowText) {
+      setInvalid(true);
+      announce(t('announce.limited', { value: nowText }));
+    }
   };
   return (
     <label class="tk-export__time" data-field={`gif-${props.name}`}>
@@ -247,7 +260,11 @@ function TimeField(props: {
         spellcheck={false}
         value={text}
         readOnly={props.readOnly}
-        onInput={(e) => setText(e.currentTarget.value)}
+        aria-invalid={invalid ? 'true' : undefined}
+        onInput={(e) => {
+          setText(e.currentTarget.value);
+          setInvalid(false);
+        }}
         onChange={commit}
         onKeyDown={(e) => {
           if (e.key === 'Enter') commit();
