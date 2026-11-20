@@ -32,7 +32,8 @@ Frame area on the work area; transport with Previous frame (COPY-action.prev_fra
 - Full screen uses the browser's full screen, or maximises within the page when that is unavailable, without changing playhead or play state (F-002 R7). Esc leaves it.
 - The slow-device notice can be closed and does not return in the session.
 - Narrow widths keep every transport control: Go to start, Previous frame, Play/Pause, Next frame, Go to end, the time and Full screen (F-002.R4; the frame-step controls are RULE-21's equivalent of scrubbing). Under 400 px of width the time shows the current time only; the project length stays in CMP-StatusBar.
-- On a short landscape phone (height under 480 px) the stage keeps at least a quarter of the height; an open sheet scrolls inside its own capped height (NFR-07).
+- On a short landscape phone (landscape, under 480 px tall and under 1000 px wide) the editor scrolls vertically, never sideways: the preview keeps at least 60 % of the window's height, and the timeline, an open sheet and the tab bar follow below it; an open sheet takes at most 85 % of the height and its body scrolls inside it (NFR-07).
+- Under 400 px of width the time gives way before any transport control: when it doesn't fit (a long project or larger text) it is cut off rather than pushing Full screen out of the row.
 
 ## Accessibility
 - The frame is an image named COPY-preview.label with the current time.

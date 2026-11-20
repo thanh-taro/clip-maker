@@ -6,6 +6,8 @@
 @layer layout {
   .tk-preview-area {
     grid-template-rows: minmax(0, 1fr) auto;
+    /* The transport never grows past the area's width (its time shrinks instead, CMP-Preview "Behavior"). */
+    grid-template-columns: minmax(0, 1fr);
     place-items: stretch;
     padding: 0;
   }
@@ -129,8 +131,14 @@
       margin-inline: 0;
       background: transparent;
     }
+    /* CMP-Preview "Behavior": the time gives way before any control (a long project, larger text): it shrinks and
+       is cut off, so Full screen never leaves the row and the page never scrolls sideways. */
     .tk-transport .tk-time {
+      flex: 0 1 auto;
+      min-inline-size: 0;
       margin-inline: var(--tk-space-1) auto;
+      overflow: hidden;
+      text-overflow: clip;
     }
   }
 

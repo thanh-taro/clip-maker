@@ -41,6 +41,7 @@ interface Harness {
     clips(): ClipSummary[];
     setPlayhead(seconds: number): void;
     setClip(index: number, setup: { seconds?: number }): void;
+    typeText(seconds: number, content: string): void;
     preview(): { playhead: number; state: string };
   };
 }
@@ -120,11 +121,19 @@ test.describe('QA accessibility: keys, announcements, phone seek (app harness)',
     const track = page.locator('.tk-track');
     const width = async () => (await track.boundingBox())!.width;
     const fit = await width();
-    // Off the shortcut area: the editor toolbar's Add media, then no control at all.
+    // A selected clip under the playhead, so S would split it in scope.
+    await clip(page, 'A.png').click();
+    const inspector = page.getByRole('complementary', { name: text('en-US', 'inspector.label') });
+    await inspector.getByRole('tab', { name: text('en-US', 'inspector.adjust') }).click();
+    const brightness = inspector
+      .getByRole('group', { name: text('en-US', 'adjust.brightness'), exact: true })
+      .getByRole('slider');
+    // Off the shortcut area: an inspector slider, the editor toolbar's Add media, then no control at all.
     const addMedia = page
       .getByRole('toolbar', { name: text('en-US', 'toolbar.label') })
       .getByRole('button', { name: text('en-US', 'action.add_media') });
     for (const focus of [
+      () => brightness.focus(),
       () => addMedia.focus(),
       () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur()),
     ]) {
@@ -136,8 +145,7 @@ test.describe('QA accessibility: keys, announcements, phone seek (app harness)',
       await expect(page.getByRole('dialog', { name: text('en-US', 'help.title') })).toHaveCount(0);
       expect(await width()).toBeCloseTo(fit, 0);
     }
-    // Mod keys keep their scope there: nothing to undo yet, but Space still plays from no focus.
-    // On the transport (Next frame), S splits the clip under the playhead.
+    // On the transport (Next frame), S splits the selected clip at the playhead.
     await page.getByRole('button', { name: text('en-US', 'action.next_frame') }).focus();
     await page.keyboard.press('KeyS');
     await expect.poll(async () => (await clipsOf(page)).length).toBe(3);
@@ -200,6 +208,53 @@ test.describe('QA accessibility: keys, announcements, phone seek (app harness)',
     await page.keyboard.press('Space');
   });
 
+  test('F-017.R6 RULE-20 a mouse click on an audio clip or a text layer leaves focus in the timeline, so M mutes and S splits it (Safari focuses no clicked button)', async ({
+    page,
+  }) => {
+    await open(page);
+    const chooser = page.waitForEvent('filechooser');
+    await page
+      .locator('.tk-empty')
+      .getByRole('button', { name: text('en-US', 'action.add_media') })
+      .click();
+    const mp3 = readFileSync(fileURLToPath(new URL('../fixtures/media/silent-1s.mp3', import.meta.url)));
+    await (await chooser).setFiles([photo('A.png'), { name: 'S.mp3', mimeType: 'audio/mpeg', buffer: mp3 }]);
+    await expect(page.locator('.tk-aclip')).toHaveCount(1, { timeout: 20_000 });
+    await page
+      .locator('.tk-media')
+      .getByRole('button', { name: text('en-US', 'action.close') })
+      .click();
+    for (const close of await page.locator('.tk-notice__close').all()) await close.click();
+    await page.evaluate(() => (window as unknown as Harness).appHarness.typeText(0, 'Hi'));
+    await at(page, 0.5);
+    const audioClip = page.locator('.tk-aclip').first();
+    await audioClip.click();
+    await expect(audioClip).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate(() => document.activeElement?.closest('.tk-timeline') !== null)).toBe(true);
+    await page.keyboard.press('KeyM');
+    await expect(audioClip).toHaveAttribute('data-muted', '');
+    const textItem = page.locator('.tk-tclip').first();
+    await textItem.click();
+    await expect(textItem).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate(() => document.activeElement?.closest('.tk-timeline') !== null)).toBe(true);
+    await page.keyboard.press('KeyS');
+    await expect(page.locator('.tk-tclip')).toHaveCount(2);
+  });
+
+  test('F-002.R8 RULE-20 a mouse scrub on the ruler does not focus it: Right then steps one frame, not 1 s', async ({
+    page,
+  }) => {
+    await open(page);
+    await add(page, [photo('A.png'), photo('B.png')]);
+    await clip(page, 'A.png').click();
+    const box = (await page.locator('.tk-ruler').boundingBox())!;
+    await page.mouse.click(box.x + box.width * 0.25, box.y + box.height / 2);
+    await expect(ruler(page)).not.toBeFocused();
+    const before = (await preview(page)).playhead;
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(async () => (await preview(page)).playhead).toBeCloseTo(before + 1 / 30, 3);
+  });
+
   test('F-017.AC12 a number field: unreadable text comes back marked invalid and announced; a value past the range is limited and announced', async ({
     page,
   }) => {
@@ -221,6 +276,14 @@ test.describe('QA accessibility: keys, announcements, phone seek (app harness)',
     await expect(field).toHaveValue('+100');
     await expect(field).toHaveAttribute('aria-invalid', 'true');
     await expect.poll(() => said(page)).toBe(fill('en-US', 'announce.limited', { value: '+100' }));
+    // A new value from elsewhere (the slider) clears the mark too.
+    await inspector
+      .getByRole('group', { name: text('en-US', 'adjust.brightness'), exact: true })
+      .getByRole('slider')
+      .focus();
+    await page.keyboard.press('ArrowLeft');
+    await expect(field).toHaveValue('+99');
+    await expect(field).not.toHaveAttribute('aria-invalid', 'true');
   });
 
   test('F-002.AC9 F-002.R4 on a phone, Go to start and Go to end are shown and move the playhead; the transport fits 320 px', async ({
@@ -249,6 +312,16 @@ test.describe('QA accessibility: keys, announcements, phone seek (app harness)',
     );
     await noSideways(page);
     await shot(page, 'phone-transport-320', browserName);
+    // A 9:59 project and larger text (200 %): the time gives way, Full screen stays in the row (CMP-Preview "Behavior").
+    await page.evaluate(() => (window as unknown as Harness).appHarness.setClip(0, { seconds: 590 }));
+    await at(page, 593);
+    await page.addStyleTag({ content: '.tk-time { font-size: 200% !important; }' });
+    const full = (await page.getByRole('button', { name: text('en-US', 'action.full_screen') }).boundingBox())!;
+    expect(full.x + full.width).toBeLessThanOrEqual(320);
+    expect(await page.locator('.tk-transport').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(
+      0,
+    );
+    await noSideways(page);
   });
 
   test('F-002.AC10 F-002.R8 the time ruler is a slider: arrows 1 s, Page Up 10 s, End and Home; its value reads the time with the length', async ({

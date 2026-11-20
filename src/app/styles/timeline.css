@@ -20,7 +20,7 @@
      timeline, an open sheet and the bars in one screen. The preview keeps most of the height and the editor
      scrolls vertically (never sideways) to the timeline, the sheet and the tab bar below it: the editor takes
      its content's height and the tool's root scrolls it, so an open sheet keeps its own capped height. */
-  @media (max-height: 480px) {
+  @media (max-height: 480px) and (max-width: 999.98px) and (orientation: landscape) {
     #app:has(> .tk-editor[data-screen='SCR-Editor']) {
       overflow-x: clip;
       overflow-y: auto;

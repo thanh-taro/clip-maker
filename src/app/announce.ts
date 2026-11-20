@@ -19,7 +19,10 @@ export function announce(text: string): void {
   announcement.value = announcement.peek() === text ? `${text} ` : text;
 }
 
-/** COPY IDs of the actions an undo step can be named by (F-017.R7). */
+/**
+ * COPY IDs of the actions an undo step can be named by (F-017.R7). Adding text isn't one: its step merges with the
+ * typing that follows (RULE-13), so it is announced as COPY-announce.last_edit (owner decision QA-7).
+ */
 export type StepLabel = Extract<
   MessageId,
   | 'action.split'
@@ -30,7 +33,6 @@ export type StepLabel = Extract<
   | 'action.set_in'
   | 'action.set_out'
   | 'action.mute'
-  | 'action.add_text'
 >;
 
 /** The action each history step was made by (steps keep their identity across undo and redo). */

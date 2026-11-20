@@ -233,7 +233,15 @@ function TimeField(props: {
   const [text, setText] = useState(shown);
   /** F-017.R8: the last commit was rejected or limited (cleared by the next edit). */
   const [invalid, setInvalid] = useState(false);
-  useEffect(() => setText(shown), [shown]);
+  /** The value shown when the field was marked: a new value from elsewhere clears the mark (F-017.R8). */
+  const markedAt = useRef<string | null>(null);
+  useEffect(() => {
+    setText(shown);
+    if (markedAt.current !== null && markedAt.current !== shown) {
+      markedAt.current = null;
+      setInvalid(false);
+    }
+  }, [shown]);
   const commit = (): void => {
     const at = parseGifTime(text, rate);
     if (at !== null) props.onCommit(at);
@@ -243,9 +251,11 @@ function TimeField(props: {
     setText(nowText);
     // F-017.R8: text that isn't a time, or a time the range limited, is marked and announced, never silent.
     if (at === null && text.trim() !== shown) {
+      markedAt.current = nowText;
       setInvalid(true);
       announce(t('announce.kept', { value: nowText }));
     } else if (at !== null && now !== at && formatGifTime(at, rate, language.peek()) !== nowText) {
+      markedAt.current = nowText;
       setInvalid(true);
       announce(t('announce.limited', { value: nowText }));
     }

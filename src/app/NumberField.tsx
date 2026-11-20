@@ -71,6 +71,15 @@ export function NumberField(props: NumberFieldProps) {
     if (!editing.current) show(value);
   }, [value, lang, fractionDigits, props.fixedDigits, props.signed]);
 
+  /** The value the field showed when it was marked invalid: a new value from elsewhere clears the mark (F-017.R8). */
+  const markedAt = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (markedAt.current !== null && markedAt.current !== value) {
+      markedAt.current = null;
+      setInvalid(false);
+    }
+  }, [value]);
+
   const commitValue = (typed: number, typedByHand = false): void => {
     editing.current = false;
     const p = latest.current;
@@ -79,6 +88,7 @@ export function NumberField(props: NumberFieldProps) {
     show(now);
     // F-017.R8: a typed value outside the range is limited, never silently.
     if (typedByHand && next !== typed) {
+      markedAt.current = now;
       setInvalid(true);
       announce(t('announce.limited', { value: textOf(now) }));
     }
@@ -91,6 +101,7 @@ export function NumberField(props: NumberFieldProps) {
       // Empty or unreadable: no edit, the value comes back (F-017.R8: marked invalid and announced).
       editing.current = false;
       show(latest.current.value);
+      markedAt.current = latest.current.value;
       setInvalid(true);
       announce(t('announce.kept', { value: textOf(latest.current.value) }));
       return;

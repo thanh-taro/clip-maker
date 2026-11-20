@@ -1113,21 +1113,32 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
 
   // ── Ruler as a slider (F-002.R8) ─────────────────────────────────────────────────────────────────────
   // Its value is the playhead, read as the time with the project length; unavailable in an empty project.
+  // Written only when they change. While playing the value isn't followed (a focused slider would be read out every
+  // second); it is written once playback stops, when the status region announces the time too.
+  const rulerAttr = (name: string, value: string | null): void => {
+    if (ruler.getAttribute(name) === value) return;
+    if (value === null) ruler.removeAttribute(name);
+    else ruler.setAttribute(name, value);
+  };
   const stopRulerValue = effect(() => {
     const p = project.value;
-    const t = playhead.value;
-    const end = projectEnd(p);
     const has = p.clips.length > 0;
-    ruler.tabIndex = has ? 0 : -1;
-    if (has) ruler.removeAttribute('aria-disabled');
-    else ruler.setAttribute('aria-disabled', String(true));
+    const tab = has ? 0 : -1;
+    if (ruler.tabIndex !== tab) ruler.tabIndex = tab;
+    rulerAttr('aria-disabled', has ? null : String(true));
     const label = deps.rulerLabel?.();
-    if (label) ruler.setAttribute('aria-label', label);
-    ruler.setAttribute('aria-valuemax', String(Math.round(end / 1000) / 1000));
-    ruler.setAttribute('aria-valuenow', String(Math.round(Math.min(t, end) / 1000) / 1000));
-    const text = deps.rulerValue?.(Math.min(t, end), end);
-    if (text) ruler.setAttribute('aria-valuetext', text);
+    if (label) rulerAttr('aria-label', label);
+    const end = projectEnd(p);
+    rulerAttr('aria-valuemax', String(Math.round(end / 1000) / 1000));
+    if (playing.value) return;
+    const t = Math.min(playhead.value, end);
+    rulerAttr('aria-valuenow', String(Math.round(t / 1000) / 1000));
+    const text = deps.rulerValue?.(t, end);
+    if (text) rulerAttr('aria-valuetext', text);
   });
+  // A pointer scrub never focuses the ruler (Right then still steps one frame, RULE-20); Tab does.
+  const onRulerMouseDown = (e: MouseEvent): void => e.preventDefault();
+  ruler.addEventListener('mousedown', onRulerMouseDown);
   // Arrows 1 s, Page Up / Page Down 10 s, Home / End the project's start and end; on a frame start.
   const onRulerKey = (e: KeyboardEvent): void => {
     if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
@@ -1728,6 +1739,9 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       suppressClick = false;
       return;
     }
+    // RULE-20 *Scope* (F-017.R6): a pointer click leaves focus on the item, so its letter keys act next. Safari
+    // doesn't focus a clicked button (focus would fall to the page, outside the timeline).
+    if (e.detail > 0 && document.activeElement !== button) button.focus({ preventScroll: true });
     // F-010 (CMP-TextEditor "Behavior"): activating the selected text item again opens the editor on it.
     const textId = button.dataset['textId'];
     if (textId !== undefined) {
@@ -1870,6 +1884,7 @@ export function mountTimeline(host: HTMLElement, signals: TimelineSignals, deps:
       stopPlaying();
       stopRulerValue();
       ruler.removeEventListener('keydown', onRulerKey);
+      ruler.removeEventListener('mousedown', onRulerMouseDown);
       stopOpen();
       resize.disconnect();
       if (drag?.timer) clearTimeout(drag.timer);
