@@ -45,4 +45,4 @@ The desktop and phone layouts are designed in phase 2 (PRN-06, NFR-07).
 - Exits to: SCR-Unsupported only on opening; leaving the page (F-018).
 
 ## Accessibility
-Reading order: toolbar, preview, inspector, timeline, status bar. Every gesture has a visible control (RULE-21, NFR-06).
+Reading order: toolbar, preview, inspector, timeline, status bar. Every gesture has a visible control (RULE-21, NFR-06). The editor has one top-level heading, COPY-app.name, visually hidden once the project has media (CMP-EmptyState's title is the heading while empty).

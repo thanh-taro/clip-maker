@@ -28,13 +28,15 @@ Toolbar (wide); time ruler with m:ss labels; playhead (head in the ruler band); 
 - Trim handles change the item's start or end; the readout and snap line follow RULE-14; Start here/End here trim at the playhead without dragging.
 - Text layers that overlap in time take separate rows of the text lane (up to 3 rows; more share the third), the lane growing with them; the trim handles sit on the selected item's row.
 - Clip labels stay on one line: the name truncates with an ellipsis and the duration is the last thing to drop; under a minimum width only the duration shows and the name moves to the tooltip. Labels sit above the thumbnails and the audio title sits on its own chip before the waveform. Under 48 px of width a clip shows its duration only.
-- Times on the ruler, in the readout and in labels read m:ss; ruler labels skip the area under the playhead head (D-039).
+- Times on the ruler, in the readout and in labels read m:ss; ruler labels skip the area under the playhead head (D-039), at every zoom and on the centred narrow ruler too.
+- With reduced motion requested, a touch scroll stops where the finger lifts, with no momentum glide.
 - Cross-fade add uses 0.5 s; the popover changes its length within RULE-10 and removes it; a change that would break RULE-03 is refused with COPY-notice.length_full and the popover stays open. Opening the popover moves focus to its first available button; Esc closes it and returns focus to what opened it; a press outside closes it. Shorter and Longer change the length by 0.1 s and are unavailable at 0.1 s and at the longest allowed. Remove closes it and focus goes to the join's add chip; it also closes when its cross-fade goes (undo, a move).
 - During playback the view follows the playhead; a manual scroll stops following (RULE-14). On touch, scrolling scrubs and pauses playback first.
 - Zoom controls and pinch zoom are equivalent; Fit shows the whole project. With an empty project zoom controls are unavailable.
 
 ## Accessibility
-- The region is named COPY-timeline.label; its action row (and the narrow zoom pill) is a toolbar: one Tab stop, Left and Right move between its buttons (as CMP-Toolbar).
+- The region is named COPY-timeline.label; its action row (named COPY-timeline.actions) and the narrow zoom pill (named COPY-timeline.zoom_label) are toolbars: one Tab stop, Left and Right move between its buttons (as CMP-Toolbar).
+- The time ruler is a slider named COPY-timeline.ruler (F-002.R8), one Tab stop before the items, with a visible focus ring. The main track's group shows a focus ring when it takes focus (after the last clip is deleted).
 - Items are focusable in order (main track, then text, then audio) and are named by their name and duration; Alt+Left/Right move them per RULE-20. The main track's clips form a group named COPY-timeline.main_track.
 - Kind is shown by lane icon and position, not by colour alone.
 - Every drag has a visible control (RULE-21); handles and the cross-fade marker get a `size.handleHit` hit area on touch.
