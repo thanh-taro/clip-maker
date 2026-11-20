@@ -63,8 +63,8 @@
     },
     "qa": {
       "title": "5 QA & hardening",
-      "status": "pending",
-      "step": null,
+      "status": "in_progress",
+      "step": "QA static audits (security, license, a11y)",
       "gate": {
         "status": "pending",
         "at": null,
@@ -739,18 +739,6 @@
     }
   },
   "log": [
-    {
-      "at": "2026-11-03T06:11:17+00:00",
-      "event": "decision D-002 answered: full editor on phone in M-1 (owner chose against recommendation; accepts phone design/QA + memory risk)"
-    },
-    {
-      "at": "2026-11-03T06:11:17+00:00",
-      "event": "decision D-003 answered: spike permissive muxers first in phase 3; bring ADR exception for unmodified MPL-2.0 if needed; no WASM FFmpeg AAC"
-    },
-    {
-      "at": "2026-11-03T06:11:17+00:00",
-      "event": "decision D-004 answered: temp OPFS scratch during export only, deleted after; nothing persists between sessions in M-1; project save reconsidered with ADR later"
-    },
     {
       "at": "2026-11-03T06:11:17+00:00",
       "event": "Round 2: owner chose full scope (multi-track + phone) in M-1 against strategist rec; SP-audio and SP-mem-phone become blocking spikes"
@@ -1538,9 +1526,21 @@
     {
       "at": "2026-11-20T02:55:01+00:00",
       "event": "gate build passed: M-1: 23 features and E1-E6 merged; full check 9/9 (1060 unit, 927 browser), realtime 17/17; coverage complete except F-001.AC9 (device). Device checks, Q25/39/45/172 and placeholder music carried to QA and release. Owner approved 2026-11-20."
+    },
+    {
+      "at": "2026-11-20T03:49:22+00:00",
+      "event": "context compaction (auto) at: build-my-app: 5/9 phases done · next: 5 QA & hardening"
+    },
+    {
+      "at": "2026-11-20T15:02:02+00:00",
+      "event": "phase qa -> in_progress"
+    },
+    {
+      "at": "2026-11-20T15:02:23+00:00",
+      "event": "qa step: QA static audits (security, license, a11y)"
     }
   ],
-  "updated": "2026-11-20T02:55:01+00:00",
+  "updated": "2026-11-20T15:02:23+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
