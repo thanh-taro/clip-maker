@@ -5,13 +5,15 @@
 // the sound feed (MOD-Core; MOD-Container serves it where the reader is). Bundled music (F-011) is decoded
 // the same way from its packaged file; the picker audition is a one-voice plan (ADR-0008 §7).
 // The worklet is bundled as its own hashed same-origin module (ADR-0003; CSP `script-src 'self'`).
+import { scriptUrl } from '../core';
+import audioWorkerUrl from './audio.worker.ts?worker&url';
 import workletUrl from './playback.worklet.ts?worker&url';
 
 /** URL of the AudioWorklet module, for `audioContext.audioWorklet.addModule` in the first gesture. */
 export const WORKLET_URL: string = workletUrl;
 
 export function startAudioWorker(): Worker {
-  return new Worker(new URL('./audio.worker.ts', import.meta.url), { type: 'module', name: 'audio' });
+  return new Worker(scriptUrl(audioWorkerUrl), { type: 'module', name: 'audio' });
 }
 
 export { render, renderOffline, Mixer, LIMITER_PREROLL, originOf, type MixerOptions } from './mixer';

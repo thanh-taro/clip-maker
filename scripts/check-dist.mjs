@@ -7,6 +7,11 @@
 // registered track row (DEP-14, ADR-0013, F-011), and with `--release` (or LICENCE_RELEASE=1; `pnpm
 // check:release`) a placeholder track (`"placeholder": true`) fails; look strips (.png) must trace to the
 // checked looks pack and its registry row (DEP-13, ADR-0013 §1, F-008); unknown binary file types fail.
+// It also reads the shipped code for network behaviour (NFR-01, qa-security L2): no XMLHttpRequest,
+// WebSocket, EventSource, sendBeacon, importScripts, RTCPeerConnection, WebAssembly, eval or new Function
+// anywhere; `fetch(` only in the main chunk (MOD-Assets) and sw.js; absolute http(s) URLs only from a short
+// allow-list (namespaces, licence and codec-registry comments, the portal origin, the source repository and
+// the bundled tracks' pages).
 // Copied from the sibling image-annotator.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,6 +20,67 @@ import { abs } from './lib/util.mjs';
 import { findInstalled, isActive, isShipped, readRegistry } from './lib/registry.mjs';
 import { musicPack } from './gen-music-manifest.mjs';
 import { looksPack } from './gen-looks.mjs';
+import { DEFAULT_HOST_ORIGINS, hostOrigins } from './gen-headers.mjs';
+
+/** Network primitives that never ship (NFR-01; the CSP would block most of them anyway). */
+const BANNED_CODE = [
+  ['XMLHttpRequest', /\bXMLHttpRequest\b/],
+  ['WebSocket', /\bWebSocket\b/],
+  ['EventSource', /\bEventSource\b/],
+  ['sendBeacon', /\bsendBeacon\b/],
+  ['importScripts', /\bimportScripts\b/],
+  ['RTCPeerConnection', /\bRTCPeerConnection\b/],
+  ['WebAssembly', /\bWebAssembly\b/],
+  ['eval(', /(?<![\w$.])eval\s*\(/],
+  ['new Function', /\bnew\s+Function\s*\(/],
+];
+/** A call of `fetch` (also `self.fetch(`), not a method that merely ends in "fetch" (`prefetch(`). */
+const FETCH_CALL = /(?<![\w$])fetch\s*\(/;
+/** Where `fetch(` may ship: the main chunk (MOD-Assets, ADR-0014) and the offline worker (ADR-0015). */
+const FETCH_ALLOWED = [/^assets\/index-[\w-]+\.js$/, /^sw\.js$/];
+const URL_LITERAL = /https?:\/\/[^\s"'`)<>\\]+/g;
+/** URL prefixes that may appear in shipped code: XML namespaces, licence and codec-registry comments. */
+const URL_PREFIXES = [
+  'http://www.w3.org/',
+  'https://www.w3.org/',
+  'https://mozilla.org/MPL/2.0/',
+  'https://aomediacodec.github.io/av1-isobmff/',
+  'https://www.webmproject.org/vp9/mp4/',
+];
+/** The source repository link (F-020.R3, src/app/StatusBar.tsx). */
+export const SOURCE_URL = 'https://github.com/thanh-taro/clip-maker';
+
+/**
+ * The shipped code's network behaviour (NFR-01, qa-security L2), over every `.js` file of `files`
+ * (paths relative to `distDir`).
+ * @param {string} distDir
+ * @param {string[]} files
+ * @returns {string[]} problems
+ */
+export function scanCode(distDir, files) {
+  const problems = [];
+  const exact = new Set([
+    SOURCE_URL,
+    ...DEFAULT_HOST_ORIGINS.split(/\s+/),
+    ...hostOrigins(),
+    ...musicPack().tracks.map((t) => t.source),
+  ]);
+  for (const f of files.filter((f) => f.endsWith('.js'))) {
+    const rel = f.split(path.sep).join('/');
+    const code = fs.readFileSync(path.join(distDir, f), 'utf8');
+    for (const [name, re] of BANNED_CODE)
+      if (re.test(code)) problems.push(`network primitive ${name} ships in ${rel} (NFR-01)`);
+    if (FETCH_CALL.test(code) && !FETCH_ALLOWED.some((re) => re.test(rel)))
+      problems.push(`fetch( ships in ${rel}: only the main chunk (MOD-Assets) and sw.js may fetch (NFR-01, ADR-0014)`);
+    const bad = new Set();
+    for (const m of code.matchAll(URL_LITERAL)) {
+      const url = m[0].replace(/[.,;:]+$/, '');
+      if (!exact.has(url) && !URL_PREFIXES.some((p) => url.startsWith(p))) bad.add(url);
+    }
+    for (const url of bad) problems.push(`absolute URL outside the allow-list ships in ${rel}: ${url} (NFR-01)`);
+  }
+  return problems;
+}
 
 const CODE_MAP = /\.(?:js|css)\.map$/;
 const NODE_MODULES = /node_modules\/((?:@[^/]+\/)?[^/@][^/]*)/g;
@@ -141,6 +207,8 @@ export function scanDist(distDir, registry, { release = false } = {}) {
       problems.push(`unexpected shipped file type: ${f}`);
     }
   }
+
+  problems.push(...scanCode(distDir, files.filter((f) => !CODE_MAP.test(f))));
 
   return { shipped, problems };
 }

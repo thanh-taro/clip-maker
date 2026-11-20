@@ -20,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { abs } from './lib/util.mjs';
 import { scanDist } from './check-dist.mjs';
+import { checkReleaseHeaders } from './check-release-headers.mjs';
 import { musicPack } from './gen-music-manifest.mjs';
 import { looksPack } from './gen-looks.mjs';
 import { findInstalled, isActive, isApproved, isShipped, readRegistry, REGISTRY } from './lib/registry.mjs';
@@ -217,6 +218,12 @@ else {
   problems.push(...scan.problems.map((p) => `dist: ${p}`));
   const list = [...scan.shipped].map(([n, v]) => `${n}@${v}`).sort();
   console.log(`dist: ${scan.shipped.size} third-party packages ship — ${list.length ? list.join(', ') : '(none)'}`);
+  // Release only (qa-security L1): the build's host allow-list and tool origin are the production ones.
+  if (RELEASE) {
+    const headers = checkReleaseHeaders(DIST);
+    problems.push(...headers.map((p) => `release headers: ${p}`));
+    if (!headers.length) console.log('release headers: production host allow-list and tool origin');
+  }
 }
 
 if (problems.length) {

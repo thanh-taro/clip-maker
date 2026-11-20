@@ -1,7 +1,8 @@
 // MOD-Media — intake, probing, source registry, thumbnails and waveforms
 // (specs/40-technical/modules/MOD-Media.md, ADR-0009). Intake, probing and the registry are built
 // (E2); thumbnails and waveforms come with F-001's media panel and F-003's timeline.
-import { notImplemented, type FrameRate } from '../core';
+import { notImplemented, scriptUrl, type FrameRate } from '../core';
+import analysisWorkerUrl from './analysis.worker.ts?worker&url';
 import { closeProbed, intakeBatch, type IntakeItem, type IntakeProgress, type IntakeResult } from './intake';
 import { SourceRegistry } from './registry';
 import type { FromAnalysis, ProbeOutcome, ToAnalysis } from './types';
@@ -23,7 +24,7 @@ export { SourceRegistry, type Decoded, type Redecode, type RegistryEntry } from 
 export type * from './types';
 
 export function startAnalysisWorker(): Worker {
-  return new Worker(new URL('./analysis.worker.ts', import.meta.url), { type: 'module', name: 'analysis' });
+  return new Worker(scriptUrl(analysisWorkerUrl), { type: 'module', name: 'analysis' });
 }
 
 /** Probes files in the analysis worker; one request per file, cancellable. */

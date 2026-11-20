@@ -3,37 +3,64 @@
 // moving it or changing its times does not), the new bitmaps are transferred, and the others are kept by
 // id. Results are posted in the order the changes came: one that finishes after a later change's result was
 // posted is closed, never sent (while typing fast, each result that is still the newest shows).
+// With a playhead and a byte budget (ADR-0009 §4: ≤ 32 MB phone, ≤ 96 MB laptop; build question 172) only
+// the layers near the playhead are rasterised, nearest first; held bitmaps are kept least-recently-used
+// within the budget, and one that was let go is rasterised again when the playhead comes near (a miss).
+// A layer showing at the playhead is never let go for the budget.
 // Implements: F-010.R5 (the preview draws the text the export draws), F-010.R1/R2 (typing and styling show
-// in the preview as they happen), ADR-0012 §3.
-import type { TextBitmap, TextLayer, ToEngine } from '../core';
+// in the preview as they happen), ADR-0012 §3, ADR-0009 §4, NFR-05.
+import type { Micros, TextBitmap, TextLayer, ToEngine } from '../core';
 import { rasteriseText, rasterKey } from './text';
+import { bitmapBytes, distanceFrom, nearPlayhead, showingAt, TextBitmapLru } from './text-budget';
 
 export type Rasterise = (layer: TextLayer, W: number, H: number) => Promise<ImageBitmap | null>;
 
 export interface TextSync {
-  /** The project's layers and the canvas size in device pixels changed (or may have). */
-  update(layers: readonly TextLayer[], W: number, H: number): Promise<void>;
+  /**
+   * The project's layers, the canvas size in device pixels or the playhead changed (or may have). Without
+   * `t` every layer is wanted (no playhead window).
+   */
+  update(layers: readonly TextLayer[], W: number, H: number, t?: Micros): Promise<void>;
+  /** The ids the engine holds a bitmap for, least recently used first (tests, NFR-05 measurement). */
+  held(): string[];
+  /** Bytes the held bitmaps take. */
+  heldBytes(): number;
   dispose(): void;
 }
 
 export function textSync(
   post: (m: ToEngine, transfer: Transferable[]) => void,
   rasterise: Rasterise = rasteriseText,
+  budget: number = Number.POSITIVE_INFINITY,
 ): TextSync {
   /** What the engine holds per id: the raster key of its bitmap. */
   const held = new Map<string, string>();
+  const lru = new TextBitmapLru(budget);
   let ticket = 0;
   /** The newest change whose result was posted. */
   let posted = 0;
   let live = true;
+  const drop = (id: string): void => {
+    held.delete(id);
+    lru.delete(id);
+  };
   return {
-    async update(layers, W, H) {
+    async update(layers, W, H, t) {
       const mine = ++ticket;
       const wanted = new Map(layers.map((l) => [l.id, rasterKey(l, W, H)] as const));
-      const stale = layers.filter((l) => held.get(l.id) !== wanted.get(l.id));
-      const gone = [...held.keys()].some((id) => !wanted.has(id));
-      if (!stale.length && !gone) {
+      // Nearest first; the playhead window decides what is wanted now (all layers without a playhead).
+      const near = (t === undefined ? [...layers] : layers.filter((l) => nearPlayhead(l, t))).sort((a, b) =>
+        t === undefined ? 0 : distanceFrom(a, t) - distanceFrom(b, t),
+      );
+      const pinned = new Set(t === undefined ? [] : layers.filter((l) => showingAt(l, t)).map((l) => l.id));
+      const stale = near.filter((l) => held.get(l.id) !== wanted.get(l.id));
+      // A held bitmap that is gone from the project, or out of date and not near: let go (rasterised on a miss).
+      const gone = [...held.keys()].filter(
+        (id) => !wanted.has(id) || (held.get(id) !== wanted.get(id) && !near.some((l) => l.id === id)),
+      );
+      if (!stale.length && !gone.length) {
         // The engine already shows this: an older result still running must not replace it.
+        for (const l of [...near].reverse()) lru.touch(l.id);
         posted = mine;
         return;
       }
@@ -50,19 +77,33 @@ export function textSync(
         return;
       }
       posted = mine;
+      for (const id of gone) drop(id);
+      for (const [l, b] of made) {
+        if (b) {
+          held.set(l.id, wanted.get(l.id)!);
+          lru.set(l.id, bitmapBytes(b));
+        } else drop(l.id);
+      }
+      // The nearest layers become the most recently used; then the budget lets the least recent ones go.
+      for (const l of [...near].reverse()) lru.touch(l.id);
+      const evicted = new Set(lru.evict(pinned));
+      for (const id of evicted) held.delete(id);
       const bitmaps: Record<string, TextBitmap> = {};
       const transfer: Transferable[] = [];
       for (const [l, b] of made) {
-        if (b) {
-          bitmaps[l.id] = { bitmap: b, s: Math.min(W, H) };
-          transfer.push(b);
-          held.set(l.id, wanted.get(l.id)!);
-        } else held.delete(l.id);
+        if (!b) continue;
+        if (evicted.has(l.id)) {
+          b.close();
+          continue;
+        }
+        bitmaps[l.id] = { bitmap: b, s: Math.min(W, H) };
+        transfer.push(b);
       }
-      const keep = [...held.keys()].filter((id) => wanted.has(id) && !(id in bitmaps));
-      for (const id of [...held.keys()]) if (!wanted.has(id)) held.delete(id);
+      const keep = [...held.keys()].filter((id) => !(id in bitmaps));
       post({ type: 'engine:setTextBitmaps', bitmaps, keep }, transfer);
     },
+    held: () => lru.ids().filter((id) => held.has(id)),
+    heldBytes: () => lru.total,
     dispose() {
       live = false;
       ticket++;

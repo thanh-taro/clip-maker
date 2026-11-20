@@ -2,6 +2,8 @@
 // (lint-enforced). The tool shows nothing about it: a refused or failed registration leaves the tool
 // working online, and a failed precache is retried by the browser on the next online open.
 
+import { scriptUrl } from '../core';
+
 /** The worker's stable, unhashed address (scripts/lib/offline.mjs). */
 export const SW_URL = '/sw.js';
 
@@ -41,6 +43,6 @@ export function registerOffline(deps: OfflineDeps = browserDeps()): void {
   const { container } = deps;
   if (!deps.production || !container) return;
   deps.afterLoad(() => {
-    container.register(SW_URL, { scope: '/', type: 'classic', updateViaCache: 'none' }).catch(() => undefined);
+    container.register(scriptUrl(SW_URL), { scope: '/', type: 'classic', updateViaCache: 'none' }).catch(() => undefined);
   });
 }

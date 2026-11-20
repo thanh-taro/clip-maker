@@ -17,6 +17,13 @@ export const DEFAULT_TOOL_ORIGIN = 'https://clip-maker.tarokit.app';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 /**
+ * The one Trusted Types policy the tool creates (src/core/trusted-types.ts: worker and service-worker
+ * script URLs of its own origin only). QA-3 / ADR-0014 amendment: every script sink needs a trusted value,
+ * and no other policy (and no duplicate) may be created.
+ */
+export const TRUSTED_TYPES_POLICY = 'clip-maker';
+
+/**
  * One origin entry as a serialised origin, or an Error explaining why it is refused (NFR-09,
  * RULE-17: the list feeds frame-ancestors and the compiled-in allow-list, so a wildcard, keyword,
  * path or stray directive must never reach either). https only; http for local hosts.
@@ -79,6 +86,8 @@ export function pageCsp(origins = hostOrigins()) {
     "base-uri 'none'",
     "form-action 'none'",
     `frame-ancestors ${origins.length ? origins.join(' ') : "'none'"}`,
+    "require-trusted-types-for 'script'",
+    `trusted-types ${TRUSTED_TYPES_POLICY}`,
   ].join('; ');
 }
 
@@ -115,6 +124,16 @@ export const PERMISSIONS_POLICY = [
   'magnetometer=()',
   'xr-spatial-tracking=()',
   'window-management=()',
+  // No advertising, attribution or cross-site storage features (qa-security I2; the tool runs no third-party code).
+  'attribution-reporting=()',
+  'run-ad-auction=()',
+  'join-ad-interest-group=()',
+  'private-aggregation=()',
+  'shared-storage=()',
+  'shared-storage-select-url=()',
+  'compute-pressure=()',
+  'encrypted-media=()',
+  'picture-in-picture=()',
 ].join(', ');
 
 export const SW_CSP = "default-src 'none'; connect-src 'self'";

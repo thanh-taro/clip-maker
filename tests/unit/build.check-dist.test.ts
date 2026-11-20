@@ -27,7 +27,7 @@ function distWith(file: string): string {
 }
 
 describe('MOD-Build dist scan: bundled music', () => {
-  const registry = (readRegistry() as { status: string }[]).filter(isActive);
+  const registry = (readRegistry() as { status: string; label: string }[]).filter(isActive);
   const tracks = (musicPack() as { tracks: { file: string; placeholder?: boolean }[] }).tracks;
 
   it('DEP-14 RULE-12 the shipped pack is 8+ real tracks, each registered: the everyday and the --release scans pass', () => {
@@ -42,7 +42,7 @@ describe('MOD-Build dist scan: bundled music', () => {
 
   it('DEP-14 a pack track without an active registry row fails', () => {
     const t = tracks[0]!;
-    const without = (registry as { label: string }[]).filter((r) => !r.label.includes(t.file));
+    const without = registry.filter((r) => !r.label.includes(t.file));
     expect((scanDist(distWith(t.file), without) as { problems: string[] }).problems[0]).toMatch(
       /ships without its registry row/,
     );

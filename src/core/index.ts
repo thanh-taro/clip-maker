@@ -24,3 +24,6 @@ export * from './media';
 // Export tables, rate control, file names and GIF timing (RULE-15, RULE-16, ADR-0010).
 export * from './export';
 export type * from './export-protocol';
+
+// The Trusted Types policy for worker and service-worker script URLs (ADR-0014, QA-3).
+export { ownScriptUrl, scriptUrl, TRUSTED_TYPES_POLICY, resetTrustedTypesForTests } from './trusted-types';

@@ -1,11 +1,14 @@
 // MOD-Engine — preview playback and seeking in the engine worker
 // (specs/40-technical/modules/MOD-Engine.md, ADR-0003, ADR-0009 and their outcomes). The worker
 // speaks MOD-Core's `ToEngine` / `FromEngine` messages; the sequential reader serves exports.
-// Starting the worker: a hashed same-origin module (CSP `worker-src 'self'`).
+// Starting the worker: a hashed same-origin module (CSP `worker-src 'self'`), its URL through the tool's
+// Trusted Types policy (ADR-0014, QA-3).
+import { scriptUrl } from '../core';
+import engineWorkerUrl from './engine.worker.ts?worker&url';
 
 /** Starts the engine worker (ADR-0003 §2). All code loads at start-up (ADR-0002, no lazy chunks). */
 export function startEngineWorker(): Worker {
-  return new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module', name: 'engine' });
+  return new Worker(scriptUrl(engineWorkerUrl), { type: 'module', name: 'engine' });
 }
 
 export { createSequentialFrameReader, type SequentialFrameReader } from './sequential';

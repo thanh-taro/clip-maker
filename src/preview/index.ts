@@ -39,6 +39,7 @@ export {
   type TextLine,
 } from './text';
 export { textSync, type Rasterise, type TextSync } from './text-sync';
+export { TextBitmapLru, nearPlayhead, TEXT_AHEAD, TEXT_BEHIND } from './text-budget';
 export { clampTextSize, moveText, pinchTextSize, textSizeFrom, type TextMoved } from './text-place';
 export { enterFullscreen, fullscreen, type Fullscreen, type FullscreenDoc, type FullscreenMode } from './fullscreen';
 export {
