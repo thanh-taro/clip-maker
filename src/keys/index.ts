@@ -7,15 +7,20 @@
 // view keys (= and -, Shift+Z, N), file keys (Mod+O, Mod+E) and help (?). `HELP_GROUPS` is the same map as
 // CMP-ShortcutHelp lists it.
 // Implements: RULE-20 (Scope, Playback, Edit, History, View, Files, Help), F-017.R1, F-017.R3 (the list),
-// F-017.R5 (a focused control that uses a key gets it), F-003.R6, F-014.R1.
+// F-017.R5 (a focused control that uses a key gets it), F-017.R6 (single-character keys act only on the
+// preview, the timeline and the transport), F-003.R6, F-014.R1.
 /**
  * A COPY ID of the shortcut list (COPY-help.*, COPY-action.*). MOD-Keys imports only MOD-Core, so the ID is a
  * string here; MOD-App's CMP-ShortcutHelp reads it from the catalogue, and a unit test checks every one exists.
  */
 export type HelpLabel = `help.${string}` | `action.${string}`;
 
-/** Where focus is when a key is pressed (MOD-Keys "Responsibility"). */
-export type KeyScope = 'none' | 'field' | 'dialog' | 'control';
+/**
+ * Where focus is when a key is pressed (MOD-Keys "Responsibility"). `outside`: in the tool but not on the
+ * preview, the timeline or the transport controls, or on no control at all: single-character keys don't act
+ * there (RULE-20 *Scope*, F-017.R6, WCAG 2.1.4); every other key acts as with `none`.
+ */
+export type KeyScope = 'none' | 'outside' | 'field' | 'dialog' | 'control';
 
 /** What a key does (MOD-App dispatches it). */
 export type Action =
@@ -87,6 +92,11 @@ export interface FocusInfo {
   readonly inToolbar?: boolean;
   /** A timeline item (clip, text layer, audio clip): a button that takes Enter only (RULE-20 *Scope*, Q205). */
   readonly timelineItem?: boolean;
+  /**
+   * On the preview, the timeline or the transport controls: where single-character keys act (RULE-20 *Scope*,
+   * F-017.R6). Absent counts as elsewhere.
+   */
+  readonly inShortcutArea?: boolean;
 }
 
 const BUTTON_ROLES = new Set(['button', 'switch', 'checkbox', 'radio', 'tab', 'menuitem', 'menuitemradio', 'option']);
@@ -112,14 +122,17 @@ export function scopeOf(
   /** The modifiers held: a tab list or toolbar claims only plain arrows, so Alt/Shift+arrows reach RULE-20. */
   mods: Partial<Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>> = {},
 ): KeyScope {
-  if (!focus) return 'none';
+  // No control focused (the page itself): single-character keys don't act (RULE-20 *Scope*, F-017.R6).
+  if (!focus) return 'outside';
+  // Where the keys the focused control doesn't use go: single-character keys act only in the shortcut area.
+  const free: KeyScope = focus.inShortcutArea === true ? 'none' : 'outside';
   if (focus.editable) return 'field';
   if (focus.inDialog) return 'dialog';
   // A focused separator is a window splitter (the compact inspector's resize grip, Q105): keyed as a slider.
   const slider =
     focus.role === 'slider' || focus.role === 'separator' || (focus.tag === 'input' && focus.type === 'range');
-  if (slider) return SLIDER_KEYS.has(code) ? 'control' : 'none';
-  if (focus.role !== null && COMPOSITE_ROLES.has(focus.role)) return COMPOSITE_KEYS.has(code) ? 'control' : 'none';
+  if (slider) return SLIDER_KEYS.has(code) ? 'control' : free;
+  if (focus.role !== null && COMPOSITE_ROLES.has(focus.role)) return COMPOSITE_KEYS.has(code) ? 'control' : free;
   // A radio of an option group (CMP-Inspector: aspect, rate, background) moves its choice with the arrows.
   const radio = focus.role === 'radio' || (focus.tag === 'input' && focus.type === 'radio');
   if (radio && ARROW_KEYS.has(code)) return 'control';
@@ -135,9 +148,19 @@ export function scopeOf(
     (focus.role !== null && BUTTON_ROLES.has(focus.role)) ||
     (focus.tag === 'input' && focus.type !== null && BUTTON_INPUTS.has(focus.type));
   // A timeline item takes Enter only: Space plays and pauses there, as in video editors (build question 205).
-  if (button && focus.timelineItem && code === 'Space') return 'none';
+  if (button && focus.timelineItem && code === 'Space') return free;
   if (button && (code === 'Space' || code === 'Enter')) return 'control';
-  return 'none';
+  return free;
+}
+
+/**
+ * WCAG 2.1.4: a single-character shortcut — a letter (with or without Shift) or =, +, -, ?, \ — with no Mod,
+ * Ctrl or Alt held. Implements: RULE-20 *Scope*, F-017.R6.
+ */
+export function isCharacterKey(event: Pick<KeyboardEvent, 'code' | 'key' | 'metaKey' | 'ctrlKey' | 'altKey'>): boolean {
+  if (event.metaKey || event.ctrlKey || event.altKey) return false;
+  if (event.code.startsWith('Key') || event.code === 'Backslash') return true;
+  return event.key === '=' || event.key === '+' || event.key === '-' || event.key === '?' || event.key === '\\';
 }
 
 /**
@@ -153,6 +176,9 @@ export function resolveKey(
   mac = false,
 ): Action | null {
   if (scope === 'field' || scope === 'dialog' || scope === 'control') return null;
+  // RULE-20 *Scope* (F-017.R6): away from the preview, the timeline and the transport, letters and =, -, ? and \
+  // keep their usual meaning; Space, the arrows, Delete and the Mod/Alt combinations still act.
+  if (scope === 'outside' && isCharacterKey(event)) return null;
   const edit = editKey(event, mac);
   if (edit !== undefined) return edit;
   if (event.metaKey || event.ctrlKey || event.altKey) return null;

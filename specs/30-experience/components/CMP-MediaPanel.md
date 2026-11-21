@@ -32,7 +32,7 @@ Header with COPY-media.title, Add media (COPY-action.add_media) and Close (COPY-
 - Esc with focus in the panel closes it and returns focus to the control that opened it (Add media): the narrow sheet, a modal dialog, from anywhere in it; the wide drawer, which isn't modal, too, unless an open dialog, popover or menu, or CMP-TextEditor, takes that Esc first (RULE-20).
 
 ## Accessibility
-- The panel is a complementary region (a dialog on narrow) named COPY-media.title; sources form a list.
+- The panel is a complementary region (a modal dialog on narrow, with the editor behind it unreachable by any input) named COPY-media.title; sources form a list.
 - Each row's buttons include the source name in their accessible description.
 - Progress is announced as a status message; refusals are announced once.
 - Touch rows and buttons meet RULE-21; desktop buttons meet `size.targetMin`.

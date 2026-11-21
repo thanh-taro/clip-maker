@@ -463,7 +463,8 @@ test.describe('F-010 styling, placing and timing text (app harness)', () => {
     browserName,
   }) => {
     await open(page);
-    await page.locator('body').click();
+    // RULE-20 *Scope* (F-017.R6): letter keys act with focus on the preview (here the empty state's area).
+    await page.locator('.tk-preview-area').focus();
     await page.keyboard.press('t');
     await expect(field(page)).toBeFocused();
     await page.keyboard.type('Xin chào');

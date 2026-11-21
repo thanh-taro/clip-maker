@@ -22,6 +22,7 @@ const focus = (f: Partial<FocusInfo>): FocusInfo => ({
   editable: false,
   inDialog: false,
   scrollable: false,
+  inShortcutArea: true,
   ...f,
 });
 

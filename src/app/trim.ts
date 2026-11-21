@@ -13,6 +13,8 @@ import { frameIndexAt, layoutOf, type Micros, type Notice, type Project } from '
 import { beginGesture, edit, playhead, project, selection, splitAt, trimTo } from '../project';
 import { itemSpan } from '../timeline';
 import { nextItemId, showResultNotices } from './adding';
+import { announce, labelLastStep } from './announce';
+import { formatDuration, t as text } from '../copy';
 
 /** The selected item (a main-track clip, text layer or audio clip), if any. */
 const selectedItem = computed<string | null>(() => {
@@ -86,7 +88,13 @@ export function splitHere(): boolean {
   const id = splitTarget.peek();
   if (!id) return false;
   const t = playhead.peek();
-  return commit((p) => splitAt(p, id, t, nextItemId));
+  const done = commit((p) => splitAt(p, id, t, nextItemId));
+  // F-017.R7: the split is announced and names its undo step.
+  if (done) {
+    labelLastStep('action.split');
+    announce(text('announce.split', { time: formatDuration(t) }));
+  }
+  return done;
 }
 
 /** F-004.R6: Start here (`start`) or End here (`end`) — trim the selected item at the playhead, one step. */
@@ -94,7 +102,10 @@ export function trimHere(edge: 'start' | 'end'): boolean {
   const id = selectedItem.peek();
   if (!id || !playheadInside.peek()) return false;
   const t = playhead.peek();
-  return commit((p) => trimTo(p, id, edge, t));
+  const done = commit((p) => trimTo(p, id, edge, t));
+  // F-017.R7: undo names the step.
+  if (done) labelLastStep(edge === 'start' ? 'action.set_in' : 'action.set_out');
+  return done;
 }
 
 /** A trim drag of one edge (MOD-Timeline's handles): every move is part of one undo step. */

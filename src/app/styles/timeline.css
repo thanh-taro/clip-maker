@@ -16,6 +16,29 @@
     grid-row: 6;
   }
 
+  /* NFR-07, CMP-Preview "Behavior": a short landscape phone (under 480 px tall) can't fit the preview, the
+     timeline, an open sheet and the bars in one screen. The preview keeps most of the height and the editor
+     scrolls vertically (never sideways) to the timeline, the sheet and the tab bar below it: the editor takes
+     its content's height and the tool's root scrolls it, so an open sheet keeps its own capped height. */
+  @media (max-height: 480px) and (max-width: 999.98px) and (orientation: landscape) {
+    #app:has(> .tk-editor[data-screen='SCR-Editor']) {
+      overflow-x: clip;
+      overflow-y: auto;
+    }
+    .tk-editor[data-screen='SCR-Editor'] {
+      grid-template-rows: auto minmax(max(60dvh, var(--tk-size-target-min) * 8), 1fr) auto auto auto var(
+          --tk-size-statusbar
+        );
+      height: auto;
+      min-height: 100%;
+    }
+    /* The editor scrolls, so a sheet may take most of the window; its body still scrolls inside it. */
+    .tk-editor[data-screen='SCR-Editor'] > .tk-sheet,
+    .tk-editor[data-screen='SCR-Editor'] > .tk-export {
+      max-block-size: 85dvh;
+    }
+  }
+
   .tk-editor[data-screen='SCR-Editor'] > .tk-sheet {
     grid-column: 1 / -1;
     grid-row: 4;
@@ -261,6 +284,14 @@
     block-size: var(--tk-size-timeline-track);
     margin-block-start: var(--tk-space-1);
     outline: none;
+  }
+
+  /* CMP-Timeline "Accessibility": the main track's group shows focus (it takes it after the last clip is
+     deleted), and the ruler slider (F-002.R8) shows its ring inside the scroller, which would clip it. */
+  .tk-track:focus-visible,
+  .tk-ruler:focus-visible {
+    outline: var(--tk-border-width-focus) solid var(--tk-color-focus);
+    outline-offset: calc(-1 * var(--tk-border-width-focus));
   }
 
   .tk-lanes[data-empty] .tk-track {

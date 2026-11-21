@@ -25,10 +25,11 @@ People judge an edit by watching it. The preview must play smoothly and show exa
 - **R1** The preview shows the project's picture at the playhead, in the project frame (RULE-04), with every clip, placement, adjustment, look, fade, cross-fade and text layer applied.
 - **R2** Play starts from the playhead with picture and sound together and stops at the project end. Pause keeps the playhead where it is.
 - **R3** Scrubbing updates the preview as it moves: dragging the playhead or the time ruler with a pointer, or scrolling the timeline on touch, where the playhead stays fixed at the centre (RULE-14). Clicking a time on the ruler moves the playhead there; on touch, tapping a time scrolls it to the centre.
-- **R4** The user can step one frame back or forward and jump to the start or end.
+- **R4** The user can step one frame back or forward and jump to the start or end, with visible controls on every layout, phones included.
 - **R5** The current time and the project length are shown in minutes, seconds and frames.
 - **R6** The preview and the export show the same frame for the same time (INV-02, NFR-08).
 - **R7** The user can view the preview full screen (or maximised within the page where the device doesn't allow full screen) and leave it again without losing the playhead or play state.
+- **R8** The time ruler can be operated by keyboard and assistive technology as an adjustable value: its value is the playhead time, read with the project length (COPY-time.position); the arrow keys move the playhead 1 s, Page Up and Page Down 10 s, Home and End to the start and end of the project. It is named COPY-timeline.ruler.
 
 ## Acceptance criteria
 - **AC1** Given a project with a clip using a look, a cross-fade and a text layer, when the playhead is inside the cross-fade, then the preview shows both clips blended with the look and the text. (R1)
@@ -39,6 +40,8 @@ People judge an edit by watching it. The preview must play smoothly and show exa
 - **AC6** Given any project, when it is exported as video, then the frame at time t matches the preview frame at t within NFR-08. (R6)
 - **AC7** Given playback, when the user enters and leaves full screen, then playback continues and the playhead is unchanged. (R7)
 - **AC8** Given a phone and a paused project, when the user swipes the timeline left by one second's width, then the playhead stays centred, the time advances by 1 s and the preview follows. (R3)
+- **AC9** Given a phone layout and a paused project with the playhead in the middle, when the user activates COPY-action.go_end and then COPY-action.go_start, then the playhead is at the project end and then at 0. (R4)
+- **AC10** Given a 20 s project with the playhead at 2 s and keyboard focus on the time ruler, when the user presses Right, Page Up, End and Home, then the playhead is at 3 s, 13 s, the project end and 0, and the ruler's value reads the time with the project length each time. (R8)
 
 ## UX notes
 CMP-Preview holds the picture and play controls; CMP-Timeline holds the playhead. The time uses COPY-time.position.

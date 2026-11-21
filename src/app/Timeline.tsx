@@ -218,6 +218,9 @@ export function Timeline() {
         endLabel: () => t('timeline.project_end'),
         emptyHint: () => t('drop.hint'),
         trackLabel: () => t('timeline.main_track'),
+        // F-002.R8: the ruler as the playhead's slider.
+        rulerLabel: () => t('timeline.ruler'),
+        rulerValue: (at, end) => t('time.position', { current: formatDuration(at), length: formatDuration(end) }),
         picture: async (sourceId) => {
           const entry = await registry.load(sourceId);
           return entry?.thumbnail ?? entry?.bitmap ?? null;
@@ -279,7 +282,8 @@ export function Timeline() {
 
   return (
     <section class="tk-timeline" aria-label={t('timeline.label')} data-unavailable={empty ? '' : undefined}>
-      <div ref={bar} class="tk-tl-toolbar" role="toolbar" aria-label={t('timeline.label')}>
+      {/* CMP-Timeline "Accessibility": the region and its two toolbars have distinct names. */}
+      <div ref={bar} class="tk-tl-toolbar" role="toolbar" aria-label={t('timeline.actions')}>
         {TRIM_ITEMS.map((item) => (
           <ToolbarButton key={item.id} item={item} />
         ))}
@@ -301,7 +305,7 @@ export function Timeline() {
           <Icon name="audio" size={16} class="tk-tl-gutter__audio" />
         </div>
         <div class="tk-tl-lanes" ref={lanes} />
-        <div ref={pill} class="tk-tl-zoom" role="toolbar" aria-label={t('timeline.label')}>
+        <div ref={pill} class="tk-tl-zoom" role="toolbar" aria-label={t('timeline.zoom_label')}>
           <NavControls variant="pill" empty={empty} />
         </div>
       </div>

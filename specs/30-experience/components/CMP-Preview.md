@@ -31,13 +31,16 @@ Frame area on the work area; transport with Previous frame (COPY-action.prev_fra
 - Previous/Next frame step one frame; Play starts from the playhead and stops at the project end. Home/End go to the start/end (RULE-20, COPY-action.go_start, COPY-action.go_end).
 - Full screen uses the browser's full screen, or maximises within the page when that is unavailable, without changing playhead or play state (F-002 R7). Esc leaves it.
 - The slow-device notice can be closed and does not return in the session.
-- Narrow widths keep Previous frame, Play/Pause, Next frame, the time and Full screen (the frame-step controls are RULE-21's equivalent of scrubbing); Go to start and Go to end stay on Home/End. The SCR-Editor narrow boards, which show Go to start/Go to end instead of frame step, are outdated on this point (build question 77).
+- Narrow widths keep every transport control: Go to start, Previous frame, Play/Pause, Next frame, Go to end, the time and Full screen (F-002.R4; the frame-step controls are RULE-21's equivalent of scrubbing). Under 400 px of width the time shows the current time only; the project length stays in CMP-StatusBar.
+- On a short landscape phone (landscape, under 480 px tall and under 1000 px wide) the editor scrolls vertically, never sideways: the preview keeps at least 60 % of the window's height, and the timeline, an open sheet and the tab bar follow below it; an open sheet takes at most 85 % of the height and its body scrolls inside it (NFR-07).
+- Under 400 px of width the time gives way before any transport control: when it doesn't fit (a long project or larger text) it is cut off rather than pushing Full screen out of the row.
 
 ## Accessibility
 - The frame is an image named COPY-preview.label with the current time.
 - Every gesture has a visible equivalent: placement controls in CMP-Inspector, frame step and play here (RULE-21).
 - Handles have a hit area of `size.handleHit` on touch; transport buttons meet `size.targetMin` and become touch size on coarse pointers.
 - The time is in monospace with tabular digits and is announced politely only when playback stops.
+- The preview area holds the editor's one polite status region: the time when playback stops and the announcements of F-017.R7 and F-017.R8.
 - The comparing pill and slow-device notice are status messages.
 
 ## Copy also used

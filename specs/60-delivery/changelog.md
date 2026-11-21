@@ -2,6 +2,12 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-20 — QA accessibility fixes (owner decisions QA-1, QA-2)
+- RULE-20 *Scope* (QA-1, WCAG 2.1.4): single-character keys (letters with or without Shift, =, +, -, ? and \\) act only while focus is on the preview, the timeline or the transport controls; Space, arrows, Home, End, Delete, Backspace, Esc and Mod/Alt combinations keep their scope. F-017.R6 and F-017.AC8 (new); F-017.AC4 now starts from focus on the timeline or the preview.
+- F-002.R4 (QA-2): Go to start and Go to end are visible on every layout, phones included; F-002.R8 (new): the time ruler is a slider for keyboard and assistive technology (arrows 1 s, Page Up/Down 10 s, Home/End), named the new COPY-timeline.ruler, with the time and length as its value. F-002.AC9, F-002.AC10 (new). CMP-Preview narrow transport: under 400 px the time shows the current time only. CMP-Timeline "Accessibility" says so.
+- F-017.R7, F-017.R8 and F-017.AC9–AC12 (new): split, delete, duplicate, move, undo/redo (naming the step) and playback started by Space are announced politely; a rejected or limited typed value is marked invalid and announced. New "Announcements" strings in copy.md (en-US, vi-VN). NFR-06 wording follows; NFR-07 adds the landscape phone size and automated checks.
+- Smaller accessibility fixes from the QA audit written into the specs: distinct names for the timeline toolbars (COPY-timeline.actions, COPY-timeline.zoom_label), a top-level heading COPY-app.name (SCR-Editor "Accessibility"), the main track's focus ring and reduced-motion touch scroll (CMP-Timeline), the narrow media sheet making the editor unreachable (CMP-MediaPanel), the short-landscape layout (CMP-Preview).
+
 ## 2026-11-20 — Build gate passed (owner approval): M-1 features shipped
 - All 23 M-1 features (F-001 … F-023) moved from `building` to `shipped` after the owner approved the build gate (`.build-my-app/reports/gate-build.md`). Automated acceptance tests pass on both test browser engines; F-001.AC9 and the other real-device checks are tracked in QA (phase 5).
 

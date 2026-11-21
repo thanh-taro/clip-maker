@@ -20,6 +20,7 @@ const focus = (f: Partial<FocusInfo>): FocusInfo => ({
   editable: false,
   inDialog: false,
   scrollable: false,
+  inShortcutArea: true,
   ...f,
 });
 
@@ -63,8 +64,9 @@ describe('MOD-Keys playback keys (RULE-20)', () => {
       expect(scopeOf(slider, code)).toBe('control');
     expect(scopeOf(slider, 'Space')).toBe('none');
     expect(scopeOf(focus({ role: 'slider' }), 'Home')).toBe('control');
-    // Nothing focused (the body) or a plain region: the tool's keys.
-    expect(scopeOf(null, 'Space')).toBe('none');
+    // Nothing focused (the body) or a plain region: the tool's keys (single-character keys excepted, F-017.R6).
+    expect(scopeOf(null, 'Space')).toBe('outside');
+    expect(resolveKey(key('Space'), scopeOf(null, 'Space'))).toBe('play-pause');
     expect(scopeOf(focus({ tag: 'main' }), 'Space')).toBe('none');
   });
 

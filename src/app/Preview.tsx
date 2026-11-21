@@ -15,12 +15,13 @@
 // selected clip (MOD-Preview `setLookPreview`; F-008.R2, RULE-09). F-010: the text layers' hit areas, the
 // selected text's outline, handles and move guides (./TextOverlay.tsx), and CMP-TextEditor over the frame while
 // a text layer is edited (./TextEditor.tsx).
-import { computed, effect, signal } from '@preact/signals';
+import { computed, effect } from '@preact/signals';
 import type { Ref } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, formatTimecode, t } from '../copy';
 import { isEmpty, project } from '../project';
 import { bindAdjustKeys, comparing } from './adjust';
+import { announce, announcement } from './announce';
 import { EmptyState } from './EmptyState';
 import { previewing } from './looks';
 import { Icon, type IconName } from './icons';
@@ -45,8 +46,6 @@ const beforeNow = computed(() => position.value[0] ?? '');
 const afterNow = computed(() => position.value[1] ?? '');
 const frameLabel = computed(() => t('preview.label', { time: formatDuration(timeUs.value) }));
 const fsMode = computed(() => playback.value?.fs.mode.value ?? 'off');
-/** CMP-Preview accessibility: the time is announced politely only when playback stops. */
-const announced = signal('');
 
 function TransportButton({
   icon,
@@ -88,7 +87,8 @@ function Time({ frame }: { frame: boolean }) {
       {beforeNow}
       <span class="tk-time__now">{nowText}</span>
       {frame ? <span class="tk-time__frame">{frameText}</span> : null}
-      {afterNow}
+      {/* Hidden under 400 px (the length stays in CMP-StatusBar; CMP-Preview "Behavior", F-002.R4). */}
+      <span class="tk-time__length">{afterNow}</span>
     </span>
   );
 }
@@ -213,10 +213,12 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
     return effect(() => {
       const playing = playback.value?.ctl.state.value === 'playing';
       if (was && !playing) {
-        announced.value = t('time.position', {
-          current: formatDuration(timeUs.peek()),
-          length: formatDuration(durationUs.peek()),
-        });
+        announce(
+          t('time.position', {
+            current: formatDuration(timeUs.peek()),
+            length: formatDuration(durationUs.peek()),
+          }),
+        );
       }
       was = playing;
     });
@@ -276,6 +278,8 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
 
   return (
     <main ref={mainRef} class="tk-preview-area" tabIndex={-1} data-fullscreen={mode === 'off' ? undefined : mode}>
+      {/* SCR-Editor "Accessibility": the editor's top heading; CMP-EmptyState's title is it while empty. */}
+      {empty ? null : <h1 class="tk-preview-heading">{t('app.name')}</h1>}
       <div class="tk-stage" ref={stageRef}>
         <div class="tk-frame" ref={frameRef} role="img" aria-label={frameLabel} data-empty={empty ? '' : undefined} />
         {empty ? null : <PlacementOverlay stage={stageRef} />}
@@ -295,8 +299,9 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
         <Notices />
       </div>
       <Transport fullRef={fullRef} />
+      {/* The editor's one polite status region (CMP-Preview "Accessibility"; F-017.R7, F-017.R8). */}
       <p class="tk-preview-status" role="status">
-        {announced}
+        {announcement}
       </p>
     </main>
   );

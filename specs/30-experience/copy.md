@@ -219,6 +219,10 @@ Rules for every string:
 | **COPY-inspector.edit** | Edit | Chỉnh sửa | |
 | **COPY-inspector.resize** | Resize inspector | Đổi cỡ bảng thuộc tính | |
 | **COPY-timeline.label** | Timeline | Dòng thời gian | |
+| **COPY-timeline.actions** | Timeline actions | Thao tác dòng thời gian | Names the timeline's action toolbar |
+| **COPY-timeline.zoom_label** | Timeline zoom | Thu phóng dòng thời gian | Names the narrow zoom pill |
+| **COPY-timeline.ruler** | Playhead | Vị trí phát | Names the time ruler slider (F-002.R8) |
+| **COPY-app.name** | Clip Maker | Clip Maker | The editor's top-level heading (screen readers) |
 | **COPY-preview.label** | Preview at {time} | Xem trước tại {time} | |
 | **COPY-preview.comparing** | Showing original | Đang xem bản gốc | |
 | **COPY-status.facts** | {aspect} · {rate} fps · {length} | {aspect} · {rate} fps · {length} | |
@@ -403,3 +407,20 @@ Rules for every string:
 | **COPY-export.interrupted_title** | Export stopped | Đã dừng xuất | |
 | **COPY-export.no_space_title** | Not enough space | Không đủ dung lượng | |
 | **COPY-timeline.ends_at** | ends {time} | kết thúc {time} | Trim readout |
+
+## Announcements
+Polite status messages for screen readers (F-017.R7, F-017.R8). `{action}` is the name of an action from this catalogue (COPY-action.split, …) or COPY-announce.last_edit.
+
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-announce.split** | Split at {time} | Đã tách tại {time} | |
+| **COPY-announce.deleted** | Deleted {name} | Đã xoá {name} | |
+| **COPY-announce.duplicated** | Duplicated {name} | Đã nhân bản {name} | |
+| **COPY-announce.moved_place** | Moved {name} to place {place} of {count} | Đã dời {name} đến vị trí {place} trên {count} | Main-track clip |
+| **COPY-announce.moved_time** | Moved {name} to {time} | Đã dời {name} đến {time} | Text layer or audio clip |
+| **COPY-announce.undone** | Undone: {action} | Đã hoàn tác: {action} | |
+| **COPY-announce.redone** | Redone: {action} | Đã làm lại: {action} | |
+| **COPY-announce.last_edit** | last edit | thao tác gần nhất | An undo step with no action name |
+| **COPY-announce.playing** | Playing | Đang phát | |
+| **COPY-announce.kept** | Not a valid value. Kept {value}. | Giá trị không hợp lệ. Giữ nguyên {value}. | A typed value that can't be read |
+| **COPY-announce.limited** | Limited to {value}. | Đã giới hạn ở {value}. | A typed value outside the range |
