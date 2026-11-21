@@ -43,6 +43,8 @@ export function registerOffline(deps: OfflineDeps = browserDeps()): void {
   const { container } = deps;
   if (!deps.production || !container) return;
   deps.afterLoad(() => {
-    container.register(scriptUrl(SW_URL), { scope: '/', type: 'classic', updateViaCache: 'none' }).catch(() => undefined);
+    container
+      .register(scriptUrl(SW_URL), { scope: '/', type: 'classic', updateViaCache: 'none' })
+      .catch(() => undefined);
   });
 }

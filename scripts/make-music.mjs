@@ -55,11 +55,16 @@ export function readWav(buf) {
   if (buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') throw new Error('not WAV');
   let fmt = null;
   let data = null;
-  for (let o = 12; o + 8 <= buf.length; ) {
+  for (let o = 12; o + 8 <= buf.length;) {
     const id = buf.toString('ascii', o, o + 4);
     const size = buf.readUInt32LE(o + 4);
     if (id === 'fmt ')
-      fmt = { format: buf.readUInt16LE(o + 8), channels: buf.readUInt16LE(o + 10), rate: buf.readUInt32LE(o + 12), bits: buf.readUInt16LE(o + 22) };
+      fmt = {
+        format: buf.readUInt16LE(o + 8),
+        channels: buf.readUInt16LE(o + 10),
+        rate: buf.readUInt32LE(o + 12),
+        bits: buf.readUInt16LE(o + 22),
+      };
     if (id === 'data') data = buf.subarray(o + 8, o + 8 + size);
     o += 8 + size + (size & 1);
   }
@@ -101,7 +106,10 @@ export function writeWav([L, R]) {
 /** One biquad (direct form I) over a channel. */
 function biquad(x, [b0, b1, b2], [, a1, a2]) {
   const y = new Float32Array(x.length);
-  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  let x1 = 0,
+    x2 = 0,
+    y1 = 0,
+    y2 = 0;
   for (let i = 0; i < x.length; i++) {
     const v = b0 * x[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
     x2 = x1;
@@ -174,7 +182,8 @@ function main() {
     process.exit(1);
   }
   const provenance = JSON.parse(fs.readFileSync(path.join(src, 'provenance.json'), 'utf8'));
-  if (!Array.isArray(provenance) || provenance.length < 8) throw new Error('provenance.json: need at least 8 tracks (RULE-12)');
+  if (!Array.isArray(provenance) || provenance.length < 8)
+    throw new Error('provenance.json: need at least 8 tracks (RULE-12)');
   for (const p of provenance) {
     if (!SLUG.test(p.slug ?? '')) throw new Error(`provenance: bad slug ${p.slug}`);
     for (const k of ['title', 'artist', 'page', 'sha256', 'licence', 'retrieved'])
@@ -182,7 +191,8 @@ function main() {
     if (!/^CC0 1\.0 Universal/.test(p.licence)) throw new Error(`provenance ${p.slug}: licence is not CC0 1.0`);
     if (!p.page.startsWith('https://freemusicarchive.org/')) throw new Error(`provenance ${p.slug}: unexpected page`);
     const mp3 = fs.readFileSync(path.join(src, 'audio', `${p.slug}.mp3`));
-    if (mp3.length !== p.bytes || sha256(mp3) !== p.sha256) throw new Error(`${p.slug}.mp3 differs from provenance.json`);
+    if (mp3.length !== p.bytes || sha256(mp3) !== p.sha256)
+      throw new Error(`${p.slug}.mp3 differs from provenance.json`);
     const page = fs.readFileSync(path.join(src, 'pages', `${p.slug}.html`), 'utf8');
     if (!page.includes('creativecommons.org/publicdomain/zero/1.0/'))
       throw new Error(`pages/${p.slug}.html shows no CC0 1.0 dedication link`);
@@ -195,7 +205,16 @@ function main() {
   try {
     for (const p of provenance) {
       const decoded = path.join(tmp, `${p.slug}-in.wav`);
-      run('afconvert', ['-f', 'WAVE', '-d', `LEI16@${RATE}`, '-c', '2', path.join(src, 'audio', `${p.slug}.mp3`), decoded]);
+      run('afconvert', [
+        '-f',
+        'WAVE',
+        '-d',
+        `LEI16@${RATE}`,
+        '-c',
+        '2',
+        path.join(src, 'audio', `${p.slug}.mp3`),
+        decoded,
+      ]);
       const { pcm, samples, measured, gainDb } = prepare(readWav(fs.readFileSync(decoded)), KEEP_WHOLE_UP_TO[p.slug]);
       const cut = path.join(tmp, `${p.slug}.wav`);
       fs.writeFileSync(cut, writeWav(pcm));

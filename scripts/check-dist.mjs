@@ -208,7 +208,12 @@ export function scanDist(distDir, registry, { release = false } = {}) {
     }
   }
 
-  problems.push(...scanCode(distDir, files.filter((f) => !CODE_MAP.test(f))));
+  problems.push(
+    ...scanCode(
+      distDir,
+      files.filter((f) => !CODE_MAP.test(f)),
+    ),
+  );
 
   return { shipped, problems };
 }
