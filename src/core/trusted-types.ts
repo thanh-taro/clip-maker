@@ -16,16 +16,19 @@ interface TrustedTypesFactory {
   createPolicy(name: string, rules: { createScriptURL(url: string): string }): ScriptUrlPolicy;
 }
 
-/** The page's (or worker's) origin and address, for resolving relative script paths. */
-function here(): URL {
-  return new URL((globalThis as { location?: { href: string } }).location?.href ?? 'http://localhost/');
+/** The page's (or worker's) address, for resolving relative script paths; null outside a browser. */
+function here(): URL | null {
+  const href = (globalThis as { location?: { href: string } }).location?.href;
+  return href ? new URL(href) : null;
 }
 
 /**
  * Is `url` a script of the tool's own origin? Resolved against the current address; only http(s) URLs
  * whose origin equals the current origin pass (never `blob:`, `data:`, `javascript:` or another origin).
+ * With no address (unit tests in Node), only a root-relative path passes.
  */
-export function ownScriptUrl(url: string, base: URL = here()): string | null {
+export function ownScriptUrl(url: string, base: URL | null = here()): string | null {
+  if (!base) return /^\/(?![/\\])/.test(url) ? url : null;
   let u: URL;
   try {
     u = new URL(url, base);

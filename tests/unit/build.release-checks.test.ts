@@ -26,10 +26,9 @@ afterEach(() => {
 function dist(files: Record<string, string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-release-'));
   dirs.push(dir);
-  for (const [f, content] of Object.entries(files)) {
-    fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
-    fs.writeFileSync(path.join(dir, f), content);
-  }
+  // Files live at the root or in assets/ (as Vite emits them).
+  fs.mkdirSync(path.join(dir, 'assets'));
+  for (const [f, content] of Object.entries(files)) fs.writeFileSync(path.join(dir, f), content);
   return dir;
 }
 

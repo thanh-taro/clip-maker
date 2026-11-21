@@ -63,7 +63,7 @@ export const BUNDLED_MUSIC: readonly MusicTrack[] = /* @__PURE__ */ Object.freez
 ${tracks
   .map(
     (t) =>
-      `  Object.freeze({ id: ${JSON.stringify(t.id)}, title: ${JSON.stringify(t.title)}, source: ${JSON.stringify(t.source)}, licence: ${JSON.stringify(t.licence)}, duration: ${t.durationUs} }),`,
+      `  /* @__PURE__ */ Object.freeze({ id: ${JSON.stringify(t.id)}, title: ${JSON.stringify(t.title)}, source: ${JSON.stringify(t.source)}, licence: ${JSON.stringify(t.licence)}, duration: ${t.durationUs} }),`,
   )
   .join('\n')}
 ]);
