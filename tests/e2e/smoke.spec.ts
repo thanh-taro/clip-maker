@@ -135,6 +135,21 @@ test('NFR-09 QA-3 Trusted Types: the workers start through the tool’s policy; 
     attempt('worker', () => new Worker('data:text/javascript,0'));
     return out;
   });
+  // The audio worklet module (a plain string URL; Worklet.addModule is not a Trusted Types sink) loads.
+  const worklet = await page.evaluate(async () => {
+    const href = (document.querySelector('link[rel="modulepreload"][href*="playback.worklet"]') as HTMLLinkElement)
+      .href;
+    const ctx = new AudioContext();
+    try {
+      await ctx.audioWorklet.addModule(href);
+      return 'loaded';
+    } catch (e) {
+      return `${(e as Error).name}: ${(e as Error).message}`;
+    } finally {
+      void ctx.close();
+    }
+  });
+  expect(worklet).toBe('loaded');
   if (probe['supported'] === 'yes') {
     expect(probe).toEqual({ supported: 'yes', innerHTML: 'TypeError', policy: 'TypeError', worker: 'TypeError' });
   }
