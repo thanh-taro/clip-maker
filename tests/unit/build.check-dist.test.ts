@@ -18,11 +18,12 @@ afterEach(() => {
 });
 
 /** A dist/ holding one hashed music file of the pack. */
-function distWith(file: string): string {
+function distWith(...files: string[]): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-dist-'));
   dirs.push(dir);
   fs.mkdirSync(path.join(dir, 'assets'));
-  fs.writeFileSync(path.join(dir, 'assets', file.replace(/\.m4a$/, '-Ab12Cd34.m4a')), 'm4a');
+  for (const file of files)
+    fs.writeFileSync(path.join(dir, 'assets', file.replace(/\.m4a$/, '-Ab12Cd34.m4a')), 'm4a');
   return dir;
 }
 
@@ -33,11 +34,10 @@ describe('MOD-Build dist scan: bundled music', () => {
   it('DEP-14 RULE-12 the shipped pack is 8+ real tracks, each registered: the everyday and the --release scans pass', () => {
     expect(tracks.length).toBeGreaterThanOrEqual(8);
     expect(tracks.filter((t) => t.placeholder)).toEqual([]);
-    for (const t of tracks) {
-      const dist = distWith(t.file);
-      expect((scanDist(dist, registry) as { problems: string[] }).problems).toEqual([]);
-      expect((scanDist(dist, registry, { release: true }) as { problems: string[] }).problems).toEqual([]);
-    }
+    // One dist/ holding every track: two scans (each reads and hashes the whole pack once).
+    const dist = distWith(...tracks.map((t) => t.file));
+    expect((scanDist(dist, registry) as { problems: string[] }).problems).toEqual([]);
+    expect((scanDist(dist, registry, { release: true }) as { problems: string[] }).problems).toEqual([]);
   });
 
   it('DEP-14 a pack track without an active registry row fails', () => {
