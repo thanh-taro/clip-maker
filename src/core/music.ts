@@ -9,6 +9,8 @@ export interface MusicTrack {
   readonly id: string;
   readonly title: string;
   readonly source: string;
+  /** The source's name the picker shows as a link to `source` (QA-8); bundled tracks always have one. */
+  readonly sourceName?: string;
   readonly licence: string;
   readonly duration: Micros;
 }

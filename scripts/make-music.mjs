@@ -14,7 +14,7 @@
 // stays at or under −1 dBFS), given a 20 ms fade-in and a 2 s fade-out, and encoded by `afconvert` to
 // AAC-LC 128 kbps CBR, 48 kHz stereo, in an MPEG-4 audio file (`src/assets/music/<id>.m4a`). Then:
 //  - src/assets/music/music.json is rewritten (id, file, "Title — Artist", source = track page URL,
-//    licence, duration in µs, bytes, SHA-256), in provenance order;
+//    sourceName = the site's name, licence, duration in µs, bytes, SHA-256), in provenance order;
 //  - each saved track page and provenance.json are copied to licences/music/ (the licence audit's
 //    record, ADR-0013 §4; never bundled: it is outside src/ and public/);
 //  - the pack must stay within NFR-10's 10,000,000 bytes, or nothing is written to the manifest.
@@ -41,6 +41,8 @@ const FADE_OUT_S = 2;
 const TARGET_LUFS = -16;
 const PEAK_CEILING_DB = -1;
 const LICENCE = 'CC0 1.0 Universal';
+/** The source's name the picker shows, linked to the track page (QA-8); the full URL stays in the notices. */
+const SITE_NAMES = { 'freemusicarchive.org': 'Free Music Archive' };
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
@@ -228,6 +230,7 @@ function main() {
         file,
         title: `${p.title} — ${p.artist}`,
         source: p.page,
+        sourceName: SITE_NAMES[new URL(p.page).hostname],
         licence: LICENCE,
         durationUs: Math.floor((samples * 1_000_000) / RATE),
         bytes: bytes.length,

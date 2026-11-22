@@ -27,7 +27,7 @@ Music sets the mood of a clip, and muting a noisy video is one of the most commo
 - **R3** The user can set the volume of, or mute, any video clip or audio clip from 0 % to 200 % (RULE-12).
 - **R4** The user can mute the original sound of every clip now on the main track in one action, as one undo step; when all are muted, the same control unmutes them all (RULE-12).
 - **R5** The preview and the export play the same mix, and it never clips (RULE-12, NFR-08).
-- **R6** The title, source and licence of each bundled track (ENT-MusicTrack) are shown where it is picked.
+- **R6** The title, source and licence of each bundled track (ENT-MusicTrack) are shown where it is picked. The source is shown as its name (for example Free Music Archive), linking to the track's page; the full address is in the licence notices (F-020.R4).
 - **R7** Bundled music is part of the tool and needs no network, ever (NFR-10, NFR-01).
 - **R8** The user can move a selected audio clip earlier or later in time with visible controls, without dragging (RULE-21, NFR-06).
 

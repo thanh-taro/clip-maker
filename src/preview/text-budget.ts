@@ -44,6 +44,11 @@ export class TextBitmapLru {
     return this.bytes;
   }
 
+  /** Bytes recorded for `id` (0 when not held). */
+  bytesOf(id: string): number {
+    return this.entries.get(id) ?? 0;
+  }
+
   has(id: string): boolean {
     return this.entries.has(id);
   }

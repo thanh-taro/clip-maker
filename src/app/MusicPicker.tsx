@@ -35,6 +35,19 @@ function useAuditionProgress(trackId: string | null, duration: number): number {
   return progress;
 }
 
+/**
+ * F-011.R6 / QA-8: the source as its site's name, linking to the track's page (the full address stays in the
+ * licence notices); a track without a name shows the page's host.
+ */
+export function sourceNameOf(track: { readonly source: string; readonly sourceName?: string }): string {
+  if (track.sourceName) return track.sourceName;
+  try {
+    return new URL(track.source).hostname;
+  } catch {
+    return track.source;
+  }
+}
+
 /** One track row (CMP-MusicPicker "row / …"). `touch`: the narrow sheet's touch-size row. */
 function TrackRow({ id, touch }: { id: string; touch: boolean }) {
   const track = tracks.find((x) => x.id === id)!;
@@ -62,7 +75,16 @@ function TrackRow({ id, touch }: { id: string; touch: boolean }) {
           <span class="tk-music__length">{formatDuration(track.duration)}</span>
           <span class="tk-music__licence">{track.licence}</span>
         </span>
-        <span class="tk-music__source">{track.source}</span>
+        <a
+          class="tk-music__source"
+          href={track.source}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={track.source}
+          aria-label={`${sourceNameOf(track)}: ${track.title}`}
+        >
+          {sourceNameOf(track)}
+        </a>
         {full ? (
           <span class="tk-music__noroom" id={noteId} data-notice="no_audio_room">
             {t('notice.no_audio_room')}

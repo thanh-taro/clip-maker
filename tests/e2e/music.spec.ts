@@ -175,7 +175,13 @@ test.describe('F-011 music picker and audio track (app harness)', () => {
     await expect(rows).toHaveCount(MUSIC_TRACKS.length);
     for (const [i, t] of MUSIC_TRACKS.entries()) {
       await expect(rows.nth(i)).toContainText(t.title);
-      await expect(rows.nth(i)).toContainText(t.source);
+      // QA-8: the source is its name, linking to the track's page (one line, not the full address).
+      const link = rows.nth(i).getByRole('link', { name: `${t.sourceName}: ${t.title}` });
+      await expect(link).toHaveText(t.sourceName!);
+      await expect(link).toHaveAttribute('href', t.source);
+      await expect(link).toHaveAttribute('target', '_blank');
+      await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      expect((await link.boundingBox())!.height).toBeLessThanOrEqual(32);
       await expect(rows.nth(i)).toContainText(t.licence);
       await expect(
         rows.nth(i).getByRole('button', { name: `${text('en-US', 'music.preview')}: ${t.title}` }),

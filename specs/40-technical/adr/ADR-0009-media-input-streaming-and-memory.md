@@ -129,5 +129,11 @@ The text-bitmap row of §4 is enforced in MOD-Preview (owner decision QA-6, buil
 by bytes over the engine's text bitmaps, with the device class's budget (32 MB phone, 96 MB laptop,
 MOD-Engine `BUDGETS.textBytes`). Only layers near the playhead (showing, ended within 1 s, or starting
 within 5 s) are rasterised, nearest first; the least recently used others are let go when the budget is
-passed and rasterised again when the playhead comes near. A layer showing at the playhead is never let go.
-Exports still rasterise every layer at the output size (`textBitmaps`). No decision changes.
+passed. What fits is chosen before rasterising (nearest first, from each layer's last known size), and a
+layer let go at a raster key is not rasterised again until it starts showing; a layer showing at the
+playhead is always rasterised and never let go.
+**Scope:** the §4 text-bitmap budget covers the preview engine only. An export is outside it: MOD-Preview's
+`textBitmaps` rasterises every text layer at the output size once, before the export starts, and the export
+holds them for its whole run (each bitmap at most about 4 × the output frame's pixels, build question 172's
+update). Export memory is bounded by §5's targets instead, with the preview's decoders and caches released
+first (ADR-0003). No decision changes.

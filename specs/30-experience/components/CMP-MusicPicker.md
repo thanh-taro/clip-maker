@@ -9,7 +9,7 @@ tokens: [font.family.body, font.family.mono, font.weight.medium, font.weight.sem
 Browse and preview the bundled music, then add a track at the playhead.
 
 ## Anatomy
-Header (COPY-music.title) with Close (COPY-action.close); "your audio" row (COPY-music.your_audio_hint, COPY-music.your_audio); track list with Play preview (COPY-music.preview), title, length in m:ss, source and licence, and Add at playhead (COPY-music.add); a link to COPY-privacy.notices.
+Header (COPY-music.title) with Close (COPY-action.close); "your audio" row (COPY-music.your_audio_hint, COPY-music.your_audio); track list with Play preview (COPY-music.preview), title, length in m:ss, licence, the source's name as a link to the track's page (opens in a new tab), and Add at playhead (COPY-music.add); a link to COPY-privacy.notices.
 
 ## Variants & states
 | Variant / state | Description |

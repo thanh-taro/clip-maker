@@ -40,6 +40,10 @@ export function textSync(
   /** The newest change whose result was posted. */
   let posted = 0;
   let live = true;
+  /** The last known size of each layer's bitmap (any raster key): the estimate for choosing within budget. */
+  const sizes = new Map<string, number>();
+  /** Layers let go for the budget, with the raster key they had: not rasterised again until they show. */
+  const skipped = new Map<string, string>();
   const drop = (id: string): void => {
     held.delete(id);
     lru.delete(id);
@@ -48,12 +52,28 @@ export function textSync(
     async update(layers, W, H, t) {
       const mine = ++ticket;
       const wanted = new Map(layers.map((l) => [l.id, rasterKey(l, W, H)] as const));
+      for (const id of [...skipped.keys()]) if (!wanted.has(id)) skipped.delete(id);
       // Nearest first; the playhead window decides what is wanted now (all layers without a playhead).
       const near = (t === undefined ? [...layers] : layers.filter((l) => nearPlayhead(l, t))).sort((a, b) =>
         t === undefined ? 0 : distanceFrom(a, t) - distanceFrom(b, t),
       );
       const pinned = new Set(t === undefined ? [] : layers.filter((l) => showingAt(l, t)).map((l) => l.id));
-      const stale = near.filter((l) => held.get(l.id) !== wanted.get(l.id));
+      // Choose what fits before rasterising (nearest first; a showing layer always): a layer whose size is
+      // known and would pass the budget is not rasterised only to be let go again, nor is one already let
+      // go at the same raster key, until it shows (then it is pinned and always rasterised).
+      let planned = 0;
+      const chosen = new Set<string>();
+      for (const l of near) {
+        const current = held.get(l.id) === wanted.get(l.id);
+        const est = current ? lru.bytesOf(l.id) : (sizes.get(l.id) ?? 0);
+        const show = pinned.has(l.id);
+        if (!show && !current && skipped.get(l.id) === wanted.get(l.id)) continue;
+        if (show || planned + est <= budget) {
+          chosen.add(l.id);
+          planned += est;
+        }
+      }
+      const stale = near.filter((l) => chosen.has(l.id) && held.get(l.id) !== wanted.get(l.id));
       // A held bitmap that is gone from the project, or out of date and not near: let go (rasterised on a miss).
       const gone = [...held.keys()].filter(
         (id) => !wanted.has(id) || (held.get(id) !== wanted.get(id) && !near.some((l) => l.id === id)),
@@ -82,12 +102,17 @@ export function textSync(
         if (b) {
           held.set(l.id, wanted.get(l.id)!);
           lru.set(l.id, bitmapBytes(b));
+          sizes.set(l.id, bitmapBytes(b));
+          skipped.delete(l.id);
         } else drop(l.id);
       }
       // The nearest layers become the most recently used; then the budget lets the least recent ones go.
       for (const l of [...near].reverse()) lru.touch(l.id);
       const evicted = new Set(lru.evict(pinned));
-      for (const id of evicted) held.delete(id);
+      for (const id of evicted) {
+        held.delete(id);
+        if (wanted.has(id)) skipped.set(id, wanted.get(id)!);
+      }
       const bitmaps: Record<string, TextBitmap> = {};
       const transfer: Transferable[] = [];
       for (const [l, b] of made) {

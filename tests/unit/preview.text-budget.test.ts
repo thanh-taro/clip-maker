@@ -1,9 +1,11 @@
 // MOD-Preview — the text-bitmap budget (ADR-0009 §4, NFR-05, build question 172): an LRU by bytes over the
 // engine's text bitmaps, layers near the playhead kept, the others rasterised again on a miss.
+import { signal } from '@preact/signals';
 import { describe, expect, it } from 'vitest';
 import type { TextLayer, ToEngine } from '../../src/core';
-import { nearPlayhead, TEXT_AHEAD, TextBitmapLru, textSync } from '../../src/preview';
+import { mountPreview, nearPlayhead, TEXT_AHEAD, TextBitmapLru, textSync } from '../../src/preview';
 import { BUDGETS } from '../../src/engine/budget';
+import { proj, video } from '../support/project';
 
 const S = 1_000_000;
 const MB = 1_000_000;
@@ -131,5 +133,66 @@ describe('MOD-Preview text-bitmap LRU', () => {
     const { sync, rasterised } = harness(Number.POSITIVE_INFINITY);
     await sync.update(layers, 100, 100);
     expect(rasterised).toEqual(['a', 'b']);
+  });
+});
+
+type SetTexts = Extract<ToEngine, { type: 'engine:setTextBitmaps' }>;
+
+describe('MOD-Preview text-bitmap budget: let-go layers and the playhead (review M1, m1)', () => {
+  it('F-010.R5 ADR-0009 §4 a near layer let go for the budget is rasterised and sent when it starts showing', async () => {
+    const layers = [layer('a', 0, 10), layer('b', 1, 10), layer('c', 2, 10)];
+    const { sync, posts, rasterised } = harness(15 * MB);
+    await sync.update(layers, 1080, 1920, 0);
+    expect(Object.keys(posts.at(-1)!.bitmaps)).toEqual(['a']); // b and c let go
+    await sync.update(layers, 1080, 1920, 1 * S); // b starts showing
+    expect(Object.keys(posts.at(-1)!.bitmaps)).toEqual(['b']);
+    expect(posts.at(-1)!.keep).toEqual(['a']);
+    expect(rasterised.filter((id) => id === 'b')).toHaveLength(2);
+  });
+
+  it('ADR-0009 §4 a layer let go (or known not to fit) is not rasterised again on each edit of another layer', async () => {
+    const others = [layer('b', 1, 10), layer('c', 2, 10)];
+    const { sync, rasterised } = harness(15 * MB);
+    await sync.update([layer('a', 0, 10), ...others], 1080, 1920, 0);
+    expect(rasterised).toEqual(['a', 'b', 'c']);
+    // Typing in a: three edits, each rasterises a only.
+    for (const content of ['a1', 'a12', 'a123'])
+      await sync.update([layer('a', 0, 10, content), ...others], 1080, 1920, 0);
+    expect(rasterised).toEqual(['a', 'b', 'c', 'a', 'a', 'a']);
+    expect(sync.heldBytes()).toBeLessThanOrEqual(15 * MB);
+  });
+
+  it('F-010.R5 ADR-0009 §4 through the controller: seeking to where a let-go layer shows sends its bitmap', async () => {
+    const layers = [layer('a', 0, 10), layer('b', 1, 10), layer('c', 2, 10)];
+    const project = signal({ ...proj({ clips: [video('v', 20)] }), textLayers: layers });
+    const sent: ToEngine[] = [];
+    const engine = {
+      postMessage: (m: ToEngine) => void sent.push(m),
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    };
+    const clock = { play: async () => undefined, pause: () => undefined, seek: () => undefined, now: () => 0 };
+    const env = {
+      requestFrame: () => 0,
+      cancelFrame: () => undefined,
+      devicePixelRatio: () => 1,
+      observeSize: (_: HTMLElement, fn: (w: number, h: number) => void) => {
+        fn(640, 360);
+        return () => undefined;
+      },
+      canvasOf: () =>
+        ({ style: {}, transferControlToOffscreen: () => ({}), remove: () => undefined }) as unknown as HTMLCanvasElement,
+    };
+    const rasterise = async () => fakeBitmap(10 * MB) as unknown as ImageBitmap;
+    const settle = () => new Promise((r) => setTimeout(r, 0));
+    const ctl = mountPreview({} as HTMLElement, { project }, { engine, clock, env, rasterise, textBudget: 15 * MB });
+    await settle();
+    const texts = () => sent.filter((m): m is SetTexts => m.type === 'engine:setTextBitmaps');
+    expect(Object.keys(texts().at(-1)!.bitmaps)).toEqual(['a']);
+    ctl.seek(1.5 * S); // the near set is unchanged; b now shows
+    await settle();
+    await settle();
+    expect(Object.keys(texts().at(-1)!.bitmaps)).toEqual(['b']);
+    ctl.dispose();
   });
 });

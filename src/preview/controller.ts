@@ -19,7 +19,7 @@ import {
   type Project,
   type ToEngine,
 } from '../core';
-import { nearPlayhead } from './text-budget';
+import { nearPlayhead, showingAt } from './text-budget';
 import { textSync, type Rasterise } from './text-sync';
 import { clampTime, pausedAt, playFrom, previewSize, stepTime } from './timing';
 
@@ -224,16 +224,20 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
         .catch(() => undefined);
     });
   };
-  // ADR-0009 §4 (budgeted): when the set of layers near the playhead changes, the text bitmaps follow it.
+  // ADR-0009 §4 (budgeted): when the set of layers near the playhead, or of those showing, changes, the text
+  // bitmaps follow it — a near layer let go for the budget is rasterised when it starts showing (F-010.R5).
   let nearKey = '';
   const stopNear = budgeted
     ? effect(() => {
         const t = time.value;
-        const key = signals.project
-          .peek()
-          .textLayers.filter((l) => nearPlayhead(l, t))
+        const layers = signals.project.peek().textLayers;
+        const key = `${layers
+          .filter((l) => nearPlayhead(l, t))
           .map((l) => l.id)
-          .join(' ');
+          .join(' ')}|${layers
+          .filter((l) => showingAt(l, t))
+          .map((l) => l.id)
+          .join(' ')}`;
         if (key === nearKey) return;
         nearKey = key;
         syncTexts();
