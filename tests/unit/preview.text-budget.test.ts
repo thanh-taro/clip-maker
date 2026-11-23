@@ -181,7 +181,11 @@ describe('MOD-Preview text-bitmap budget: let-go layers and the playhead (review
         return () => undefined;
       },
       canvasOf: () =>
-        ({ style: {}, transferControlToOffscreen: () => ({}), remove: () => undefined }) as unknown as HTMLCanvasElement,
+        ({
+          style: {},
+          transferControlToOffscreen: () => ({}),
+          remove: () => undefined,
+        }) as unknown as HTMLCanvasElement,
     };
     const rasterise = async () => fakeBitmap(10 * MB) as unknown as ImageBitmap;
     const settle = () => new Promise((r) => setTimeout(r, 0));

@@ -22,8 +22,7 @@ function distWith(...files: string[]): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-dist-'));
   dirs.push(dir);
   fs.mkdirSync(path.join(dir, 'assets'));
-  for (const file of files)
-    fs.writeFileSync(path.join(dir, 'assets', file.replace(/\.m4a$/, '-Ab12Cd34.m4a')), 'm4a');
+  for (const file of files) fs.writeFileSync(path.join(dir, 'assets', file.replace(/\.m4a$/, '-Ab12Cd34.m4a')), 'm4a');
   return dir;
 }
 
