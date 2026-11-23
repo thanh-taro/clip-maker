@@ -160,6 +160,7 @@ export default tseslint.config(
     ignores: [
       'dist/',
       'dist-e2e/',
+      'release/',
       'node_modules/',
       'test-results/',
       'playwright-report/',
