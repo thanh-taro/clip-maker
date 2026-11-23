@@ -1,15 +1,12 @@
-# Resume point — 2026-11-20, build phase complete
+# Resume point — 2026-11-23, QA complete and awaiting G5
 
-**State:** phase 4 (build) gate **passed**, with the owner's approval. All 23 M-1 features are `shipped`. Next: phase 5, QA (not started).
-`main` at the commit holding this note is green: `pnpm check` 9/9 (1060 unit, 927 e2e), and `pnpm check:realtime` 17 passed and 1 skipped.
+**State:** phase 5 (QA) is done; gate G5 is waiting for the owner's approval (`.build-my-app/reports/gate-qa.md`). Next: phase 6, release.
+`main` at bcb735e: final `pnpm check` passed (1094 unit; e2e 970 passed, 13 skipped by design, 1 test race fixed in bcb735e and re-verified). `pnpm check:realtime` was last run at 61c3038; re-run it on a quiet machine in phase 6.
 
-## Start QA
-- Run `/build-my-app:start`. It reads `.build-my-app/state.json`, and `next` says `START: phase 'qa'`.
-- The inputs QA needs are in `.build-my-app/reports/gate-build.md` and in the "Manual device checks (QA)" section of `.build-my-app/reports/build-spec-questions.md`:
-  - iPhone, Safari, Android and reference-device checks;
-  - F-001.AC9, the 3.5 GB 4K file on the reference phone;
-  - Q25, Q39, Q45 and Q172.
-- Release blocker by design: the placeholder music (DEP-14). Shortlist CC0 tracks before release, ask the owner before downloading, and let the owner pick 8+.
+## After G5
+- On approval: `bma_state.py gate qa pass`, then `/build-my-app:start` → phase 6 (release, local only).
+- Device and manual checks are waived (QA-5), never passed; release notes say "two desktop engines only".
+- Music: 9 CC0 tracks shipped (DEP-41..49). Optional owner listen; four are not marked instrumental on FMA.
 
 ## Machine rules (the PC crashed twice from test memory)
 - The budget is 1 test worker, 1 heavy run and 1 builder (`bma_state.py resources`). Configs default to 1 worker.
