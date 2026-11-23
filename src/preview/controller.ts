@@ -19,6 +19,7 @@ import {
   type Project,
   type ToEngine,
 } from '../core';
+import { nearPlayhead, showingAt } from './text-budget';
 import { textSync, type Rasterise } from './text-sync';
 import { clampTime, pausedAt, playFrom, previewSize, stepTime } from './timing';
 
@@ -134,6 +135,11 @@ export interface PreviewDeps {
   readonly env?: PreviewEnv;
   /** F-010: the text rasteriser (MOD-Preview's by default; tests pass a fake). */
   readonly rasterise?: Rasterise;
+  /**
+   * ADR-0009 §4: bytes the engine's text bitmaps may take (the device class's budget, from MOD-App). When
+   * set, only layers near the playhead are rasterised and the least recently used others are let go.
+   */
+  readonly textBudget?: number;
 }
 
 /** Implements: MOD-Preview `mountPreview(element, signals)`. */
@@ -198,7 +204,8 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
   const sizeFor = (): ReturnType<typeof previewSize> =>
     previewSize(box.width, box.height, env.devicePixelRatio(), frameAspect(signals.project.value));
   // F-010 (ADR-0012 §3): the text layers' bitmaps at the canvas's size, rasterised again only when they change.
-  const texts = textSync((m, transfer) => engine.postMessage(m, transfer), deps.rasterise);
+  const budgeted = deps.textBudget !== undefined;
+  const texts = textSync((m, transfer) => engine.postMessage(m, transfer), deps.rasterise, deps.textBudget);
   let canvasSize = { width: 1, height: 1 };
   // A resize and a project change in the same task rasterise once (the latest layers at the latest size).
   let textsQueued = false;
@@ -207,9 +214,35 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
     textsQueued = true;
     queueMicrotask(() => {
       textsQueued = false;
-      void texts.update(signals.project.peek().textLayers, canvasSize.width, canvasSize.height).catch(() => undefined);
+      void texts
+        .update(
+          signals.project.peek().textLayers,
+          canvasSize.width,
+          canvasSize.height,
+          budgeted ? time.peek() : undefined,
+        )
+        .catch(() => undefined);
     });
   };
+  // ADR-0009 §4 (budgeted): when the set of layers near the playhead, or of those showing, changes, the text
+  // bitmaps follow it — a near layer let go for the budget is rasterised when it starts showing (F-010.R5).
+  let nearKey = '';
+  const stopNear = budgeted
+    ? effect(() => {
+        const t = time.value;
+        const layers = signals.project.peek().textLayers;
+        const key = `${layers
+          .filter((l) => nearPlayhead(l, t))
+          .map((l) => l.id)
+          .join(' ')}|${layers
+          .filter((l) => showingAt(l, t))
+          .map((l) => l.id)
+          .join(' ')}`;
+        if (key === nearKey) return;
+        nearKey = key;
+        syncTexts();
+      })
+    : () => undefined;
   const applySize = (): void => {
     if (!lastSize) return; // not transferred yet
     const s = sizeFor();
@@ -369,6 +402,7 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
       if (state.peek() === 'playing') clock.pause();
       state.value = 'paused';
       stopProject();
+      stopNear();
       texts.dispose();
       stopObserving();
       engine.removeEventListener('message', onMessage);

@@ -40,7 +40,7 @@ A range of an audio source (in, out) placed at a start time on the audio track, 
 fade in and fade out (RULE-12).
 
 ### ENT-MusicTrack — Bundled music track
-A public-domain track shipped with the tool (RULE-12): id, title, source, licence and duration.
+A public-domain track shipped with the tool (RULE-12): id, title, source (the track's page), the source's name, licence and duration.
 Not a source: it isn't listed in the media panel and doesn't count toward RULE-02's limit. An audio
 clip refers to either a source or a bundled music track.
 

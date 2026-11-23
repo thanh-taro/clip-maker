@@ -11,6 +11,7 @@ import { expect, test, type Dialog, type Download, type Locator, type Page } fro
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
+import { BUNDLED_MUSIC } from '../../src/core/music.gen';
 import type { AudioRead, ClipSummary, GifRead } from '../harness/app';
 import type { ToneSpec } from '../harness/sound';
 import { deRgb, type Rgb } from '../support/colour';
@@ -27,6 +28,8 @@ const pattern = (lang: Language, id: CopyId): RegExp =>
   );
 const SHOTS = fileURLToPath(new URL('../../.build-my-app/reports/screens/F-016/', import.meta.url));
 const S = 1_000_000;
+/** A bundled track of the shipped pack (read from the generated manifest). */
+const TRACK = BUNDLED_MUSIC[0]!.id;
 
 interface Harness {
   appHarness: {
@@ -406,7 +409,7 @@ async function soundProject(page: Page): Promise<void> {
   await change(page, (p) => {
     p.audioClips.push({
       id: 'music-1',
-      sourceId: 'placeholder-chords',
+      sourceId: TRACK,
       start: 1.5 * S,
       in: 0,
       out: 1.5 * S,

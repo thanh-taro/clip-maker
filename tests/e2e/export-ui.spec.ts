@@ -11,6 +11,7 @@ import { expect, test, type Download, type Locator, type Page } from '@playwrigh
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
+import { BUNDLED_MUSIC } from '../../src/core/music.gen';
 import type { ClipSummary, ExportRead, ProjectSummary } from '../harness/app';
 import type { ToneSpec } from '../harness/sound';
 import { deRgb, type Rgb } from '../support/colour';
@@ -247,6 +248,8 @@ test.describe('F-015 privacy', () => {
 // ── Shared steps ───────────────────────────────────────────────────────────────────────────────────
 
 const S = 1_000_000;
+/** A bundled track of the shipped pack (read from the generated manifest). */
+const TRACK = BUNDLED_MUSIC[0]!.id;
 type Json = Record<string, unknown> & {
   frame: Record<string, unknown>;
   clips: Record<string, unknown>[];
@@ -345,7 +348,7 @@ test.describe('F-015 the exported file matches the preview', () => {
       pic['look'] = { id: 'natural-warm', intensity: 100 };
       p.audioClips.push({
         id: 'music-1',
-        sourceId: 'placeholder-chords',
+        sourceId: TRACK,
         start: 2.6 * S,
         in: 0,
         out: 0.9 * S,

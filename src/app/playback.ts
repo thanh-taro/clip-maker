@@ -13,6 +13,7 @@ import { Playback, WORKLET_URL, type ToAudioWorker } from '../audio';
 import type { EngineMedia, FrameRate, Micros, Project, Source, ToEngine } from '../core';
 import { resolveKey, scopeOf, type Action, type FocusInfo } from '../keys';
 import { musicBlob } from '../assets';
+import { BUDGETS, deviceClass, platformHints } from '../engine';
 import { registry } from '../media';
 import { fullscreen, mountPreview, type Fullscreen, type PreviewController } from '../preview';
 import { playhead, project } from '../project';
@@ -249,7 +250,9 @@ export function mountPlayback(frame: HTMLElement, stage: HTMLElement): () => voi
   const feed = new MessageChannel();
   engine.postMessage({ type: 'engine:soundFeed', port: feed.port1 } satisfies ToEngine, [feed.port1]);
   audio.postMessage({ type: 'audio:feed', port: feed.port2 } satisfies ToAudioWorker, [feed.port2]);
-  const ctl = mountPreview(frame, { project }, { engine, clock });
+  // ADR-0009 §4: the text bitmaps' budget for this device class (build question 172).
+  const textBudget = BUDGETS[deviceClass(platformHints())].textBytes;
+  const ctl = mountPreview(frame, { project }, { engine, clock, textBudget });
   const fs = fullscreen(stage);
   const stops = [
     connectPreview(ctl, { playhead }),

@@ -31,6 +31,21 @@ test(
     test.setTimeout(60_000);
     const requests: string[] = [];
     page.on('request', (r) => requests.push(r.url()));
+    // The production CSP without its Trusted Types directives (ADR-0014 amendment, QA-3): this test starts
+    // the built audio worker itself from a plain string, which only the tool's own policy may do. The
+    // tool's worker creation and the worklet under the full CSP are covered by smoke.spec.ts.
+    await page.route('**/*', async (route) => {
+      const response = await route.fetch();
+      const headers = { ...response.headers() };
+      const csp = headers['content-security-policy'];
+      if (csp)
+        headers['content-security-policy'] = csp
+          .split(';')
+          .map((d) => d.trim())
+          .filter((d) => !d.startsWith('require-trusted-types-for') && !d.startsWith('trusted-types'))
+          .join('; ');
+      await route.fulfill({ response, headers });
+    });
     await page.goto('/');
     await expect(page.locator('[data-screen="SCR-Editor"]')).toHaveAttribute('data-workers', '5');
 

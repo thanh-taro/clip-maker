@@ -18,27 +18,34 @@ afterEach(() => {
 });
 
 /** A dist/ holding one hashed music file of the pack. */
-function distWith(file: string): string {
+function distWith(...files: string[]): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-dist-'));
   dirs.push(dir);
   fs.mkdirSync(path.join(dir, 'assets'));
-  fs.writeFileSync(path.join(dir, 'assets', file.replace(/\.m4a$/, '-Ab12Cd34.m4a')), 'm4a');
+  for (const file of files)
+    fs.writeFileSync(path.join(dir, 'assets', file.replace(/\.m4a$/, '-Ab12Cd34.m4a')), 'm4a');
   return dir;
 }
 
 describe('MOD-Build dist scan: bundled music', () => {
-  const registry = (readRegistry() as { status: string }[]).filter(isActive);
-  const placeholder = (musicPack() as { tracks: { file: string; placeholder?: boolean }[] }).tracks.find(
-    (t) => t.placeholder,
-  );
+  const registry = (readRegistry() as { status: string; label: string }[]).filter(isActive);
+  const tracks = (musicPack() as { tracks: { file: string; placeholder?: boolean }[] }).tracks;
 
-  it('DEP-14 a registered placeholder track passes the everyday scan and fails with --release', () => {
-    expect(placeholder).toBeDefined();
-    const dist = distWith(placeholder!.file);
+  it('DEP-14 RULE-12 the shipped pack is 8+ real tracks, each registered: the everyday and the --release scans pass', () => {
+    expect(tracks.length).toBeGreaterThanOrEqual(8);
+    expect(tracks.filter((t) => t.placeholder)).toEqual([]);
+    // One dist/ holding every track: two scans (each reads and hashes the whole pack once).
+    const dist = distWith(...tracks.map((t) => t.file));
     expect((scanDist(dist, registry) as { problems: string[] }).problems).toEqual([]);
-    const release = scanDist(dist, registry, { release: true }) as { problems: string[] };
-    expect(release.problems).toHaveLength(1);
-    expect(release.problems[0]).toMatch(/placeholder music track .* ships in a release/);
+    expect((scanDist(dist, registry, { release: true }) as { problems: string[] }).problems).toEqual([]);
+  });
+
+  it('DEP-14 a pack track without an active registry row fails', () => {
+    const t = tracks[0]!;
+    const without = registry.filter((r) => !r.label.includes(t.file));
+    expect((scanDist(distWith(t.file), without) as { problems: string[] }).problems[0]).toMatch(
+      /ships without its registry row/,
+    );
   });
 
   it('DEP-14 a music file outside the checked pack fails', () => {

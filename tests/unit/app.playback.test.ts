@@ -19,6 +19,7 @@ import { resetDeviceSession, slowNotice } from '../../src/app/device';
 import type { ToAudioWorker } from '../../src/audio';
 import {
   frameStart,
+  MUSIC_TRACKS,
   projectEnd,
   type EngineMedia,
   type Micros,
@@ -64,6 +65,9 @@ function fakeController(project: ReadonlySignal<Project>) {
     },
   };
 }
+
+// Two bundled tracks of the shipped pack (read from the generated manifest, not hard-coded).
+const [CHORDS, PAD] = MUSIC_TRACKS.map((t) => t.id) as [string, string];
 
 afterEach(() => resetDeviceSession());
 
@@ -217,7 +221,7 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
   });
 
   it('F-011.R5 Q87 the bundled tracks audio clips play, and the one auditioned, reach the engine as audio files once', async () => {
-    const track = 'placeholder-pad';
+    const track = PAD;
     // A bundled track is not one of the project's sources (ENT-MusicTrack).
     const base = proj({ clips: [video('a', 4)], audioClips: [audio('m', 0, 2, { sourceId: track })] });
     const project = signal({ ...base, sources: base.sources.filter((s) => s.id !== track) });
@@ -228,7 +232,7 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
       read.push(id);
       return file;
     };
-    expect(musicIds(project.value, 'placeholder-chords')).toEqual([track, 'placeholder-chords']);
+    expect(musicIds(project.value, CHORDS)).toEqual([track, CHORDS]);
     const stop = feedWorkers({
       project,
       engine: { postMessage: (m) => engine.push(m) },
@@ -242,22 +246,22 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
       { id: 'src-a', kind: 'video', file },
       { id: track, kind: 'audio', file },
     ]);
-    audition.value = 'placeholder-chords';
+    audition.value = CHORDS;
     await flush();
     expect(changes(engine).at(-1)).toEqual({
       type: 'engine:mediaChanges',
-      add: [{ id: 'placeholder-chords', kind: 'audio', file }],
+      add: [{ id: CHORDS, kind: 'audio', file }],
       remove: [],
     });
     audition.value = null;
     await flush();
-    expect(changes(engine).at(-1)).toEqual({ type: 'engine:mediaChanges', add: [], remove: ['placeholder-chords'] });
-    expect(read).toEqual([track, 'placeholder-chords']);
+    expect(changes(engine).at(-1)).toEqual({ type: 'engine:mediaChanges', add: [], remove: [CHORDS] });
+    expect(read).toEqual([track, CHORDS]);
     stop();
   });
 
   it('F-011.R7 a bundled track whose read fails is reported, and read again on Play (retry)', async () => {
-    const track = 'placeholder-pad';
+    const track = PAD;
     const project = signal(proj({ clips: [video('a', 4)] }));
     const audition = signal<string | null>(null);
     const retry = signal(false);
@@ -293,15 +297,15 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
 
   it('F-011.R1 an auditioned track whose read fails stops its preview and shows COPY-notice.music_unavailable', () => {
     resetNotices();
-    auditionTrack.value = 'placeholder-pad';
-    musicFailed('placeholder-pad');
+    auditionTrack.value = PAD;
+    musicFailed(PAD);
     expect(auditionTrack.value).toBeNull();
     expect(notices.value.map((n) => [n.kind, n.tag])).toEqual([['warning', 'music_unavailable']]);
     expect(notices.value[0]!.text()).toBe("This track couldn't be loaded. Try again.");
     // A project's track failing leaves another audition alone.
-    auditionTrack.value = 'placeholder-chords';
-    musicFailed('placeholder-pad');
-    expect(auditionTrack.value).toBe('placeholder-chords');
+    auditionTrack.value = CHORDS;
+    musicFailed(PAD);
+    expect(auditionTrack.value).toBe(CHORDS);
     auditionTrack.value = null;
     resetNotices();
   });

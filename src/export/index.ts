@@ -42,6 +42,7 @@ import {
   type ToExport,
   type ToExportAudio,
   type TrimInfo,
+  scriptUrl,
   type VideoResolution,
 } from '../core';
 import { voices } from '../plan';
@@ -49,6 +50,8 @@ import type { ScratchFile } from '../scratch';
 import type { Scratch } from '../scratch';
 import { chooseSink, MEMORY_CAP, ROOM_FACTOR } from './sinks';
 import { ABORT_ANSWER_MS, InterruptWatch, ProgressTracker, type ProgressView } from './watch';
+import exportWorkerUrl from './export.worker.ts?worker&url';
+import exportAudioWorkerUrl from './export-audio.worker.ts?worker&url';
 
 // MOD-App reaches MOD-Scratch's start-up and the Scratch type through MOD-Export (import boundaries).
 export { initScratch, Scratch, browserScratchEnv } from '../scratch';
@@ -59,12 +62,12 @@ export { Dither, lossyAudio, mixBlocks, wavAudio, type AudioCodecs, type Encoded
 
 /** Created idle at start-up so a first export makes no request (architecture.md "Budgets"). */
 export function startExportWorker(): Worker {
-  return new Worker(new URL('./export.worker.ts', import.meta.url), { type: 'module', name: 'export' });
+  return new Worker(scriptUrl(exportWorkerUrl), { type: 'module', name: 'export' });
 }
 
 /** Created idle at start-up (ADR-0003 outcome: two workers per export). */
 export function startExportAudioWorker(): Worker {
-  return new Worker(new URL('./export-audio.worker.ts', import.meta.url), { type: 'module', name: 'export-audio' });
+  return new Worker(scriptUrl(exportAudioWorkerUrl), { type: 'module', name: 'export-audio' });
 }
 
 export interface WorkerPair {

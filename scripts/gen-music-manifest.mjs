@@ -1,6 +1,6 @@
 // The music pack (DEP-14, ADR-0013, F-011) → the bundled track list (MOD-Core) and the files' URLs
 // (MOD-Assets). Source: src/assets/music/music.json, one entry per track: id, file, title, source,
-// licence, duration (µs), byte size, SHA-256 and `placeholder` (a generated stand-in, not for release).
+// source's name (shown in the picker, linked to the source page; QA-8), licence, duration (µs), byte size, SHA-256 and `placeholder` (a generated stand-in, not for release).
 // Generation fails when a file is missing or differs from its checksum or size, when an entry lacks a
 // field, or when the pack is over NFR-10's 10 MB. Vite emits each file into dist/assets/ with a content
 // hash in its name, so it joins the asset manifest the service worker precaches (ADR-0015, F-021.R1).
@@ -30,7 +30,7 @@ export function musicPack() {
     if (!ID.test(t.id ?? '')) throw new Error(`${where}: id must be lower-case words joined by "-"`);
     if (seen.has(t.id)) throw new Error(`${where}: duplicate id`);
     seen.add(t.id);
-    for (const k of ['title', 'source', 'licence'])
+    for (const k of ['title', 'source', 'sourceName', 'licence'])
       if (typeof t[k] !== 'string' || !t[k].trim()) throw new Error(`${where}: "${k}" is missing`);
     if (!Number.isInteger(t.durationUs) || t.durationUs <= 0) throw new Error(`${where}: "durationUs" must be > 0`);
     if (t.placeholder !== undefined && typeof t.placeholder !== 'boolean')
@@ -63,7 +63,7 @@ export const BUNDLED_MUSIC: readonly MusicTrack[] = /* @__PURE__ */ Object.freez
 ${tracks
   .map(
     (t) =>
-      `  Object.freeze({ id: ${JSON.stringify(t.id)}, title: ${JSON.stringify(t.title)}, source: ${JSON.stringify(t.source)}, licence: ${JSON.stringify(t.licence)}, duration: ${t.durationUs} }),`,
+      `  /* @__PURE__ */ Object.freeze({ id: ${JSON.stringify(t.id)}, title: ${JSON.stringify(t.title)}, source: ${JSON.stringify(t.source)}, sourceName: ${JSON.stringify(t.sourceName)}, licence: ${JSON.stringify(t.licence)}, duration: ${t.durationUs} }),`,
   )
   .join('\n')}
 ]);

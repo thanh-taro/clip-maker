@@ -27,9 +27,11 @@ strict CSP including `connect-src 'none'` and `frame-ancestors <host origins>`, 
 Content-Security-Policy: default-src 'none'; script-src 'self' '<boot-hash>'; style-src 'self';
   img-src 'self' data:; font-src 'self'; worker-src 'self'; connect-src 'self';
   media-src 'none'; manifest-src 'none'; frame-src 'none'; object-src 'none';
-  base-uri 'none'; form-action 'none'; frame-ancestors <HOST_ORIGINS or 'none'>
+  base-uri 'none'; form-action 'none'; frame-ancestors <HOST_ORIGINS or 'none'>;
+  require-trusted-types-for 'script'; trusted-types clip-maker   (amended 2026-11-20, QA-3)
 Permissions-Policy: fullscreen=(self), clipboard-read=(), clipboard-write=(), camera=(),
-  microphone=(), geolocation=(), display-capture=(), usb=(), …(suite list)
+  microphone=(), geolocation=(), display-capture=(), usb=(), …(suite list), and the ad,
+  attribution and cross-site storage features denied (amended 2026-11-20, qa-security I2)
 Referrer-Policy: no-referrer · X-Content-Type-Options: nosniff
 Cross-Origin-Opener-Policy: same-origin · (no COEP, no CORP needed)
 Strict-Transport-Security: max-age=31536000; includeSubDomains
@@ -107,3 +109,26 @@ owner decisions D-032, D-035, D-036.
 - Known noise: WebKit logged many "Refused to apply a stylesheet … style-src" console messages on a
   spike page without inline styles (likely UA styles for `<details>`/`<select>`); re-check in the
   build, no functional effect seen.
+
+## Amendment (QA, 2026-11-20)
+Owner decision QA-3 (`.build-my-app/reports/qa-decisions.md`), after qa-security L4; built in QA batch 2.
+- **Trusted Types.** The page CSP adds `require-trusted-types-for 'script'` and
+  `trusted-types clip-maker`. Every script sink needs a trusted value, and only one policy may be
+  created: `clip-maker` (MOD-Core `scriptUrl`), which makes script URLs only, and only for the tool's own
+  origin (the five dedicated workers and the offline worker's registration; never `blob:`, `data:` or
+  another origin). There is no HTML or script policy, so an HTML sink given a string, `eval` or a string
+  timer always throws. The inline boot script is unaffected (allowed by its hash). The audio worklet's
+  `addModule` is not a Trusted Types sink. Engines without Trusted Types ignore both directives.
+- **Permissions-Policy** also denies `attribution-reporting`, `run-ad-auction`,
+  `join-ad-interest-group`, `private-aggregation`, `shared-storage`, `shared-storage-select-url`,
+  `compute-pressure`, `encrypted-media` and `picture-in-picture` (qa-security I2; nothing in the tool
+  uses them).
+- **Release check** (qa-security L1): `pnpm check:release` fails unless `dist/_headers` has
+  `frame-ancestors` exactly the production `HOST_ORIGINS` (`https://tarokit.app`), the Trusted Types
+  directives above and `Access-Control-Allow-Origin` exactly the production tool origin, and the origins
+  compiled into the main chunk are exactly the production list (`scripts/check-release-headers.mjs`).
+- **Dist scan** (qa-security L2): `scripts/check-dist.mjs` fails on network primitives in shipped code
+  (`XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon`, `importScripts`, `RTCPeerConnection`,
+  `WebAssembly`, `eval`, `new Function`), on `fetch(` outside the main chunk and `sw.js`, and on absolute
+  http(s) URLs outside a short allow-list (namespaces, licence and codec-registry comments, the portal
+  origin, the source repository and the bundled tracks' pages).
