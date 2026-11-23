@@ -481,6 +481,8 @@ test.describe('F-017 keyboard review checks (app harness)', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await open(page);
     await add(page, [photo('P.png')]);
+    // The button stays disabled until the preview is ready; a DOM click on it before then does nothing.
+    await expect(page.getByRole('button', { name: text('en-US', 'action.full_screen') })).toBeEnabled();
     // The race behind a Chromium flake: ? arriving after the full-screen bar renders but before the preview's
     // full-screen effect runs. Here ? is sent as soon as the bar appears (a mutation callback, ahead of any
     // effect), so the list is open when that effect makes the rest of the editor inert.
