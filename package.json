@@ -1,6 +1,6 @@
 {
   "name": "clip-maker",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "A light, local-only video editor in the TaroKit media tools: clips, text, music, looks and watermark-free MP4/GIF/audio export. Nothing leaves the device.",
@@ -30,7 +30,8 @@
     "check": "node scripts/check.mjs",
     "check:fast": "node scripts/check.mjs --no-e2e",
     "check:realtime": "playwright test --project=chromium-realtime --project=webkit-realtime --no-deps --workers=1",
-    "spec:lint": "python3 tools/spec_lint.py"
+    "spec:lint": "python3 tools/spec_lint.py",
+    "release:build": "bash scripts/release-build.sh"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "5.3.0",

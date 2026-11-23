@@ -2,6 +2,9 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-23 — Release candidate 1.0.0 (QA gate passed, owner approval)
+- Version 1.0.0 (M-1): all 23 features `shipped`. QA gate G5 passed on 2026-11-23 (`.build-my-app/reports/gate-qa.md`); device and manual checks are waived by the owner (QA-5), not verified. The candidate is tagged `v1.0.0-rc.1` locally; nothing is published.
+
 ## 2026-11-20 — QA accessibility fixes (owner decisions QA-1, QA-2)
 - RULE-20 *Scope* (QA-1, WCAG 2.1.4): single-character keys (letters with or without Shift, =, +, -, ? and \\) act only while focus is on the preview, the timeline or the transport controls; Space, arrows, Home, End, Delete, Backspace, Esc and Mod/Alt combinations keep their scope. F-017.R6 and F-017.AC8 (new); F-017.AC4 now starts from focus on the timeline or the preview.
 - F-002.R4 (QA-2): Go to start and Go to end are visible on every layout, phones included; F-002.R8 (new): the time ruler is a slider for keyboard and assistive technology (arrows 1 s, Page Up/Down 10 s, Home/End), named the new COPY-timeline.ruler, with the time and length as its value. F-002.AC9, F-002.AC10 (new). CMP-Preview narrow transport: under 400 px the time shows the current time only. CMP-Timeline "Accessibility" says so.
