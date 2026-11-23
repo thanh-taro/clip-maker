@@ -151,6 +151,9 @@ export function headersRules(origins = hostOrigins(), tool = toolOrigin()) {
   };
   const allow = origins.map((o) => checked(o, 'host origin'));
   const toolAllowed = checked(tool, 'tool origin');
+  // ADR-0014 environments: every build that is not the production tool (staging, local) is kept out
+  // of search indexes. The production headers carry no robots rule.
+  const robots = toolAllowed === DEFAULT_TOOL_ORIGIN ? '' : '\n  X-Robots-Tag: noindex';
   return `/*
   Content-Security-Policy: ${pageCsp(allow)}
   Permissions-Policy: ${PERMISSIONS_POLICY}
@@ -158,7 +161,7 @@ export function headersRules(origins = hostOrigins(), tool = toolOrigin()) {
   X-Content-Type-Options: nosniff
   Cross-Origin-Opener-Policy: same-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains
-  Cache-Control: no-cache
+  Cache-Control: no-cache${robots}
 /assets/*
   ! Cache-Control
   Cache-Control: public, max-age=31536000, immutable

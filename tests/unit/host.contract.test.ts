@@ -60,6 +60,12 @@ describe('MOD-Host host contract', () => {
     expect(rules).toContain('web-share=(self)');
   });
 
+  it('ADR-0014 a staging or local build is marked noindex; the production headers carry no robots rule', () => {
+    expect(headersRules([HOST], 'https://clip-maker.tarokit.app')).not.toContain('X-Robots-Tag');
+    const staging = headersRules([], 'https://clip-maker-staging.tarokit.app');
+    expect(staging).toMatch(/^\/\*\n(?: {2}.+\n)* {2}X-Robots-Tag: noindex\n\/assets\/\*/);
+  });
+
   it('NFR-09 the headers refuse an origin that would inject a directive', () => {
     const tool = 'https://clip-maker.tarokit.app';
     for (const bad of [

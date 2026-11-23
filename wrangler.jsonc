@@ -16,4 +16,16 @@
   "workers_dev": false,
   "preview_urls": false,
   "routes": [{ "pattern": "clip-maker.tarokit.app", "custom_domain": true }],
+  // Staging (D-036), selected with `--env staging`. Written in the release phase, NOT applied; the
+  // owner runs it in phase 7. A second Worker name so production is never touched. Build staging with
+  // TOOL_ORIGIN=https://clip-maker-staging.tarokit.app (see docs/deploy/runbook.md).
+  "env": {
+    "staging": {
+      "name": "clip-maker-staging",
+      "assets": { "directory": "./dist", "not_found_handling": "none" },
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{ "pattern": "clip-maker-staging.tarokit.app", "custom_domain": true }],
+    },
+  },
 }
