@@ -1,7 +1,7 @@
 ---
 id: F-027
 title: Recolour in two colours (duotone)
-status: ready
+status: building
 milestone: M-4
 priority: P2
 personas: [PER-02, PER-03]
@@ -39,7 +39,7 @@ Two-colour images are a strong graphic style for titles, covers and short-form i
 - **AC8** Given a pair at Strength 40, when the user resets Strength, then it returns to 100; when the user resets duotone or picks Reset all, then it returns to None and a later Custom starts from Midnight & Peach; given clip 1 with duotone, Apply to all, Copy and Paste carry it, and holding compare shows clip 1 without it. (R5)
 
 ## UX notes
-In CMP-Inspector's Adjust section, the collapsible group COPY-colour_tools.group_duotone with COPY-colour_tools.reset_tool and COPY-colour_tools.changed. The choice COPY-duotone.pairs offers None (shown as COPY-duotone.none), the pair names COPY-duotone.pair_midnight_peach, COPY-duotone.pair_plum_gold, COPY-duotone.pair_teal_cream, COPY-duotone.pair_indigo_pink, COPY-duotone.pair_forest_lime and COPY-duotone.pair_ink_coral, and COPY-duotone.custom. Custom shows COPY-duotone.shadows and COPY-duotone.highlights, each opening CMP-ColourPicker, and COPY-duotone.swap. COPY-duotone.strength is unavailable while None is chosen. The pairs' colours are in `30-experience/looks.md` "Duotone pairs".
+In CMP-Inspector's Adjust section, the collapsible group COPY-colour_tools.group_duotone with COPY-colour_tools.reset_tool and COPY-colour_tools.changed. The choice COPY-duotone.pairs offers None (shown as COPY-duotone.none), the pair names COPY-duotone.pair_midnight_peach, COPY-duotone.pair_plum_gold, COPY-duotone.pair_teal_cream, COPY-duotone.pair_indigo_pink, COPY-duotone.pair_forest_lime and COPY-duotone.pair_ink_coral, and COPY-duotone.custom. Custom shows COPY-duotone.shadows and COPY-duotone.highlights, each opening CMP-ColourPicker, and COPY-duotone.swap. COPY-duotone.strength is unavailable while None is chosen. The pairs' colours are in `30-experience/looks.md` "Duotone pairs". The group shows COPY-colour_tools.changed and its Reset only while a pair or Custom is chosen; at None the remembered colours are kept but not shown as changed (Reset all still forgets them).
 
 ## Edge cases
 - The shadows colour lighter than the highlights colour → allowed; the picture's lightness is inverted.

@@ -1,0 +1,591 @@
+/* MOD-App — the colour-tool groups of the Adjust panel and the phone Adjust sheet, and CMP-ColourPicker
+   (CMP-Inspector "clip Adjust · colour tools", "colour mixer", "colour pop", "split toning", "duotone",
+   "narrow / Adjust sheet"; CMP-ColourPicker "wide", "narrow"), tokens only. F-024…F-027 (D-053).
+   Picture colours (range swatches, duotone pairs, the picker's colours, slider tracks) come from the rule data
+   through the custom properties `--ctool-swatch`, `--ctool-a`, `--ctool-b` and `--ctool-track`. Slider rows
+   reuse the Adjust rows (./adjust.css); the radio groups are ./OptionGroup.tsx's (`tk-options--ranges`,
+   `tk-options--pairs`). Hover tints apply only where the device hovers, so on touch nothing looks chosen or
+   unavailable that isn't. */
+@layer layout {
+  .tk-visually-hidden {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tk-ctools {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+    padding-block-start: var(--tk-space-2);
+    border-block-start: var(--tk-border-width-hairline) solid var(--tk-color-line);
+  }
+
+  /* ── A group: header row (disclosure button, then its Reset), body when open ── */
+  .tk-ctool__head {
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-2);
+    min-block-size: var(--tk-size-target-min);
+  }
+
+  .tk-ctool__heading {
+    flex: 1;
+    min-inline-size: 0;
+    margin: 0;
+    font-size: inherit;
+  }
+
+  /* The group title: sentence case, in the text colour, with a chevron — a control, not the muted caps of the
+     Light, Colour and Effects titles. */
+  .tk-ctool__toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-1-5);
+    inline-size: 100%;
+    min-block-size: var(--tk-size-target-min);
+    padding: 0 var(--tk-space-1);
+    border: 0;
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-md);
+    font-weight: var(--tk-font-weight-semibold);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .tk-ctool__chevron {
+    flex: none;
+    color: var(--tk-color-muted);
+    transform: rotate(-90deg);
+    transition: transform var(--tk-motion-duration-fast) var(--tk-motion-easing-standard);
+  }
+
+  .tk-ctool[data-open] .tk-ctool__chevron {
+    transform: none;
+  }
+
+  .tk-ctool__title {
+    flex: 1;
+    min-inline-size: 0;
+    overflow-wrap: break-word;
+  }
+
+  .tk-ctool__marker {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: var(--tk-space-1);
+    white-space: nowrap;
+  }
+
+  .tk-ctool__dot {
+    flex: none;
+    inline-size: var(--tk-space-1-5);
+    block-size: var(--tk-space-1-5);
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-accent);
+  }
+
+  .tk-ctool__state {
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-medium);
+  }
+
+  .tk-ctool__reset {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .tk-ctool__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+    padding: var(--tk-space-1) 0 var(--tk-space-3);
+    container-type: inline-size;
+  }
+
+  .tk-ctool__choice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+  }
+
+  .tk-ctool__choice-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--tk-space-2);
+  }
+
+  /* In-group labels: sentence case in the text colour, like the row labels. */
+  .tk-ctool__label,
+  .tk-picker__label {
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  .tk-ctool__chosen {
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    font-weight: var(--tk-font-weight-medium);
+  }
+
+  .tk-ctool__help {
+    margin: 0;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  .tk-ctool__sub {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-0-5);
+  }
+
+  .tk-ctool__sub-title {
+    margin: var(--tk-space-1) 0 0;
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  /* ── Radio groups: range swatches and duotone tiles ── */
+  .tk-options--ranges {
+    grid-template-columns: repeat(8, minmax(var(--tk-size-target-min), 1fr));
+  }
+
+  .tk-options--pairs {
+    grid-template-columns: repeat(auto-fill, minmax(calc(var(--tk-space-16) + var(--tk-space-8)), 1fr));
+  }
+
+  .tk-ctool__radio {
+    display: grid;
+    place-items: center;
+    min-inline-size: 0;
+    min-block-size: var(--tk-size-target-min);
+    padding: var(--tk-space-0-5);
+    border: var(--tk-border-width-hairline) solid transparent;
+    border-radius: var(--tk-radius-sm);
+    background: transparent;
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-xs);
+    cursor: pointer;
+  }
+
+  /* Tiles (None, Custom, the pairs): the surface with a strong hairline; only the chosen one is filled. */
+  .tk-ctool__radio--chip,
+  .tk-options--pairs .tk-ctool__radio {
+    min-block-size: var(--tk-size-control);
+    border-color: var(--tk-color-line-strong);
+    background: var(--tk-color-surface);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  .tk-ctool__radio[aria-checked='true'] {
+    border-color: var(--tk-color-accent);
+    background: var(--tk-color-selection);
+  }
+
+  @media (hover: hover) {
+    .tk-ctool__toggle:hover,
+    .tk-ctool__radio:hover:not([aria-checked='true']) {
+      background: var(--tk-color-surface2);
+    }
+  }
+
+  /* Colour pop's None: a full-width tile on its own row before the swatches. */
+  .tk-options--ranges .tk-ctool__radio--chip {
+    grid-column: 1 / -1;
+  }
+
+  .tk-options--pairs .tk-ctool__radio {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--tk-space-1);
+    padding: var(--tk-space-1-5);
+    line-height: var(--tk-font-line-height-tight);
+    text-align: center;
+  }
+
+  .tk-ctool__swatch-wrap {
+    position: relative;
+    display: block;
+  }
+
+  .tk-ctool__swatch {
+    display: block;
+    inline-size: var(--tk-size-swatch);
+    block-size: var(--tk-size-swatch);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-pill);
+    background: var(--ctool-swatch);
+  }
+
+  /* A changed range: a 6 px accent mark outside the swatch's top-right corner, ringed in the background. */
+  .tk-ctool__mark {
+    position: absolute;
+    inset-block-start: calc(-1 * var(--tk-space-1));
+    inset-inline-end: calc(-1 * var(--tk-space-1));
+    inline-size: var(--tk-space-1-5);
+    block-size: var(--tk-space-1-5);
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-accent);
+    box-shadow: 0 0 0 var(--tk-space-0-5) var(--tk-color-bg);
+  }
+
+  /* A pair: its two colours as a split swatch. */
+  .tk-ctool__pair {
+    display: block;
+    inline-size: 100%;
+    block-size: var(--tk-space-5);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-sm);
+    background: linear-gradient(to right, var(--ctool-a) 50%, var(--ctool-b) 50%);
+  }
+
+  .tk-ctool__pair-name {
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Duotone's Custom colours: Shadows colour, Swap, Highlights colour ── */
+  .tk-ctool__colours,
+  .tk-ctool__colour {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+  }
+
+  .tk-colour-button {
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-2);
+    min-block-size: var(--tk-size-control);
+    padding: var(--tk-space-1) var(--tk-space-2);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-sm);
+    background: var(--tk-color-surface);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .tk-colour-button[aria-expanded='true'] {
+    border-color: var(--tk-color-accent);
+  }
+
+  .tk-colour-button__swatch {
+    flex: none;
+    inline-size: var(--tk-size-swatch);
+    block-size: var(--tk-size-swatch);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-sm);
+    background: var(--ctool-swatch);
+  }
+
+  .tk-colour-button__label {
+    flex: 1;
+    min-inline-size: 0;
+  }
+
+  .tk-colour-button__hex {
+    color: var(--tk-color-muted);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-xs);
+  }
+
+  .tk-ctool__swap {
+    align-self: center;
+    gap: var(--tk-space-1-5);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  /* ── Slider tracks drawn with the colours they reach ── */
+  .tk-adjust__slider[data-track] {
+    background: var(--ctool-track) center / 100% var(--tk-space-1-5) no-repeat;
+  }
+
+  /* Unavailable while None is chosen (as the Looks Intensity row). */
+  .tk-adjust__row[data-disabled] .tk-adjust__slider {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .tk-adjust__row[data-disabled] .tk-adjust__label,
+  .tk-adjust__row[data-disabled] .tk-adjust__number {
+    color: var(--tk-color-muted);
+  }
+
+  /* A row with its label above a full-width slider (the phone's hue rows). */
+  .tk-adjust--touch .tk-ctool__row--stacked {
+    grid-template-columns: minmax(0, 1fr) var(--tk-size-field) var(--tk-size-touch-target);
+    row-gap: 0;
+  }
+
+  .tk-adjust--touch .tk-ctool__row--stacked .tk-adjust__label {
+    grid-column: 1 / -1;
+  }
+
+  /* ── CMP-ColourPicker ── */
+  .tk-picker {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-2);
+    padding: var(--tk-space-3);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-surface);
+  }
+
+  .tk-picker > * {
+    flex: none;
+  }
+
+  .tk-picker__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--tk-space-2);
+  }
+
+  .tk-picker__titles {
+    min-inline-size: 0;
+  }
+
+  .tk-picker__title {
+    margin: 0;
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-picker__for {
+    margin: 0;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-sm);
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  /* The split swatch (before | now) and the hex field in one row. */
+  .tk-picker__fixed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--tk-space-1) var(--tk-space-3);
+  }
+
+  .tk-picker__compare {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--tk-space-0-5);
+    inline-size: calc(var(--tk-space-16) + var(--tk-space-8));
+  }
+
+  .tk-picker__swatch {
+    display: block;
+    inline-size: 100%;
+    block-size: var(--tk-size-target-min);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line-strong);
+    border-radius: var(--tk-radius-sm);
+    background: linear-gradient(to right, var(--ctool-a) 50%, var(--ctool-b) 50%);
+  }
+
+  /* Each label centred under its half of the split swatch. */
+  .tk-picker__compare-labels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--tk-space-1);
+    text-align: center;
+    white-space: nowrap;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  .tk-picker__hex {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--tk-space-0-5);
+    min-inline-size: calc(var(--tk-space-16) + var(--tk-space-4));
+  }
+
+  .tk-picker__hex-input {
+    box-sizing: border-box;
+    inline-size: 100%;
+    block-size: var(--tk-size-target-min);
+    padding-inline: var(--tk-space-2);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    border-radius: var(--tk-radius-sm);
+    background: var(--tk-color-bg);
+    color: var(--tk-color-fg);
+    font-family: var(--tk-font-family-mono);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  .tk-picker__hex-input[aria-invalid='true'] {
+    border-color: var(--tk-color-danger);
+  }
+
+  .tk-picker__error {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--tk-color-danger);
+    font-size: var(--tk-font-size-xs);
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  .tk-picker__presets {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+  }
+
+  /* Wide: the ten presets in two even rows of five. */
+  .tk-picker__presets .tk-options--swatches {
+    grid-template-columns: repeat(5, var(--tk-size-tool-button));
+    gap: var(--tk-space-2);
+  }
+
+  /* Picker sliders have no per-row Reset. */
+  .tk-picker .tk-adjust__row {
+    grid-template-columns: calc(var(--tk-space-16) + var(--tk-space-4)) minmax(0, 1fr) var(--tk-space-12);
+  }
+
+  .tk-picker__foot {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  /* ── Phone: touch size; the picker fills the sheet's body without scrolling inside it ── */
+  .tk-adjust--touch .tk-ctool__toggle,
+  .tk-adjust--touch .tk-ctool__head,
+  .tk-adjust--touch .tk-ctool__reset {
+    min-block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-adjust--touch .tk-options--ranges {
+    grid-template-columns: repeat(4, minmax(var(--tk-size-touch-target), 1fr));
+  }
+
+  /* One row of eight once the content holds eight touch targets and their gaps: 8 × 44 + 7 × 4 = 380 px
+     (`size.touchTarget`, `space.1`). */
+  @container (width >= 380px) {
+    .tk-adjust--touch .tk-options--ranges {
+      grid-template-columns: repeat(8, minmax(var(--tk-size-touch-target), 1fr));
+    }
+  }
+
+  .tk-adjust--touch .tk-ctool__radio,
+  .tk-adjust--touch .tk-colour-button,
+  .tk-adjust--touch .tk-ctool__swap,
+  .tk-picker--touch .tk-picker__done {
+    min-block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-adjust--touch .tk-options--pairs {
+    grid-template-columns: repeat(auto-fill, minmax(calc(var(--tk-space-16) + var(--tk-space-10)), 1fr));
+  }
+
+  .tk-sheet.tk-sheet--picker {
+    max-block-size: 60vh;
+  }
+
+  .tk-sheet--picker > .tk-sheet__body {
+    flex: 1;
+  }
+
+  .tk-picker--touch {
+    gap: var(--tk-space-2);
+    padding: var(--tk-space-1) var(--tk-space-3) var(--tk-space-3);
+    border: 0;
+    border-radius: 0;
+  }
+
+  .tk-picker--touch .tk-picker__swatch,
+  .tk-picker--touch .tk-picker__hex-input {
+    block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-picker--touch .tk-picker__hex-input {
+    font-size: var(--tk-font-size-input);
+  }
+
+  /* The hex field's label sits beside it as its accessible name; the row stays one touch target tall. */
+  .tk-picker--touch .tk-picker__fixed {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+
+  .tk-picker--touch .tk-picker__hex .tk-picker__label,
+  .tk-picker--touch .tk-picker__presets > .tk-picker__label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tk-picker--touch .tk-picker__error {
+    flex-basis: auto;
+  }
+
+  .tk-picker--touch:has(.tk-picker__error) .tk-picker__fixed {
+    flex-wrap: wrap;
+  }
+
+  /* Presets: one horizontally scrolling row of ten, at touch size. */
+  .tk-picker--touch .tk-picker__presets .tk-options--swatches {
+    grid-auto-columns: var(--tk-size-touch-target);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    gap: var(--tk-space-1);
+    overflow-x: auto;
+  }
+
+  .tk-picker--touch .tk-picker__presets .tk-swatch {
+    inline-size: var(--tk-size-touch-target);
+    block-size: var(--tk-size-touch-target);
+  }
+
+  /* Labels to the left of the sliders, as in the Adjust rows. */
+  .tk-picker--touch .tk-adjust__row {
+    --adjust-knob: var(--tk-space-5);
+    grid-template-columns: calc(var(--tk-space-16) + var(--tk-space-4)) minmax(0, 1fr) var(--tk-size-field);
+    min-block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-picker--touch .tk-adjust__slider,
+  .tk-picker--touch .tk-adjust__number {
+    block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-picker--touch .tk-adjust__number {
+    font-size: var(--tk-font-size-input);
+  }
+
+  @media (forced-colors: active) {
+    .tk-ctool__radio[aria-checked='true'],
+    .tk-colour-button[aria-expanded='true'] {
+      border-color: Highlight;
+    }
+    .tk-ctool__dot,
+    .tk-ctool__mark {
+      background: Highlight;
+    }
+    .tk-adjust__slider[data-track] {
+      forced-color-adjust: none;
+    }
+  }
+}

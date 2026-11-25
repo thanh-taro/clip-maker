@@ -4,7 +4,7 @@
 // Colour replace (RULE-25, F-028) is `draft` for 1.3.0: its list is carried unchanged.
 // Implements: RULE-24 ranges and defaults, *Duotone* remembered colours.
 import { COLOUR_RANGES, type ColourRangeName } from './colour';
-import { DUOTONE_PAIR_COLOURS, DUOTONE_PAIRS, type DuotonePairId } from './looks.gen';
+import { DUOTONE_PAIR_COLOURS, type DuotonePairId } from './looks.gen';
 import type { ColourTools, MixerRange } from './project.gen';
 
 /** Implements: RULE-24 ranges and defaults. */
@@ -152,5 +152,3 @@ export const splitSettings = (t: ColourTools | undefined): Required<SplitToning>
   highlightsStrength: t?.splitToning?.highlightsStrength ?? 0,
   balance: t?.splitToning?.balance ?? 0,
 });
-
-export const isDuotonePair = (x: string): x is DuotonePairId => (DUOTONE_PAIRS as readonly string[]).includes(x);

@@ -11,7 +11,7 @@
 // section), F-007.R7 (compare hold, not an undo step), RULE-08 *Reset and copy* and *Compare*, RULE-20
 // (Mod+C / Mod+V act only with a video or photo clip selected; hold \ to compare).
 import { computed, effect, signal } from '@preact/signals';
-import { RULE_08, type AdjustmentName, type Adjustments, type Look } from '../core';
+import { RULE_08, type AdjustmentName, type Adjustments, type ColourTools, type Look } from '../core';
 import { isMac, resolveKey, scopeOf } from '../keys';
 import {
   applyToAll,
@@ -62,7 +62,9 @@ export interface AdjustTarget {
   readonly id: string;
   readonly adjustments: Adjustments;
   readonly look: Look;
-  /** Some adjustment is away from its default (Reset all is available). */
+  /** RULE-24 (absent: every colour tool at default). */
+  readonly colourTools: ColourTools | undefined;
+  /** Some adjustment or colour tool is away from its default (Reset all is available). */
   readonly changed: boolean;
 }
 
@@ -74,7 +76,9 @@ export const adjustTarget = computed<AdjustTarget | null>(() => {
     id: clip.id,
     adjustments: clip.adjustments,
     look: clip.look,
-    changed: Object.keys(clip.adjustments).length > 0,
+    colourTools: clip.colourTools,
+    // RULE-24: Reset all also returns every colour tool to default.
+    changed: Object.keys(clip.adjustments).length > 0 || clip.colourTools !== undefined,
   };
 });
 

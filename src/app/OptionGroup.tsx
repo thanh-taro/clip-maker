@@ -22,9 +22,23 @@ export interface Option<T> {
    */
   readonly content?: ComponentChildren;
   readonly named?: boolean;
+  /** Changed from its default (F-024: a colour range with a changed value), for styles. */
+  readonly changed?: boolean;
+  /** A text tile among swatches (colour pop's and duotone's None, duotone's Custom). */
+  readonly chip?: boolean;
 }
 
 const NEXT: Readonly<Record<string, number>> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+
+/** The class of an option's button per variant. */
+const optionClass = (variant: string, o: Option<unknown>): string =>
+  variant === 'ranges' || variant === 'pairs'
+    ? o.chip
+      ? 'tk-ctool__radio tk-ctool__radio--chip'
+      : 'tk-ctool__radio'
+    : o.swatch
+      ? 'tk-swatch'
+      : 'tk-option';
 
 export function OptionGroup<T>({
   id,
@@ -34,6 +48,7 @@ export function OptionGroup<T>({
   onChoose,
   variant,
   labelledBy,
+  describedBy,
 }: {
   /** Element id prefix (unique per rendered group). */
   readonly id: string;
@@ -44,23 +59,28 @@ export function OptionGroup<T>({
   readonly onChoose: (value: T) => void;
   /**
    * `segments`: equal columns; `swatches`: a grid of colour dots, text options as chips; `tiles`: a two-column
-   * grid of touch-size tiles (F-010's font picker).
+   * grid of touch-size tiles (F-010's font picker); `ranges`: the colour tools' range swatches with a None tile;
+   * `pairs`: duotone's pair tiles (CMP-Inspector "colour mixer", "colour pop", "duotone").
    */
-  readonly variant: 'segments' | 'swatches' | 'tiles';
+  readonly variant: 'segments' | 'swatches' | 'tiles' | 'ranges' | 'pairs';
   /**
    * The id of a label shown elsewhere (the Speed section heading, the Edit sheet's row label): the group is
    * named by it and shows no label of its own.
    */
   readonly labelledBy?: string;
+  /** The id of a note that describes the group (F-025: COPY-pop.help). */
+  readonly describedBy?: string;
 }) {
   const group = useRef<HTMLDivElement>(null);
   const chosen = options.findIndex((o) => o.value === value);
   const onKey = (e: KeyboardEvent, i: number): void => {
     const step = NEXT[e.key];
-    if (step === undefined || e.altKey || e.ctrlKey || e.metaKey) return;
-    e.preventDefault();
     const n = options.length;
-    const next = (i + step + n) % n;
+    // RULE-20: radio groups get the arrow keys only (Home and End keep their playback meaning).
+    const to = step !== undefined ? (i + step + n) % n : null;
+    if (to === null || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    const next = to;
     const option = options[next]!;
     if (option.value !== value) onChoose(option.value);
     group.current?.querySelectorAll<HTMLElement>('[role="radio"]')[next]?.focus();
@@ -78,6 +98,7 @@ export function OptionGroup<T>({
         class={`tk-options tk-options--${variant}`}
         role="radiogroup"
         aria-labelledby={labelId}
+        aria-describedby={describedBy}
         data-count={options.length}
       >
         {options.map((o, i) => {
@@ -89,8 +110,9 @@ export function OptionGroup<T>({
               role="radio"
               aria-checked={on ? 'true' : 'false'}
               tabIndex={on || (chosen < 0 && i === 0) ? 0 : -1}
-              class={o.swatch ? 'tk-swatch' : 'tk-option'}
+              class={optionClass(variant, o)}
               data-value={o.key}
+              data-changed={o.changed ? '' : undefined}
               aria-label={o.swatch || o.named ? o.label : undefined}
               title={o.named ? o.label : undefined}
               onClick={() => onChoose(o.value)}

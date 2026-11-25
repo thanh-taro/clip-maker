@@ -38,6 +38,7 @@ import {
   setAdjustmentOnce,
   signedLabel,
 } from './adjust';
+import { ColourToolGroups } from './ColourTools';
 import { Icon } from './icons';
 import { NumberField } from './NumberField';
 import { useSliderGesture } from './slider-gesture';
@@ -194,6 +195,8 @@ export function AdjustSection({ id, touch = false }: { readonly id: string; read
           </div>
         );
       })}
+      {/* D-053: the colour-tool groups after Effects (CMP-Inspector "clip Adjust · colour tools"). */}
+      <ColourToolGroups id={`${id}-tools`} clipId={target.id} tools={target.colourTools} touch={touch} />
     </section>
   );
 }

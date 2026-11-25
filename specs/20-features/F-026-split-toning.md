@@ -1,7 +1,7 @@
 ---
 id: F-026
 title: Tint shadows and highlights (split toning)
-status: ready
+status: building
 milestone: M-4
 priority: P2
 personas: [PER-02, PER-03]

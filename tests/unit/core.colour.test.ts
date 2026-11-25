@@ -14,6 +14,7 @@ import {
   hueWheelRgb,
   linearToOklab,
   mixerAt,
+  mixPopLab,
   nearestRange,
   normaliseColourTools,
   okLch,
@@ -120,6 +121,28 @@ describe('RULE-24 working space and ranges (ADR-0017 §2, §3)', () => {
     const mid = sampleHueTable(t, 359.9);
     expect(mid[1]).toBeGreaterThanOrEqual(Math.min(t[1023 * 4 + 1]!, t[1]!) - 1e-6);
     expect(mid[1]).toBeLessThanOrEqual(Math.max(t[1023 * 4 + 1]!, t[1]!) + 1e-6);
+  });
+
+  it('RULE-24 *Quality* D-053 review M1 the mixer and colour pop leave pure black and near-black greys exactly as they are (gate 0: no hue is taken), with every value at its extreme', () => {
+    const mixer = COLOUR_RANGES.map(() => ({ hue: 100, saturation: 100, lightness: 100 }));
+    const t = hueTable(mixer, { range: 0, spread: 0, amount: 100 });
+    for (const rgb of [
+      [0, 0, 0],
+      [1 / 255, 1 / 255, 1 / 255],
+      [3 / 255, 2 / 255, 3 / 255],
+      [12 / 255, 12 / 255, 12 / 255],
+    ] as const) {
+      const lab = srgbToOklab(rgb);
+      for (const [mix, pop] of [
+        [true, false],
+        [false, true],
+        [true, true],
+      ] as const) {
+        const out = mixPopLab(lab, t, mix, pop);
+        expect(out.every(Number.isFinite)).toBe(true);
+        expect(out).toEqual(lab);
+      }
+    }
   });
 
   it('RULE-24 split toning crosses over at lightness 50 at Balance 0, 80 at −100 and 20 at +100', () => {
