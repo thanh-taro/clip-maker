@@ -36,8 +36,10 @@ grade pass.
    results are brought in by reducing chroma at constant L and h (binary search, 8 steps), never by
    per-channel clamping, so hue and lightness are kept (RULE-24 mixer, RULE-25 *Change*).
    *Grey gate:* the RULE-24 chroma fade (none at C* 2, full at C* 12, CIELAB) is applied as a
-   smoothstep on OKLCh C between 0.006 and 0.03, values chosen so that every sRGB colour with
-   C* < 2 gets weight 0; a property test over the sRGB cube checks this.
+   smoothstep on OKLCh C between 0.0065 and 0.029, edges chosen so that every sRGB colour with
+   C* < 2 gets weight 0 and every one with C* ≥ 12 gets weight 1 (C* 2 maps to OK C 0.0052–0.0061
+   and C* 12 to 0.0298–0.0388 across hues and lightness); its per-step bound is in OK C units,
+   1.5 ÷ 0.0225 per unit of OK C; a property test over the sRGB cube checks this.
 3. **Colour mixer and colour pop: one per-clip hue table.** MOD-Plan bakes the mixer's 24 values
    and colour pop's choice, Range and Amount into a 1-D table of 1,024 entries over hue (RGBA16F:
    hue shift, chroma factor, lightness move, pop keep weight), built with RULE-24's weights (a smoothstep between neighbouring
@@ -49,9 +51,11 @@ grade pass.
 4. **Split toning and duotone: analytic.** Split toning adds an OKLab (a, b) tint vector of each
    hue (the hue wheel colour's OKLCh hue) scaled by strength (C ≈ 0.05 at 100, about C* 20) and by
    tone weights over L: smoothstep from full at 0.15 inside the crossover (0.50 at Balance 0, 0.80
-   at −100, 0.20 at +100) to none 0.15 past it, times smoothsteps to none within 0.05 of L 0 and
-   L 1; L is untouched, and the result is brought into gamut by §2's chroma reduction. Duotone maps the incoming OKLab L through the input's own range [0, 1] to
-   an OKLab mix of the two colours (straight line in OKLab), then mixes with the input by strength
+   at −100, 0.20 at +100) to none 0.15 past it, times smoothsteps to none within 0.20 of L 0 and
+   L 1 (RULE-24: 20 lightness units; narrower fades break the grey-ramp bar for blue–purple
+   shadow hues); L is untouched, and the result is brought into gamut by §2's chroma reduction. Duotone's gradient position is CIELAB L* ÷ 100 computed from the pixel's
+   relative luminance (Y from the linear values → L*), not OKLab L, so the dark end is crossed in
+   even perceived steps; the position picks an OKLab mix of the two colours (straight line in OKLab), then mixes with the input by strength
    in sRGB encoding (as look intensity does, ADR-0007 §3).
 5. **Colour replace: up to three analytic matches.** Each replacement's weight is a smoothstep on
    OKLCh hue distance (full within the Range angle, fading over the Softness angle) times a
