@@ -1,7 +1,7 @@
 ---
 id: F-024
 title: Mix colours by range
-status: ready
+status: building
 milestone: M-4
 priority: P1
 personas: [PER-02, PER-03]

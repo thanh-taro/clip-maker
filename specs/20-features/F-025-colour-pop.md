@@ -1,7 +1,7 @@
 ---
 id: F-025
 title: Keep one colour (colour pop)
-status: ready
+status: building
 milestone: M-4
 priority: P1
 personas: [PER-02, PER-03]

@@ -6,6 +6,7 @@ import {
   ArrowDown,
   ArrowDownToLine,
   ArrowLeft,
+  ArrowLeftRight,
   ArrowLeftToLine,
   ArrowRight,
   ArrowRightToLine,
@@ -13,6 +14,7 @@ import {
   ArrowUpToLine,
   AudioLines,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
@@ -167,6 +169,9 @@ const SOURCES = {
   pageHidden: EyeOff,
   storage: HardDrive,
   share: Share2,
+  // F-024…F-027: the colour-tool groups' disclosure chevron and duotone's Swap colours (CMP-Inspector)
+  disclosure: ChevronDown,
+  swap: ArrowLeftRight,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

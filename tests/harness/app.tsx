@@ -37,6 +37,7 @@ import {
   frameStart,
   layoutOf,
   type Adjustments,
+  type ColourTools,
   type Frame,
   type FromEngine,
   type Placement,
@@ -95,6 +96,8 @@ export interface ClipSummary {
   readonly placement: Placement;
   /** F-007: the clip's adjustments (RULE-08; values at their default are not stored). */
   readonly adjustments: Adjustments;
+  /** F-024…F-027: the clip's colour tools (RULE-24; absent: every tool at default). */
+  readonly colourTools: ColourTools | null;
 }
 
 /** Settings the editor has no control for yet (F-004 photo length, F-005 speed, F-008 look, F-009 cross-fade). */
@@ -680,6 +683,7 @@ function clipsSummary(): ClipSummary[] {
     selected: selection.value.includes(c.id),
     placement: c.placement,
     adjustments: c.adjustments,
+    colourTools: c.colourTools ?? null,
   }));
 }
 

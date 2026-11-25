@@ -25,10 +25,10 @@
 | F-021 | Work offline | M-1 | P2 | shipped |
 | F-022 | Use the portal's language | M-1 | P1 | shipped |
 | F-023 | Check device support | M-1 | P0 | shipped |
-| F-024 | Mix colours by range | M-4 | P1 | ready |
-| F-025 | Keep one colour (colour pop) | M-4 | P1 | ready |
-| F-026 | Tint shadows and highlights (split toning) | M-4 | P2 | ready |
-| F-027 | Recolour in two colours (duotone) | M-4 | P2 | ready |
+| F-024 | Mix colours by range | M-4 | P1 | building |
+| F-025 | Keep one colour (colour pop) | M-4 | P1 | building |
+| F-026 | Tint shadows and highlights (split toning) | M-4 | P2 | building |
+| F-027 | Recolour in two colours (duotone) | M-4 | P2 | building |
 | F-028 | Replace a colour | M-5 | P2 | draft |
 
 ```mermaid

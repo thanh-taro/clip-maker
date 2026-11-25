@@ -46,6 +46,8 @@ import { layoutOf, frameStart } from '../core';
 import { project } from '../project';
 import { adjustTarget } from './adjust';
 import { AdjustFooter, AdjustSection } from './AdjustSection';
+import { SheetPicker } from './ColourPicker';
+import { pickerOpen } from './colour-tools';
 import { LookGallery } from './LookGallery';
 import { lookTarget } from './looks';
 import { selectedAudio, selectedClip } from './arrange';
@@ -468,7 +470,12 @@ export function AdjustSheet() {
     >
       <span class="tk-sheet__grabber" aria-hidden="true" />
       <div class="tk-sheet__body">
-        <AdjustSection id="tk-sheet-adjust" touch />
+        {/* CMP-ColourPicker narrow: it opens in place of the sheet's body (CMP-Inspector "narrow / Adjust sheet"). */}
+        {pickerOpen.value?.clipId === adjustTarget.value.id ? (
+          <SheetPicker />
+        ) : (
+          <AdjustSection id="tk-sheet-adjust" touch />
+        )}
       </div>
       <AdjustFooter id="tk-sheet-adjust" touch />
     </section>
