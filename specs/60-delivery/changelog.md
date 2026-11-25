@@ -2,6 +2,9 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-25 — Release candidate 1.1.0 (D-052)
+- F-011, F-015, F-020 and F-021 rebuilt for D-052 and `shipped`. Version 1.1.0, candidate `v1.1.0-rc.1` (local tag); verification in `.build-my-app/reports/release-1.1.0.md`.
+
 ## 2026-11-25 — Music only from the user's own files (owner decision D-052)
 - The bundled music pack is removed, so no content-ID claim can come from tracks the tool ships. Music now comes only from the user's own audio files.
 - F-011 (`shipped` → `ready`, to be rebuilt): R1 rewritten — COPY-action.music opens the file picker for audio files (the RULE-01 audio types); each chosen file goes through the F-001 intake, is listed in the media panel, and is placed on the audio track per RULE-12 at the playhead, several files in the order given (one after another), as one undo step, with the first new audio clip selected; cancelling changes nothing. AC1 and AC11 rewritten for the user's own file; AC12 (cancel), AC13 (several files), AC14 (no room: kept as a source, not placed), AC15 (several files running past the project end) and AC16 (a refused file among the chosen) added. R6, R7, AC6 and AC7 retired (IDs kept, never reused). The edge case for a shipped track that can't be read is gone; edge cases for refused files and video/photo files chosen through Music added. Frontmatter drops ENT-MusicTrack, CMP-MusicPicker and NFR-10; adds RULE-01, RULE-02, RULE-13 and CMP-MediaPanel.
