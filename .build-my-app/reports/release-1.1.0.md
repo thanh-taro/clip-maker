@@ -3,7 +3,7 @@
 Date: 2026-11-25 · Commit ff6d0a9 (tag `v1.1.0-rc.1`) · Change: owner decision D-052 (no bundled music; Music opens the user's own audio files). Built with `pnpm release:build v1.1.0-rc.1`.
 
 ## Artifact
-`release/1.1.0/`: 49 files, 9.6 MB, including hidden source maps. No audio files ship. Two clean builds are identical for every shipped file; the only difference is in source maps, as in 1.0.0.
+`release/1.1.0/`: 49 files; 2.0 MB shipped (11.1 MB in 1.0.0), not counting the hidden source maps, which are not uploaded. No audio files ship. Two clean builds are identical for every shipped file; the only difference is in source maps, as in 1.0.0.
 
 ## Verification on this Mac
 | Check | Result |
