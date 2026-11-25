@@ -12,7 +12,6 @@ import {
 } from '../../src/core';
 import {
   addMedia,
-  addMusic,
   addText,
   allOriginalMuted,
   applyToAll,
@@ -41,13 +40,13 @@ import {
   setTextTimes,
   setVolume,
 } from '../../src/project';
-import { S, TRACKS, audio, photo, proj, text, video, videoSource } from '../support/project';
+import { S, audio, audioSource, photo, proj, text, video, videoSource } from '../support/project';
 
 const counter = () => {
   let n = 0;
   return () => `new-${++n}`;
 };
-const ok = (p: Project) => expect(invariantViolations(p, TRACKS)).toEqual([]);
+const ok = (p: Project) => expect(invariantViolations(p)).toEqual([]);
 const span = (a: { start: number; in: number; out: number }) => [a.start, a.start + a.out - a.in];
 
 describe('F-009 fades and cross-fades (domain)', () => {
@@ -190,33 +189,60 @@ describe('F-010 text (domain)', () => {
 });
 
 describe('F-011 music and sound (domain)', () => {
-  it('F-011.AC1 a 60 s track added at 3 s in a 20 s project runs from 3 s to 63 s', () => {
+  it('F-011.AC1 a 60 s MP3 added at 3 s in a 20 s project is a source and runs from 3 s to 63 s', () => {
     const p = proj({ clips: [video('V', 20)] });
-    const r = addMusic(p, 'music-1', 3 * S, counter(), TRACKS);
+    const r = addMedia(p, [audioSource('mp3', 60)], 3 * S, counter());
     expect(span(r.project.audioClips[0]!)).toEqual([3 * S, 63 * S]);
-    expect(r.project.audioClips[0]!.sourceId).toBe('music-1');
-    expect(r.project.sources).toBe(p.sources);
+    expect(r.project.audioClips[0]!.sourceId).toBe('mp3');
+    expect(r.project.sources.map((s) => s.id)).toContain('mp3');
     // INV-07: only 3–20 s of it is heard (and so exported: the export renders the same voices).
     const v = voices(r.project).find((x) => x.kind === 'audio')!;
     expect([v.startSample, v.endSample, v.naturalEndSample]).toEqual([3 * 48_000, 20 * 48_000, 63 * 48_000]);
   });
 
-  it('F-011.AC11 with the playhead at the project end, a new track starts at 0', () => {
+  it('F-011.AC11 with the playhead at the project end, a new audio file starts at 0', () => {
     const p = proj({ clips: [video('V', 20)] });
-    const r = addMusic(p, 'music-1', 20 * S, counter(), TRACKS);
+    const r = addMedia(p, [audioSource('mp3', 60)], 20 * S, counter());
     expect(r.project.audioClips[0]!.start).toBe(0);
+  });
+
+  it('F-011.AC13 a 5 s and a 4 s file at 2 s follow one another: 2–7 s and 7–11 s, as one step', () => {
+    const p = proj({ clips: [video('V', 20)] });
+    const r = addMedia(p, [audioSource('five', 5), audioSource('four', 4)], 2 * S, counter());
+    expect(r.project.audioClips.map((a) => [a.sourceId, ...span(a)])).toEqual([
+      ['five', 2 * S, 7 * S],
+      ['four', 7 * S, 11 * S],
+    ]);
+    ok(r.project);
+  });
+
+  it('F-011.AC14 with the audio track full at the playhead the MP3 is kept as a source, not placed', () => {
+    const p = proj({ clips: [video('V', 20)], audioClips: [audio('A', 0, 20)] });
+    const r = addMedia(p, [audioSource('mp3', 10)], 5 * S, counter());
+    expect(r.project.sources.map((s) => s.id)).toContain('mp3');
+    expect(r.project.audioClips).toHaveLength(1);
+    expect(r.notices).toEqual(['notice.no_audio_room']);
+  });
+
+  it('F-011.AC15 a 30 s then a 10 s MP3 at 3 s: the first at 3–33 s, the second kept with one COPY-notice.no_audio_room', () => {
+    const p = proj({ clips: [video('V', 20)] });
+    const r = addMedia(p, [audioSource('a30', 30), audioSource('b10', 10)], 3 * S, counter());
+    expect(r.project.audioClips.map((a) => [a.sourceId, ...span(a)])).toEqual([['a30', 3 * S, 33 * S]]);
+    expect(r.project.sources.map((s) => s.id)).toEqual(expect.arrayContaining(['a30', 'b10']));
+    expect(r.notices).toEqual(['notice.no_audio_room']);
+    ok(r.project);
   });
 
   it('RULE-12 a new audio clip inside another starts at its end and is cut where the next one starts', () => {
     const p = proj({ clips: [video('V', 30)], audioClips: [audio('A', 2, 6), audio('B', 10, 12)] });
-    const r = addMusic(p, 'm', 3 * S, counter(), TRACKS);
+    const r = addMedia(p, [audioSource('m', 60)], 3 * S, counter());
     expect(span(r.project.audioClips.find((a) => a.id === 'new-1')!)).toEqual([6 * S, 10 * S]);
     ok(r.project);
   });
 
   it('RULE-12 with no room from the start point a new audio clip is refused with COPY-notice.no_audio_room', () => {
     const p = proj({ clips: [video('V', 30)], audioClips: [audio('A', 2, 6), audio('B', 6.05, 12)] });
-    const r = addMusic(p, 'm', 3 * S, counter(), TRACKS);
+    const r = addMedia(p, [audioSource('m', 60)], 3 * S, counter());
     expect(r.project.audioClips).toBe(p.audioClips);
     expect(r.notices).toEqual(['notice.no_audio_room']);
   });

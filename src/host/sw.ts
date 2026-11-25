@@ -3,7 +3,7 @@
 // (image-annotator). Classic script: it imports only ./offline-policy, which nothing in the page
 // imports, so the bundle inlines it (a module shared with the page fails the build).
 // Implements: F-021.R1 — `install` precaches every file of the build's asset manifest (scripts, worker
-// and worklet modules, styles, typefaces, looks, music, notices, the page), each checked against its
+// and worklet modules, styles, typefaces, looks, notices, the page), each checked against its
 // hash; a failed precache fails the install and is retried on the next online open (ADR-0015).
 // Implements: F-021.R2 — the only fetches are the precache and the browser's own requests it forwards:
 // the page network first (the version check while the tool is being opened), files cache first.

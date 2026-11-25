@@ -13,7 +13,7 @@ describe('RULE-22 effects check', () => {
 
   it('RULE-22 the check draws the full chain: every adjustment, a look and the Blur background at 1080p', () => {
     const p = effectsProject();
-    expect(invariantViolations(p, [])).toEqual([]);
+    expect(invariantViolations(p)).toEqual([]);
     const clip = framePlan(p, 0).layers[0]!.clip;
     expect(Object.keys(clip.adjustments)).toHaveLength(12);
     expect(clip.look?.intensity).toBeGreaterThan(0);

@@ -50,7 +50,7 @@ export function bindRovingToolbar(bar: HTMLElement): () => void {
     const step = (e.key === 'ArrowRight') !== rtl ? 1 : -1;
     list[(at + step + n) % n]?.focus();
   };
-  // Buttons come and go (Done while a text is edited, Music's popover) and become disabled (Export).
+  // Buttons come and go (Done while a text is edited) and become disabled (Export).
   const changes = new MutationObserver(sync);
   changes.observe(bar, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'hidden'] });
   // A layout change (narrow ↔ wide) hides and shows buttons: the stop must stay on a shown one.

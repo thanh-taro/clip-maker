@@ -9,11 +9,10 @@
 //  - rows of installed packages still `proposed` are listed as PENDING AUDIT. They fail the gate only
 //    in strict mode (`--strict` or LICENCE_STRICT=1), which the licence audit / G3 turns on once the
 //    audit has approved the rows (the registry is a spec; this script never edits it);
-//  - every bundled music track (DEP-14, ADR-0013 §4) has its own registry row; placeholder tracks (generated
-//    stand-ins until the owner picks the real ones, F-011) are a warning, and fail with `--release` (or
-//    LICENCE_RELEASE=1), which the release phase runs as `pnpm check:release` (docs/deploy/release-checklist.md);
+//  - the tool ships no music (D-052; DEP-14 and DEP-41 … DEP-49 removed): the dist scan fails on any audio file;
 //  - the looks pack (DEP-13, ADR-0013 §1) has its registry row; until the owner's look sign-off approves it,
-//    a warning, and with `--release` a failure (F-008, build question 146);
+//    a warning, and with `--release` (or LICENCE_RELEASE=1, `pnpm check:release`) a failure (F-008, build
+//    question 146);
 //  - then the dist/ scan (scripts/check-dist.mjs, rule 7) proves what actually ships.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -21,12 +20,11 @@ import path from 'node:path';
 import { abs } from './lib/util.mjs';
 import { scanDist } from './check-dist.mjs';
 import { checkReleaseHeaders } from './check-release-headers.mjs';
-import { musicPack } from './gen-music-manifest.mjs';
 import { looksPack } from './gen-looks.mjs';
 import { findInstalled, isActive, isApproved, isShipped, readRegistry, REGISTRY } from './lib/registry.mjs';
 
 const STRICT = process.argv.includes('--strict') || process.env.LICENCE_STRICT === '1';
-/** Release candidates (phase 6): placeholder music fails instead of warning (F-011, DEP-14). */
+/** Release candidates (phase 6): an unapproved looks pack fails instead of warning (F-008). */
 const RELEASE = process.argv.includes('--release') || process.env.LICENCE_RELEASE === '1';
 
 const ALLOWED = new Set([
@@ -181,24 +179,6 @@ if (notInstalled.length) {
   for (const r of notInstalled) console.log(`  ${r.id.padEnd(7)} ${r.label}`);
 }
 
-// DEP-14 / ADR-0013 §4: one registry row per bundled track; placeholders never ship in a release.
-const pack = musicPack();
-for (const t of pack.tracks) {
-  if (!registry.some((r) => /asset/i.test(r.kind) && r.label.includes(t.file)))
-    problems.push(`music track ${t.file} has no row in ${REGISTRY} (DEP-14, ADR-0013 §4)`);
-}
-const placeholders = pack.tracks.filter((t) => t.placeholder);
-if (placeholders.length) {
-  console.log(
-    `PLACEHOLDER MUSIC — generated stand-ins, not for release${RELEASE ? '' : ' (warning; --release fails)'}: ${placeholders.map((t) => t.file).join(', ')}`,
-  );
-  if (RELEASE) problems.push(`${placeholders.length} placeholder music tracks in the pack (release mode, DEP-14)`);
-}
-if (pack.tracks.length < 8)
-  console.log(`MUSIC — ${pack.tracks.length} bundled tracks; RULE-12 needs at least 8 (build question 114)`);
-if (RELEASE && pack.tracks.length < 8)
-  problems.push(`RULE-12 needs at least 8 bundled tracks; the pack has ${pack.tracks.length} (release mode)`);
-
 // DEP-13 / ADR-0013 §1: the looks pack ships under its own row; the owner signs the looks off before release.
 const looks = looksPack();
 const looksRow = registry.find((r) => /asset/i.test(r.kind) && /looks pack/i.test(r.label));
@@ -214,7 +194,7 @@ else if (!isApproved(looksRow)) {
 const DIST = abs('dist');
 if (!fs.existsSync(DIST)) problems.push('dist/ missing: run `pnpm build` first (the dist/ scan of ADR-0001 rule 6)');
 else {
-  const scan = scanDist(DIST, registry, { release: RELEASE });
+  const scan = scanDist(DIST, registry);
   problems.push(...scan.problems.map((p) => `dist: ${p}`));
   const list = [...scan.shipped].map(([n, v]) => `${n}@${v}`).sort();
   console.log(`dist: ${scan.shipped.size} third-party packages ship — ${list.length ? list.join(', ') : '(none)'}`);

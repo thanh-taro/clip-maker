@@ -3,7 +3,9 @@
 // step (RULE-13: a batch is one undo step). Batches run one after another; a batch that arrives before
 // the RULE-22 check has let media in waits for it (build-spec-questions 59) and is dropped if the
 // device turns out unsupported. Progress, Cancel, the media panel's refused group and the result
-// notices (CMP-Notice) live here. Nothing is uploaded, copied or kept beyond the session (INV-01):
+// notices (CMP-Notice) live here. A Music pick (F-011.R1, D-052) takes the same path: its audio is
+// placed at the playhead per RULE-12 like any added audio, and the first new audio clip is selected.
+// Nothing is uploaded, copied or kept beyond the session (INV-01):
 // the files stay references in MOD-Media's registry.
 import { computed, effect, signal } from '@preact/signals';
 import { isTooShort, type FrameRate, type Notice, type Project, type RefusalReason, type Source } from '../core';
@@ -16,7 +18,17 @@ import {
   type Refusal,
   type SourceRegistry,
 } from '../media';
-import { addMedia, edit, history, placeSource, playhead, project, removeSource, type History } from '../project';
+import {
+  addMedia,
+  edit,
+  history,
+  placeSource,
+  playhead,
+  project,
+  removeSource,
+  selection,
+  type History,
+} from '../project';
 import { device } from './device';
 import { editorLocked } from './lock';
 import { closeNotice, showNotice, type NoticeKind } from './notice-stack';
@@ -133,11 +145,26 @@ export function nameList(names: readonly string[]): string {
 
 let batchCounter = 0;
 
-/** Implements: F-001.R2/R3/R6, RULE-01 "Kept as a source", RULE-13 — one batch's result as one step. */
-function apply(result: IntakeResult): void {
+/** How a batch came in: `music` — chosen with COPY-action.music (F-011.R1). */
+export interface AddOptions {
+  readonly music?: boolean;
+}
+
+/**
+ * Implements: F-001.R2/R3/R6, RULE-01 "Kept as a source", RULE-13 — one batch's result as one step.
+ * F-011.R1: a Music pick is the same step (audio placed at the playhead per RULE-12, one after another; one
+ * COPY-notice.no_audio_room for the pick); then its first new audio clip is selected, and with none placed
+ * the selection doesn't change.
+ */
+function apply(result: IntakeResult, options: AddOptions): void {
   const batch = ++batchCounter;
   const sources: Source[] = result.accepted.map((a) => a.source);
+  const before = new Set(project.peek().audioClips.map((a) => a.id));
   const placed = edit((p) => addMedia(p, sources, playhead.peek(), nextItemId));
+  if (options.music) {
+    const first = project.peek().audioClips.find((a) => !before.has(a.id));
+    if (first) selection.value = [first.id];
+  }
   const present = new Set(project.peek().sources.map((s) => s.id));
   const lost = result.accepted.filter((a) => !present.has(a.source.id));
   for (const a of lost) deps?.release(a.source.id);
@@ -163,7 +190,7 @@ function apply(result: IntakeResult): void {
   showRefused(refused, batch);
 }
 
-async function runBatch(items: readonly IntakeItem[], gen: number): Promise<void> {
+async function runBatch(items: readonly IntakeItem[], gen: number, options: AddOptions): Promise<void> {
   if (items.length === 0 || !(await whenAccepting()) || gen !== generation || !deps) {
     queued.value = Math.max(0, queued.value - 1);
     return;
@@ -213,14 +240,14 @@ async function runBatch(items: readonly IntakeItem[], gen: number): Promise<void
     for (const a of result.accepted) deps?.release(a.source.id);
     return;
   }
-  if (result) apply(result);
+  if (result) apply(result, options);
 }
 
 /**
- * Implements: F-001.R1 — adds a picked, dropped or pasted batch. Resolves when the batch has been
- * applied, or dropped (cancelled, or the device turned out unsupported).
+ * Implements: F-001.R1 — adds a picked, dropped or pasted batch (F-011.R1: or a Music pick, `music`).
+ * Resolves when the batch has been applied, or dropped (cancelled, or the device turned out unsupported).
  */
-export function addFiles(items: readonly IntakeItem[]): Promise<void> {
+export function addFiles(items: readonly IntakeItem[], options: AddOptions = {}): Promise<void> {
   // SCR-Editor "exporting": the editor is locked; files dropped or pasted on it then are not taken.
   if (editorLocked.peek()) {
     // Review: never silently: COPY-notice.busy_exporting says why the files were not taken.
@@ -229,7 +256,7 @@ export function addFiles(items: readonly IntakeItem[]): Promise<void> {
   }
   const gen = generation;
   queued.value++;
-  const run = chain.then(() => runBatch(items, gen));
+  const run = chain.then(() => runBatch(items, gen, options));
   chain = run.catch(() => undefined);
   return run;
 }

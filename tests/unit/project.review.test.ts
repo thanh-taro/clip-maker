@@ -10,7 +10,6 @@ import {
 } from '../../src/core';
 import {
   addMedia,
-  addMusic,
   addText,
   beginGesture,
   canUndo,
@@ -25,7 +24,7 @@ import {
   trimTo,
   unexported,
 } from '../../src/project';
-import { S, TRACKS, audio, audioSource, proj, video, videoSource } from '../support/project';
+import { S, audio, audioSource, proj, video, videoSource } from '../support/project';
 
 let n = 0;
 const nextId = () => `id-${++n}`;
@@ -48,16 +47,13 @@ describe('review E1 fixes', () => {
     expect(r.notices).toEqual(['notice.length_full']);
   });
 
-  it('RULE-12 an audio clip of a bundled track never extends past the track’s end', () => {
+  it('RULE-12 an audio clip of the user’s audio never extends past its source’s end (D-052)', () => {
     const p = proj({ clips: [video('V', 60)] });
-    const placed = addMusic(p, 'short', 0, nextId, TRACKS).project;
+    const placed = addMedia(p, [audioSource('short', 5)], 0, nextId).project;
     const id = placed.audioClips[0]!.id;
-    for (const r of [trimTo(placed, id, 'end', 30 * S), trimTo(placed, id, 'end', 30 * S, TRACKS)]) {
-      const a = r.project.audioClips[0]!;
-      expect(a.out).toBeLessThanOrEqual(5 * S);
-      expect(invariantViolations(r.project, TRACKS)).toEqual([]);
-    }
-    expect(addMusic(p, 'unknown', 0, nextId, TRACKS).project).toBe(p);
+    const r = trimTo(placed, id, 'end', 30 * S);
+    expect(r.project.audioClips[0]!.out).toBeLessThanOrEqual(5 * S);
+    expect(invariantViolations(r.project)).toEqual([]);
   });
 
   it('RULE-02 a video or audio source shorter than the 0.1 s minimum is refused with COPY-reason.too_short', () => {
@@ -99,17 +95,18 @@ describe('review E1 fixes', () => {
     // Property seed 1096329829: add music, 60 fps, trim the music clip's end to 6 frames (0.1 s, the
     // minimum at 60 fps), then 24 fps, whose minimum is 3 frames (0.125 s).
     let p = proj({ rate: 24, clips: [video('V', 3.4)] });
-    p = addMusic(p, 'music-1', 7 * S, nextId, TRACKS).project;
-    p = setFrameRate(p, 60, TRACKS).project;
+    p = addMedia(p, [audioSource('m', 60)], 0, nextId).project;
+    p = setFrameRate(p, 60).project;
     const id = p.audioClips[0]!.id;
-    p = trimTo(p, id, 'end', 0, TRACKS).project;
+    p = trimTo(p, id, 'end', 0).project;
     expect(p.audioClips[0]!.out - p.audioClips[0]!.in).toBe(100_000);
-    expect(invariantViolations(p, TRACKS)).toEqual([]);
-    // With the catalog the clip grows within its track to the minimum.
-    const known = setFrameRate(p, 24, TRACKS).project;
+    expect(invariantViolations(p)).toEqual([]);
+    // With its source known the clip grows within it to the minimum.
+    const known = setFrameRate(p, 24).project;
     expect(known.audioClips[0]!.out - known.audioClips[0]!.in).toBe(125_000);
-    expect(invariantViolations(known, TRACKS)).toEqual([]);
-    // Without it the track's end is unknown, so the clip may not grow: the change is refused.
+    expect(invariantViolations(known)).toEqual([]);
+    // Without it the source's end is unknown, so the clip may not grow: the change is refused.
+    p = { ...p, sources: p.sources.filter((s) => s.id !== 'm') };
     const unknown = setFrameRate(p, 24);
     expect(unknown.project).toBe(p);
     // RULE-03: refused with COPY-notice.length_full, and nothing changes.

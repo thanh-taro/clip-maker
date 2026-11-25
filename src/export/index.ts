@@ -244,13 +244,13 @@ export function downloadBlob(blob: Blob, fileName: string): string {
   return url;
 }
 
-/** The sources heard in the mix: unmuted voices whose source has sound (bundled music always has). */
+/** The sources heard in the mix: unmuted voices whose source has sound. */
 function soundingSources(project: Project): Set<string> {
   const byId = new Map(project.sources.map((src) => [src.id, src]));
   const ids = new Set<string>();
   for (const v of voices(project)) {
     const src = byId.get(v.sourceId);
-    if (v.gain > 0 && (src ? src.hasSound === true : true)) ids.add(v.sourceId);
+    if (v.gain > 0 && src?.hasSound === true) ids.add(v.sourceId);
   }
   return ids;
 }

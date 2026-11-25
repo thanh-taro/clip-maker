@@ -5,7 +5,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { layoutOf, projectEnd, type FrameRate, type Source } from '../../src/core';
 import { intakeBatch, SourceRegistry, type IntakeItem, type ProbeOutcome } from '../../src/media';
-import { canUndo, EMPTY_PROJECT, history, newProject, playhead, project, undo, isEmpty } from '../../src/project';
+import {
+  canUndo,
+  EMPTY_PROJECT,
+  history,
+  newProject,
+  playhead,
+  project,
+  selection,
+  undo,
+  isEmpty,
+} from '../../src/project';
 import { language } from '../../src/copy';
 import { device, resetDeviceSession } from '../../src/app/device';
 import {
@@ -430,5 +440,92 @@ describe('ADR-0009 §7 decoded pictures and file references follow the project a
     await addFiles([file('a.video.3')]);
     newProject();
     expect(reg.size).toBe(0);
+  });
+});
+
+describe('F-011 Music pick: the user’s own audio files at the playhead (D-052)', () => {
+  const span = (id: string): [number, number] => {
+    const a = project.value.audioClips.find((x) => x.id === id)!;
+    return [a.start, a.start + a.out - a.in];
+  };
+  const names = () => project.value.sources.map((s) => s.name);
+
+  it('F-011.AC1 a 60 s MP3 chosen at 3 s in a 20 s project: listed, placed 3–63 s and selected; one undo removes both', async () => {
+    await addFiles([file('base.video.20')]);
+    playhead.value = 3 * S;
+    selection.value = [];
+    await addFiles([file('song.audio.60')], { music: true });
+    expect(names()).toEqual(['base.video.20', 'song.audio.60']);
+    const [clip] = project.value.audioClips;
+    expect(span(clip!.id)).toEqual([3 * S, 63 * S]);
+    expect(selection.value).toEqual([clip!.id]);
+    undo();
+    expect(names()).toEqual(['base.video.20']);
+    expect(project.value.audioClips).toEqual([]);
+  });
+
+  it('F-011.AC13 a 5 s and a 4 s file at 2 s: 2–7 s and 7–11 s in the order given, the first selected, one undo removes both', async () => {
+    await addFiles([file('base.video.20')]);
+    playhead.value = 2 * S;
+    await addFiles([file('five.audio.5'), file('four.audio.4')], { music: true });
+    const p = project.value;
+    const byName = (n: string) => p.audioClips.find((a) => p.sources.find((s) => s.id === a.sourceId)?.name === n)!;
+    expect(span(byName('five.audio.5').id)).toEqual([2 * S, 7 * S]);
+    expect(span(byName('four.audio.4').id)).toEqual([7 * S, 11 * S]);
+    expect(selection.value).toEqual([byName('five.audio.5').id]);
+    expect(history.value.past).toHaveLength(2);
+    undo();
+    expect(names()).toEqual(['base.video.20']);
+    expect(project.value.audioClips).toEqual([]);
+  });
+
+  it('F-011.AC14 with the audio track full at 5 s: COPY-notice.no_audio_room, the MP3 listed, no clip, the selection kept; undo removes the source', async () => {
+    await addFiles([file('base.video.20'), file('bed.audio.20')]);
+    expect(span(project.value.audioClips[0]!.id)).toEqual([0, 20 * S]);
+    playhead.value = 5 * S;
+    selection.value = ['kept'];
+    resetNotices();
+    await addFiles([file('more.audio.10')], { music: true });
+    expect(names()).toContain('more.audio.10');
+    expect(project.value.audioClips).toHaveLength(1);
+    expect(selection.value).toEqual(['kept']);
+    expect(shown().filter((n) => n[1] === 'no_audio_room')).toEqual([
+      ['warning', 'no_audio_room', 'No free room on the audio track here.'],
+    ]);
+    undo();
+    expect(names()).not.toContain('more.audio.10');
+  });
+
+  it('F-011.AC15 a 30 s then a 10 s MP3 at 3 s: the first at 3–33 s, the second listed with one COPY-notice.no_audio_room; one undo removes both', async () => {
+    await addFiles([file('base.video.20')]);
+    playhead.value = 3 * S;
+    resetNotices();
+    await addFiles([file('long.audio.30'), file('short.audio.10')], { music: true });
+    expect(names()).toEqual(['base.video.20', 'long.audio.30', 'short.audio.10']);
+    expect(project.value.audioClips.map((a) => span(a.id))).toEqual([[3 * S, 33 * S]]);
+    expect(shown().filter((n) => n[1] === 'no_audio_room')).toHaveLength(1);
+    undo();
+    expect(names()).toEqual(['base.video.20']);
+    expect(project.value.audioClips).toEqual([]);
+  });
+
+  it('F-011.AC16 a valid MP3 and a PDF renamed .mp3: the MP3 is placed and COPY-error.refused_list names the PDF (COPY-reason.unsupported)', async () => {
+    await addFiles([file('song.audio.8'), file('doc-mp3.bad')], { music: true });
+    expect(names()).toEqual(['song.audio.8']);
+    expect(project.value.audioClips).toHaveLength(1);
+    expect(shown().at(-1)).toEqual([
+      'error',
+      'refused_list',
+      "Couldn't add:",
+      'doc-mp3.bad: not a supported video, photo or audio file',
+    ]);
+  });
+
+  it('F-011 a video chosen through Music is handled as F-001 handles it: on the main track, the selection kept', async () => {
+    selection.value = [];
+    await addFiles([file('clip.video.4')], { music: true });
+    expect(project.value.clips).toHaveLength(1);
+    expect(project.value.audioClips).toEqual([]);
+    expect(selection.value).toEqual([]);
   });
 });

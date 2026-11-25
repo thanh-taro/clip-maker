@@ -39,7 +39,6 @@ import { registry } from '../media';
 import { isEmpty, playhead, project, selection } from '../project';
 import { mountTimeline, type TimelineView } from '../timeline';
 import { beginTrim, splitHere, trimAvailable, trimHere } from './trim';
-import { MUSIC_TRACKS } from '../core';
 import {
   arrangeAvailable,
   bindArrangeKeys,
@@ -225,14 +224,7 @@ export function Timeline() {
           const entry = await registry.load(sourceId);
           return entry?.thumbnail ?? entry?.bitmap ?? null;
         },
-        audioName: (a) => {
-          const p = project.peek();
-          return (
-            p.sources.find((s) => s.id === a.sourceId)?.name ??
-            MUSIC_TRACKS.find((m) => m.id === a.sourceId)?.title ??
-            ''
-          );
-        },
+        audioName: (a) => project.peek().sources.find((s) => s.id === a.sourceId)?.name ?? '',
         // F-010: a text item shows its text on one line (line breaks read as spaces).
         textName: (layer) => layer.content.replace(/\s+/g, ' ').trim(),
         moveText: (id, frames) => void moveTextFrames(id, frames),

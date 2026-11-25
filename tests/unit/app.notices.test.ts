@@ -1,8 +1,7 @@
 // MOD-App / MOD-Build — the in-tool licence notices (F-020.R4): what the view lists is decided at build
-// time from the dependency registry and MOD-Core's music catalog, so it can be checked without a browser.
+// time from the dependency registry, so it can be checked without a browser. The tool ships no music (D-052).
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { MusicTrack } from '../../src/core';
-import { MUSIC_TRACKS } from '../../src/core';
 import { NOTICE_CODE, NOTICE_FONTS, NOTICE_TEXTS } from '../../src/app/notices.gen';
 import { noticeSections } from '../../src/app/notices';
 // @ts-expect-error -- plain ESM build script without type declarations
@@ -20,11 +19,6 @@ const shipped = (): string[] =>
     .filter((r) => isActive(r) && isShipped(r))
     .flatMap((r) => r.names)
     .filter((name) => findInstalled(name) !== null);
-
-const tracks: readonly MusicTrack[] = [
-  { id: 'm1', title: 'Morning Walk', source: 'freemusicarchive.org/music/x', licence: 'CC0 1.0', duration: 1 },
-  { id: 'm2', title: 'Night Market', source: 'archive.org/details/y', licence: 'Public domain', duration: 2 },
-];
 
 describe('F-020 licence notices', () => {
   it('F-020.AC4 the notices list every shipped dependency and typeface of the registry, each with title, source and licence', () => {
@@ -66,18 +60,12 @@ describe('F-020 licence notices', () => {
     expect(noticeSections().find((s) => s.heading === 'notices.code')?.texts).toBe(NOTICE_TEXTS);
   });
 
-  it('F-020.AC4 RULE-12 every bundled music track is listed with its title, source and licence', () => {
-    const music = noticeSections(tracks).find((s) => s.heading === 'music.title');
-    expect(music?.rows).toEqual([
-      { title: 'Morning Walk', source: 'freemusicarchive.org/music/x', licence: 'CC0 1.0' },
-      { title: 'Night Market', source: 'archive.org/details/y', licence: 'Public domain' },
-    ]);
-    // The shipped catalog is the default: every track of MOD-Core is in the view.
-    const shippedMusic = noticeSections().find((s) => s.heading === 'music.title');
-    expect(shippedMusic?.rows.length).toBe(MUSIC_TRACKS.length);
-  });
-
-  it('F-020.R4 the sections are typefaces, code and music, in that order (CMP-StatusBar)', () => {
-    expect(noticeSections(tracks).map((s) => s.heading)).toEqual(['notices.fonts', 'notices.code', 'music.title']);
+  it('F-020.AC4 D-052 the notices list no music: the sections are typefaces and code only (CMP-StatusBar)', () => {
+    expect(noticeSections().map((s) => s.heading)).toEqual(['notices.fonts', 'notices.code']);
+    const rows = noticeSections().flatMap((s) => s.rows);
+    for (const r of rows) expect(`${r.title} ${r.source}`).not.toMatch(/freemusicarchive|\.m4a|music track/i);
+    // The shipped third-party-notices.txt has no music section either.
+    const txt = readFileSync(new URL('../../public/third-party-notices.txt', import.meta.url), 'utf8');
+    expect(txt).not.toMatch(/bundled music|freemusicarchive/i);
   });
 });

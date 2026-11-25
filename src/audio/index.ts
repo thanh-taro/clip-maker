@@ -2,8 +2,8 @@
 // (specs/40-technical/modules/MOD-Audio.md, ADR-0008 and its outcome). Also starts the audio worker
 // and names the worklet module's URL; the export-audio worker that runs this mixer is MOD-Export's.
 // Windowed decoding (ADR-0008 §6), stereo mapping and 48 kHz resampling (§2) take encoded packets from
-// the sound feed (MOD-Core; MOD-Container serves it where the reader is). Bundled music (F-011) is decoded
-// the same way from its packaged file; the picker audition is a one-voice plan (ADR-0008 §7).
+// the sound feed (MOD-Core; MOD-Container serves it where the reader is). Every audio clip is a user
+// source (D-052: no shipped music, no picker audition; ADR-0008 amendment).
 // The worklet is bundled as its own hashed same-origin module (ADR-0003; CSP `script-src 'self'`).
 import { scriptUrl } from '../core';
 import audioWorkerUrl from './audio.worker.ts?worker&url';
@@ -32,15 +32,7 @@ export { createStretcher, seekDecodeFrom, Wsola, type Stretcher } from './wsola'
 export { pcmSource, bankOf, soundSourceIds, type SoundSource, type SourceBank } from './source';
 export { verifyAndTrim, TRIM_LIMIT_DB, TRIM_TARGET_DB, TRIM_MAX_PASSES, type TrimPass, type TrimResult } from './trim';
 export { wavHeader, wavData, encodeWav, pcm16, WAV_HEADER_BYTES } from './wav';
-export {
-  Streamer,
-  sampleAt,
-  endSampleOf,
-  auditionVoice,
-  MIX_LATENCY_MARGIN,
-  STALL_MS,
-  type StreamSound,
-} from './stream';
+export { Streamer, sampleAt, endSampleOf, MIX_LATENCY_MARGIN, STALL_MS, type StreamSound } from './stream';
 export { soundDemand, type Demand } from './demand';
 export { Resampler, RESAMPLE_HALF_TAPS, RESAMPLE_KAISER_BETA } from './resample';
 export { toStereo } from './stereo';

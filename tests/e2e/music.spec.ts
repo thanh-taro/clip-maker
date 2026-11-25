@@ -1,17 +1,22 @@
-// F-011 Add music and set sound through the real UI (MOD-App, MOD-Timeline, MOD-Audio, MOD-Assets; real
-// decoders and workers) on the app harness (tests/harness/app.html), and the export half of the sound
-// criteria on the media harness (tests/harness/index.html, real export workers, the file decoded back).
-// The music picker (popover; the phone Audio sheet), placing bundled tracks per RULE-12, the audio lane
-// (select, drag by the RULE-12 move rule, Earlier/Later, Delete, Duplicate, keys), the inspector's sound
-// section (volume 0–200 %, Mute, Mute original sound) and axe at 320 and 1280 px in en-US and vi-VN.
-// Settings with no control yet (a photo's length, F-004) and starting projects with audio clips in place
-// are set through `appHarness.setClip()` / `appHarness.load()`. AC7 (offline) is in offline.spec.ts.
+// F-011 Add music and set sound through the real UI (MOD-App, MOD-Timeline, MOD-Audio; real decoders and
+// workers) on the app harness (tests/harness/app.html), and the export half of the sound criteria on the
+// media harness (tests/harness/index.html, real export workers, the file decoded back).
+// D-052: music comes only from the user's own audio files. COPY-action.music opens the system file picker for
+// audio files (wide: the toolbar; narrow: the Audio sheet's full-width Music button); the chosen files go
+// through the F-001 intake and are placed per RULE-12 from the playhead, one after another, as one undo step,
+// the first selected. Also: the audio lane (select, drag by the RULE-12 move rule, Earlier/Later, Delete,
+// Duplicate, keys), the inspector's sound section (volume 0–200 %, Mute, Mute original sound) and axe at 320
+// and 1280 px in en-US and vi-VN. The audio files are made by the test (./support/audio-files.ts: silent
+// MP3s, WAV tones). Starting projects with audio clips in place are set through `appHarness.load()` with an
+// audio source of the user's (`songSource`), and a photo's length through `appHarness.setClip()`.
+// F-011.AC6 and F-011.AC7 (the shipped tracks' credits and offline audition) are retired by D-052 with R6 and
+// R7: no test; their IDs are named here only so the coverage check knows they were not forgotten.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
-import { BUNDLED_MUSIC as MUSIC_TRACKS } from '../../src/core/music.gen';
 import type { ClipSetup, ProjectSummary } from '../harness/app';
 import type { ToneSpec } from '../harness/sound';
+import { silentMp3, songSource, wavTone, type AudioPayload } from './support/audio-files';
 import { MEDIA_HARNESS_PORT } from './support/ports';
 
 const APP = `http://localhost:${MEDIA_HARNESS_PORT}/app.html`;
@@ -21,11 +26,6 @@ const SHOTS = '.build-my-app/reports/screens/F-011';
 type CopyId = keyof (typeof CATALOG)['en-US'];
 const text = (lang: Language, id: CopyId): string => CATALOG[lang][id] as string;
 const S = 1_000_000;
-// Two tracks of the shipped pack, read from the generated manifest: the first 60 s track, and another one.
-const CHORDS = MUSIC_TRACKS.find((t) => t.duration === 60 * S)!;
-const PAD = MUSIC_TRACKS.find((t) => t.id !== CHORDS.id)!;
-/** PAD's span in seconds when added at 0. */
-const PAD_S = PAD.duration / S;
 
 interface Harness {
   appHarness: {
@@ -43,6 +43,7 @@ const h = (page: Page) => page.evaluate.bind(page);
 const summary = (page: Page) => h(page)(() => (window as unknown as Harness).appHarness.project());
 const stateOf = async (page: Page) =>
   JSON.parse(await h(page)(() => (window as unknown as Harness).appHarness.state())) as {
+    sources: object[];
     clips: { volume?: number; muted?: boolean }[];
     audioClips: {
       id: string;
@@ -61,6 +62,12 @@ const PHOTO = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
   'base64',
 );
+/** A PDF renamed .mp3 (RULE-01 reads the contents: COPY-reason.unsupported). */
+const PDF_AS_MP3: AudioPayload = {
+  name: 'notes.mp3',
+  mimeType: 'audio/mpeg',
+  buffer: Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n'),
+};
 
 async function open(page: Page, lang: Language = 'en-US', extra = ''): Promise<void> {
   await page.goto(`${APP}?effects=fast&lang=${lang}${extra}`);
@@ -85,18 +92,21 @@ async function add(
   await expect(media).toHaveCount(0);
 }
 
-/** A project of one photo `seconds` long (F-004's duration control is not built yet). */
+/** A project of one photo `seconds` long (set through the harness). */
 async function photoProject(page: Page, seconds: number, lang: Language = 'en-US'): Promise<void> {
   await add(page, [{ name: 'P.png', mimeType: 'image/png', buffer: PHOTO }], lang);
   await h(page)((s) => (window as unknown as Harness).appHarness.setClip(0, { seconds: s }), seconds);
 }
 
-/** Replaces the audio track with clips of the 60 s bundled track at [start, end] seconds (one step). */
+/**
+ * Replaces the audio track with clips of the user's own 60 s audio file (a source, D-052) at [start, end]
+ * seconds (one step).
+ */
 async function audioTrack(page: Page, spans: readonly (readonly [number, number])[]): Promise<void> {
   const state = await stateOf(page);
   const audioClips = spans.map(([a, b], i) => ({
     id: `music-${i}`,
-    sourceId: CHORDS.id,
+    sourceId: songSource().id,
     start: a * S,
     in: 0,
     out: (b - a) * S,
@@ -107,7 +117,7 @@ async function audioTrack(page: Page, spans: readonly (readonly [number, number]
   }));
   await h(page)(
     (json) => (window as unknown as Harness).appHarness.load(json),
-    JSON.stringify({ ...state, audioClips }),
+    JSON.stringify({ ...state, sources: [...state.sources, songSource()], audioClips }),
   );
 }
 
@@ -118,11 +128,16 @@ const tool = (page: Page, id: CopyId, lang: Language = 'en-US') =>
   timeline(page, lang)
     .getByRole('toolbar')
     .getByRole('button', { name: text(lang, id) });
-const picker = (page: Page, lang: Language = 'en-US') => page.getByRole('dialog', { name: text(lang, 'music.title') });
 const musicButton = (page: Page, lang: Language = 'en-US') =>
   page
     .getByRole('toolbar', { name: text(lang, 'toolbar.label') })
     .getByRole('button', { name: text(lang, 'action.music') });
+const notice = (page: Page, tag: string) => page.locator(`[data-notice="${tag}"]`);
+const undo = (page: Page, lang: Language = 'en-US') =>
+  page
+    .getByRole('toolbar', { name: text(lang, 'toolbar.label') })
+    .getByRole('button', { name: text(lang, 'action.undo') })
+    .click();
 const inspector = (page: Page) => page.locator('.tk-inspector');
 /** F-005: a selected video clip's inspector has the clip tabs; its sound is on the Sound tab. */
 async function soundTab(page: Page, lang: Language = 'en-US'): Promise<void> {
@@ -131,6 +146,22 @@ async function soundTab(page: Page, lang: Language = 'en-US'): Promise<void> {
   await expect(tab).toHaveAttribute('aria-selected', 'true');
 }
 const spans = async (page: Page) => (await summary(page)).audio.map((a) => [a.start, a.end]);
+const sourceNames = async (page: Page) => (await summary(page)).sources.map((s) => s.name);
+
+/**
+ * F-011.R1: activates `button` (Music), checks the system file picker offers several audio files, and
+ * chooses `files`; resolves once the pick has been checked and applied (one more undo step).
+ */
+async function chooseMusic(page: Page, button: Locator, files: AudioPayload[]): Promise<void> {
+  const steps = (await summary(page)).steps;
+  const chooser = page.waitForEvent('filechooser');
+  await button.click();
+  const picker = await chooser;
+  expect(picker.isMultiple()).toBe(true);
+  expect(await picker.element().getAttribute('accept')).toMatch(/^audio\/\*/);
+  await picker.setFiles(files);
+  await expect.poll(async () => (await summary(page)).steps, { timeout: 30_000 }).toBe(steps + 1);
+}
 
 async function axe(page: Page): Promise<void> {
   const results = await new AxeBuilder({ page })
@@ -160,58 +191,31 @@ async function shot(page: Page, name: string, browserName: string): Promise<void
   await page.screenshot({ path: `${SHOTS}/${name}.png` });
 }
 
-test.describe('F-011 music picker and audio track (app harness)', () => {
-  test('F-011.AC6 F-011.R6 the picker opens from Music; every track shows its title, source and licence; Esc closes it', async ({
-    page,
-    browserName,
-  }) => {
-    await open(page);
-    await photoProject(page, 20);
-    await musicButton(page).click();
-    await expect(musicButton(page)).toHaveAttribute('aria-expanded', 'true');
-    const dialog = picker(page);
-    await expect(dialog).toBeVisible();
-    const rows = dialog.getByRole('listitem');
-    await expect(rows).toHaveCount(MUSIC_TRACKS.length);
-    for (const [i, t] of MUSIC_TRACKS.entries()) {
-      await expect(rows.nth(i)).toContainText(t.title);
-      // QA-8: the source is its name, linking to the track's page (one line, not the full address).
-      const link = rows.nth(i).getByRole('link', { name: `${t.sourceName}: ${t.title}` });
-      await expect(link).toHaveText(t.sourceName!);
-      await expect(link).toHaveAttribute('href', t.source);
-      await expect(link).toHaveAttribute('target', '_blank');
-      await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-      expect((await link.boundingBox())!.height).toBeLessThanOrEqual(32);
-      await expect(rows.nth(i)).toContainText(t.licence);
-      await expect(
-        rows.nth(i).getByRole('button', { name: `${text('en-US', 'music.preview')}: ${t.title}` }),
-      ).toHaveAttribute('aria-pressed', 'false');
-      await expect(rows.nth(i).getByRole('button', { name: text('en-US', 'music.add') })).toBeVisible();
-    }
-    await expect(dialog.getByText(text('en-US', 'music.your_audio_hint'))).toBeVisible();
-    await expect(dialog.getByRole('button', { name: text('en-US', 'music.your_audio') })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: text('en-US', 'privacy.notices') })).toBeVisible();
-    await shot(page, 'picker-wide-en', browserName);
-    await axe(page);
-    await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
-    await expect(musicButton(page)).toBeFocused();
-  });
-
-  test('F-011.AC1 F-011.R1 a 60 s track added at 3 s in a 20 s project runs 3–63 s, past the end hatched; the picker stays open and the clip is selected', async ({
+test.describe('F-011 Music: the user’s own audio files (app harness, D-052)', () => {
+  test('F-011.AC1 F-011.R1 a 60 s MP3 chosen with Music at 3 s in a 20 s project is listed and runs 3–63 s, selected, past the end hatched; one undo removes the clip and the source', async ({
     page,
     browserName,
   }) => {
     await open(page);
     await photoProject(page, 20);
     await setPlayhead(page, 3);
-    await musicButton(page).click();
-    const row = picker(page).getByRole('listitem').filter({ hasText: CHORDS.title });
-    await row.getByRole('button', { name: text('en-US', 'music.add') }).click();
+    await chooseMusic(page, musicButton(page), [silentMp3('song.mp3', 60)]);
     expect(await spans(page)).toEqual([[3, 63]]);
-    await expect(picker(page)).toBeVisible();
+    expect(await sourceNames(page)).toEqual(['P.png', 'song.mp3']);
     await expect(audioItem(page)).toHaveAttribute('aria-pressed', 'true');
-    await expect(audioItem(page)).toHaveAccessibleName(`${CHORDS.title} 1:00`);
+    await expect(audioItem(page)).toHaveAccessibleName('song.mp3 1:00');
+    // The media panel lists it (CMP-MediaPanel): Music does not open the panel; Add media does, and a
+    // cancelled picker leaves it open to browse (CMP-Toolbar).
+    await expect(page.locator('.tk-media')).toHaveCount(0);
+    const chooser = page.waitForEvent('filechooser');
+    await page
+      .getByRole('toolbar', { name: text('en-US', 'toolbar.label') })
+      .getByRole('button', { name: text('en-US', 'action.add_media') })
+      .click();
+    await (await chooser).element().dispatchEvent('cancel');
+    const media = page.getByRole('complementary', { name: text('en-US', 'media.title') });
+    await expect(media.getByRole('listitem').filter({ hasText: 'song.mp3' })).toBeVisible();
+    await media.getByRole('button', { name: text('en-US', 'action.close') }).click();
     // INV-07: the part after the project end is drawn hatched, starting at the end marker.
     const past = audioItem(page).locator('.tk-aclip__past');
     await expect(past).toBeVisible();
@@ -219,29 +223,124 @@ test.describe('F-011 music picker and audio track (app harness)', () => {
     const end = (await timeline(page).locator('.tk-end').boundingBox())!;
     const hatched = (await past.boundingBox())!;
     expect(Math.abs(hatched.x - end.x)).toBeLessThan(3);
-    await page.keyboard.press('Escape');
-    await shot(page, 'audio-lane-wide', browserName);
+    await shot(page, 'music-added-wide', browserName);
+    await undo(page);
+    expect(await spans(page)).toEqual([]);
+    expect(await sourceNames(page)).toEqual(['P.png']);
   });
 
-  test('F-011.AC11 RULE-12 with the playhead at the project end a new track starts at 0; with no room it is refused with COPY-notice.no_audio_room', async ({
+  test('F-011.AC11 RULE-12 with the playhead at the project end, an audio file added with Music starts at 0', async ({
     page,
   }) => {
     await open(page);
     await photoProject(page, 20);
     await setPlayhead(page, 20);
+    await chooseMusic(page, musicButton(page), [silentMp3('song.mp3', 4.8)]);
+    expect(await spans(page)).toEqual([[0, 4.8]]);
+  });
+
+  test('F-011.AC12 cancelling the file picker opened by Music changes nothing: the project, the media panel and the undo history', async ({
+    page,
+  }) => {
+    await open(page);
+    await photoProject(page, 20);
+    await setPlayhead(page, 3);
+    const before = JSON.stringify(await stateOf(page));
+    const steps = (await summary(page)).steps;
+    const chooser = page.waitForEvent('filechooser');
     await musicButton(page).click();
-    const row = (t: { title: string }) => picker(page).getByRole('listitem').filter({ hasText: t.title });
-    await row(PAD)
-      .getByRole('button', { name: text('en-US', 'music.add') })
+    const picker = await chooser;
+    // The user dismisses the system picker without a choice.
+    await picker.element().dispatchEvent('cancel');
+    await page.waitForTimeout(300);
+    expect(JSON.stringify(await stateOf(page))).toBe(before);
+    expect((await summary(page)).steps).toBe(steps);
+    await expect(page.locator('.tk-media')).toHaveCount(0);
+    // The next Add media is an ordinary pick again: its audio is not taken as a Music pick (not selected).
+    const again = page.waitForEvent('filechooser');
+    await page
+      .getByRole('toolbar', { name: text('en-US', 'toolbar.label') })
+      .getByRole('button', { name: text('en-US', 'action.add_media') })
       .click();
-    expect(await spans(page)).toEqual([[0, PAD_S]]);
-    // Whole project taken: Add at playhead is unavailable and the row says why (CMP-MusicPicker "no audio room").
+    const second = await again;
+    expect(await second.element().getAttribute('accept')).toMatch(/video/);
+    await second.setFiles([silentMp3('later.mp3', 2.4)]);
+    await expect.poll(async () => (await summary(page)).steps, { timeout: 30_000 }).toBe(steps + 1);
+    await expect(audioItem(page)).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('F-011.AC13 a 5 s and a 4 s file chosen with Music at 2 s are listed and placed 2–7 s and 7–11 s in the order given, the first selected; one undo removes both', async ({
+    page,
+  }) => {
+    await open(page);
+    await photoProject(page, 20);
+    await setPlayhead(page, 2);
+    await chooseMusic(page, musicButton(page), [wavTone('five.wav', 5), wavTone('four.wav', 4)]);
+    expect((await summary(page)).audio.map((a) => [a.source, a.start, a.end])).toEqual([
+      ['five.wav', 2, 7],
+      ['four.wav', 7, 11],
+    ]);
+    expect(await sourceNames(page)).toEqual(['P.png', 'five.wav', 'four.wav']);
+    await expect(page.locator('.tk-aclip[aria-pressed="true"]')).toHaveAccessibleName(/^five\.wav /);
+    await undo(page);
+    expect(await spans(page)).toEqual([]);
+    expect(await sourceNames(page)).toEqual(['P.png']);
+  });
+
+  test('F-011.AC14 RULE-01 with the audio track full at 5 s, a 10 s MP3 chosen with Music shows COPY-notice.no_audio_room, is listed and gets no clip; one undo removes the source', async ({
+    page,
+    browserName,
+  }) => {
+    await open(page);
+    await photoProject(page, 20);
+    await audioTrack(page, [[0, 20]]);
     await setPlayhead(page, 5);
-    await expect(row(CHORDS).getByText(text('en-US', 'notice.no_audio_room'))).toBeVisible();
-    await expect(row(CHORDS).getByRole('button', { name: text('en-US', 'music.add') })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    await chooseMusic(page, musicButton(page), [silentMp3('more.mp3', 10)]);
+    await expect(notice(page, 'no_audio_room')).toHaveCount(1);
+    await expect(notice(page, 'no_audio_room')).toContainText(text('en-US', 'notice.no_audio_room'));
+    expect(await sourceNames(page)).toContain('more.mp3');
+    expect(await spans(page)).toEqual([[0, 20]]);
+    await shot(page, 'music-no-room', browserName);
+    await undo(page);
+    expect(await sourceNames(page)).not.toContain('more.mp3');
+    expect(await spans(page)).toEqual([[0, 20]]);
+  });
+
+  test('F-011.AC15 a 30 s then a 10 s MP3 chosen with Music at 3 s: the first at 3–33 s, the second listed with one COPY-notice.no_audio_room and no clip; one undo removes both sources and the clip', async ({
+    page,
+  }) => {
+    await open(page);
+    await photoProject(page, 20);
+    await setPlayhead(page, 3);
+    await chooseMusic(page, musicButton(page), [silentMp3('long.mp3', 30), silentMp3('short.mp3', 10)]);
+    expect((await summary(page)).audio.map((a) => [a.source, a.start, a.end])).toEqual([['long.mp3', 3, 33]]);
+    expect(await sourceNames(page)).toEqual(['P.png', 'long.mp3', 'short.mp3']);
+    await expect(notice(page, 'no_audio_room')).toHaveCount(1);
+    await undo(page);
+    expect(await spans(page)).toEqual([]);
+    expect(await sourceNames(page)).toEqual(['P.png']);
+  });
+
+  test('F-011.AC16 RULE-01 a valid MP3 and a PDF renamed .mp3 chosen with Music: the MP3 is placed and COPY-error.refused_list names the PDF with COPY-reason.unsupported', async ({
+    page,
+  }) => {
+    await open(page);
+    await photoProject(page, 20);
+    await chooseMusic(page, musicButton(page), [silentMp3('song.mp3', 3), PDF_AS_MP3]);
+    expect((await summary(page)).audio.map((a) => [a.source, a.start, a.end])).toEqual([['song.mp3', 0, 3]]);
+    const error = notice(page, 'refused_list');
+    await expect(error).toBeVisible();
+    await expect(error.getByRole('listitem')).toHaveText([`notes.mp3: ${text('en-US', 'reason.unsupported')}`]);
+  });
+
+  test('F-011 F-001.R3 a photo chosen through Music is handled as F-001 handles it: it goes to the end of the main track', async ({
+    page,
+  }) => {
+    await open(page);
+    await photoProject(page, 20);
+    await chooseMusic(page, musicButton(page), [{ name: 'Q.png', mimeType: 'image/png', buffer: PHOTO }]);
+    expect((await summary(page)).clips.map((c) => c.source)).toEqual(['P.png', 'Q.png']);
+    expect(await spans(page)).toEqual([]);
   });
 
   test('F-011.AC2 RULE-12 INV-06 dragging the 0–5 s clip to start at 6 s places it at 3–8 s, the nearest free time where it fits whole', async ({
@@ -700,20 +799,17 @@ test.describe('F-011 sound section (app harness)', () => {
     expect(Math.abs((await level()) - half)).toBeLessThan(0.1);
   });
 
-  test('F-011.AC5 (preview) music at 200 % over loud video sound never goes over −1 dBTP', async ({ page }) => {
+  test('F-011.AC5 (preview) the user’s music at 200 % over loud video sound never goes over −1 dBTP', async ({
+    page,
+  }) => {
     test.setTimeout(120_000);
     await open(page, 'en-US', '&tap=1');
     const spec: ToneSpec = { seconds: 3, onset: 0.1, freq: 440, amp: 0.9, codec: 'aac', sampleRate: 48_000 };
     const bytes = await h(page)((s) => (window as unknown as Harness).appHarness.toneClip(s), spec);
     await add(page, [{ ...VIDEO, buffer: Buffer.from(bytes) }]);
     await setPlayhead(page, 0);
-    await musicButton(page).click();
-    await picker(page)
-      .getByRole('listitem')
-      .filter({ hasText: PAD.title })
-      .getByRole('button', { name: text('en-US', 'music.add') })
-      .click();
-    await page.keyboard.press('Escape');
+    await chooseMusic(page, musicButton(page), [wavTone('song.wav', 3, 220, 0.5)]);
+    // The new audio clip is selected: its volume is in the inspector.
     const field = inspector(page).getByRole('spinbutton', { name: text('en-US', 'sound.volume') });
     await field.fill('200');
     await field.press('Enter');
@@ -727,38 +823,11 @@ test.describe('F-011 sound section (app harness)', () => {
     expect(heard.rmsDb).toBeGreaterThan(-12); // loud: the limiter is working
     expect(heard.truePeakDb).toBeLessThanOrEqual(-1);
   });
-
-  test('F-011.R1 Play preview auditions a track (pressed, with progress); Stop preview and closing the picker stop it', async ({
-    page,
-    browserName,
-  }) => {
-    await open(page);
-    await photoProject(page, 20);
-    await musicButton(page).click();
-    const row = picker(page).getByRole('listitem').filter({ hasText: PAD.title });
-    const toggle = row.getByRole('button', { name: `${text('en-US', 'music.preview')}: ${PAD.title}` });
-    await toggle.click();
-    const stop = row.getByRole('button', { name: `${text('en-US', 'music.stop')}: ${PAD.title}` });
-    await expect(stop).toHaveAttribute('aria-pressed', 'true');
-    await expect(row).toHaveAttribute('data-previewing', '');
-    // It plays: the progress line grows from the worklet's clock.
-    await expect
-      .poll(async () => (await row.locator('.tk-music__progress').boundingBox())?.width ?? 0, { timeout: 15_000 })
-      .toBeGreaterThan(1);
-    await shot(page, 'picker-previewing', browserName);
-    await stop.click();
-    await expect(row).not.toHaveAttribute('data-previewing', '');
-    await toggle.click();
-    await expect(row).toHaveAttribute('data-previewing', '');
-    await page.keyboard.press('Escape');
-    await musicButton(page).click();
-    await expect(picker(page).locator('[data-previewing]')).toHaveCount(0);
-  });
 });
 
 test.describe('F-011 narrow layout and languages (app harness)', () => {
   for (const lang of ['en-US', 'vi-VN'] as const) {
-    test(`F-011 NFR-06 the Audio sheet holds the selection's sound and the tracks at 320 px; axe passes (${lang})`, async ({
+    test(`F-011.R1 NFR-06 CMP-Inspector the Audio sheet holds the selection's sound with its fades, then a full-width Music button that adds the user's audio at 320 px; axe passes (${lang})`, async ({
       page,
       browserName,
     }) => {
@@ -768,20 +837,33 @@ test.describe('F-011 narrow layout and languages (app harness)', () => {
       const audioTab = page.getByRole('tab', { name: text(lang, 'tab.audio') });
       await audioTab.click();
       const sheet = page.getByRole('tabpanel', { name: text(lang, 'tab.audio') });
-      await expect(sheet.getByRole('heading', { name: text(lang, 'music.title') })).toBeVisible();
-      await expect(sheet.getByRole('button', { name: text(lang, 'music.your_audio') })).toBeVisible();
-      await shot(page, `narrow-picker-${lang}`, browserName);
-      await sheet
-        .getByRole('listitem')
-        .filter({ hasText: PAD.title })
-        .getByRole('button', { name: text(lang, 'music.add') })
-        .click();
-      expect(await spans(page)).toEqual([[0, PAD_S]]);
-      // The new clip is selected: its sound section shows in the sheet, at touch size.
-      await expect(sheet.getByRole('heading', { name: text(lang, 'inspector.sound') })).toBeVisible();
+      await expect(sheet.getByRole('heading', { name: text(lang, 'tab.audio'), level: 2 })).toBeVisible();
+      const music = sheet.getByRole('button', { name: text(lang, 'action.music') });
+      await expect(music).toBeVisible();
+      // Full width, touch size (CMP-Inspector "narrow sheets").
+      const box = (await music.boundingBox())!;
+      const body = (await sheet.locator('.tk-sheet__body').boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.width).toBeGreaterThan(body.width * 0.8);
+      await shot(page, `narrow-audio-sheet-empty-${lang}`, browserName);
+      await chooseMusic(page, music, [silentMp3('song.mp3', 6)]);
+      expect(await spans(page)).toEqual([[0, 6]]);
+      // The new clip is selected: its sound section (with its fades) shows in the sheet at touch size, above Music.
+      const sound = sheet.getByRole('heading', { name: text(lang, 'inspector.sound'), level: 3 });
+      await expect(sound).toBeVisible();
       const field = sheet.getByRole('spinbutton', { name: text(lang, 'sound.volume') });
-      const fieldBox = (await field.boundingBox())!;
-      expect(fieldBox.height).toBeGreaterThanOrEqual(44);
+      expect((await field.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      await expect(sheet.getByRole('button', { name: text(lang, 'action.time_later') })).toBeVisible();
+      await expect(sheet.getByText(text(lang, 'fades.in'), { exact: true }).first()).toBeAttached();
+      const order = await sheet.evaluate(
+        (el, name) => {
+          const head = [...el.querySelectorAll('h3')].find((x) => x.textContent === name);
+          const button = el.querySelector('[data-action="music"]');
+          return head && button ? head.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING : 0;
+        },
+        text(lang, 'inspector.sound'),
+      );
+      expect(order).toBeTruthy();
       await sheet.locator('.tk-sheet__body').evaluate((el) => el.scrollTo(0, 0));
       await shot(page, `narrow-audio-sheet-${lang}`, browserName);
       await axe(page);
@@ -790,7 +872,7 @@ test.describe('F-011 narrow layout and languages (app harness)', () => {
       await expect(page.getByRole('button', { name: text(lang, 'action.time_later') })).toBeVisible();
     });
 
-    test(`F-011 NFR-06 the picker and the audio clip's sound section pass axe at 1280 px (${lang})`, async ({
+    test(`F-011.R1 NFR-06 Music and the added audio clip's sound section pass axe at 1280 px (${lang})`, async ({
       page,
       browserName,
     }) => {
@@ -798,15 +880,9 @@ test.describe('F-011 narrow layout and languages (app harness)', () => {
       await open(page, lang);
       await photoProject(page, 20, lang);
       await setPlayhead(page, 3);
-      await musicButton(page, lang).click();
-      await expect(picker(page, lang)).toBeVisible();
+      await expect(musicButton(page, lang)).toBeVisible();
       await axe(page);
-      await picker(page, lang)
-        .getByRole('listitem')
-        .filter({ hasText: CHORDS.title })
-        .getByRole('button', { name: text(lang, 'music.add') })
-        .click();
-      await page.keyboard.press('Escape');
+      await chooseMusic(page, musicButton(page, lang), [silentMp3('song.mp3', 6)]);
       await expect(inspector(page).getByRole('heading', { name: text(lang, 'inspector.sound') })).toBeVisible();
       await expect(inspector(page).getByRole('button', { name: text(lang, 'action.time_earlier') })).toBeVisible();
       await settled(audioItem(page));
@@ -824,7 +900,7 @@ test.describe('F-011 export (media harness, real export workers)', () => {
   const tone: ToneSpec = { seconds: 3, onset: 0.1, freq: 440, amp: 0.25, codec: 'aac', sampleRate: 48_000 };
   const settings = { kind: 'video', resolution: 480, quality: 'balanced' } as const;
   const span = [0.5, 2.5] as const;
-  const mix = (page: Page, m: { volume?: number; muted?: boolean; music?: { id: string; volume: number } }, t = tone) =>
+  const mix = (page: Page, m: { volume?: number; muted?: boolean; music?: { volume: number } }, t = tone) =>
     page.evaluate(([s, sp, mm, w]) => window.harness.export.runMix(s, sp, mm, w), [settings, t, m, span] as const);
 
   // Unmuting restores the previous volume in the project itself (the preview test above and MOD-Project's
@@ -841,18 +917,18 @@ test.describe('F-011 export (media harness, real export workers)', () => {
     expect(muted.rmsDb).toBeLessThan(-80);
   });
 
-  test('F-011.AC5 F-011.R5 Q87 (export) bundled music at 200 % over loud video sound: the decoded export’s true peak is ≤ −1 dBTP', async ({
+  test('F-011.AC5 F-011.R5 (export) the user’s music at 200 % over loud video sound: the decoded export’s true peak is ≤ −1 dBTP', async ({
     page,
   }) => {
     test.setTimeout(240_000);
     const loud = { ...tone, amp: 0.9 };
-    const r = await mix(page, { music: { id: PAD.id, volume: 200 } }, loud);
+    const r = await mix(page, { music: { volume: 200 } }, loud);
     expect(r.ok).toBe(true);
     expect(r.rmsDb).toBeGreaterThan(-12);
     expect(r.truePeakDb).toBeLessThanOrEqual(-1);
     // The music is in the mix: the export is louder than the video's sound alone at the same settings.
     const alone = await mix(page, { volume: 100 }, { ...tone, amp: 0.05 });
-    const withMusic = await mix(page, { volume: 100, music: { id: PAD.id, volume: 100 } }, { ...tone, amp: 0.05 });
+    const withMusic = await mix(page, { volume: 100, music: { volume: 100 } }, { ...tone, amp: 0.05 });
     expect(withMusic.rmsDb).toBeGreaterThan(alone.rmsDb + 3);
   });
 });

@@ -11,8 +11,6 @@ import { checkReleaseHeaders } from '../../scripts/check-release-headers.mjs';
 import { scanCode, SOURCE_URL } from '../../scripts/check-dist.mjs';
 // @ts-expect-error -- plain ESM build script without type declarations
 import { headersRules } from '../../scripts/gen-headers.mjs';
-// @ts-expect-error -- plain ESM build script without type declarations
-import { musicPack } from '../../scripts/gen-music-manifest.mjs';
 const APP_SOURCE_URL = /SOURCE_URL = '([^']+)'/.exec(fs.readFileSync('src/app/StatusBar.tsx', 'utf8'))?.[1];
 
 const PORTAL = 'https://tarokit.app';
@@ -71,17 +69,20 @@ describe('MOD-Build dist scan: network behaviour (NFR-01)', () => {
   const scan = (files: Record<string, string>) => scanCode(dist(files), Object.keys(files)) as string[];
 
   it('NFR-01 fetch ships only in the main chunk and sw.js; the allowed URLs pass', () => {
-    const track = (musicPack() as { tracks: { source: string }[] }).tracks[0]!.source;
     expect(SOURCE_URL).toBe(APP_SOURCE_URL);
     expect(
       scan({
-        'assets/index-Ab12.js': `fetch(p,{method:'GET'});var a=\`${PORTAL}\`,b='${SOURCE_URL}',c="${track}";x.prefetch(1)`,
+        'assets/index-Ab12.js': `fetch(p,{method:'GET'});var a=\`${PORTAL}\`,b='${SOURCE_URL}';x.prefetch(1)`,
         'sw.js': 'self.addEventListener("fetch",e=>e.respondWith(fetch(e.request)))',
         'assets/export.worker-Ab12.js': '/* https://mozilla.org/MPL/2.0/. */ const ns="http://www.w3.org/2000/svg";',
       }),
     ).toEqual([]);
     expect(scan({ 'assets/engine.worker-Ab12.js': 'self.fetch("/x")' })).toEqual([
       expect.stringMatching(/fetch\( ships in assets\/engine.worker-Ab12.js/),
+    ]);
+    // ADR-0014 amendment (D-052): the shipped tracks' pages left the allow-list with the music.
+    expect(scan({ 'assets/index-Ab12.js': 'var c="https://freemusicarchive.org/music/x/"' })).toEqual([
+      expect.stringMatching(/absolute URL outside the allow-list/),
     ]);
   });
 

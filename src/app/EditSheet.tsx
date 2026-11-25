@@ -9,9 +9,9 @@
 // size (style.md "Layouts" narrow: Edit holds Add media, Frame when nothing is selected, then the
 // selection's actions). The Text, Looks and Adjust tabs, the Cross-fade tile
 // and the setting rows join with their features (F-005 to F-010).
-// F-011: the Audio tab (COPY-tab.audio) and its sheet: the selection's sound (a video or audio clip, at
-// touch size) and CMP-MusicPicker's narrow body (your audio, the bundled tracks); switching away from it
-// stops the preview. The Edit sheet's tiles act on a selected audio clip too (Earlier/Later in time).
+// F-011: the Audio tab (COPY-tab.audio) and its sheet (CMP-Inspector "narrow sheets", D-052): the
+// selection's sound (a video or audio clip, at touch size; an audio clip's fades follow), then a full-width
+// Music button that opens the file picker for audio files (F-011.R1). The Edit sheet's tiles act on a selected audio clip too (Earlier/Later in time).
 // F-004: the first row of tiles is Split, Start here and End here (Cross-fade joins it with F-009); the
 // arrange tiles start the second row.
 // F-005: with a video clip selected, the setting rows follow the tiles: Speed with its label on the left
@@ -29,7 +29,7 @@
 // video or photo clip is selected, and the sheet closes when the selection stops being one.
 // Implements: F-007 UX notes on narrow layouts, F-003.R6 (visible controls on touch), F-003.AC5, RULE-21 (move-earlier/later stand in for
 // hold-and-drag; start-here and end-here stand in for the trim drag; touch-size targets), F-004.R2/R6,
-// F-011.R1/R3/R4/R8 on narrow layouts, CMP-MusicPicker "narrow".
+// F-011.R1/R3/R4/R8 on narrow layouts, CMP-Inspector "narrow sheets" (Audio).
 // F-009: the Cross-fade tile ends the first row (CROSSFADE_ITEM: it adds a 0.5 s cross-fade after the selected
 // clip and opens its popover; unavailable with its reason between clips too short), and the Fades row (two
 // toggles, each with its length) with the Fade in / Fade out slider rows follows Speed. Implements: F-009.R1,
@@ -44,7 +44,6 @@ import { useEffect, useRef } from 'preact/hooks';
 import { formatDuration, t } from '../copy';
 import { layoutOf, frameStart } from '../core';
 import { project } from '../project';
-import { MUSIC_TRACKS } from '../core';
 import { adjustTarget } from './adjust';
 import { AdjustFooter, AdjustSection } from './AdjustSection';
 import { LookGallery } from './LookGallery';
@@ -53,9 +52,8 @@ import { selectedAudio, selectedClip } from './arrange';
 import { Icon } from './icons';
 import { frameSectionShown } from './frame';
 import { FrameSection, useKeepFocus } from './Inspector';
-import { addMedia } from './MediaInput';
-import { MusicBody } from './MusicPicker';
-import { soundTarget, stopPreview } from './sound';
+import { addMedia, pickMusic } from './MediaInput';
+import { soundTarget } from './sound';
 import { SoundSection } from './SoundSection';
 import { speedTarget } from './speed';
 import { SpeedSection } from './SpeedSection';
@@ -72,11 +70,6 @@ type Sheet = 'edit' | 'audio' | 'text' | 'looks' | 'adjust';
 
 /** The open sheet of the narrow tab bar (null: none, the default). */
 export const openSheet = signal<Sheet | null>(null);
-
-// CMP-MusicPicker "Behavior": closing the picker (the Audio sheet) stops its preview.
-effect(() => {
-  if (openSheet.value !== 'audio') stopPreview();
-});
 
 // The Adjust and Looks sheets act on the selected video or photo clip: when there is none any more
 // (deselected, deleted, an audio clip selected), the sheet closes (its tab is then unavailable, SCR-Editor
@@ -236,10 +229,7 @@ function SelectionMeta() {
   const audio = selectedAudio.value;
   if (audio) {
     const p = project.value;
-    const name =
-      p.sources.find((s) => s.id === audio.sourceId)?.name ??
-      MUSIC_TRACKS.find((m) => m.id === audio.sourceId)?.title ??
-      '';
+    const name = p.sources.find((s) => s.id === audio.sourceId)?.name ?? '';
     return (
       <span class="tk-sheet__meta">
         <span class="tk-sheet__name">{name}</span>
@@ -394,9 +384,10 @@ export function TextSheet() {
 }
 
 /**
- * The Audio sheet (style.md "Layouts" narrow: Music, your audio and the selection's sound; CMP-MusicPicker
- * "narrow"): grabber, the title COPY-music.title with Close, the selection's sound section when a video or
- * audio clip is selected (build question 112), then the your-audio row and the touch-size track rows.
+ * The Audio sheet (CMP-Inspector "narrow sheets", D-052): grabber, the title COPY-tab.audio with Close, the
+ * selection's sound section at touch size when a video or audio clip is selected (build question 112; for an
+ * audio clip its fades follow, F-009.R4), then the full-width touch-size Music button (COPY-action.music)
+ * that opens the file picker for audio files. Implements: F-011.R1 on narrow layouts.
  */
 export function AudioSheet() {
   const open = openSheet.value === 'audio';
@@ -418,7 +409,7 @@ export function AudioSheet() {
       <div class="tk-sheet__body">
         <header class="tk-sheet__head tk-sheet__head--close">
           <h2 ref={title} class="tk-sheet__title" id={AUDIO_TITLE_ID} tabIndex={-1}>
-            {t('music.title')}
+            {t('tab.audio')}
           </h2>
           <button
             type="button"
@@ -442,9 +433,15 @@ export function AudioSheet() {
             <SoundSection id="tk-sheet-sound" touch />
           </section>
         ) : null}
-        <div class="tk-music tk-music--sheet">
-          <MusicBody touch titleId={AUDIO_TITLE_ID} />
-        </div>
+        <button
+          type="button"
+          class="tk-button tk-button--outlined-accent tk-sheet__add tk-sheet__add--music"
+          data-action="music"
+          onClick={pickMusic}
+        >
+          <Icon name="music" size={16} />
+          {t('action.music')}
+        </button>
       </div>
     </section>
   );

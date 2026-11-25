@@ -100,7 +100,7 @@ ${looks.map((l) => `  ${JSON.stringify(l.id)}: { group: ${JSON.stringify(l.group
 // itself (Vite emits it with a content hash), read at start-up and precached for offline use.
 ${pack.map((l) => `import ${camel(l.id)} from './looks/${l.file}?url';`).join('\n')}
 
-/** Each look's strip as an own-origin path (MOD-Assets fetches only these, the music and the manifest). */
+/** Each look's strip as an own-origin path (MOD-Assets fetches only these and the manifest). */
 export const LOOK_FILES: Readonly<Record<string, string>> = Object.freeze({
 ${pack.map((l) => `  ${JSON.stringify(l.id)}: ${camel(l.id)},`).join('\n')}
 });

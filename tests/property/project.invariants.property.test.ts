@@ -12,7 +12,7 @@ import {
 } from '../../src/core';
 import { framePlan } from '../../src/plan';
 import * as P from '../../src/project';
-import { S, TRACKS, audioSource, photoSource, proj, videoSource } from '../support/project';
+import { S, audioSource, photoSource, proj, videoSource } from '../support/project';
 
 type Op = (p: Project, nextId: () => string) => P.EditResult;
 type Pick = 'any' | 'clip' | 'text' | 'audio';
@@ -63,10 +63,7 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   on('clip', fc.integer({ min: 0, max: 60 * S }), (p, id, x) => P.setClipIn(p, id, x)),
   on('clip', fc.integer({ min: 0, max: 60 * S }), (p, id, x) => P.setClipOut(p, id, x)),
   on('clip', fc.integer({ min: 0, max: 70 * S }), (p, id, x) => P.setPhotoDuration(p, id, x)),
-  // With and without the music catalog: an unknown track end must never let a clip grow.
-  on('any', fc.tuple(frac, edge, fc.boolean()), (p, id, [x, e, catalog]) =>
-    catalog ? P.trimTo(p, id, e, at(p, x), TRACKS) : P.trimTo(p, id, e, at(p, x)),
-  ),
+  on('any', fc.tuple(frac, edge), (p, id, [x, e]) => P.trimTo(p, id, e, at(p, x))),
   on('any', frac, (p, id, x, nextId) => P.splitAt(p, id, at(p, x), nextId)),
   on('clip', fc.integer({ min: 0, max: 500 }), (p, id, s) => P.setSpeed(p, id, s)),
   on('clip', fc.integer({ min: 0, max: 30 }), (p, id, x) => P.setCrossFade(p, id, x)),
@@ -80,17 +77,23 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   ),
   on('text', fc.tuple(frac, frac), (p, id, [a, b]) => P.setTextTimes(p, id, at(p, a), at(p, b))),
   on('any', fc.integer({ min: -400, max: 400 }), (p, id, d) => P.moveItemTime(p, id, d)),
-  fc.tuple(fc.constantFrom(...TRACKS.map((t) => t.id)), frac).map(
-    ([track, x]): Op =>
+  // F-011.R1 (D-052): a Music pick of the user's own audio files, placed one after another at the playhead.
+  fc.tuple(fc.array(fc.integer({ min: 1, max: 900 }), { minLength: 1, maxLength: 3 }), frac).map(
+    ([tenths, x]): Op =>
       (p, nextId) =>
-        P.addMusic(p, track, at(p, x), nextId, TRACKS),
+        P.addMedia(
+          p,
+          tenths.map((d) => audioSource(nextId(), d / 10)),
+          at(p, x),
+          nextId,
+        ),
   ),
   on('audio', frac, (p, id, x) => P.moveAudio(p, id, at(p, x))),
   on('audio', fc.constant(0), (p, id, _, nextId) => P.duplicateAudio(p, id, nextId)),
-  fc.tuple(fc.constantFrom<FrameRate>(24, 25, 30, 60), fc.boolean()).map(
-    ([r, catalog]): Op =>
+  fc.constantFrom<FrameRate>(24, 25, 30, 60).map(
+    (r): Op =>
       (p) =>
-        catalog ? P.setFrameRate(p, r, TRACKS) : P.setFrameRate(p, r),
+        P.setFrameRate(p, r),
   ),
   idx.map(
     (i): Op =>
@@ -130,12 +133,12 @@ it('INV-03 INV-04 INV-06 hold after every operation (with RULE-05 minimums and R
       let n = 0;
       const nextId = () => `x${++n}`;
       let p = seed;
-      expect(invariantViolations(p, TRACKS)).toEqual([]);
+      expect(invariantViolations(p)).toEqual([]);
       for (const op of ops) {
         const r = op(p, nextId);
         if (r.project === p) continue;
         changed++;
-        expect(invariantViolations(r.project, TRACKS)).toEqual([]);
+        expect(invariantViolations(r.project)).toEqual([]);
         expect(projectFrames(r.project)).toBeLessThanOrEqual(maxProjectFrames(r.project.frame.frameRate));
         expect(Object.isFrozen(r.project)).toBe(true);
         p = r.project;

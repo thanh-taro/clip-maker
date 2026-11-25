@@ -1,8 +1,8 @@
 // MOD-App — the user-facing video export (F-015): what CMP-ExportPanel offers and estimates, and the run that
 // CMP-ExportProgress shows (running, cancelling, done, failed, interrupted, no space). MOD-Export does the
 // work (estimate, start, cancel, hand-over, scratch); this file wires the session's real data into it: the
-// project as it is when Export is pressed, every source's file or picture from MOD-Media's registry and the
-// bundled tracks its audio clips play (build question 117), the look tables the engine uses (Q148), the text
+// project as it is when Export is pressed, every source's file or picture from MOD-Media's registry (build
+// question 117; every audio clip plays a source, D-052), the look tables the engine uses (Q148), the text
 // layers rasterised at the output size before the start (Q170), the capability record of the start-up probe
 // with the trial encodes and the size × rate grid probed when the panel first opens (ADR-0004 outcome).
 // While an export runs the editor is locked (SCR-Editor "exporting", Q96/Q100): ./lock.ts.
@@ -15,7 +15,6 @@
 // RULE-19 (signal), RULE-23 (settings kept for the session), D-018, D-019, D-020, CMP-ExportPanel "Behavior",
 // CMP-ExportProgress "Behavior".
 import { computed, effect, signal, untracked } from '@preact/signals';
-import { musicBlob } from '../assets';
 import {
   audioFormatOffers,
   chooseAudioFormat,
@@ -69,7 +68,7 @@ import { needsClip } from './adding';
 import { capabilities } from './device';
 import { editorLocked } from './lock';
 import { lookTables } from './looks';
-import { musicFailed, musicIds, playback, registryMedia } from './playback';
+import { playback, registryMedia } from './playback';
 import { editingText, finishEditing } from './text';
 import { exportWorkers, scratchReady } from './workers';
 
@@ -558,30 +557,10 @@ export function closePanel(returnFocus = true): void {
 /** ADR-0008 outcome item 2: the final gain per mix, shared by the session's exports. */
 const gains = new Map<string, number>();
 
-/** A bundled track's file could not be read: the export stops with COPY-notice.music_unavailable (Q120). */
-export class MusicUnavailable extends Error {
-  constructor(readonly trackId: string) {
-    super(`NotReadableError: bundled track ${trackId} could not be read`);
-  }
-}
-
-/**
- * Every source's file or picture (MOD-Media's registry) and the bundled tracks the audio clips play. A track
- * that can't be read shows COPY-notice.music_unavailable (F-011.R7) and fails the export: it is never
- * exported without the track (build question 120; the proposed rule is question 190).
- */
+/** Every source's file or picture (MOD-Media's registry); every audio clip plays a source (D-052). */
 export async function mediaOf(p: Project): Promise<EngineMedia[]> {
   const sources = await Promise.all(p.sources.map((src) => registryMedia(src)));
-  const music: EngineMedia[] = [];
-  for (const id of musicIds(p, null)) {
-    try {
-      music.push({ id, kind: 'audio', file: await deps.music(id) });
-    } catch {
-      musicFailed(id);
-      throw new MusicUnavailable(id);
-    }
-  }
-  return [...sources.filter((m): m is EngineMedia => m !== null), ...music];
+  return sources.filter((m): m is EngineMedia => m !== null);
 }
 
 type Texts = Readonly<Record<string, TextBitmap>>;
@@ -611,11 +590,9 @@ export interface ExportDeps {
   readonly caps: (caps: Capabilities, sound: boolean) => Promise<ExportCaps | null>;
   /** The size × rate grid of a codec (null: unknown, the start-up answer stands). */
   readonly grid: (codec: VideoCodecId) => Promise<GridCell[] | null>;
-  /** A bundled track's packaged file (MOD-Assets). */
-  readonly music: (trackId: string) => Promise<Blob>;
 }
 
-/** The browser's context of an export (tests reach `mediaOf` through it with a faked `music`). */
+/** The browser's context of an export. */
 export async function browserContext(p: Project, caps: ExportCaps, texts: Texts): Promise<ExportContext> {
   const workers = exportWorkers;
   const scratch = await scratchReady;
@@ -638,7 +615,6 @@ let deps: ExportDeps = {
   context: browserContext,
   texts: (p, w, h) => textBitmaps(p.textLayers, w, h),
   now: () => Date.now(),
-  music: musicBlob,
   caps: exportCaps,
   grid: (codec) => gridOf(codec),
 };
@@ -737,7 +713,7 @@ export type RunView =
   | { readonly phase: 'running'; readonly fraction: number; readonly remainingMs: number | null }
   | { readonly phase: 'cancelling'; readonly fraction: number }
   | { readonly phase: 'done'; readonly fileName: string; readonly share: File | null }
-  | { readonly phase: 'failed'; readonly reason?: 'music'; readonly kind?: ExportKind }
+  | { readonly phase: 'failed'; readonly kind?: ExportKind }
   | { readonly phase: 'interrupted' | 'no_space' };
 
 /** The export dialog's state (null: no dialog). */
@@ -809,14 +785,10 @@ export async function startExport(settings?: ExportSettings): Promise<void> {
       },
     };
     h = await deps.start(p, s, ctx);
-  } catch (e) {
+  } catch {
     closeTexts(texts);
-    // A cancelled run ends quietly; a bundled track that can't be read says so (build question 120).
-    if (!stale())
-      run.value =
-        e instanceof MusicUnavailable
-          ? { phase: 'failed', reason: 'music', kind: s.kind }
-          : { phase: 'failed', kind: s.kind };
+    // A cancelled run ends quietly.
+    if (!stale()) run.value = { phase: 'failed', kind: s.kind };
     return;
   }
   // MOD-Export has posted the bitmaps to its worker (structured clones): ours are no longer needed.

@@ -18,7 +18,7 @@ import bwHigh from './looks/bw-high.png?url';
 import bwSoft from './looks/bw-soft.png?url';
 import bwSepia from './looks/bw-sepia.png?url';
 
-/** Each look's strip as an own-origin path (MOD-Assets fetches only these, the music and the manifest). */
+/** Each look's strip as an own-origin path (MOD-Assets fetches only these and the manifest). */
 export const LOOK_FILES: Readonly<Record<string, string>> = Object.freeze({
   "natural-fresh": naturalFresh,
   "natural-warm": naturalWarm,

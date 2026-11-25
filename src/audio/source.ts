@@ -1,6 +1,6 @@
 // MOD-Audio — the decoded sound a voice reads (ADR-0008 §2, §6). The mixer reads 48 kHz stereo
-// samples by source sample index; windowed decoding (MOD-Container/MOD-Codec, ADR-0008 §6) and
-// bundled music provide this interface. Pure, no DOM.
+// samples by source sample index; windowed decoding (MOD-Container/MOD-Codec, ADR-0008 §6) provides
+// this interface. Pure, no DOM.
 
 /** A source's sound as 48 kHz stereo, readable at any range. */
 export interface SoundSource {
@@ -13,7 +13,7 @@ export interface SoundSource {
 /** Looks up a source's sound by source ID; undefined = not decoded (yet), heard as silence. */
 export type SourceBank = (sourceId: string) => SoundSource | undefined;
 
-/** A source held whole in memory (tests, short bundled tracks, decoded windows). */
+/** A source held whole in memory (tests, decoded windows). */
 export function pcmSource(L: Float32Array, R: Float32Array = L): SoundSource {
   const length = Math.min(L.length, R.length);
   return {
@@ -47,13 +47,9 @@ interface SoundProject {
 }
 
 /**
- * The sources whose sound is decoded: every video or audio source with sound, and every bundled track an
- * audio clip plays (ENT-MusicTrack: an audio clip's source that is not one of the project's sources).
- * Implements: F-011.R5 (bundled music in the same mix as the clips' sound), ADR-0008 §7.
+ * The sources whose sound is decoded: every video or audio source with sound. Every audio clip plays a
+ * source (D-052). Implements: F-011.R5 (the user's audio in the same mix as the clips' sound).
  */
 export function soundSourceIds(project: SoundProject): string[] {
-  const ids = project.sources.filter((s) => s.kind === 'audio' || s.hasSound === true).map((s) => s.id);
-  const known = new Set(project.sources.map((s) => s.id));
-  for (const a of project.audioClips) if (!known.has(a.sourceId) && !ids.includes(a.sourceId)) ids.push(a.sourceId);
-  return ids;
+  return project.sources.filter((s) => s.kind === 'audio' || s.hasSound === true).map((s) => s.id);
 }

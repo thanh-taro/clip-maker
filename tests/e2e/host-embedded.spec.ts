@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CATALOG, type MessageId } from '../../src/copy/messages.gen';
 import type { ExportRead } from '../harness/app';
+import { wavTone } from './support/audio-files';
 import { HOST_ALLOWED, TOOL_ALLOWED, hostPageUrl } from './support/host-urls';
 import { MEDIA_HARNESS_PORT } from './support/ports';
 
@@ -336,18 +337,13 @@ test('F-019.AC6 F-019.R5 INV-08 embedded use of every M-1 feature: the only mess
   await page.keyboard.press('Escape');
   await expect(field).toHaveCount(0);
 
-  // F-011 music: a bundled track at the playhead.
+  // F-011 music (D-052): the user's own audio file, chosen with Music, at the playhead.
+  const musicChooser = page.waitForEvent('filechooser');
   await editorBar(tool)
     .getByRole('button', { name: en('action.music') })
     .click();
-  const picker = tool.getByRole('dialog', { name: en('music.title') });
-  await picker
-    .getByRole('listitem')
-    .first()
-    .getByRole('button', { name: en('music.add') })
-    .click();
+  await (await musicChooser).setFiles([wavTone('song.wav', 2)]);
   await expect(tool.locator('.tk-aclip')).toHaveCount(1, { timeout: 30_000 });
-  if (await picker.isVisible()) await picker.getByRole('button', { name: en('action.close') }).click();
   await closeNotices(tool);
 
   // F-012 frame: nothing selected, 9:16; F-013 undo (Mod+Z) and redo.

@@ -1,99 +1,24 @@
-// MOD-App — music and sound (F-011): the music picker's state (open, the one audition, Add at playhead),
-// and the actions behind CMP-Inspector's sound section (volume, mute, Mute original sound). Every change
-// is one MOD-Project edit, so one RULE-13 undo step; a volume slider movement is one gesture (F-014
-// `beginGesture`, cut by undo and redo). Refusals (COPY-notice.no_audio_room) show as CMP-Notice.
-// Implements: F-011.R1 (preview and place a bundled track per RULE-12), F-011.R3 (volume 0–200 % and mute),
-// F-011.R4 (Mute original sound as one step, and Unmute when all are muted), CMP-MusicPicker "Behavior".
-import { computed, signal } from '@preact/signals';
-import { musicTracks } from '../assets';
-import { RULE_12, type MusicTrack } from '../core';
+// MOD-App — sound (F-011): the actions behind CMP-Inspector's sound section (volume, mute, Mute original
+// sound). Every change is one MOD-Project edit, so one RULE-13 undo step; a volume slider movement is one
+// gesture (F-014 `beginGesture`, cut by undo and redo). Music comes only from the user's own audio files
+// (D-052): COPY-action.music opens the file picker (./MediaInput.tsx `pickMusic`) and the pick goes through
+// the F-001 intake (./adding.ts).
+// Implements: F-011.R3 (volume 0–200 % and mute), F-011.R4 (Mute original sound as one step, and Unmute when
+// all are muted).
+import { computed } from '@preact/signals';
+import { RULE_12 } from '../core';
 import {
-  addMusic,
   allOriginalMuted,
   beginGesture,
   edit,
   muteOriginal,
-  playhead,
   project,
-  selection,
   setMuted,
   setVolume,
   type Gesture,
 } from '../project';
-import { nextItemId, showResultNotices } from './adding';
+import { showResultNotices } from './adding';
 import { selectedAudio, selectedClip } from './arrange';
-import { auditionTrack, playback } from './playback';
-
-/** CMP-MusicPicker is open (wide: the popover from Music; narrow: the Audio sheet). */
-export const pickerOpen = signal(false);
-
-/** F-011.R6: the bundled tracks the picker lists. */
-export const tracks: readonly MusicTrack[] = musicTracks();
-
-/**
- * CMP-MusicPicker "Behavior": Play preview auditions a track from its start; activating it again, another
- * track's preview, Stop preview or closing the picker stops it. Only one preview plays at a time.
- */
-export function togglePreview(trackId: string): void {
-  const clock = playback.peek()?.clock;
-  if (!clock) return;
-  if (auditionTrack.peek() === trackId) {
-    stopPreview();
-    return;
-  }
-  const track = tracks.find((t) => t.id === trackId);
-  if (!track) return;
-  // The project pauses first (the audition has the speakers); the picture stays where it is.
-  playback.peek()?.ctl.pause();
-  auditionTrack.value = trackId;
-  void clock.audition(trackId, track.duration);
-}
-
-export function stopPreview(): void {
-  if (auditionTrack.peek() === null) return;
-  playback.peek()?.clock.stopAudition();
-  auditionTrack.value = null;
-}
-
-export function openPicker(): void {
-  pickerOpen.value = true;
-}
-
-/** Closing the picker stops its preview (CMP-MusicPicker "Behavior"). */
-export function closePicker(): void {
-  stopPreview();
-  pickerOpen.value = false;
-}
-
-/**
- * CMP-MusicPicker "row / no audio room": the tracks that can't be placed at the playhead now (RULE-12:
- * less than 0.1 s free from the start point, or the playhead at or past the project end).
- */
-let lastNoRoom: ReadonlySet<string> = new Set();
-export const noRoom = computed<ReadonlySet<string>>(() => {
-  const p = project.value;
-  const at = playhead.value;
-  const next = tracks.filter((t) => addMusic(p, t.id, at, () => 'probe', tracks).project === p).map((t) => t.id);
-  // The playhead moves every frame while playing: the same set is returned so the picker does not re-render.
-  if (next.length === lastNoRoom.size && next.every((id) => lastNoRoom.has(id))) return lastNoRoom;
-  lastNoRoom = new Set(next);
-  return lastNoRoom;
-});
-
-/**
- * F-011.R1: Add at playhead places the track per RULE-12 as one undo step, keeps the picker open and
- * selects the new audio clip. False when it was refused (COPY-notice.no_audio_room).
- */
-export function addTrack(trackId: string): boolean {
-  const before = project.peek();
-  showResultNotices(edit((p) => addMusic(p, trackId, playhead.peek(), nextItemId, tracks)));
-  const after = project.peek();
-  if (after === before) return false;
-  const known = new Set(before.audioClips.map((a) => a.id));
-  const added = after.audioClips.find((a) => !known.has(a.id));
-  if (added) selection.value = [added.id];
-  return true;
-}
 
 /** The item whose sound the inspector shows: the selected video clip or audio clip, else null. */
 export const soundTarget = computed<{ id: string; volume: number; muted: boolean; kind: 'video' | 'audio' } | null>(
