@@ -23,9 +23,9 @@ Clip Maker is a free video editor that runs in your web browser. You can arrange
 
 Clip Maker is provided free of charge, and exports carry no watermark. We may change, add or remove features in future versions; any change to these terms will be published as described in section 10.
 
-## 4. Bundled music
+## 4. Music
 
-The music included in Clip Maker was dedicated to the public domain by its creators under the CC0 1.0 Universal dedication, and you may use it in your videos, including commercial ones, without paying or giving credit (credits are shown in the tool as a courtesy). However, automated content-identification systems on video platforms can sometimes flag public-domain music by mistake. We cannot guarantee that a platform will never flag or claim a video that uses it, and we are not responsible for decisions such platforms make.
+Clip Maker does not include any music. Music in your videos comes only from audio files you add yourself, and section 2 applies to it: you are responsible for having the right to use it, including on platforms that check uploads for copyrighted music.
 
 ## 5. Third-party components
 
@@ -69,4 +69,4 @@ Questions about these terms: **CONTACT_EMAIL**.
 
 **Ngày hiệu lực:** [ngày công bố] · **Đơn vị cung cấp:** TaroKit · **Liên hệ:** CONTACT_EMAIL
 
-Clip Maker là công cụ chỉnh sửa video miễn phí, chạy trong trình duyệt trên thiết bị của bạn, không cần tài khoản và không gắn hình mờ. Bạn giữ toàn quyền đối với nội dung của mình và chịu trách nhiệm có đủ quyền sử dụng các tệp bạn đưa vào. Nhạc đi kèm thuộc phạm vi công cộng (CC0), nhưng chúng tôi không bảo đảm các nền tảng video sẽ không nhận diện nhầm. Không được dùng công cụ cho mục đích trái pháp luật hoặc xâm phạm quyền của người khác. Dịch vụ được cung cấp "nguyên trạng", không kèm bảo đảm, trong phạm vi pháp luật cho phép. Điều khoản này chịu sự điều chỉnh của pháp luật Việt Nam. Bản tiếng Anh ở trên là bản đầy đủ.
+Clip Maker là công cụ chỉnh sửa video miễn phí, chạy trong trình duyệt trên thiết bị của bạn, không cần tài khoản và không gắn hình mờ. Bạn giữ toàn quyền đối với nội dung của mình và chịu trách nhiệm có đủ quyền sử dụng các tệp bạn đưa vào. Clip Maker không kèm sẵn nhạc; nhạc trong video chỉ đến từ tệp âm thanh bạn tự thêm, và bạn chịu trách nhiệm có quyền sử dụng chúng. Không được dùng công cụ cho mục đích trái pháp luật hoặc xâm phạm quyền của người khác. Dịch vụ được cung cấp "nguyên trạng", không kèm bảo đảm, trong phạm vi pháp luật cho phép. Điều khoản này chịu sự điều chỉnh của pháp luật Việt Nam. Bản tiếng Anh ở trên là bản đầy đủ.

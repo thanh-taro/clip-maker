@@ -435,7 +435,7 @@ export function AudioSheet() {
         ) : null}
         <button
           type="button"
-          class="tk-button tk-button--outlined-accent tk-sheet__add tk-sheet__add--music"
+          class="tk-button tk-button--outlined-accent tk-sheet__add"
           data-action="music"
           onClick={pickMusic}
         >

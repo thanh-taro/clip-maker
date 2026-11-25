@@ -45,7 +45,7 @@ Clip Maker downloads only its own files from its own address, over HTTPS. None o
 **Things you choose to do.**
 - *Download* saves the exported file to your device.
 - *Share* (where your device supports it) hands the file to your device's share menu; where it goes from there is your choice and is governed by the app you pick.
-- Music source links and the source-code link open other websites in a new tab without telling them where you came from. Those sites' own privacy policies apply.
+- The source-code link opens another website in a new tab without telling them where you came from. Those sites' own privacy policies apply.
 
 ## 5. Legal basis and your rights
 

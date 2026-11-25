@@ -9,8 +9,6 @@
 // and 1280 px in en-US and vi-VN. The audio files are made by the test (./support/audio-files.ts: silent
 // MP3s, WAV tones). Starting projects with audio clips in place are set through `appHarness.load()` with an
 // audio source of the user's (`songSource`), and a photo's length through `appHarness.setClip()`.
-// F-011.AC6 and F-011.AC7 (the shipped tracks' credits and offline audition) are retired by D-052 with R6 and
-// R7: no test; their IDs are named here only so the coverage check knows they were not forgotten.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';

@@ -53,4 +53,27 @@ describe('MOD-Assets looks', () => {
     expect(b.map((l) => l.id)).toContain(second);
     expect(asked.filter((p) => p === LOOK_FILES[second!])).toHaveLength(2);
   });
+
+  it('NFR-01 ADR-0015 a failed read of the asset manifest gives no looks and no strip request, and is tried again next time', async () => {
+    const asked: string[] = [];
+    let manifestReads = 0;
+    const fetcher: Fetcher = async (path) => {
+      asked.push(path);
+      if (path === MANIFEST_PATH) {
+        manifestReads++;
+        if (manifestReads === 1) return { ok: false, status: 503, blob: async () => new Blob([]) };
+        const body = JSON.stringify({
+          version: 'v1',
+          files: Object.fromEntries(Object.values(LOOK_FILES).map((p) => [p, 'h'])),
+        });
+        return { ok: true, status: 200, blob: async () => new Blob([body]) };
+      }
+      return { ok: true, status: 200, blob: async () => new Blob([path]) };
+    };
+    expect(await looks(decode, fetcher)).toEqual([]);
+    expect(asked).toEqual([MANIFEST_PATH]);
+    const again = await looks(decode, fetcher);
+    expect(again.map((l) => l.id)).toEqual([...LOOK_IDS]);
+    expect(manifestReads).toBe(2);
+  });
 });

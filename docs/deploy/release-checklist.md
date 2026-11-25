@@ -7,9 +7,8 @@ deploying is a separate, user-approved step). Each step must pass; a failure sto
    licences, sizes). It builds `dist/`.
 2. `pnpm check:release` — the licence gate in release mode
    (`scripts/check-licenses.mjs --strict --release`). On top of `pnpm check:licenses` it fails when:
-   - the music pack still has placeholder tracks (`"placeholder": true` in `src/assets/music/music.json`,
-     DEP-41 … DEP-43; build question 114), or fewer than the 8 tracks RULE-12 needs;
-   - `dist/` ships a placeholder music file (the dist/ scan, `scripts/check-dist.mjs --release`);
+   - `dist/` ships any audio file (the tool ships no music since D-052; the dist/ scan,
+     `scripts/check-dist.mjs`);
    - the build was not made with the production host list and tool origin: `dist/_headers`
      `frame-ancestors` must be exactly `https://tarokit.app`, the CSP must carry the Trusted Types
      directives, `/assets/*` `Access-Control-Allow-Origin` must be `https://clip-maker.tarokit.app`,

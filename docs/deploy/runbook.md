@@ -14,12 +14,7 @@ list-deployments and rollback subcommands.
 - Version `1.0.0` in `package.json` (currently `0.0.0`; bumped in the release phase), tag
   `v1.0.0-rc.1`, final `v1.0.0`. Release notes: `docs/release-notes/1.0.0.md`.
 - Artefact: `dist/` of a build from a clean checkout of the tag. `dist/.assetsignore` keeps `*.map`
-  and `.vite` out of the upload. Measured in the working tree at drafting time (not a release
-  measurement; the release build re-measures): 43 files excluding maps, 11,065,670 bytes in total,
-  including 9 music files (977,117 to 1,221,244 bytes each); `index.html` 1,582; `sw.js` 3,474;
-  `asset-manifest.json` 2,929; `_headers` 1,781; `third-party-notices.txt` 51,858; main JS 376,944
-  and CSS 134,293 (uncompressed). Compressed budgets: `scripts/check-size.mjs`; NFR-10 music
-  <= 10 MB (pack 9,038,597 bytes, DEP-14).
+  and `.vite` out of the upload. Sizes are measured by the release build and recorded in `.build-my-app/reports/release-<version>.md`; compressed budgets: `scripts/check-size.mjs`. Since 1.1.0 (D-052) no music ships.
 - Record the SHA-256 of `dist/asset-manifest.json` and the tag commit for rollback records.
 
 ## 1. Infrastructure definitions (written, not applied)

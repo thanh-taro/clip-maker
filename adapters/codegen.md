@@ -17,8 +17,8 @@ produce.
 
 `scripts/gen-all.mjs` runs all six; `--check` compares instead of writing. Build-time outputs (not
 checked in, written into `dist/`): `/sw.js` and `/asset-manifest.json` (`scripts/lib/offline.mjs`).
-Still to come with their features: `gen-looks` table packing (`.cube` → 33³ PNG, F-008) and
-`gen-music-manifest` (F-011), both feeding the asset manifest.
+Still to come with its feature: `gen-looks` table packing (`.cube` → 33³ PNG, F-008), feeding the asset
+manifest. (`gen-music-manifest` was removed with the bundled music, D-052.)
 
 ## Tokens → CSS custom properties and the text palette
 - Style Dictionary 5 (DEP-20) formats the values; the script only splits the colour themes.
@@ -63,14 +63,14 @@ Still to come with their features: `gen-looks` table packing (`.cube` → 33³ P
 - For **runtime** and **asset** rows, each npm package named in the row that is installed is listed
   with its installed version, licence and licence file text; MPL-2.0 packages (ADR-0005) also get
   "used unmodified" and a link to the exact source tag of the shipped version. CC-BY rows (build-time
-  data) get an attribution line. Bundled music tracks join once registered (ADR-0013).
+  data) get an attribution line.
 - `notices.gen.ts` holds the in-tool view's rows (F-020.R4, "every shipped dependency and asset"):
   `NOTICE_FONTS` (each `@fontsource*` package, titled by its family name), `NOTICE_CODE` (every other
   shipped package, titled `<name> <version>`, source `npmjs.com/package/<name>`, the package's
   licence; then each shipped asset row that is the owner's own work, e.g. DEP-12 and DEP-13, source
   the repository) and `NOTICE_TEXTS` (the notices a registry row says must be kept, "(+ X notice)",
   e.g. DEP-11's Feather MIT notice, in full; generation fails if the text is not in the package's
-  licence file). The view adds MOD-Core's `MUSIC_TRACKS` (title, source, licence) at run time.
+  licence file).
 
 ## Boot script and `_headers`
 - `src/host/boot.js` is the only inline script. `scripts/lib/boot.mjs` strips its comment-only
