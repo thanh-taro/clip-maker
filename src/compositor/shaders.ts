@@ -1,6 +1,6 @@
 // MOD-Compositor — the GLSL ES 3.00 programs of the passes in ADR-0006 §3 (promoted from SP-gpu-color,
 // without the dropped "recompute the grade at each tap" variant, ADR-0006 outcome rule 1).
-import { GLSL_COMMON, GLSL_FINISH, GLSL_GRADE } from './grade';
+import { colourDefines, GLSL_COLOUR, GLSL_COMMON, GLSL_FINISH, GLSL_GRADE } from './grade';
 
 export const VS = `#version 300 es
 in vec2 aPos; in vec2 aTex; out vec2 vTex;
@@ -14,8 +14,7 @@ precision highp float; precision highp int; in vec2 vTex; out vec4 o;
 export const FS_TEX = `${HEAD}uniform sampler2D uTex; uniform float uOpacity;
 void main(){ o = texture(uTex, vTex) * uOpacity; }`;
 
-/** Grade pass (RULE-08 up to Fade) into the intermediate; 4 taps when sampling down by 2× or more. */
-export const FS_GRADE = `${HEAD}${GLSL_COMMON}${GLSL_GRADE}uniform sampler2D uSrc; uniform vec2 uHalf; uniform bool uTaps;
+const GRADE_MAIN = `uniform sampler2D uSrc; uniform vec2 uHalf; uniform bool uTaps;
 void main(){
   vec3 c = uTaps
     ? 0.25 * (texture(uSrc, vTex + vec2(-uHalf.x, -uHalf.y)).rgb + texture(uSrc, vTex + vec2(uHalf.x, -uHalf.y)).rgb
@@ -23,6 +22,16 @@ void main(){
     : texture(uSrc, vTex).rgb;
   o = vec4(grade(c), 1.0);
 }`;
+
+/**
+ * Grade pass (RULE-08 up to Fade, with the RULE-24 colour stages in `stages`, `CT_*` of grade.ts) into the
+ * intermediate; 4 taps when sampling down by 2× or more. One program per set of stages (ADR-0017 §9 fallback).
+ */
+export const fsGrade = (stages: number): string =>
+  `#version 300 es\n${colourDefines(stages)}${HEAD.slice(HEAD.indexOf('\n') + 1)}${GLSL_COMMON}${GLSL_COLOUR}${GLSL_GRADE}${GRADE_MAIN}`;
+
+/** The grade pass without colour stages (the 1.1.0 program). */
+export const FS_GRADE = fsGrade(0);
 
 /** Finish and place: Sharpen (unsharp mask), Vignette, Grain, drawn through the RULE-07 quad. */
 export const FS_PLACE = `${HEAD}${GLSL_COMMON}${GLSL_FINISH}uniform sampler2D uSrc;

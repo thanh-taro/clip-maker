@@ -197,7 +197,8 @@ export const LOOK_DEFINITIONS = {
 
 /** The look ids in looks.md order, read from the spec (the pack must cover exactly these). */
 export function specLookIds() {
-  const md = fs.readFileSync(abs('specs/30-experience/looks.md'), 'utf8');
+  // The looks table only: the "Duotone pairs" section after it (RULE-24, D-053) lists pairs, not looks.
+  const md = fs.readFileSync(abs('specs/30-experience/looks.md'), 'utf8').split(/^## Duotone pairs/m)[0];
   return [...md.matchAll(/^\|[^|]*\|\s*`([a-z]+(?:-[a-z]+)+)`\s*\|/gm)].map((m) => m[1]);
 }
 

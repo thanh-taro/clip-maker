@@ -106,3 +106,56 @@ export function rampBars(out: readonly Rgb[]): RampBars {
   }
   return { reversals, merged, maxStep, pass: reversals === 0 && merged === 0 && maxStep <= 2 * DEFAULT_MAX_STEP };
 }
+
+// ── RULE-24 fixtures (D-053, ADR-0016 / ADR-0017 §8) ─────────────────────────────────────────────
+
+/**
+ * The classic 24-patch colour chart (sRGB, 0–255; NFR-08 "colour on a 24-patch test chart"), six by four.
+ */
+export const CHART_24: readonly (readonly [number, number, number])[] = [
+  [115, 82, 68],
+  [194, 150, 130],
+  [98, 122, 157],
+  [87, 108, 67],
+  [133, 128, 177],
+  [103, 189, 170],
+  [214, 126, 44],
+  [80, 91, 166],
+  [193, 90, 99],
+  [94, 60, 108],
+  [157, 188, 64],
+  [224, 163, 46],
+  [56, 61, 150],
+  [70, 148, 73],
+  [175, 54, 60],
+  [231, 199, 31],
+  [187, 86, 149],
+  [8, 133, 161],
+  [243, 243, 242],
+  [200, 200, 200],
+  [160, 160, 160],
+  [122, 122, 121],
+  [85, 85, 85],
+  [52, 52, 52],
+];
+
+const fromLin = (l: number): number => (l <= 0.0031308 ? l * 12.92 : 1.055 * Math.pow(l, 1 / 2.4) - 0.055);
+
+/** CIELAB (D65) → sRGB values (not clamped: an out-of-gamut colour has values outside [0, 1]). */
+export function rgbOfLab([L, a, b]: Lab): Rgb {
+  const fy = (L + 16) / 116;
+  const fx = fy + a / 500;
+  const fz = fy - b / 200;
+  const inv = (t: number): number => (t ** 3 > 216 / 24389 ? t ** 3 : (116 * t - 16) / (24389 / 27));
+  const X = 0.95047 * inv(fx);
+  const Y = inv(fy);
+  const Z = 1.08883 * inv(fz);
+  const R = 3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z;
+  const G = -0.969266 * X + 1.8760108 * Y + 0.041556 * Z;
+  const B = 0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z;
+  const enc = (v: number): number => (v < 0 ? -fromLin(-v) : fromLin(v));
+  return [enc(R), enc(G), enc(B)];
+}
+
+/** CIELAB C*. */
+export const chroma = (l: Lab): number => Math.hypot(l[1], l[2]);

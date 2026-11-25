@@ -1,7 +1,7 @@
 // project.schema.json → TypeScript types of the project document (MOD-Core, ADR-0011, MOD-Build).
 // A small, dependency-free JSON Schema → TS translator for the subset the schema uses: objects with
-// `required`, `enum`, `const`, `oneOf`, `$ref` to `$defs`, arrays, nullable `type` lists, integer /
-// number / string / boolean. `allOf` / `if` / `then` / `else` (the per-kind clip fields) are not
+// `required`, `enum`, `const`, `oneOf` / `anyOf`, `$ref` to `$defs`, arrays, nullable `type` lists, integer /
+// number / string / boolean; `pattern` and `default` become doc notes (D-053 colour tools). `allOf` / `if` / `then` / `else` (the per-kind clip fields) are not
 // typed: those fields stay optional and MOD-Core's operations keep them consistent.
 // Fails on any construct it does not understand, so a schema change cannot silently weaken the types.
 import fs from 'node:fs';
@@ -17,6 +17,7 @@ const KNOWN = new Set([
   'enum',
   'const',
   'oneOf',
+  'anyOf',
   '$ref',
   'items',
   'properties',
@@ -30,6 +31,8 @@ const KNOWN = new Set([
   'multipleOf',
   'allOf',
   'title',
+  'pattern',
+  'default',
 ]);
 
 const doc = (text, pad) => (text ? `${pad}/** ${String(text).replace(/\*\//g, '* /')} */\n` : '');
@@ -46,6 +49,7 @@ function typeOf(node, pad, path) {
   if (node.enum) return node.enum.map((v) => JSON.stringify(v)).join(' | ');
   if ('const' in node) return JSON.stringify(node.const);
   if (node.oneOf) return node.oneOf.map((n, i) => typeOf(n, pad, `${path}/oneOf/${i}`)).join(' | ');
+  if (node.anyOf) return node.anyOf.map((n, i) => typeOf(n, pad, `${path}/anyOf/${i}`)).join(' | ');
   const types = Array.isArray(node.type) ? node.type : [node.type];
   return types
     .map((t) => {
@@ -89,7 +93,10 @@ function rangeNote(p) {
   if (p.maximum !== undefined) parts.push(`≤ ${p.maximum}`);
   if (p.multipleOf !== undefined) parts.push(`multiple of ${p.multipleOf}`);
   if (p.maxItems !== undefined) parts.push(`at most ${p.maxItems} items`);
-  return parts.length ? `range: ${parts.join(', ')}` : '';
+  const notes = parts.length ? [`range: ${parts.join(', ')}`] : [];
+  if (p.pattern !== undefined) notes.push(`pattern: ${p.pattern}`);
+  if (p.default !== undefined) notes.push(`default: ${JSON.stringify(p.default)}`);
+  return notes.join('; ');
 }
 
 export function renderTypes(schema) {

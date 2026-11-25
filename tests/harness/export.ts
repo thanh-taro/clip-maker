@@ -23,6 +23,7 @@ import {
   frameStart,
   projectFrames,
   type Adjustments,
+  type ColourTools,
   type EngineMedia,
   type Look,
   type ExportSettings,
@@ -50,7 +51,8 @@ import { loadFonts } from '../../src/host/fonts';
 import { rasteriseText, textBitmaps, TEXT_FACES } from '../../src/preview';
 import { framePlan, voices } from '../../src/plan';
 import { browserScratchEnv, browserStorage, lockName, Scratch, SCRATCH_DIR } from '../../src/scratch';
-import { de00, lab, type Rgb } from '../support/colour';
+import { CHART_24, de00, lab, type Rgb } from '../support/colour';
+import { hueRing } from '../support/hue-ring';
 import { analyseTone, decodeWindow, makeToneClip, type ToneReport, type ToneSpec } from './sound';
 import { CLIP_H, CLIP_W, codedProject, makeClip, readCode } from './video';
 
@@ -890,40 +892,19 @@ async function frameFill(
 }
 
 /**
- * The classic 24-patch colour chart (sRGB, 0–255; NFR-08 "colour on a 24-patch test chart"), six by four.
+ * F-007 / RULE-24 test charts: `ramp`, the 256-step grey ramp as a 16 × 16 grid of patches (row by row, black
+ * first); `colours`, the 24-patch chart; `ring`, the 360-step hue ring (RULE-24, 8-bit) as 24 × 15 patches.
  */
-const CHART_24: readonly Sample[] = [
-  [115, 82, 68],
-  [194, 150, 130],
-  [98, 122, 157],
-  [87, 108, 67],
-  [133, 128, 177],
-  [103, 189, 170],
-  [214, 126, 44],
-  [80, 91, 166],
-  [193, 90, 99],
-  [94, 60, 108],
-  [157, 188, 64],
-  [224, 163, 46],
-  [56, 61, 150],
-  [70, 148, 73],
-  [175, 54, 60],
-  [231, 199, 31],
-  [187, 86, 149],
-  [8, 133, 161],
-  [243, 243, 242],
-  [200, 200, 200],
-  [160, 160, 160],
-  [122, 122, 121],
-  [85, 85, 85],
-  [52, 52, 52],
-];
-
-/** F-007 test charts: `ramp`, the 256-step grey ramp as a 16 × 16 grid of patches (row by row, black first); `colours`, the 24-patch chart. */
-export type GradeChart = 'ramp' | 'colours';
+export type GradeChart = 'ramp' | 'colours' | 'ring';
 
 function chartPatches(chart: GradeChart): { cols: number; rows: number; patches: readonly Sample[] } {
   if (chart === 'colours') return { cols: 6, rows: 4, patches: CHART_24 };
+  if (chart === 'ring')
+    return {
+      cols: 24,
+      rows: 15,
+      patches: hueRing().map((c): Sample => [Math.round(c[0] * 255), Math.round(c[1] * 255), Math.round(c[2] * 255)]),
+    };
   return { cols: 16, rows: 16, patches: Array.from({ length: 256 }, (_, i): Sample => [i, i, i]) };
 }
 
@@ -950,8 +931,8 @@ let tablesRead: Promise<Record<string, Uint8Array>> | null = null;
 const lookTables = (): Promise<Record<string, Uint8Array>> =>
   (tablesRead ??= readLooks(decodeLookStrip).then((all) => Object.fromEntries(all.map((l) => [l.id, l.table]))));
 
-/** A one-second project of one chart photo (Original aspect, so 16:9), with these adjustments and look. */
-function chartProject(adjustments: Adjustments, seconds = 1, look: Look = null): Project {
+/** A one-second project of one chart photo (Original aspect, so 16:9), with these adjustments, look and colour tools. */
+function chartProject(adjustments: Adjustments, seconds = 1, look: Look = null, colourTools?: ColourTools): Project {
   return {
     frame: { aspect: 'original', frameRate: 30, background: 'black' },
     sources: [{ id: 'src-c', kind: 'photo', name: 'chart', bytes: 1, width: 1920, height: 1080 }],
@@ -967,6 +948,7 @@ function chartProject(adjustments: Adjustments, seconds = 1, look: Look = null):
         fadeIn: 0,
         fadeOut: 0,
         crossFadeNext: 0,
+        ...(colourTools ? { colourTools } : {}),
       },
     ],
     textLayers: [],
@@ -1081,8 +1063,13 @@ export interface GradeExportReport {
  * (mean of a 5 × 5 block) read, next to the compositor's paint of the same frame and size (the
  * preview's picture) and the chart's own values.
  */
-async function gradeExport(adjustments: Adjustments, chart: GradeChart, look: Look = null): Promise<GradeExportReport> {
-  const project = chartProject(adjustments, 1, look);
+async function gradeExport(
+  adjustments: Adjustments,
+  chart: GradeChart,
+  look: Look = null,
+  colourTools?: ColourTools,
+): Promise<GradeExportReport> {
+  const project = chartProject(adjustments, 1, look, colourTools);
   const k = 15;
   const file = await exportChartFrame(project, chart, k);
   const { cols, rows, patches } = chartPatches(chart);
@@ -1109,6 +1096,135 @@ async function gradeExport(adjustments: Adjustments, chart: GradeChart, look: Lo
     exported: patches.map((_, i) => centre(rgba, i)),
     painted: patches.map((_, i) => centre(paint!, i)),
   };
+}
+
+/** RULE-24 / ADR-0017 §8: the compositor's paint of a chart (patch centres, 5 × 5 means) next to the chart as made. */
+export interface GradePaintReport {
+  readonly input: readonly Sample[];
+  readonly painted: Sample[];
+  readonly halfFloat: boolean;
+}
+
+/** RULE-24 GPU vs CPU reference: a chart photo with adjustments, look and colour tools, painted at W × H (frame 0). */
+async function gradePaint(
+  adjustments: Adjustments,
+  chart: GradeChart,
+  look: Look = null,
+  colourTools?: ColourTools,
+  W = 1920,
+  H = 1080,
+): Promise<GradePaintReport> {
+  const project = chartProject(adjustments, 1, look, colourTools);
+  const { cols, rows, patches } = chartPatches(chart);
+  const comp = createCompositor(new OffscreenCanvas(W, H), new Map(Object.entries(await lookTables())), {
+    preserve: true,
+  });
+  const halfFloat = comp.halfFloat;
+  const [paint] = await paintChart(project, chart, W, H, [0], comp);
+  const centre = (px: ArrayLike<number>, i: number): Sample => {
+    const cx = Math.floor((((i % cols) + 0.5) * W) / cols);
+    const cy = Math.floor(((Math.floor(i / cols) + 0.5) * H) / rows);
+    const sum = [0, 0, 0];
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -2; dx <= 2; dx++) {
+        const o = ((cy + dy) * W + cx + dx) * 4;
+        for (let c = 0; c < 3; c++) sum[c]! += px[o + c]!;
+      }
+    return [sum[0]! / 25, sum[1]! / 25, sum[2]! / 25];
+  };
+  return { input: patches, painted: patches.map((_, i) => centre(paint!, i)), halfFloat };
+}
+
+/** SP-colour-tools (ADR-0017 §9): the colour-tool settings the benchmark draws, by name. */
+const BENCH_TOOLS: Record<string, ColourTools | undefined> = {
+  off: undefined,
+  mix: {
+    mixer: Object.fromEntries(
+      (['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'] as const).map((r, i) => [
+        r,
+        { hue: i % 2 ? -40 : 35, saturation: 20 + i, lightness: -10 - i },
+      ]),
+    ),
+  },
+  pop: { pop: { colour: 'orange', range: 60, amount: 80 } },
+  split: { splitToning: { shadowsStrength: 60, highlightsStrength: 50, balance: 20 } },
+  duo: { duotone: { on: true, pair: 'teal-cream', shadows: '#0F3B3E', highlights: '#F3E9D2', strength: 60 } },
+};
+BENCH_TOOLS['on'] = { ...BENCH_TOOLS['mix'], ...BENCH_TOOLS['pop'], ...BENCH_TOOLS['split'], ...BENCH_TOOLS['duo'] };
+
+export interface BenchReport {
+  readonly renderer: string;
+  readonly halfFloat: boolean;
+  readonly frames: number;
+  readonly runs: number;
+  /** Per configuration: ms per 1080p paint in each run (upload + grade + finish + mix, one GPU sync per run). */
+  readonly ms: Record<string, number[]>;
+}
+
+/**
+ * SP-colour-tools (ADR-0017 §9): paints a 1920 × 1080 photo-like picture into a 1920 × 1080 target with every
+ * adjustment on and a look at 80, with the colour tools off, each alone, and all on; `runs` rounds, each
+ * configuration in turn (interleaved so load drifts affect all alike), `frames` timed paints per run after 5
+ * warm-up paints, one GPU sync at the end of each run. The grade pass is the only pass whose work changes
+ * between configurations, so the difference of the medians is its added cost.
+ */
+async function colourToolsBench(runs = 7, frames = 60): Promise<BenchReport> {
+  const W = 1920;
+  const H = 1080;
+  const src = new OffscreenCanvas(W, H);
+  const g = src.getContext('2d')!;
+  for (let x = 0; x < W; x += 8) {
+    const grad = g.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, `hsl(${(x / W) * 360} 80% 85%)`);
+    grad.addColorStop(0.5, `hsl(${(x / W) * 360} 60% 45%)`);
+    grad.addColorStop(1, `hsl(${(x / W) * 360} 30% 8%)`);
+    g.fillStyle = grad;
+    g.fillRect(x, 0, 8, H);
+  }
+  const bitmap = await createImageBitmap(src);
+  const canvas = new OffscreenCanvas(W, H);
+  const comp = createCompositor(canvas, new Map(Object.entries(await lookTables())));
+  const probe = new OffscreenCanvas(1, 1).getContext('webgl2');
+  const info = probe?.getExtension('WEBGL_debug_renderer_info');
+  const renderer = probe ? String(probe.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : probe.RENDERER)) : '';
+  probe?.getExtension('WEBGL_lose_context')?.loseContext();
+  const all: Adjustments = {
+    temperature: 20,
+    tint: -10,
+    brightness: 10,
+    contrast: 20,
+    highlights: -20,
+    shadows: 20,
+    saturation: 15,
+    vibrance: 20,
+    sharpen: 40,
+    vignette: 30,
+    grain: 20,
+    fade: 10,
+  };
+  const frame = { image: bitmap, width: W, height: H, rotation: 0 as const };
+  const ms: Record<string, number[]> = {};
+  const projects = Object.fromEntries(
+    Object.entries(BENCH_TOOLS).map(([k, t]) => [
+      k,
+      chartProject(all, 10, { id: 'cine-teal-orange', intensity: 80 }, t),
+    ]),
+  );
+  try {
+    for (let run = 0; run < runs; run++)
+      for (const [name, project] of Object.entries(projects)) {
+        for (let i = 0; i < 5; i++) comp.paint(framePlan(project, i), [frame]);
+        comp.sync();
+        const t0 = performance.now();
+        for (let i = 0; i < frames; i++) comp.paint(framePlan(project, 5 + i), [frame]);
+        comp.sync();
+        (ms[name] ??= []).push((performance.now() - t0) / frames);
+      }
+    return { renderer, halfFloat: comp.halfFloat, frames, runs, ms };
+  } finally {
+    comp.dispose();
+    bitmap.close();
+  }
 }
 
 /** F-007.AC8: grain repeatability between two paints, a second compositor and the export, at one size. */
@@ -1796,6 +1912,8 @@ export const exportHarness = {
   runMix,
   frameFill,
   gradeExport,
+  gradePaint,
+  colourToolsBench,
   grainParity,
   /** The last export's file as bytes (Playwright saves it for manual checks). */
   async lastFile(): Promise<number[]> {

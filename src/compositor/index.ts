@@ -45,7 +45,10 @@ export {
   reference,
   toLinear,
   toSrgb,
+  type DuotoneStage,
   type GradeUniforms,
+  type HueStage,
+  type SplitStage,
   type Rgb,
 } from './grade';
 export {

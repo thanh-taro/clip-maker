@@ -54,6 +54,73 @@ export type Look = {
   readonly intensity: Unipolar;
 } | null;
 
+/** sRGB colour, upper-case #RRGGBB; pattern: ^#[0-9A-F]{6}$ */
+export type Hex = string;
+
+/** RULE-24 colour ranges */
+export type ColourRange = "red" | "orange" | "yellow" | "green" | "aqua" | "blue" | "purple" | "magenta";
+
+/** RULE-24 Colour mixer, one range; absent values are 0 */
+export type MixerRange = {
+  readonly hue?: Bipolar;
+  readonly saturation?: Bipolar;
+  readonly lightness?: Bipolar;
+};
+
+/** range: ≥ 0, ≤ 359 */
+export type HueDegrees = number;
+
+/** RULE-24, RULE-25 (D-053). Optional on a clip; every absent part is at its default, so a clip without it is unchanged. */
+export type ColourTools = {
+  /** RULE-24 Colour mixer; absent ranges are all 0 */
+  readonly mixer?: {
+    readonly red?: MixerRange;
+    readonly orange?: MixerRange;
+    readonly yellow?: MixerRange;
+    readonly green?: MixerRange;
+    readonly aqua?: MixerRange;
+    readonly blue?: MixerRange;
+    readonly purple?: MixerRange;
+    readonly magenta?: MixerRange;
+  };
+  /** RULE-24 Colour pop; colour null = None (default) */
+  readonly pop?: {
+    readonly colour?: ColourRange | null;
+    /** default: 50 */
+    readonly range?: Unipolar;
+    /** default: 100 */
+    readonly amount?: Unipolar;
+  };
+  /** RULE-24 Split toning */
+  readonly splitToning?: {
+    /** default: 210 */
+    readonly shadowsHue?: HueDegrees;
+    /** default: 0 */
+    readonly shadowsStrength?: Unipolar;
+    /** default: 35 */
+    readonly highlightsHue?: HueDegrees;
+    /** default: 0 */
+    readonly highlightsStrength?: Unipolar;
+    /** default: 0 */
+    readonly balance?: Bipolar;
+  };
+  /** RULE-24 Duotone; null or absent = None and never set on this clip. The object is kept while off (on: false) so Custom can start from the last colours. For a built-in pair, shadows and highlights are that pair's colours (looks.md). */
+  readonly duotone?: {
+    readonly on: boolean;
+    readonly pair: "midnight-peach" | "plum-gold" | "teal-cream" | "indigo-pink" | "forest-lime" | "ink-coral" | "custom";
+    readonly shadows: Hex;
+    readonly highlights: Hex;
+    readonly strength: Unipolar;
+  } | null;
+  /** RULE-25 Colour replace, in list order; range: at most 3 items */
+  readonly replace?: readonly ({
+    readonly from: Hex;
+    readonly to: Hex;
+    readonly range: Unipolar;
+    readonly softness: Unipolar;
+  })[];
+};
+
 /** RULE-04 */
 export type Frame = {
   readonly aspect: "9:16" | "1:1" | "4:5" | "16:9" | "original";
@@ -93,6 +160,7 @@ export type Clip = {
   readonly muted?: boolean;
   readonly placement: Placement;
   readonly adjustments: Adjustments;
+  readonly colourTools?: ColourTools;
   readonly look: Look;
   /** range: ≥ 0, ≤ 3000000 */
   readonly fadeIn: number;

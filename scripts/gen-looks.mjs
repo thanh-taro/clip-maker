@@ -23,9 +23,12 @@ export const LOOKS_BUDGET = 500_000;
 const STRIP = { width: 33 * 33, height: 33 };
 const ID = /^`([a-z]+(?:-[a-z]+)+)`$/;
 
+/** The looks table: everything before the "Duotone pairs" section (RULE-24, D-053). */
+const looksPart = (md) => md.split(/^## Duotone pairs/m)[0];
+
 export function parseLooks(md) {
   const looks = [];
-  for (const line of md.split('\n')) {
+  for (const line of looksPart(md).split('\n')) {
     const c = tableCells(line);
     if (!c || c.length < 3) continue;
     const m = ID.exec(c[1]);
@@ -35,6 +38,28 @@ export function parseLooks(md) {
   }
   if (looks.length === 0) throw new Error(`${SOURCE}: no looks found`);
   return looks;
+}
+
+const HEX = /^#[0-9A-F]{6}$/;
+
+/** looks.md "Duotone pairs" (RULE-24, F-027): id, COPY ID of the name, shadows and highlights colours, in order. */
+export function parseDuotonePairs(md) {
+  const part = md.split(/^## Duotone pairs/m)[1];
+  if (!part) throw new Error(`${SOURCE}: no "Duotone pairs" section`);
+  const pairs = [];
+  for (const line of part.split('\n')) {
+    const c = tableCells(line);
+    if (!c || c.length < 4) continue;
+    const m = ID.exec(c[1]);
+    if (!m) continue;
+    const copy = /^COPY-(duotone\.pair_[a-z_]+)$/.exec(c[0]);
+    if (!copy) throw new Error(`${SOURCE}: duotone pair ${m[1]} has no COPY-duotone.pair_… name`);
+    if (!HEX.test(c[2]) || !HEX.test(c[3])) throw new Error(`${SOURCE}: duotone pair ${m[1]} colours must be #RRGGBB`);
+    if (pairs.some((p) => p.id === m[1])) throw new Error(`${SOURCE}: duotone pair ${m[1]} is listed twice`);
+    pairs.push({ id: m[1], copyId: copy[1], shadows: c[2], highlights: c[3] });
+  }
+  if (pairs.length === 0) throw new Error(`${SOURCE}: no duotone pairs found`);
+  return pairs;
 }
 
 /** The checked looks pack (DEP-13), in looks.md order. Throws on any problem. */
@@ -71,10 +96,12 @@ export function looksPack() {
 const camel = (id) => id.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
 
 export function genLooks({ check }) {
-  const looks = parseLooks(fs.readFileSync(abs(SOURCE), 'utf8'));
+  const md = fs.readFileSync(abs(SOURCE), 'utf8');
+  const looks = parseLooks(md);
+  const pairs = parseDuotonePairs(md);
   const pack = looksPack().looks;
   const copy = new Set(parseCopy(fs.readFileSync(abs('specs/30-experience/copy.md'), 'utf8')).rows.map((r) => r.id));
-  const missing = looks.filter((l) => !copy.has(l.copyId)).map((l) => `COPY-${l.copyId}`);
+  const missing = [...looks, ...pairs].filter((l) => !copy.has(l.copyId)).map((l) => `COPY-${l.copyId}`);
   if (missing.length) throw new Error(`${SOURCE}: looks without a name in copy.md: ${missing.join(', ')}`);
   const groups = [...new Set(looks.map((l) => l.group))];
   const ts = `// ${GENERATED_HEADER(SOURCE, 'scripts/gen-looks.mjs')}
@@ -93,6 +120,18 @@ export type LookGroup = (typeof LOOK_GROUPS)[number];
 /** Each look's group and the COPY ID (without \`COPY-\`) of its name. */
 export const LOOKS: Readonly<Record<LookId, { readonly group: LookGroup; readonly copyId: string }>> = {
 ${looks.map((l) => `  ${JSON.stringify(l.id)}: { group: ${JSON.stringify(l.group)}, copyId: ${JSON.stringify(l.copyId)} },`).join('\n')}
+};
+
+/** RULE-24 duotone pairs in display order (looks.md "Duotone pairs", F-027): sRGB #RRGGBB. */
+export const DUOTONE_PAIRS = ${JSON.stringify(pairs.map((p) => p.id))} as const;
+
+export type DuotonePairId = (typeof DUOTONE_PAIRS)[number];
+
+/** Each pair's shadows and highlights colours and the COPY ID (without \`COPY-\`) of its name. */
+export const DUOTONE_PAIR_COLOURS: Readonly<
+  Record<DuotonePairId, { readonly shadows: string; readonly highlights: string; readonly copyId: string }>
+> = {
+${pairs.map((p) => `  ${JSON.stringify(p.id)}: { shadows: ${JSON.stringify(p.shadows)}, highlights: ${JSON.stringify(p.highlights)}, copyId: ${JSON.stringify(p.copyId)} },`).join('\n')}
 };
 `;
   const assets = `// ${GENERATED_HEADER(PACK, 'scripts/gen-looks.mjs')}
