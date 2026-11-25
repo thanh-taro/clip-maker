@@ -4,6 +4,8 @@ Generated 2026-11-20 (QA phase), results updated 2026-11-23, from `specs/20-feat
 
 Last results: the final full `pnpm check` on 2026-11-23 (main after both QA fix batches, quiet machine, 1 worker) passed spec lint, codegen, typecheck, lint, 1094 unit tests in 122 files, build, licence + dist scan and size budgets; e2e on Chromium + WebKit: 970 passed, 13 skipped by design (touch tests that run on Chromium only, and one encoder-fallback case per engine), 1 failed. The failure (`keyboard-touch.spec.ts` F-017.R3 "? pressed the moment the preview goes full screen…") was a test race: it clicked the Full screen button before the preview had enabled it. Fixed in bcb735e (the test now waits for the button to be enabled), then passed 3/3 on each engine. "pass (bcb735e)" = passed in that run. `pnpm check:realtime` was not re-run after the fix batches; its results are from 61c3038 (17 passed, 1 skipped by design) and are marked "realtime pass (61c3038)".
 
+**Release candidate 1.0.0 (2026-11-25, f60de9f):** unit 1095 passed; e2e 970 passed, 13 skipped by design, 1 intermittent WebKit failure (`host-embedded.spec.ts:268`, passed 5/5 on re-run); `pnpm check:realtime` 17 passed, 1 skipped. Details: `release-1.0.0.md`. Rows marked "pass (bcb735e)" also passed on 1.0.0.
+
 **Coverage: 191 of 192 acceptance criteria across 23 features have at least one citing test, and all of those tests pass.** F-001.AC9 is a device-only check, waived by the owner (QA-5) – not verified on a device. Every other manual or device check below is also marked waived, never passed.
 
 ## FLOW-01 — Make a short vertical clip
