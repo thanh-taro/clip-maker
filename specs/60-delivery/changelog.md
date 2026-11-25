@@ -2,6 +2,9 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-25 — Release candidate 1.2.0 (D-053 colour tools)
+- F-024 colour mixer, F-025 colour pop, F-026 split toning and F-027 duotone built (engine and UI, two review rounds each) and `shipped`. Version 1.2.0, candidate `v1.2.0-rc.1`; verification in `.build-my-app/reports/release-1.2.0.md`. F-028 colour replace stays `draft` for 1.3.0 (M-5).
+
 ## 2026-11-25 — Colour tools: spec review round 2 (D-053)
 - RULE-24 *Split toning*: the tints fade to none within 20 (was 5) of black and white, so the grey-ramp 4× bar holds for every shadow hue (N1); ADR-0017 §4 follows. *Duotone*: a pixel's gradient position is its CIELAB L* ÷ 100, not the working-space lightness, so every built-in pair meets the 4× bar at the first step (N2); F-027.R2, F-027.AC2 and ADR-0017 §4 follow. The per-step weight bound now names its unit per fade (hue-ring step, lightness unit, or working-space chroma unit for the grey fade), and ADR-0017's grey gate edges are 0.0065–0.029 OK C, matching C* 2 and 12 (N3, N4). A duotone Reset or Reset all forgets the remembered colours; None keeps them (N5, F-027.AC8).
 

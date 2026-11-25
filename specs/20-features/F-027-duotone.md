@@ -1,7 +1,7 @@
 ---
 id: F-027
 title: Recolour in two colours (duotone)
-status: building
+status: shipped
 milestone: M-4
 priority: P2
 personas: [PER-02, PER-03]
