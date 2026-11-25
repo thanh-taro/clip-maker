@@ -2,6 +2,14 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-25 — Colour tools (owner decision D-053)
+- Five colour tools for video and photo clips. New features: F-024 Mix colours by range (colour mixer), F-025 Keep one colour (colour pop), F-026 Tint shadows and highlights (split toning) and F-027 Recolour in two colours (duotone), `ready`, milestone M-4 (release 1.2.0); F-028 Replace a colour, `draft` (open questions Q5–Q7), milestone M-5 (release 1.3.0). Roadmap gains M-4 and M-5; `_index.md` updated.
+- RULE-24 (new): the colour tools' ranges, defaults and units, the eight colour ranges, the full order applied (colour replace → Temperature/Tint → tone → Saturation/Vibrance → colour mixer → colour pop → look → split toning → duotone → Fade, Sharpen, Vignette, Grain, each with its reason), quality bars (identity at defaults ΔE00 < 0.5; greys untouched by mixer, pop and replace; hue-ring and grey-ramp smoothness; 8-bit within ΔE00 1; export within NFR-08), and reset, copy, compare and history. RULE-25 (new): colour replace and the eyedropper (pointer, touch magnifier, keyboard marker).
+- Shipped rules extended (behaviour of existing projects unchanged, since every colour tool defaults to no change): RULE-08 points to RULE-24 for the order and adds the colour tools to Reset all, Apply to all, Copy, Paste and Compare (F-007.R3, F-007.R4, F-007.R7); RULE-09 look thumbnails include the colour tools; RULE-20 gives the eyedropper marker its keys; RULE-23 clears copied colour tools. NFR-03's load now includes every colour tool on.
+- Domain: ENT-Clip gains optional colour tools; `project.schema.json` gains the optional clip property `colourTools` (`mixer`, `pop`, `splitToning`, `duotone`, `replace`) and the defs `hex`, `colourRange`, `mixerRange`, `hueDegrees`, `colourTools`. Glossary: Colour tool, Colour range, Colour mixer, Colour pop, Split toning, Duotone, Colour replace, Eyedropper, Colour picker.
+- Experience: CMP-ColourPicker (new, `ready`); CMP-Inspector gains the collapsible colour-tool groups (wide and narrow sheet), Reset all and footer behaviour, and accessibility notes; CMP-Preview gains "picking a colour" and compare without colour tools. copy.md: new "Colour tools (D-053)" section (en-US, vi-VN); COPY-action.copy_look note. looks.md: "Duotone pairs" (six pairs, owner sign-off in design).
+- Technical: ADR-0017 (proposed) — the tools run in the one grade pass in OKLab/OKLCh with a per-clip hue table, analytic split toning, duotone and colour replace, an eyedropper read-back of the source stage, a budget of +2 ms per 1080p frame on the reference phone, pending spike SP-colour-tools. MOD-Compositor notes it.
+
 ## 2026-11-25 — Released 1.1.0 to production (D-052)
 - `v1.1.0` (the `v1.1.0-rc.1` build, unchanged) is live at `https://clip-maker.tarokit.app`, replacing 1.0.0; no music ships. Checks: `.build-my-app/reports/deploy-1.1.0.md`.
 

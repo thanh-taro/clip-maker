@@ -12,7 +12,9 @@ in RULE-08 order with the look table and intensity, sharpen, vignette, determini
 RULE-07 transform, the clip layer over its background (colour or Blur), fades and cross-fades, then
 text bitmaps in stacking order. Screen-only overlays
 are separate draws. Includes the CPU reference implementation used as the test oracle, and the
-timed effects check for RULE-22.
+timed effects check for RULE-22. From 1.2.0 the grade also runs the colour tools of RULE-24 and
+RULE-25 in their order, in OKLab, with a per-clip hue table, and samples the source stage for the
+eyedropper (ADR-0017).
 
 ### Rules from the spikes (2026-11-04)
 Evidence: SP-gpu-color, SP-hdr, SP-mem-phone, SP-ios, SP-speed (ADR-0006 / ADR-0007 outcomes).

@@ -22,3 +22,15 @@ after a brand or another product's filter.
 | Black & White | `bw-high` | Contrast | Tương phản | Punchy black and white with deep blacks |
 | Black & White | `bw-soft` | Soft | Dịu | Low-contrast, matte black and white |
 | Black & White | `bw-sepia` | Sepia | Nâu cổ | Warm brown monochrome |
+
+## Duotone pairs
+The six built-in duotone pairs (RULE-24, F-027), in the order shown. Each is a shadows colour and a highlights colour in sRGB. Like the looks, the owner signs them off on fixed reference images during design; the values may be tuned then.
+
+| Pair | Id | Shadows colour | Highlights colour | Intent |
+|---|---|---|---|---|
+| COPY-duotone.pair_midnight_peach | `midnight-peach` | #1B2A4A | #F6C9A0 | Soft, warm poster look; the default start for Custom |
+| COPY-duotone.pair_plum_gold | `plum-gold` | #3A1645 | #F2C14E | Rich and festive |
+| COPY-duotone.pair_teal_cream | `teal-cream` | #0F3B3E | #F3E9D2 | Calm, editorial |
+| COPY-duotone.pair_indigo_pink | `indigo-pink` | #2B1B5A | #FF8FB1 | Bright, playful pop style |
+| COPY-duotone.pair_forest_lime | `forest-lime` | #12301C | #C9F27B | Fresh, sporty |
+| COPY-duotone.pair_ink_coral | `ink-coral` | #141414 | #FF6F59 | High contrast, bold titles |

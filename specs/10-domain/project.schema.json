@@ -162,6 +162,193 @@
           "$ref": "#/$defs/unipolar"
         }
       }
+    },
+    "hex": {
+      "type": "string",
+      "pattern": "^#[0-9A-F]{6}$",
+      "description": "sRGB colour, upper-case #RRGGBB"
+    },
+    "colourRange": {
+      "enum": [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "aqua",
+        "blue",
+        "purple",
+        "magenta"
+      ],
+      "description": "RULE-24 colour ranges"
+    },
+    "mixerRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "RULE-24 Colour mixer, one range; absent values are 0",
+      "properties": {
+        "hue": {
+          "$ref": "#/$defs/bipolar"
+        },
+        "saturation": {
+          "$ref": "#/$defs/bipolar"
+        },
+        "lightness": {
+          "$ref": "#/$defs/bipolar"
+        }
+      }
+    },
+    "hueDegrees": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 359
+    },
+    "colourTools": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "RULE-24, RULE-25 (D-053). Optional on a clip; every absent part is at its default, so a clip without it is unchanged.",
+      "properties": {
+        "mixer": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "RULE-24 Colour mixer; absent ranges are all 0",
+          "properties": {
+            "red": {
+              "$ref": "#/$defs/mixerRange"
+            },
+            "orange": {
+              "$ref": "#/$defs/mixerRange"
+            },
+            "yellow": {
+              "$ref": "#/$defs/mixerRange"
+            },
+            "green": {
+              "$ref": "#/$defs/mixerRange"
+            },
+            "aqua": {
+              "$ref": "#/$defs/mixerRange"
+            },
+            "blue": {
+              "$ref": "#/$defs/mixerRange"
+            },
+            "purple": {
+              "$ref": "#/$defs/mixerRange"
+            },
+            "magenta": {
+              "$ref": "#/$defs/mixerRange"
+            }
+          }
+        },
+        "pop": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "RULE-24 Colour pop; colour null = None (default)",
+          "properties": {
+            "colour": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/colourRange"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "range": {
+              "$ref": "#/$defs/unipolar",
+              "default": 50
+            },
+            "amount": {
+              "$ref": "#/$defs/unipolar",
+              "default": 100
+            }
+          }
+        },
+        "splitToning": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "RULE-24 Split toning",
+          "properties": {
+            "shadowsHue": {
+              "$ref": "#/$defs/hueDegrees",
+              "default": 210
+            },
+            "shadowsStrength": {
+              "$ref": "#/$defs/unipolar",
+              "default": 0
+            },
+            "highlightsHue": {
+              "$ref": "#/$defs/hueDegrees",
+              "default": 35
+            },
+            "highlightsStrength": {
+              "$ref": "#/$defs/unipolar",
+              "default": 0
+            },
+            "balance": {
+              "$ref": "#/$defs/bipolar",
+              "default": 0
+            }
+          }
+        },
+        "duotone": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "RULE-24 Duotone; null or absent = None",
+          "required": [
+            "pair",
+            "shadows",
+            "highlights",
+            "strength"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "pair": {
+              "type": "string",
+              "description": "a built-in pair id (looks.md Duotone pairs) or \"custom\""
+            },
+            "shadows": {
+              "$ref": "#/$defs/hex"
+            },
+            "highlights": {
+              "$ref": "#/$defs/hex"
+            },
+            "strength": {
+              "$ref": "#/$defs/unipolar"
+            }
+          }
+        },
+        "replace": {
+          "type": "array",
+          "maxItems": 3,
+          "description": "RULE-25 Colour replace, in list order",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "to",
+              "range",
+              "softness"
+            ],
+            "properties": {
+              "from": {
+                "$ref": "#/$defs/hex"
+              },
+              "to": {
+                "$ref": "#/$defs/hex"
+              },
+              "range": {
+                "$ref": "#/$defs/unipolar"
+              },
+              "softness": {
+                "$ref": "#/$defs/unipolar"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "properties": {
@@ -312,6 +499,9 @@
           },
           "adjustments": {
             "$ref": "#/$defs/adjustments"
+          },
+          "colourTools": {
+            "$ref": "#/$defs/colourTools"
           },
           "look": {
             "$ref": "#/$defs/look"

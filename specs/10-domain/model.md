@@ -26,7 +26,8 @@ itself is never changed or copied off the device (INV-01).
 
 ### ENT-Clip — Clip
 A video or photo on the main track. Video: the source range used (in, out) and speed (RULE-06).
-Photo: a duration (RULE-05). Both: placement (RULE-07), adjustments (RULE-08), look and intensity
+Photo: a duration (RULE-05). Both: placement (RULE-07), adjustments (RULE-08), colour tools
+(RULE-24, RULE-25; optional, absent means every tool at its default), look and intensity
 (RULE-09), fade in and fade out, and the cross-fade into the next clip (RULE-10). Video only:
 volume and mute (RULE-12). A clip's length on the timeline follows RULE-05 and RULE-06.
 

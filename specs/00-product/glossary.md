@@ -19,6 +19,15 @@ Use only these terms in specs, copy, code names and tests.
 | **Fit / Fill** | How a clip is placed in the frame: fit shows all of it with background around it; fill covers the frame, cutting off what doesn't fit (RULE-07). | |
 | **Adjustment** | A numeric colour or light control on a clip: brightness, contrast, saturation and so on (RULE-08). | effect |
 | **Look** | A named colour filter with an intensity (RULE-09). | preset, LUT |
+| **Colour tool** | One of five colour controls on a clip beyond the adjustments: colour mixer, colour pop, split toning, duotone and colour replace (RULE-24, RULE-25). | effect, filter |
+| **Colour range** | One of eight hue bands (red, orange, yellow, green, aqua, blue, purple, magenta) that the colour mixer and colour pop act on (RULE-24). | channel |
+| **Colour mixer** | Hue, saturation and lightness controls per colour range (RULE-24). | HSL panel |
+| **Colour pop** | Keeps one colour range and turns the rest of the picture grey (RULE-24). | colour splash |
+| **Split toning** | A tint for the dark tones and another for the light tones (RULE-24). | |
+| **Duotone** | Recolours the picture with a gradient between two colours, by lightness (RULE-24). | gradient map |
+| **Colour replace** | Changes one colour of a clip to another, keeping its lightness and shading; matches colour, not objects (RULE-25). | colour key, chroma key |
+| **Eyedropper** | Picking a colour by clicking or tapping a point of the preview, or moving a marker with the keyboard (RULE-25). | colour sampler |
+| **Colour picker** | The control for choosing any colour: preset swatches, hue, saturation and lightness, or a hex code. | |
 | **Fade** | A gradual change from or to the background (picture) or silence (sound) at a clip's start or end (RULE-10). | |
 | **Cross-fade** | A blend between two adjacent clips on the main track (RULE-10). | transition |
 | **Speed** | How fast a clip plays relative to its source (RULE-06). | |

@@ -27,7 +27,7 @@ Rules for every string:
 | **COPY-action.reset** | Reset | Đặt lại | |
 | **COPY-action.reset_all** | Reset all | Đặt lại tất cả | |
 | **COPY-action.apply_all** | Apply to all clips | Áp dụng cho mọi clip | |
-| **COPY-action.copy_look** | Copy colour | Sao chép màu | Adjustments and look |
+| **COPY-action.copy_look** | Copy colour | Sao chép màu | Adjustments, colour tools and look |
 | **COPY-action.paste_look** | Paste colour | Dán màu | |
 | **COPY-action.compare** | Hold to compare | Giữ để so sánh | Shows the original while held |
 | **COPY-action.mute_all** | Mute original sound | Tắt tiếng gốc | All main-track clips |
@@ -339,6 +339,87 @@ Rules for every string:
 | **COPY-export.target_unknown** | Couldn't check whether {size} MB can be met. Try again. | Không kiểm tra được giới hạn {size} MB. Hãy thử lại. | The size target's check failed (CMP-ExportPanel); with COPY-action.try_again |
 | **COPY-notice.busy_exporting** | Files can't be added while exporting. | Không thể thêm tệp khi đang xuất. | Files dropped or pasted during an export (SCR-Editor "exporting": the editor is locked) |
 | **COPY-export.progress_starting** | Exporting… {percent} % | Đang xuất… {percent} % | COPY-export.progress before the first time-remaining estimate (CMP-ExportProgress hides the time until then) |
+
+## Colour tools (D-053)
+| ID | en-US | vi-VN | Notes |
+|---|---|---|---|
+| **COPY-colour_tools.group_mixer** | Colour mixer | Trộn màu | Group title (RULE-24) |
+| **COPY-colour_tools.group_pop** | Colour pop | Giữ một màu | Group title |
+| **COPY-colour_tools.group_split** | Split toning | Tách tông màu | Group title |
+| **COPY-colour_tools.group_duotone** | Duotone | Hai tông màu | Group title |
+| **COPY-colour_tools.group_replace** | Colour replace | Thay màu | Group title (RULE-25, from 1.3.0) |
+| **COPY-colour_tools.reset_tool** | Reset {tool} | Đặt lại {tool} | Accessible name of a group's Reset; the visible text is COPY-action.reset |
+| **COPY-colour_tools.changed** | Changed | Đã chỉnh | State of a group or range whose values differ from default |
+| **COPY-colour_tools.hue_value** | {degrees}°, {range} | {degrees}°, {range} | Value text of a hue slider; {range} is the nearest colour range's name |
+| **COPY-range.red** | Red | Đỏ | Colour range |
+| **COPY-range.orange** | Orange | Cam | |
+| **COPY-range.yellow** | Yellow | Vàng | |
+| **COPY-range.green** | Green | Xanh lá | |
+| **COPY-range.aqua** | Aqua | Xanh ngọc | |
+| **COPY-range.blue** | Blue | Xanh dương | |
+| **COPY-range.purple** | Purple | Tím | |
+| **COPY-range.magenta** | Magenta | Hồng cánh sen | |
+| **COPY-mixer.range** | Colour range | Dải màu | Name of the range choice |
+| **COPY-mixer.hue** | Hue | Sắc độ | |
+| **COPY-mixer.saturation** | Saturation | Độ bão hoà | |
+| **COPY-mixer.lightness** | Lightness | Độ sáng màu | |
+| **COPY-mixer.slider_name** | {range} {control} | {control} {range} | Accessible name, e.g. "Red hue" / "Sắc độ Đỏ" |
+| **COPY-mixer.range_changed** | {range}, changed | {range}, đã chỉnh | |
+| **COPY-pop.colour** | Keep colour | Màu giữ lại | |
+| **COPY-pop.none** | Off | Tắt | |
+| **COPY-pop.range** | Range | Phạm vi | |
+| **COPY-pop.amount** | Amount | Mức độ | |
+| **COPY-pop.help** | Keeps one colour. Everything else turns grey. | Giữ lại một màu. Mọi màu khác chuyển sang xám. | |
+| **COPY-split.shadows** | Shadows | Vùng tối | Row heading |
+| **COPY-split.highlights** | Highlights | Vùng sáng | Row heading |
+| **COPY-split.hue** | Hue | Sắc độ | |
+| **COPY-split.strength** | Strength | Cường độ | |
+| **COPY-split.shadows_hue** | Shadows hue | Sắc độ vùng tối | Accessible name |
+| **COPY-split.highlights_hue** | Highlights hue | Sắc độ vùng sáng | Accessible name |
+| **COPY-split.shadows_strength** | Shadows strength | Cường độ vùng tối | Accessible name |
+| **COPY-split.highlights_strength** | Highlights strength | Cường độ vùng sáng | Accessible name |
+| **COPY-split.balance** | Balance | Cân bằng | |
+| **COPY-split.balance_shadows** | {value} toward shadows | {value} nghiêng về vùng tối | Value text below 0 |
+| **COPY-split.balance_even** | Even | Đều | Value text at 0 |
+| **COPY-split.balance_highlights** | {value} toward highlights | {value} nghiêng về vùng sáng | Value text above 0 |
+| **COPY-duotone.pairs** | Colour pairs | Cặp màu | Name of the choice |
+| **COPY-duotone.none** | Off | Tắt | |
+| **COPY-duotone.pair_midnight_peach** | Midnight & Peach | Đêm & Đào | looks.md |
+| **COPY-duotone.pair_plum_gold** | Plum & Gold | Mận & Vàng | |
+| **COPY-duotone.pair_teal_cream** | Teal & Cream | Xanh két & Kem | |
+| **COPY-duotone.pair_indigo_pink** | Indigo & Pink | Chàm & Hồng | |
+| **COPY-duotone.pair_forest_lime** | Forest & Lime | Rừng & Chanh | |
+| **COPY-duotone.pair_ink_coral** | Ink & Coral | Mực & San hô | |
+| **COPY-duotone.custom** | Custom | Tuỳ chỉnh | |
+| **COPY-duotone.shadows** | Shadows colour | Màu vùng tối | |
+| **COPY-duotone.highlights** | Highlights colour | Màu vùng sáng | |
+| **COPY-duotone.swap** | Swap colours | Đổi chỗ hai màu | |
+| **COPY-duotone.strength** | Strength | Cường độ | |
+| **COPY-picker.title** | Choose a colour | Chọn màu | CMP-ColourPicker |
+| **COPY-picker.presets** | Preset colours | Màu có sẵn | |
+| **COPY-picker.hue** | Hue | Sắc độ | |
+| **COPY-picker.saturation** | Saturation | Độ bão hoà | |
+| **COPY-picker.lightness** | Lightness | Độ sáng | |
+| **COPY-picker.hex** | Hex code | Mã hex | |
+| **COPY-picker.hex_invalid** | Use six hex digits, like #3A7BD5. | Dùng sáu chữ số hex, ví dụ #3A7BD5. | |
+| **COPY-picker.current** | {name}: {hex} | {name}: {hex} | Value of a colour button; {name} is the control's label |
+| **COPY-picker.done** | Done | Xong | |
+| **COPY-replace.add** | Add colour to replace | Thêm màu cần thay | Starts pick mode |
+| **COPY-replace.item** | Colour {n} | Màu {n} | |
+| **COPY-replace.from** | From | Từ màu | |
+| **COPY-replace.to** | To | Sang màu | |
+| **COPY-replace.pick** | Pick from preview | Lấy màu từ khung xem | |
+| **COPY-replace.range** | Range | Phạm vi | |
+| **COPY-replace.softness** | Softness | Độ mềm | |
+| **COPY-replace.remove** | Remove | Xoá | |
+| **COPY-replace.limit** | Up to 3 colours per clip. | Mỗi clip tối đa 3 màu. | |
+| **COPY-replace.help** | Changes everything of this colour in the clip, not one object. Lightness and shading stay. | Thay mọi chỗ có màu này trong clip, không chọn riêng một vật. Độ sáng và bóng đổ được giữ. | |
+| **COPY-replace.picking** | Click or tap the colour to replace. | Nhấp hoặc chạm vào màu cần thay. | Pick mode, pointer or touch |
+| **COPY-replace.picking_keys** | Move the marker with the arrow keys, then press Enter. | Di chuyển điểm chọn bằng phím mũi tên, rồi nhấn Enter. | Pick mode started by keyboard |
+| **COPY-replace.pick_cancel** | Cancel | Huỷ | Ends pick mode |
+| **COPY-replace.marker** | Colour marker | Điểm lấy màu | Accessible name of the keyboard marker |
+| **COPY-replace.picked** | Picked {hex} | Đã lấy màu {hex} | Announced after a pick |
+| **COPY-notice.replace_grey** | That spot is almost grey. Pick a more colourful spot. | Chỗ này gần như màu xám. Hãy chọn chỗ có màu rõ hơn. | RULE-25 |
 
 ## Licence notices
 | ID | en-US | vi-VN | Notes |

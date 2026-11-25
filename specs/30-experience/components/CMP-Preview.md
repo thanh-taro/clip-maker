@@ -23,7 +23,8 @@ Frame area on the work area; transport with Previous frame (COPY-action.prev_fra
 | 16:9 fitted, black background | A 16:9 clip in a 9:16 frame shows the black background above and below (RULE-04). |
 | 16:9 fitted, Blur background | The empty areas show a blurred, enlarged copy of the clip (RULE-04). |
 | slow device | COPY-notice.slow_device as an info notice (surface, strong border, muted info icon, Dismiss) at the bottom centre of the preview area, per the D-039 notice placement; the preview stays usable. Violet is never used for notice text. |
-| holding compare | A quiet pill COPY-preview.comparing on the chrome surface in the top-left corner; the frame shows the clip without adjustments and look (F-007). The same pill recipe is used for every temporary preview mode. |
+| picking a colour (1.3.0) | Pick mode of RULE-25: a quiet pill COPY-replace.picking (or COPY-replace.picking_keys) with Cancel (COPY-replace.pick_cancel) in the top-left corner; a crosshair pointer over the selected clip's picture and the normal pointer elsewhere; placement handles hidden. On touch, pressing shows a round magnifier above the finger with the colour under it and its ring in that colour. Started by keyboard, a marker (COPY-replace.marker) sits on the clip's centre and focus moves to it. A pick announces COPY-replace.picked. |
+| holding compare | A quiet pill COPY-preview.comparing on the chrome surface in the top-left corner; the frame shows the clip without adjustments, colour tools and look (F-007, RULE-24). The same pill recipe is used for every temporary preview mode. |
 
 ## Behavior
 - Shows the project frame at the playhead with everything applied (F-002 R1); the picture is never animated by the UI. Text layers are drawn above the look and adjustments.
