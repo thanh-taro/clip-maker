@@ -63,38 +63,38 @@
     },
     "qa": {
       "title": "5 QA & hardening",
-      "status": "in_progress",
-      "step": "QA static audits (security, license, a11y)",
+      "status": "done",
+      "step": "G5: awaiting owner approval (gate-qa.md)",
       "gate": {
-        "status": "pending",
-        "at": null,
+        "status": "passed",
+        "at": "2026-11-23T08:30:07+00:00",
         "note": null
       }
     },
     "release": {
       "title": "6 Release candidate",
-      "status": "pending",
-      "step": null,
+      "status": "done",
+      "step": "G6: awaiting owner approval of v1.0.0-rc.1 and runbook",
       "gate": {
-        "status": "pending",
-        "at": null,
+        "status": "passed",
+        "at": "2026-11-25T03:28:16+00:00",
         "note": null
       }
     },
     "deploy": {
       "title": "7 Deploy",
-      "status": "pending",
-      "step": null,
+      "status": "done",
+      "step": "G7: awaiting owner confirmation that 1.0.0 is live",
       "gate": {
-        "status": "pending",
-        "at": null,
+        "status": "passed",
+        "at": "2026-11-25T05:47:06+00:00",
         "note": null
       }
     },
     "iterate": {
       "title": "8 Iterate",
-      "status": "pending",
-      "step": null,
+      "status": "in_progress",
+      "step": "Idle: 1.1.0 live; awaiting next change",
       "gate": {
         "status": "pending",
         "at": null,
@@ -718,6 +718,30 @@
       "answer": "start with wave 0 (engine foundation), pause for review after",
       "asked": "2026-11-05T02:03:31+00:00",
       "answered": "2026-11-05T02:03:31+00:00"
+    },
+    {
+      "id": "D-051",
+      "question": "Deploy without a separate staging host?",
+      "options": [],
+      "recommendation": null,
+      "kind": "release",
+      "phase": "deploy",
+      "status": "answered",
+      "answer": "Owner 2026-11-25: no separate staging host; deploy the approved candidate straight to clip-maker.tarokit.app with wrangler (owner already authenticated). Replaces D-036's planned staging.",
+      "asked": "2026-11-25T05:21:36+00:00",
+      "answered": "2026-11-25T05:21:45+00:00"
+    },
+    {
+      "id": "D-052",
+      "question": "Remove the bundled music pack?",
+      "options": [],
+      "recommendation": null,
+      "kind": "product",
+      "phase": "iterate",
+      "status": "answered",
+      "answer": "Owner 2026-11-25: remove the bundled music entirely (DEP-14, DEP-41..49); music comes only from the user's own audio files, so no content-ID/claim risk from shipped tracks. The toolbar Music button stays and opens the file picker for audio files only; the chosen file is added at the playhead like a bundled track was. Ship as 1.1.0 and deploy to clip-maker.tarokit.app when verified.",
+      "asked": "2026-11-25T05:52:15+00:00",
+      "answered": "2026-11-25T05:52:15+00:00"
     }
   ],
   "loops": {
@@ -739,110 +763,6 @@
     }
   },
   "log": [
-    {
-      "at": "2026-11-03T06:11:17+00:00",
-      "event": "Round 2: owner chose full scope (multi-track + phone) in M-1 against strategist rec; SP-audio and SP-mem-phone become blocking spikes"
-    },
-    {
-      "at": "2026-11-03T06:12:40+00:00",
-      "event": "decision D-005 opened: Pitch"
-    },
-    {
-      "at": "2026-11-03T06:12:41+00:00",
-      "event": "decision D-005 answered: privacy-led"
-    },
-    {
-      "at": "2026-11-03T06:12:41+00:00",
-      "event": "decision D-006 opened: Music source in M-1"
-    },
-    {
-      "at": "2026-11-03T06:12:41+00:00",
-      "event": "decision D-006 answered: user's own audio + a bundled pack of free-licence tracks (licence allow-list to confirm at brief approval)"
-    },
-    {
-      "at": "2026-11-03T06:12:41+00:00",
-      "event": "decision D-007 opened: Max export length"
-    },
-    {
-      "at": "2026-11-03T06:12:41+00:00",
-      "event": "decision D-007 answered: 10 minutes"
-    },
-    {
-      "at": "2026-11-03T06:12:41+00:00",
-      "event": "decision D-008 opened: M-1 extras"
-    },
-    {
-      "at": "2026-11-03T06:12:41+00:00",
-      "event": "decision D-008 answered: photo clips, fades, basic adjustments, GIF + audio-only export"
-    },
-    {
-      "at": "2026-11-03T06:12:42+00:00",
-      "event": "product-spec step: 1.1 brainstorm: writing vision brief"
-    },
-    {
-      "at": "2026-11-03T06:13:38+00:00",
-      "event": "decision D-009 opened: Colour filters + powerful colour adjustment in M-1"
-    },
-    {
-      "at": "2026-11-03T06:13:38+00:00",
-      "event": "decision D-009 answered: owner request: trending colour filters (self-authored LUTs, intensity slider) + full colour adjustment panel in M-1"
-    },
-    {
-      "at": "2026-11-03T06:13:38+00:00",
-      "event": "product-spec step: 1.1 vision brief written — awaiting owner approval"
-    },
-    {
-      "at": "2026-11-03T07:16:54+00:00",
-      "event": "decision D-010 opened: Music pack licence allow-list"
-    },
-    {
-      "at": "2026-11-03T07:16:54+00:00",
-      "event": "decision D-010 answered: CC0 / public domain only"
-    },
-    {
-      "at": "2026-11-03T07:16:54+00:00",
-      "event": "decision D-011 opened: Approve vision brief"
-    },
-    {
-      "at": "2026-11-03T07:16:55+00:00",
-      "event": "decision D-011 answered: approved 2026-11-03"
-    },
-    {
-      "at": "2026-11-03T07:16:55+00:00",
-      "event": "product-spec step: 1.2 idea→spec: starting"
-    },
-    {
-      "at": "2026-11-03T07:26:56+00:00",
-      "event": "product-spec step: 1.3 spec review loop round 1"
-    },
-    {
-      "at": "2026-11-03T07:27:07+00:00",
-      "event": "loop spec-review started (max 3)"
-    },
-    {
-      "at": "2026-11-03T07:36:02+00:00",
-      "event": "decision D-012 opened: 5K screen recordings"
-    },
-    {
-      "at": "2026-11-03T07:36:02+00:00",
-      "event": "decision D-012 answered: accept up to 5120x2880, scaled down for editing"
-    },
-    {
-      "at": "2026-11-03T07:36:03+00:00",
-      "event": "decision D-013 opened: Touch scrubbing model"
-    },
-    {
-      "at": "2026-11-03T07:36:03+00:00",
-      "event": "decision D-013 answered: fixed centre playhead (owner chose against recommendation)"
-    },
-    {
-      "at": "2026-11-03T07:36:03+00:00",
-      "event": "decision D-014 opened: HDR sources"
-    },
-    {
-      "at": "2026-11-03T07:36:03+00:00",
-      "event": "decision D-014 answered: SDR output only; HDR converted identically in preview and export"
-    },
     {
       "at": "2026-11-03T07:36:03+00:00",
       "event": "decision D-015 opened: Rotation changes Original aspect"
@@ -1538,9 +1458,113 @@
     {
       "at": "2026-11-20T15:02:23+00:00",
       "event": "qa step: QA static audits (security, license, a11y)"
+    },
+    {
+      "at": "2026-11-20T15:19:17+00:00",
+      "event": "QA audits done: security 0 crit/high/med (4 low), license OK except DEP-14 music, a11y 0 blockers 4 major 12 minor; FLOW-01 e2e added (pass both engines); traceability 184/185 AC. Owner decisions QA-1..4."
+    },
+    {
+      "at": "2026-11-20T15:19:17+00:00",
+      "event": "qa step: QA fix batch 1 (a11y) builder"
+    },
+    {
+      "at": "2026-11-22T01:37:38+00:00",
+      "event": "context compaction (auto) at: build-my-app: phase 5 QA & hardening [in_progress] — QA fix batch 1 (a11y) builder · 5/9 phases done · autonomy balanced"
+    },
+    {
+      "at": "2026-11-22T02:44:03+00:00",
+      "event": "context compaction (auto) at: build-my-app: phase 5 QA & hardening [in_progress] — QA fix batch 1 (a11y) builder · 5/9 phases done · autonomy balanced"
+    },
+    {
+      "at": "2026-11-23T02:58:11+00:00",
+      "event": "context compaction (auto) at: build-my-app: phase 5 QA & hardening [in_progress] — QA fix batch 1 (a11y) builder · 5/9 phases done · autonomy balanced"
+    },
+    {
+      "at": "2026-11-23T07:36:58+00:00",
+      "event": "qa step: QA final full suite run"
+    },
+    {
+      "at": "2026-11-23T08:17:34+00:00",
+      "event": "qa step: G5: awaiting owner approval (gate-qa.md)"
+    },
+    {
+      "at": "2026-11-23T08:30:07+00:00",
+      "event": "gate qa passed"
+    },
+    {
+      "at": "2026-11-23T08:30:07+00:00",
+      "event": "G5 approved by owner 2026-11-23 (gate-qa.md); device checks waived (QA-5)"
+    },
+    {
+      "at": "2026-11-23T08:30:21+00:00",
+      "event": "phase release -> in_progress"
+    },
+    {
+      "at": "2026-11-25T03:03:04+00:00",
+      "event": "release step: G6: awaiting owner approval of v1.0.0-rc.1 and runbook"
+    },
+    {
+      "at": "2026-11-25T03:28:16+00:00",
+      "event": "gate release passed"
+    },
+    {
+      "at": "2026-11-25T03:28:16+00:00",
+      "event": "G6 approved by owner 2026-11-25: v1.0.0-rc.1 (ea464b7), release-1.0.0.md, runbook"
+    },
+    {
+      "at": "2026-11-25T05:18:55+00:00",
+      "event": "phase deploy -> in_progress"
+    },
+    {
+      "at": "2026-11-25T05:21:36+00:00",
+      "event": "decision D-051 opened: Deploy without a separate staging host?"
+    },
+    {
+      "at": "2026-11-25T05:21:45+00:00",
+      "event": "decision D-051 answered: Owner 2026-11-25: no separate staging host; deploy the approved candidate straight to clip-maker.tarokit.app with wrangler (owner already authenticated). Replaces D-036's planned staging."
+    },
+    {
+      "at": "2026-11-25T05:27:16+00:00",
+      "event": "deploy step: G7: awaiting owner confirmation that 1.0.0 is live"
+    },
+    {
+      "at": "2026-11-25T05:47:06+00:00",
+      "event": "gate deploy passed"
+    },
+    {
+      "at": "2026-11-25T05:47:07+00:00",
+      "event": "G7: owner confirmed 1.0.0 live at clip-maker.tarokit.app (2026-11-25)"
+    },
+    {
+      "at": "2026-11-25T05:50:37+00:00",
+      "event": "phase iterate -> in_progress"
+    },
+    {
+      "at": "2026-11-25T05:50:37+00:00",
+      "event": "iterate step: Change: remove bundled music pack (impact analysis)"
+    },
+    {
+      "at": "2026-11-25T05:52:15+00:00",
+      "event": "decision D-052 opened: Remove the bundled music pack?"
+    },
+    {
+      "at": "2026-11-25T05:52:15+00:00",
+      "event": "decision D-052 answered: Owner 2026-11-25: remove the bundled music entirely (DEP-14, DEP-41..49); music comes only from the user's own audio files, so no content-ID/claim risk from shipped tracks. The toolbar Music button stays and opens the file picker for audio files only; the chosen file is added at the playhead like a bundled track was. Ship as 1.1.0 and deploy to clip-maker.tarokit.app when verified."
+    },
+    {
+      "at": "2026-11-25T05:52:15+00:00",
+      "event": "iterate step: Change D-052: remove bundled music (spec change)"
+    },
+    {
+      "at": "2026-11-25T07:16:38+00:00",
+      "event": "D-052 shipped: 1.1.0 live 2026-11-25 (version 90671757)"
+    },
+    {
+      "at": "2026-11-25T07:16:39+00:00",
+      "event": "iterate step: Idle: 1.1.0 live; awaiting next change"
     }
   ],
-  "updated": "2026-11-20T15:02:23+00:00",
+  "updated": "2026-11-25T07:16:39+00:00",
   "environment": {
     "git": "2.54.0",
     "node": "24.19.0",
