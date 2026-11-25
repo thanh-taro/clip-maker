@@ -302,5 +302,5 @@ Reports: `.build-my-app/reports/spike-<id>.md`; outcomes are recorded in the ADR
 
 ## Environments
 Local dev (with LAN HTTPS for phones), local release preview of the exact `dist/` with a stub
-host, staging (`clip-maker-staging.tarokit.app`, planned on the free tier, D-036) and production
+host, staging (none: D-051 deploys the approved candidate straight to production; D-036's planned `clip-maker-staging.tarokit.app` was dropped) and production
 (`clip-maker.tarokit.app`); nothing is provisioned before phase 7 (ADR-0014).

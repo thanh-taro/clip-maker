@@ -132,3 +132,13 @@ Owner decision QA-3 (`.build-my-app/reports/qa-decisions.md`), after qa-security
   `WebAssembly`, `eval`, `new Function`), on `fetch(` outside the main chunk and `sw.js`, and on absolute
   http(s) URLs outside a short allow-list (namespaces, licence and codec-registry comments, the portal
   origin, the source repository and the bundled tracks' pages).
+
+## Amendment (deploy, 2026-11-25)
+Owner decision D-051 replaces D-036's planned staging environment: there is **no separate staging host**.
+The approved release candidate is deployed straight to production (`https://clip-maker.tarokit.app`)
+with wrangler (DEP-31, run as `pnpm dlx wrangler@4.157.0` so the candidate's lockfile is unchanged), and
+the smoke checks run against production. The checks staging was for (real HTTPS and CDN headers, offline
+install, no foreign requests) run there right after the upload; on a failure the previous version is
+restored with wrangler's rollback. The `env.staging` block in `wrangler.jsonc` stays unused, and the
+staging `X-Robots-Tag: noindex` rule now applies only to local and test builds.
+

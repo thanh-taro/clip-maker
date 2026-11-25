@@ -2,6 +2,9 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-25 — Released 1.0.0 to production (owner approval)
+- `v1.0.0` (the `v1.0.0-rc.1` build, unchanged) is live at `https://clip-maker.tarokit.app`. ADR-0014 amendment: no separate staging host (owner decision D-051, replacing D-036's planned staging); production smoke checks passed (`.build-my-app/reports/deploy-1.0.0.md`).
+
 ## 2026-11-23 — Release candidate 1.0.0 (QA gate passed, owner approval)
 - Version 1.0.0 (M-1): all 23 features `shipped`. QA gate G5 passed on 2026-11-23 (`.build-my-app/reports/gate-qa.md`); device and manual checks are waived by the owner (QA-5), not verified. The candidate is tagged `v1.0.0-rc.1` locally; nothing is published.
 
