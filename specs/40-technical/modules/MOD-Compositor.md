@@ -13,7 +13,8 @@ RULE-07 transform, the clip layer over its background (colour or Blur), fades an
 text bitmaps in stacking order. Screen-only overlays
 are separate draws. Includes the CPU reference implementation used as the test oracle, and the
 timed effects check for RULE-22. From 1.2.0 the grade also runs the colour tools of RULE-24 and
-RULE-25 in their order, in OKLab, with a per-clip hue table, and samples the source stage for the
+RULE-25 in their order, in OKLab, with a per-clip hue table that it derives from the clip's `colourTools`
+while drawing (one grade program per set of tools on), and samples the source stage for the
 eyedropper (ADR-0017).
 
 ### Rules from the spikes (2026-11-04)

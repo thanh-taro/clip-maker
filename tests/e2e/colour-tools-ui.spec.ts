@@ -159,6 +159,8 @@ async function axe(page: Page): Promise<void> {
 async function shot(page: Page, feature: string, name: string, browserName: string): Promise<void> {
   if (browserName !== 'chromium') return;
   for (const close of await page.locator('.tk-notice__close').all()) await close.click();
+  // No hover tint under a pointer left over a tile by scrolling.
+  await page.mouse.move(0, 0);
   await page.screenshot({ path: `${shotsOf(feature)}${name}.png` });
 }
 
@@ -435,6 +437,16 @@ test.describe('F-024…F-027 colour tools in the Adjust panel (app harness)', ()
     await pop.getByRole('radio', { name: text('en-US', 'range.blue') }).click();
     await panel.locator('[data-action="reset-all"]').click();
     expect(await toolsOf(page)).toBeNull();
+    // CMP-Inspector: at None, Range and Amount are kept but the group shows no change and no Reset.
+    await pop.getByRole('radio', { name: text('en-US', 'range.blue') }).click();
+    await type(pop, 'pop-range', '70');
+    await expect(panel.locator('[data-action="reset-pop"]')).toBeVisible();
+    await pop.getByRole('radio', { name: text('en-US', 'pop.none') }).click();
+    expect(await toolsOf(page)).toEqual({ pop: { range: 70 } });
+    await expect(panel.locator('[data-action="reset-pop"]')).toHaveCount(0);
+    await expect(toggle(panel, 'pop')).toHaveAccessibleName(text('en-US', 'colour_tools.group_pop'));
+    // The disabled Range row offers no Reset (it could change nothing).
+    await expect(rowOf(pop, 'pop-range').getByRole('button')).toHaveCount(0);
   });
 
   test('F-026.AC1 F-026.R1 raising Shadows strength to 60 tints the dark picture with the Shadows hue during the drag', async ({
@@ -571,9 +583,14 @@ test.describe('F-024…F-027 colour tools in the Adjust panel (app harness)', ()
     await expect(dialog.getByRole('slider', { name: text('en-US', 'picker.hue') })).toBeFocused();
     const hex = dialog.getByRole('textbox', { name: text('en-US', 'picker.hex') });
     await expect(hex).toHaveValue('#F6C9A0');
-    // Invalid: marked, explained, the colour kept.
+    // The subtitle names the colour it edits.
+    await expect(dialog).toHaveAccessibleDescription(
+      text('en-US', 'picker.editing', { name: text('en-US', 'duotone.highlights') }),
+    );
+    // Invalid: the typed text kept, marked, explained; the colour kept.
     await hex.fill('zz');
     await hex.press('Enter');
+    await expect(hex).toHaveValue('zz');
     await expect(hex).toHaveAttribute('aria-invalid', 'true');
     await expect(hex).toHaveAccessibleDescription(text('en-US', 'picker.hex_invalid'));
     expect((await toolsOf(page))?.duotone?.highlights).toBe('#F6C9A0');
@@ -627,6 +644,38 @@ test.describe('F-024…F-027 colour tools in the Adjust panel (app harness)', ()
     );
     await duo.getByRole('radio', { name: text('en-US', 'duotone.custom') }).click();
     expect(await toolsOf(page)).toMatchObject({ duotone: { shadows: '#1B2A4A', highlights: '#F6C9A0' } });
+    // None keeps the colours but shows no change, and the unavailable Strength row has no Reset.
+    await type(duo, 'duotone-strength', '40');
+    await duo.getByRole('radio', { name: text('en-US', 'duotone.none') }).click();
+    await expect(panel.locator('[data-action="reset-duotone"]')).toHaveCount(0);
+    await expect(fieldOf(duo, 'duotone-strength')).toBeDisabled();
+    await expect(rowOf(duo, 'duotone-strength').getByRole('button')).toHaveCount(0);
+  });
+
+  test('CMP-ColourPicker "Behavior" the wide picker closes, changing nothing, when its group collapses or the Adjust tab is left; reopened it starts from the colour now', async ({
+    page,
+  }) => {
+    const panel = await setUp(page);
+    const duo = await openTool(panel, 'duotone');
+    await duo.locator('[data-value="custom"]').click();
+    await duo.locator('[data-action="colour-shadows"]').click();
+    const dialog = page.getByRole('dialog', { name: text('en-US', 'picker.title') });
+    await expect(dialog).toBeVisible();
+    const steps = await stepsOf(page);
+    await toggle(panel, 'duotone').click();
+    await expect(dialog).toHaveCount(0);
+    await toggle(panel, 'duotone').click();
+    await expect(dialog).toHaveCount(0);
+    await duo.locator('[data-action="colour-shadows"]').click();
+    await expect(dialog).toBeVisible();
+    await inspector(page, 'en-US')
+      .getByRole('tab', { name: text('en-US', 'inspector.edit') })
+      .click();
+    await inspector(page, 'en-US')
+      .getByRole('tab', { name: text('en-US', 'inspector.adjust') })
+      .click();
+    await expect(dialog).toHaveCount(0);
+    expect(await stepsOf(page)).toBe(steps);
   });
 
   for (const lang of ['en-US', 'vi-VN'] as const) {
@@ -739,12 +788,30 @@ test.describe('F-024…F-027 colour tools in the Adjust panel (app harness)', ()
       expect(hexBox.height).toBeGreaterThanOrEqual(44);
       expect(hexBox.x + hexBox.width).toBeLessThanOrEqual(320);
       await noSideways();
+      // The whole picker shows at 320 × 640: nothing scrolls inside the sheet, and the footer is hidden.
+      const [bodyScroll, bodyClient] = await sheet
+        .locator('.tk-sheet__body')
+        .evaluate((el) => [el.scrollHeight, el.clientHeight]);
+      expect(bodyScroll).toBeLessThanOrEqual(bodyClient! + 1);
+      await expect(sheet.locator('[data-section="adjust-footer"]')).toHaveCount(0);
+      for (const id of ['picker.hue', 'picker.saturation', 'picker.lightness'] as const)
+        await expect(dialog.getByRole('slider', { name: text(lang, id) })).toBeInViewport({ ratio: 1 });
+      await expect(dialog.getByRole('button', { name: text(lang, 'picker.done') })).toBeInViewport({ ratio: 1 });
       await shot(page, 'F-027', `sheet-duotone-picker-narrow-${lang}`, browserName);
       await axe(page);
       await dialog.getByRole('button', { name: text(lang, 'picker.done') }).click();
       await expect(dialog).toHaveCount(0);
       await expect(sheet).toBeVisible();
       await expect(duo.locator('[data-action="colour-shadows"]')).toBeFocused();
+      await expect(sheet.locator('[data-section="adjust-footer"]')).toBeVisible();
+      // Closing the sheet closes the picker: reopened, the sheet shows its body.
+      await duo.locator('[data-action="colour-shadows"]').click();
+      await expect(dialog).toBeVisible();
+      await tab.click();
+      await expect(sheet).toHaveCount(0);
+      await tab.click();
+      await expect(sheet.locator('[data-section="colour-tools"]')).toBeVisible();
+      await expect(dialog).toHaveCount(0);
     });
   }
 });

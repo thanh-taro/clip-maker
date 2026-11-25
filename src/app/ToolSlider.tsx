@@ -35,9 +35,9 @@ export interface ToolSliderProps {
   readonly step: (value: number) => void;
   readonly shown: () => number | undefined;
   readonly commit: (value: number) => number;
-  /** Per-row Reset (absent: the row has none). */
+  /** Per-row Reset (absent: the row has none); hidden while the row is unavailable (it could change nothing). */
   readonly reset?: (() => void) | undefined;
-  /** Label above the control (CMP-ColourPicker narrow). */
+  /** Label above the control, the slider full width (phone hue rows). */
   readonly stacked?: boolean | undefined;
 }
 
@@ -103,7 +103,7 @@ export function ToolSlider(props: ToolSliderProps) {
         disabled={disabled}
         onCommit={props.commit}
       />
-      {reset && changed ? (
+      {reset && changed && !disabled ? (
         <button
           type="button"
           class="tk-icon-button tk-adjust__reset"

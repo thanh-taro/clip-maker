@@ -460,9 +460,7 @@ class GlCompositor implements Compositor {
       return cur;
     }
     const gl = this.gl;
-    const active = gl.getParameter(gl.ACTIVE_TEXTURE) as number;
     const t = makeHue(gl, table);
-    gl.activeTexture(active);
     r.hues.set(key, t);
     if (r.hues.size > HUE_TEXTURES) {
       const [oldKey, old] = r.hues.entries().next().value!;

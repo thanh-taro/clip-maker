@@ -396,6 +396,9 @@ Rules for every string:
 | **COPY-duotone.swap** | Swap colours | Đổi chỗ hai màu | |
 | **COPY-duotone.strength** | Strength | Cường độ | |
 | **COPY-picker.title** | Choose a colour | Chọn màu | CMP-ColourPicker |
+| **COPY-picker.editing** | Editing {name} | Đang chỉnh {name} | Subtitle under COPY-picker.title; {name} is the colour button's label |
+| **COPY-picker.before** | Before | Trước | Left half of the split swatch: the colour when the picker opened |
+| **COPY-picker.now** | Now | Hiện tại | Right half: the colour now |
 | **COPY-picker.presets** | Preset colours | Màu có sẵn | |
 | **COPY-picker.hue** | Hue | Sắc độ | |
 | **COPY-picker.saturation** | Saturation | Độ bão hoà | |

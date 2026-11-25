@@ -47,7 +47,7 @@ import { project } from '../project';
 import { adjustTarget } from './adjust';
 import { AdjustFooter, AdjustSection } from './AdjustSection';
 import { SheetPicker } from './ColourPicker';
-import { pickerOpen } from './colour-tools';
+import { closePicker, pickerOpen } from './colour-tools';
 import { LookGallery } from './LookGallery';
 import { lookTarget } from './looks';
 import { selectedAudio, selectedClip } from './arrange';
@@ -459,25 +459,25 @@ export function AdjustSheet() {
   const open = openSheet.value === 'adjust';
   const ref = useRef<HTMLElement>(null);
   useSheetEsc(open, ref, ADJUST_TAB_ID);
+  // CMP-ColourPicker: closing the sheet closes the picker, changing nothing (reopened, the sheet shows its body).
+  useEffect(() => {
+    if (!open) closePicker(false);
+  }, [open]);
   if (!open || !adjustTarget.value) return null;
+  // CMP-ColourPicker narrow: it opens in place of the sheet's body, the sheet up to 60 % of the height and its
+  // footer hidden (Done is the way back; the preview updates live).
+  const picking = pickerOpen.value?.clipId === adjustTarget.value.id;
   return (
     <section
       ref={ref}
       id={ADJUST_SHEET_ID}
-      class="tk-sheet tk-sheet--adjust"
+      class={picking ? 'tk-sheet tk-sheet--adjust tk-sheet--picker' : 'tk-sheet tk-sheet--adjust'}
       role="tabpanel"
       aria-labelledby={ADJUST_TAB_ID}
     >
       <span class="tk-sheet__grabber" aria-hidden="true" />
-      <div class="tk-sheet__body">
-        {/* CMP-ColourPicker narrow: it opens in place of the sheet's body (CMP-Inspector "narrow / Adjust sheet"). */}
-        {pickerOpen.value?.clipId === adjustTarget.value.id ? (
-          <SheetPicker />
-        ) : (
-          <AdjustSection id="tk-sheet-adjust" touch />
-        )}
-      </div>
-      <AdjustFooter id="tk-sheet-adjust" touch />
+      <div class="tk-sheet__body">{picking ? <SheetPicker /> : <AdjustSection id="tk-sheet-adjust" touch />}</div>
+      {picking ? null : <AdjustFooter id="tk-sheet-adjust" touch />}
     </section>
   );
 }

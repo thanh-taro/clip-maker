@@ -357,10 +357,14 @@ vec4 hueAt(float turns){ return texture(uHue, vec2(turns + 0.5 / 1024.0, 0.5)); 
 #if CT_MIX || CT_POP
 vec3 mixPop(vec3 c){
   vec3 lin = toLin(c);
-  vec3 lab = linToOklab(lin);
-  float L = lab.x, C = length(lab.yz), h = atan(lab.z, lab.y) / TAU;
   float g = greyGate(lin);
+  // A grey pixel (gate 0) is left exactly as it is: both tools act by the gate, and it keeps atan(0, 0), which
+  // GLSL ES 3.00 leaves undefined (NaN on some mobile GPUs), off black (D-053 review M1).
+  if (g <= 0.0) return c;
+  vec3 lab = linToOklab(lin);
+  float h = atan(lab.z, lab.y) / TAU;
 #if CT_MIX
+  float L = lab.x, C = length(lab.yz);
   vec4 e = hueAt(h);
   h += g * e.r;
   C *= 1.0 + g * (e.g - 1.0);
@@ -370,7 +374,6 @@ vec3 mixPop(vec3 c){
 #if !CT_POP
   return toSrgb(clamp(oklabToLin(lab), 0.0, 1.0));
 #else
-  C = length(lab.yz);
   g = greyGate(oklabToLin(lab));
 #endif
 #endif

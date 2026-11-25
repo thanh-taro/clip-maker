@@ -30,9 +30,6 @@ void main(){
 export const fsGrade = (stages: number): string =>
   `#version 300 es\n${colourDefines(stages)}${HEAD.slice(HEAD.indexOf('\n') + 1)}${GLSL_COMMON}${GLSL_COLOUR}${GLSL_GRADE}${GRADE_MAIN}`;
 
-/** The grade pass without colour stages (the 1.1.0 program). */
-export const FS_GRADE = fsGrade(0);
-
 /** Finish and place: Sharpen (unsharp mask), Vignette, Grain, drawn through the RULE-07 quad. */
 export const FS_PLACE = `${HEAD}${GLSL_COMMON}${GLSL_FINISH}uniform sampler2D uSrc;
 void main(){

@@ -9,20 +9,20 @@ tokens: [font.family.body, font.family.mono, font.size.sm, font.size.input, bord
 Choose any colour by tapping a preset, moving hue, saturation and lightness sliders, or typing a hex code, on desktop, phone and keyboard alike (F-027, F-028).
 
 ## Anatomy
-A colour button (swatch plus its label, value COPY-picker.current) opens the picker, titled COPY-picker.title: a before/after swatch pair (the colour when it opened, and now); the presets COPY-picker.presets (the ten RULE-11 palette swatches, named COPY-colour.white to COPY-colour.pink); sliders with number fields COPY-picker.hue (0–359, the hue wheel on its track), COPY-picker.saturation (0–100) and COPY-picker.lightness (0–100), each track drawn with the colours it reaches; the field COPY-picker.hex; and COPY-picker.done.
+A colour button (swatch plus its label, value COPY-picker.current) opens the picker, titled COPY-picker.title with a muted subtitle COPY-picker.editing naming the colour it edits (the button's label); one split swatch, the colour when it opened (left, labelled COPY-picker.before) and now (right, COPY-picker.now), next to the field COPY-picker.hex in one row; the presets COPY-picker.presets (the ten RULE-11 palette swatches, named COPY-colour.white to COPY-colour.pink); sliders with number fields COPY-picker.hue (0–359, the hue wheel on its track), COPY-picker.saturation (0–100) and COPY-picker.lightness (0–100), each track drawn with the colours it reaches; and COPY-picker.done.
 
 ## Variants & states
 | Variant / state | Description |
 |---|---|
-| wide | A popover anchored to its colour button, inside the inspector's width. |
-| narrow | Opens inside the Adjust sheet in place of the sheet's body, with COPY-picker.done at the top as the way back. A fixed top part holds the before/after swatch pair and the hex field; below it the presets are one horizontally scrolling row of ten, then the three sliders, which scroll within the sheet. All rows at touch size, label above control, so it fits at 320 px. |
-| hex invalid | The field is marked invalid with COPY-picker.hex_invalid under it; the colour keeps its last valid value. |
+| wide | A popover anchored to its colour button, inside the inspector's width; the presets in two even rows of five. |
+| narrow | Opens inside the Adjust sheet in place of the sheet's body, with COPY-picker.done at the top as the way back. While it is open the sheet may take up to 60 % of the height and the sheet's footer is hidden (the preview updates live; Done is the way back). Rows: title and subtitle with Done; the split swatch and the hex field in one touch-size row; the presets as one horizontally scrolling row of ten; the three sliders, label to the left as in the Adjust rows. All rows at touch size, so at 320 × 640 the whole picker shows without scrolling inside the sheet. |
+| hex invalid | The field keeps the typed text and is marked invalid with COPY-picker.hex_invalid under it; the colour keeps its last valid value. The mark clears when the text is edited or a valid code is confirmed. |
 | refused (colour replace From) | For a From colour (RULE-25), a Saturation drag stops at the lowest value that is not grey, with COPY-notice.replace_grey under the field; a typed or preset grey is refused with the same notice, and the colour reverts to its last value. |
 
 ## Behavior
 - Changes apply live to the preview; each slider movement, preset tap or confirmed hex entry is one undo step (RULE-13). Closing the picker changes nothing.
 - Hue, saturation and lightness are those of the sRGB colour (the hue wheel of RULE-24); the hex field shows the result in upper case and accepts `#RGB` or `#RRGGBB`, with or without `#`, on Enter or leaving the field.
-- Esc or COPY-picker.done closes it and returns focus to its colour button; a click outside closes the wide popover.
+- Esc or COPY-picker.done closes it and returns focus to its colour button; a click outside closes the wide popover. It also closes, changing nothing, when its group collapses, the Adjust tab or sheet closes, or the selection changes.
 
 ## Accessibility
 - The colour button is named by its label and reads its value (COPY-picker.current). The picker is a dialog named COPY-picker.title; focus starts on the hue slider.

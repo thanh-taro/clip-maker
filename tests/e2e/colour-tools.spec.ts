@@ -94,6 +94,32 @@ test.describe('RULE-24 colour tools on the GPU (media harness)', () => {
     });
   }
 
+  // Each shader variant on its own (ADR-0017 §9 fallback: one program per set of tools on), without duotone, so
+  // no later stage masks an earlier one's error (D-053 code review M2). The ring and the ramp: hue and grey.
+  const { duotone: _duo, ...NO_DUOTONE } = ALL_TOOLS;
+  const SETS: readonly (readonly [string, ColourTools])[] = [
+    ['mixer', { mixer: ALL_TOOLS.mixer! }],
+    ['pop', { pop: ALL_TOOLS.pop! }],
+    ['mixer + pop', { mixer: ALL_TOOLS.mixer!, pop: ALL_TOOLS.pop! }],
+    ['split toning', { splitToning: ALL_TOOLS.splitToning! }],
+    ['duotone', { duotone: { ...ALL_TOOLS.duotone!, strength: 100 } }],
+    ['all but duotone', NO_DUOTONE],
+  ];
+  for (const [name, tools] of SETS)
+    for (const chart of ['ring', 'ramp'] as const)
+      test(`F-024.R3 F-025.R3 F-026.R3 F-027.R4 RULE-24 ADR-0017 §8 ${name} alone: the 8-bit paint stays within ΔE00 1 of the full-precision CPU result (${chart})`, async ({
+        page,
+      }) => {
+        const r = await paint(page, ADJ, chart, tools);
+        let worst = 0;
+        r.input.forEach((c, i) => {
+          const want = reference.grade(rgb(c), ADJ, null, null, tools) as Rgb;
+          worst = Math.max(worst, deRgb(rgb(r.painted[i]!), want));
+        });
+        test.info().annotations.push({ type: 'GPU vs CPU', description: `max ΔE00 ${worst.toFixed(3)}` });
+        expect(worst).toBeLessThanOrEqual(1);
+      });
+
   test('RULE-24 ADR-0017 §6 with every colour tool at default, the paint is identical to a clip without colour tools (ring)', async ({
     page,
   }) => {

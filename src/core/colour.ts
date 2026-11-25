@@ -280,8 +280,10 @@ export function sampleHueTable(table: Float32Array, h: number): readonly [number
  * constant L and h; then colour pop's loss read at the mixed hue, times the grey gate of the mixed chroma.
  */
 export function mixPopLab(lab: Vec3, table: Float32Array, mixOn: boolean, popOn: boolean): Vec3 {
-  let [L, C, h] = okLch(lab);
   const g0 = greyGate(oklabToLinear(lab));
+  // A grey pixel (gate 0) is left exactly as it is, as in the shader, which so never takes atan(0, 0).
+  if (g0 <= 0) return lab;
+  let [L, C, h] = okLch(lab);
   if (mixOn) {
     const g = g0;
     const [shift, factor, move] = sampleHueTable(table, h);

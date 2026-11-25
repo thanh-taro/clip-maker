@@ -9,6 +9,7 @@
 // compare* (per-row Reset, each tool's Reset, the drag detent of bipolar sliders) and *History*,
 // CMP-Inspector "clip Adjust · colour tools", CMP-ColourPicker "Behavior".
 import { computed, effect, signal } from '@preact/signals';
+import { t } from '../copy';
 import {
   RANGE_REFERENCE,
   RULE_08,
@@ -65,8 +66,11 @@ export const openTools = signal<ReadonlySet<ToolName>>(new Set());
 
 export function toggleTool(tool: ToolName): void {
   const next = new Set(openTools.peek());
-  if (next.has(tool)) next.delete(tool);
-  else next.add(tool);
+  if (next.has(tool)) {
+    next.delete(tool);
+    // CMP-ColourPicker: collapsing Duotone closes its picker, changing nothing.
+    if (tool === 'duotone') closePicker(false);
+  } else next.add(tool);
   openTools.value = next;
 }
 
@@ -81,13 +85,17 @@ export const toolsTarget = computed<{ readonly id: string; readonly tools: Colou
 
 const toolsOf = (p: Project, id: string): ColourTools | undefined => p.clips.find((c) => c.id === id)?.colourTools;
 
-/** CMP-Inspector: a group is "changed" while any of its values differs from default (duotone: while on). */
+/**
+ * CMP-Inspector: a group shows "changed" and its Reset while the tool is on and changes the picture: any mixer
+ * or split toning value away from default, colour pop with a colour kept, duotone with a pair or Custom chosen.
+ * Colour pop's Range and Amount at None, and duotone's remembered colours, are kept but not shown as changed.
+ */
 export function toolChanged(tools: ColourTools | undefined, tool: ToolName): boolean {
   switch (tool) {
     case 'mixer':
       return tools?.mixer !== undefined;
     case 'pop':
-      return tools?.pop !== undefined;
+      return (tools?.pop?.colour ?? null) !== null;
     case 'split':
       return tools?.splitToning !== undefined;
     case 'duotone':
@@ -266,8 +274,10 @@ export function signed(value: number): string {
   return value > 0 ? `+${value}` : `−${-value}`;
 }
 
-/** RULE-24 *Hue wheel*: the range a hue names (210° reads Blue). */
-export const hueRange = (deg: number): ColourRangeName => nearestRange(deg);
+/** F-026.R5, CMP-ColourPicker: a hue slider's value text, its degrees and the range it names (RULE-24 *Hue
+ * wheel*: the nearest centre, 210° reads Blue), e.g. "36°, Orange". */
+export const hueText = (deg: number): string =>
+  t('colour_tools.hue_value', { degrees: deg, range: t(`range.${nearestRange(deg)}`) });
 
 // ── colour picker (CMP-ColourPicker, F-027.R3) ────────────────────────────────────────────────
 

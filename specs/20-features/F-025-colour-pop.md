@@ -40,7 +40,7 @@ Keeping one colour and turning everything else grey is a popular, eye-catching s
 - **AC9** Given keyboard focus on the kept colour choice, when the user presses the arrow keys, then the choice moves between None and the eight ranges; given focus on Amount, when the user types 40, then Amount is 40. (R5)
 
 ## UX notes
-In CMP-Inspector's Adjust section, the collapsible group COPY-colour_tools.group_pop with COPY-colour_tools.reset_tool and COPY-colour_tools.changed. The choice COPY-pop.colour offers None (shown as COPY-pop.none) and the eight range names (COPY-range.red … COPY-range.magenta); then COPY-pop.range and COPY-pop.amount, unavailable while None is chosen. COPY-pop.help explains the effect under the choice.
+In CMP-Inspector's Adjust section, the collapsible group COPY-colour_tools.group_pop with COPY-colour_tools.reset_tool and COPY-colour_tools.changed. The choice COPY-pop.colour offers None (shown as COPY-pop.none) and the eight range names (COPY-range.red … COPY-range.magenta); then COPY-pop.range and COPY-pop.amount, unavailable while None is chosen. COPY-pop.help explains the effect under the choice. The group shows COPY-colour_tools.changed and its Reset only while a colour is kept; at None, Range and Amount are kept but not shown as changed (Reset all still returns them to default).
 
 ## Edge cases
 - A clip with no colour near the kept range → the whole picture turns grey (by Amount).

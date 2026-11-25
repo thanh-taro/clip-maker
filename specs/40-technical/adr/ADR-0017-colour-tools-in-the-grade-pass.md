@@ -96,6 +96,14 @@ standing instruction to decide by recommendation, 2026-11-25): keep the design, 
 The grey gate uses CIELAB C* 2 → 12 (RULE-24's wording); the working-space chroma gate failed below
 L* 10. The device effects check (RULE-22) is unchanged: colour tools cost time only when on.
 
+*Where the code differs from §1, §3, §6 and Consequences (code review, D-053, 2026-11-25):* MOD-Compositor, not
+MOD-Plan, derives each clip's stages, uniforms and hue table from `clip.colourTools` while drawing, as it already does
+for the RULE-08 uniforms; MOD-Plan passes the clip unchanged. §6's *enabled* uniforms are replaced by the variants
+above: one program per set of tools on, compiled the first time that set is painted (a one-off cost on the frame where
+a tool is first turned on, while the user is setting it, or where a clip with that set first shows); set 0 is
+compiled at start-up. The mixer and pop stage returns a pixel unchanged where the grey gate is 0, so grey pixels
+skip the OKLab round trip and black never meets `atan(0, 0)`. §2's OK-chroma gate is replaced as recorded above.
+
 ## Alternatives considered
 - **Bake every colour tool into one per-clip 3-D table (33³)** — one fetch, but trilinear
   interpolation of a 33³ grid cannot hold the grey bar (ΔE00 < 0.5) near the neutral axis nor the

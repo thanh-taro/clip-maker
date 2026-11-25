@@ -1,13 +1,14 @@
 // MOD-App — the colour-tool groups of CMP-Inspector's Adjust tab and the phone Adjust sheet (CMP-Inspector
 // "clip Adjust · colour tools", "colour mixer", "colour pop", "split toning", "duotone", "narrow / Adjust
 // sheet"; F-024…F-027 UX notes). After Effects, one collapsible group per tool in RULE-24 order of use; each
-// header row holds a disclosure button (title, an accent dot and COPY-colour_tools.changed while changed) and,
-// after it, the group Reset (COPY-action.reset, named COPY-colour_tools.reset_tool) shown only when changed.
-// Groups start collapsed; which are open is kept for the session (./colour-tools.ts `openTools`).
+// header row holds a disclosure button (title, an accent dot and COPY-colour_tools.changed while the tool is on
+// and changes the picture) and, after it, the group Reset (COPY-action.reset, named
+// COPY-colour_tools.reset_tool) under the same rule. Groups start collapsed; which are open is kept for the
+// session (./colour-tools.ts `openTools`).
 // Implements: F-024.R1/R4/R5, F-025.R1/R4/R5, F-026.R1/R4/R5, F-027.R1/R3/R5, CMP-Inspector "Accessibility"
 // (disclosure buttons with an expanded state and COPY-colour_tools.changed in their name; colour range,
 // colour pop and duotone choices are radio groups with names, never colour alone; hue sliders read
-// COPY-colour_tools.hue_value), RULE-20 (radio groups get the arrow keys).
+// COPY-colour_tools.hue_value), RULE-20 (radio groups get the arrow keys, ./OptionGroup.tsx).
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { t, type MessageId } from '../copy';
@@ -27,10 +28,11 @@ import {
   TOOL_TITLE,
   beginToolDrag,
   choosePop,
+  closePicker,
   duotoneChoice,
   duotoneHex,
   duotoneStrengthSpec,
-  hueRange,
+  hueText,
   mixerHueTrack,
   mixerRange,
   mixerSpec,
@@ -55,6 +57,7 @@ import {
   type ToolValue,
 } from './colour-tools';
 import { Icon } from './icons';
+import { OptionGroup, type Option } from './OptionGroup';
 import { ToolSlider } from './ToolSlider';
 
 /** A slider row bound to one colour-tool value of the clip. */
@@ -68,6 +71,7 @@ function ToolRow({
   valueText,
   disabled,
   track,
+  stacked,
 }: {
   readonly id: string;
   readonly clipId: string;
@@ -78,6 +82,7 @@ function ToolRow({
   readonly valueText?: (v: number) => string;
   readonly disabled?: boolean;
   readonly track?: string;
+  readonly stacked?: boolean;
 }) {
   const value = spec.read(tools);
   return (
@@ -94,6 +99,7 @@ function ToolRow({
       changed={value !== spec.def}
       disabled={disabled}
       track={track}
+      stacked={stacked}
       gestureKey={`${clipId}:${spec.control}`}
       begin={() => beginToolDrag(clipId, spec)}
       step={(v) => setToolOnce(clipId, spec, v)}
@@ -104,104 +110,19 @@ function ToolRow({
   );
 }
 
-interface RadioItem<T> {
-  readonly value: T;
-  /** `data-value`. */
-  readonly key: string;
-  /** The accessible name (never colour alone). */
-  readonly name: string;
-  readonly content: ComponentChildren;
-  readonly changed?: boolean;
-  /** A text chip (None, Custom) among swatches: its own row or cell. */
-  readonly chip?: boolean;
-}
-
-/**
- * A radio group (ARIA pattern): the chosen radio is in the tab order; the arrow keys move the choice and
- * focus along the group, wrapping; Home and End go to the ends.
- */
-function RadioSet<T>({
-  labelledBy,
-  describedBy,
-  items,
-  value,
-  onChoose,
-  variant,
-}: {
-  readonly labelledBy: string;
-  readonly describedBy?: string;
-  readonly items: readonly RadioItem<T>[];
-  readonly value: T;
-  readonly onChoose: (value: T) => void;
-  readonly variant: 'ranges' | 'pairs';
-}) {
-  const group = useRef<HTMLDivElement>(null);
-  const chosen = items.findIndex((o) => o.value === value);
-  const onKey = (e: KeyboardEvent, i: number): void => {
-    if (e.altKey || e.ctrlKey || e.metaKey) return;
-    const n = items.length;
-    const next =
-      e.key === 'ArrowRight' || e.key === 'ArrowDown'
-        ? (i + 1) % n
-        : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
-          ? (i + n - 1) % n
-          : e.key === 'Home'
-            ? 0
-            : e.key === 'End'
-              ? n - 1
-              : null;
-    if (next === null) return;
-    e.preventDefault();
-    const item = items[next]!;
-    if (item.value !== value) onChoose(item.value);
-    group.current?.querySelectorAll<HTMLElement>('[role="radio"]')[next]?.focus();
-  };
-  return (
-    <div
-      ref={group}
-      class={`tk-ctool__radios tk-ctool__radios--${variant}`}
-      role="radiogroup"
-      aria-labelledby={labelledBy}
-      aria-describedby={describedBy}
-    >
-      {items.map((o, i) => {
-        const on = i === chosen;
-        return (
-          <button
-            key={o.key}
-            type="button"
-            role="radio"
-            aria-checked={on ? 'true' : 'false'}
-            tabIndex={on || (chosen < 0 && i === 0) ? 0 : -1}
-            class={o.chip ? 'tk-ctool__radio tk-ctool__radio--chip' : 'tk-ctool__radio'}
-            data-value={o.key}
-            data-changed={o.changed ? '' : undefined}
-            aria-label={o.name}
-            title={o.chip ? undefined : o.name}
-            onClick={() => onChoose(o.value)}
-            onKeyDown={(e) => onKey(e, i)}
-          >
-            {o.content}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** A range's swatch (its RULE-24 reference colour, rule data), with the accent mark when changed. */
+/** A range's swatch (its RULE-24 reference colour, rule data), with the accent mark outside it when changed. */
 const rangeSwatch = (r: ColourRangeName, changed = false) => (
-  <>
-    <span class="tk-ctool__swatch" aria-hidden="true" style={{ '--ctool-swatch': RANGE_REFERENCE[r] }} />
-    {changed ? <span class="tk-ctool__mark" aria-hidden="true" /> : null}
-  </>
+  <span class="tk-ctool__swatch-wrap" aria-hidden="true">
+    <span class="tk-ctool__swatch" style={{ '--ctool-swatch': RANGE_REFERENCE[r] }} />
+    {changed ? <span class="tk-ctool__mark" /> : null}
+  </span>
 );
 
 /** A choice's label with the chosen option's name next to it (colour is never the only cue). */
 function ChoiceLabel({ id, label, chosen }: { readonly id: string; readonly label: string; readonly chosen: string }) {
   return (
     <div class="tk-ctool__choice-label">
-      <span class="tk-field__label" id={id}>
+      <span class="tk-ctool__label" id={id}>
         {label}
       </span>
       <span class="tk-ctool__chosen" aria-hidden="true">
@@ -211,29 +132,33 @@ function ChoiceLabel({ id, label, chosen }: { readonly id: string; readonly labe
   );
 }
 
+const rangeName = (r: ColourRangeName): string => t(`range.${r}`);
+
 // ── F-024 colour mixer ─────────────────────────────────────────────────────────────────────────
 
 function MixerBody({ id, clipId, tools }: { id: string; clipId: string; tools: ColourTools | undefined }) {
   const range = mixerRange.value;
   const labelId = `${id}-range`;
-  const rangeName = (r: ColourRangeName): string => t(`range.${r}`);
   return (
     <>
-      <div class="tk-field">
+      <div class="tk-ctool__choice">
         <ChoiceLabel id={labelId} label={t('mixer.range')} chosen={rangeName(range)} />
-        <RadioSet
+        <OptionGroup<ColourRangeName>
+          id={`${id}-ranges`}
+          label={t('mixer.range')}
           labelledBy={labelId}
           variant="ranges"
           value={range}
           // F-024.AC9: choosing the range shown is UI state, not an undo step.
           onChoose={(r) => (mixerRange.value = r)}
-          items={COLOUR_RANGES.map((r) => {
+          options={COLOUR_RANGES.map((r) => {
             const changed = rangeChanged(tools, r);
             return {
               value: r,
               key: r,
-              name: changed ? t('mixer.range_changed', { range: rangeName(r) }) : rangeName(r),
+              label: changed ? t('mixer.range_changed', { range: rangeName(r) }) : rangeName(r),
               content: rangeSwatch(r, changed),
+              named: true,
               changed,
             };
           })}
@@ -264,17 +189,25 @@ function PopBody({ id, clipId, tools }: { id: string; clipId: string; tools: Col
   const none = colour === null;
   return (
     <>
-      <div class="tk-field">
-        <ChoiceLabel id={labelId} label={t('pop.colour')} chosen={none ? t('pop.none') : t(`range.${colour}`)} />
-        <RadioSet<ColourRangeName | null>
+      <div class="tk-ctool__choice">
+        <ChoiceLabel id={labelId} label={t('pop.colour')} chosen={none ? t('pop.none') : rangeName(colour)} />
+        <OptionGroup<ColourRangeName | null>
+          id={`${id}-colours`}
+          label={t('pop.colour')}
           labelledBy={labelId}
           describedBy={helpId}
           variant="ranges"
           value={colour}
           onChoose={(c) => choosePop(clipId, c)}
-          items={[
-            { value: null, key: 'none', name: t('pop.none'), content: t('pop.none'), chip: true },
-            ...COLOUR_RANGES.map((r) => ({ value: r, key: r, name: t(`range.${r}`), content: rangeSwatch(r) })),
+          options={[
+            { value: null, key: 'none', label: t('pop.none'), chip: true },
+            ...COLOUR_RANGES.map((r) => ({
+              value: r,
+              key: r,
+              label: rangeName(r),
+              content: rangeSwatch(r),
+              named: true,
+            })),
           ]}
         />
         <p class="tk-ctool__help" id={helpId}>
@@ -289,9 +222,6 @@ function PopBody({ id, clipId, tools }: { id: string; clipId: string; tools: Col
 
 // ── F-026 split toning ─────────────────────────────────────────────────────────────────────────
 
-/** F-026.R5: a hue slider reads its degrees and the nearest range ("210°, Blue"). */
-const hueText = (v: number): string => t('colour_tools.hue_value', { degrees: v, range: t(`range.${hueRange(v)}`) });
-
 /** F-026: Balance reads which side it favours ("30 toward shadows", "Even"). */
 const balanceText = (v: number): string =>
   v < 0
@@ -305,17 +235,20 @@ function SplitBody({
   clipId,
   tools,
   Sub,
+  touch,
 }: {
   id: string;
   clipId: string;
   tools: ColourTools | undefined;
   Sub: 'h4' | 'h5';
+  touch: boolean;
 }) {
   const side = (which: 'shadows' | 'highlights') => (
     <div class="tk-ctool__sub" role="group" aria-labelledby={`${id}-${which}`}>
       <Sub class="tk-ctool__sub-title" id={`${id}-${which}`}>
         {t(`split.${which}`)}
       </Sub>
+      {/* On phones the 360° hue slider takes the full width, its label above it. */}
       <ToolRow
         id={id}
         clipId={clipId}
@@ -325,6 +258,7 @@ function SplitBody({
         name={t(`split.${which}_hue`)}
         valueText={hueText}
         track={HUE_WHEEL_TRACK}
+        stacked={touch}
       />
       <ToolRow
         id={id}
@@ -382,6 +316,13 @@ function ColourButton({ clipId, which, hex, open }: { clipId: string; which: Pic
   );
 }
 
+const pairName = (c: DuotoneChoice | null): string =>
+  c === null
+    ? t('duotone.none')
+    : c === 'custom'
+      ? t('duotone.custom')
+      : t(DUOTONE_PAIR_COLOURS[c].copyId as Extract<MessageId, `duotone.pair_${string}`>);
+
 function DuotoneBody({
   id,
   clipId,
@@ -396,18 +337,15 @@ function DuotoneBody({
   const choice = duotoneChoice(tools);
   const labelId = `${id}-pairs`;
   const picker = pickerOpen.value;
-  const pairName = (c: DuotoneChoice | null): string =>
-    c === null
-      ? t('duotone.none')
-      : c === 'custom'
-        ? t('duotone.custom')
-        : t(DUOTONE_PAIR_COLOURS[c].copyId as Extract<MessageId, `duotone.pair_${string}`>);
-  const items: RadioItem<DuotoneChoice | null>[] = [
-    { value: null, key: 'none', name: pairName(null), content: pairName(null), chip: true },
+  // Wide: the popover belongs to this group; when the group goes (collapsed, another tab, another clip) it
+  // closes, so it never comes back with a stale "before" colour (CMP-ColourPicker "Behavior").
+  useEffect(() => (touch ? undefined : () => closePicker(false)), [touch]);
+  const options: Option<DuotoneChoice | null>[] = [
+    { value: null, key: 'none', label: pairName(null), chip: true },
     ...DUOTONE_PAIRS.map((p) => ({
       value: p,
       key: p,
-      name: pairName(p),
+      label: pairName(p),
       content: (
         <>
           <span
@@ -418,8 +356,9 @@ function DuotoneBody({
           <span class="tk-ctool__pair-name">{pairName(p)}</span>
         </>
       ),
+      named: true,
     })),
-    { value: 'custom', key: 'custom', name: pairName('custom'), content: pairName('custom'), chip: true },
+    { value: 'custom', key: 'custom', label: pairName('custom'), chip: true },
   ];
   const colour = (which: PickerFor) => {
     const open = picker?.clipId === clipId && picker.which === which;
@@ -433,14 +372,16 @@ function DuotoneBody({
   };
   return (
     <>
-      <div class="tk-field">
+      <div class="tk-ctool__choice">
         <ChoiceLabel id={labelId} label={t('duotone.pairs')} chosen={pairName(choice)} />
-        <RadioSet<DuotoneChoice | null>
+        <OptionGroup<DuotoneChoice | null>
+          id={`${id}-choice`}
+          label={t('duotone.pairs')}
           labelledBy={labelId}
           variant="pairs"
           value={choice}
           onChoose={(c) => pickDuotone(clipId, c)}
-          items={items}
+          options={options}
         />
       </div>
       {choice === 'custom' ? (
@@ -508,10 +449,10 @@ function ToolGroup({
             <Icon name="disclosure" size={16} class="tk-ctool__chevron" />
             <span class="tk-ctool__title">{title}</span>
             {changed ? (
-              <>
+              <span class="tk-ctool__marker">
                 <span class="tk-ctool__dot" aria-hidden="true" />
                 <span class="tk-ctool__state">{t('colour_tools.changed')}</span>
-              </>
+              </span>
             ) : null}
           </button>
         </Head>
@@ -568,7 +509,7 @@ export function ColourToolGroups({
         <PopBody id={`${id}-pop`} clipId={clipId} tools={tools} />
       </ToolGroup>
       <ToolGroup {...props('split')}>
-        <SplitBody id={`${id}-split`} clipId={clipId} tools={tools} Sub={Sub} />
+        <SplitBody id={`${id}-split`} clipId={clipId} tools={tools} Sub={Sub} touch={touch} />
       </ToolGroup>
       <ToolGroup {...props('duotone')}>
         <DuotoneBody id={`${id}-duotone`} clipId={clipId} tools={tools} touch={touch} />
