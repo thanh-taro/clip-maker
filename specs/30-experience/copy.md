@@ -416,7 +416,7 @@ Polite status messages for screen readers (F-017.R7, F-017.R8). `{action}` is th
 
 ## Retired (D-052)
 Kept so the IDs are never reused; not shown in the tool and not generated. They belonged to the
-music shipped with the tool, removed on 2026-11-25 (CMP-MusicPicker, deprecated).
+music shipped with the tool, removed on 2026-11-25 (the music picker, removed by D-052).
 
 - **COPY-music.title** — was "Music" / "Nhạc", the picker's title.
 - **COPY-music.preview** — was "Play preview" / "Nghe thử".

@@ -15,20 +15,20 @@ depends_on: [F-001]
 ---
 
 ## Intent
-Music sets the mood of a clip, and muting a noisy video is one of the most common quick fixes (PER-03, PER-04). Music comes only from the user's own audio files, so the tool ships no tracks that could draw a claim on an export (D-052).
+Music sets the mood of a clip, and muting a noisy video is one of the most common quick fixes (PER-03, PER-04). Music comes only from the user's own audio files, so the tool ships no music that could draw a claim on an export (D-052).
 
 ## Scope
 - In: placing the user's audio on the audio track, including from the Music action; per-clip volume and mute; muting all original sound; the mix (RULE-12).
 - Out: several audio tracks, voice-over and beat detection (M-2); speed for audio clips; music shipped with the tool (removed by D-052).
 
 ## Requirements
-- **R1** The Music action lets the user pick one or more of their own audio files. Each file goes through the F-001 intake (RULE-01, RULE-02 checks; accepted files are listed in the media panel as sources) and is placed on the audio track per RULE-12 (at the playhead, or the end of the audio clip there, or at 0 when the playhead is at the project end). Several files are placed in the order given, each per RULE-12, so they follow one another from the playhead. The whole pick is one undo step (RULE-13), and the first new audio clip is selected. Cancelling the picker changes nothing.
+- **R1** The Music action lets the user pick one or more of their own audio files. Each file goes through the F-001 intake (RULE-01, RULE-02 checks; accepted files are listed in the media panel as sources) and is placed on the audio track per RULE-12 *Placing on the audio track*. Several files are placed in the order given, each per RULE-12, so they follow one another from the playhead. The whole pick is one undo step (RULE-13), and the first new audio clip is selected; if no audio clip is placed, the selection doesn't change. Files without room give one COPY-notice.no_audio_room for the pick. Cancelling the picker changes nothing.
 - **R2** Audio clips can be moved, trimmed, split, duplicated and deleted on the audio track without ever overlapping (INV-06).
 - **R3** The user can set the volume of, or mute, any video clip or audio clip from 0 % to 200 % (RULE-12).
 - **R4** The user can mute the original sound of every clip now on the main track in one action, as one undo step; when all are muted, the same control unmutes them all (RULE-12).
 - **R5** The preview and the export play the same mix, and it never clips (RULE-12, NFR-08).
-- **R6** Retired by D-052 (2026-11-25); the ID is not reused. It required the credits of each track shipped with the tool to be shown where the track was picked; the tool ships no tracks now.
-- **R7** Retired by D-052 (2026-11-25); the ID is not reused. It required the tracks shipped with the tool to work with no network; the tool ships no tracks now.
+- **R6** Retired by D-052 (2026-11-25); the ID is not reused. It required the credits of each track shipped with the tool to be shown where the track was picked; the tool ships no music now.
+- **R7** Retired by D-052 (2026-11-25); the ID is not reused. It required the tracks shipped with the tool to work with no network; the tool ships no music now.
 - **R8** The user can move a selected audio clip earlier or later in time with visible controls, without dragging (RULE-21, NFR-06).
 
 ## Acceptance criteria
@@ -45,6 +45,9 @@ Music sets the mood of a clip, and muting a noisy video is one of the most commo
 - **AC11** Given a 20 s project with the playhead at its end after playback, when the user adds an audio file with COPY-action.music, then it starts at 0. (R1)
 - **AC12** Given any project, when the user activates COPY-action.music and cancels the picker, then the project, the media panel and the undo history are unchanged. (R1)
 - **AC13** Given a 20 s project, an empty audio track and the playhead at 2 s, when the user chooses a 5 s and a 4 s audio file with COPY-action.music, then both are listed in the media panel, audio clips appear at 2–7 s and 7–11 s in the order given, the first is selected, and one undo removes both clips and both sources. (R1)
+- **AC14** Given a 20 s project with an audio clip from 0 s to 20 s and the playhead at 5 s, when the user chooses a 10 s MP3 with COPY-action.music, then COPY-notice.no_audio_room shows, the MP3 is listed in the media panel, no audio clip is added, and one undo removes the source. (R1)
+- **AC15** Given a 20 s project, an empty audio track and the playhead at 3 s, when the user chooses a 30 s MP3 and then a 10 s MP3 with COPY-action.music, then the first is placed at 3–33 s, the second is listed in the media panel with COPY-notice.no_audio_room and no clip, and one undo removes both sources and the clip. (R1)
+- **AC16** Given an empty audio track, when the user chooses a valid MP3 and a PDF renamed .mp3 with COPY-action.music, then the MP3 is placed and COPY-error.refused_list names the PDF with COPY-reason.unsupported. (R1)
 
 ## UX notes
 CMP-Toolbar's Music (COPY-action.music) opens the system file picker for audio files; on narrow layouts it is in the Audio sheet (CMP-Inspector "narrow sheets"). New sources appear in CMP-MediaPanel. Volume in CMP-Inspector under COPY-inspector.sound; COPY-action.mute_all.

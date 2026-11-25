@@ -24,7 +24,7 @@ light is fully supported (D-029).
    looks like selection.
 4. **Tracks by kind, never by colour alone.** Main-track clips alternate between `trackClip` and
    `trackClipAlt` and show a thumbnail strip with the duration. Text layers (`trackText`) show
-   their text. Audio clips (`trackAudio`) show a `waveform` and the track title. Each lane also
+   their text. Audio clips (`trackAudio`) show a `waveform` and the source's name. Each lane also
    carries an icon.
 5. **Numbers in mono.** Times (mm:ss:ff), durations, adjustment values, sizes and estimates use
    JetBrains Mono with tabular digits, so they don't jump while you drag.
