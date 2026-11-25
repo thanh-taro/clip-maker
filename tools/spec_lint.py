@@ -239,6 +239,10 @@ def check_coverage(ix: Index, r: Report, test_dir: Path, include_drafts: bool) -
         if f.meta.get("status") == "draft" and not include_drafts:
             continue
         for ac in sorted(k for k in ix.defs if k.startswith(f.id + ".AC")):
+            d = ix.defs[ac][0]
+            line = (SPECS.parent / d.rel).read_text().splitlines()[d.line - 1] if d.line else ""
+            if re.search(r"\*\*AC\d+\*\*\s+Retired\b", line):
+                continue  # a retired AC keeps its ID for history but needs no test
             compact = ac.replace("-", "").replace(".", "_")  # F-003.AC1 -> F003_AC1
             if ac not in text and compact not in text:
                 missing.append(ac)
