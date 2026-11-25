@@ -5,7 +5,7 @@
 // Blur), RULE-07 (Fit/Fill on the rotated clip, scale, position, 90° rotation, flips), RULE-08 (grade
 // uniforms; sharpen radius and grain cell relative to s), RULE-10 (fade opacity, cross-fade weights),
 // F-010.R5 (text bitmaps drawn at the output scale), F-007.R7 (compare: one clip without grade or look),
-// F-008.R2 (a look previewed on one clip, preview only).
+// F-008.R2 (a look previewed on one clip, preview only); RULE-24 (the clip's colour tools; compare drops them).
 import { PALETTE_HEX, placedRect, type Frame, type Look, type Placement } from '../core';
 import type { FramePlan } from '../plan';
 import { clipHash, gradeUniforms, grainCell, NEUTRAL, type GradeUniforms, type Rgb } from './grade';
@@ -187,7 +187,8 @@ export function drawList(
     }
     const placed = placeQuad(W, H, size, clip.placement);
     const look = options.lookPreview?.clipId === clip.id ? options.lookPreview.look : clip.look;
-    const grade = options.compare === clip.id ? NEUTRAL : gradeUniforms(clip.adjustments, look);
+    // RULE-08 / RULE-24 compare: the clip without adjustments, colour tools and look.
+    const grade = options.compare === clip.id ? NEUTRAL : gradeUniforms(clip.adjustments, look, clip.colourTools);
     const r = SHARPEN_RADIUS * s;
     layers.push({
       clipId: clip.id,

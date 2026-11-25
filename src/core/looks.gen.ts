@@ -30,3 +30,20 @@ export const LOOKS: Readonly<Record<LookId, { readonly group: LookGroup; readonl
   "bw-soft": { group: "Black & White", copyId: "look.bw_soft" },
   "bw-sepia": { group: "Black & White", copyId: "look.bw_sepia" },
 };
+
+/** RULE-24 duotone pairs in display order (looks.md "Duotone pairs", F-027): sRGB #RRGGBB. */
+export const DUOTONE_PAIRS = ["midnight-peach","plum-gold","teal-cream","indigo-pink","forest-lime","ink-coral"] as const;
+
+export type DuotonePairId = (typeof DUOTONE_PAIRS)[number];
+
+/** Each pair's shadows and highlights colours and the COPY ID (without `COPY-`) of its name. */
+export const DUOTONE_PAIR_COLOURS: Readonly<
+  Record<DuotonePairId, { readonly shadows: string; readonly highlights: string; readonly copyId: string }>
+> = {
+  "midnight-peach": { shadows: "#1B2A4A", highlights: "#F6C9A0", copyId: "duotone.pair_midnight_peach" },
+  "plum-gold": { shadows: "#3A1645", highlights: "#F2C14E", copyId: "duotone.pair_plum_gold" },
+  "teal-cream": { shadows: "#0F3B3E", highlights: "#F3E9D2", copyId: "duotone.pair_teal_cream" },
+  "indigo-pink": { shadows: "#2B1B5A", highlights: "#FF8FB1", copyId: "duotone.pair_indigo_pink" },
+  "forest-lime": { shadows: "#12301C", highlights: "#C9F27B", copyId: "duotone.pair_forest_lime" },
+  "ink-coral": { shadows: "#141414", highlights: "#FF6F59", copyId: "duotone.pair_ink_coral" },
+};

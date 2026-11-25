@@ -4,7 +4,16 @@
 
 export type * from './project.gen';
 export { PALETTE, PALETTE_HEX, type PaletteName } from './palette.gen';
-export { LOOK_GROUPS, LOOK_IDS, LOOKS, type LookGroup, type LookId } from './looks.gen';
+export {
+  DUOTONE_PAIR_COLOURS,
+  DUOTONE_PAIRS,
+  LOOK_GROUPS,
+  LOOK_IDS,
+  LOOKS,
+  type DuotonePairId,
+  type LookGroup,
+  type LookId,
+} from './looks.gen';
 export * from './messages';
 export type * from './engine-protocol';
 export type * from './sound-feed';
@@ -16,6 +25,9 @@ export * from './timing';
 export * from './audio';
 export * from './text';
 export * from './visual';
+// The colour tools' maths and settings (RULE-24, D-053, ADR-0017).
+export * from './colour';
+export * from './colour-tools';
 export * from './source-end';
 export * from './edits';
 export * from './check';

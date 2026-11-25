@@ -51,10 +51,19 @@ import {
   speedOf,
   splitClip,
   trimAudioClip,
+  normaliseColourTools,
+  normaliseHex,
+  duotoneStart,
   type Adjustments,
   type AdjustmentName,
   type AudioClip,
   type Clip,
+  type ColourRangeName,
+  type ColourTools,
+  type DuotoneChoice,
+  type MixerRange,
+  type Pop,
+  type SplitToning,
   type Frame,
   type FrameRate,
   type Look,
@@ -74,10 +83,12 @@ export interface EditResult {
   readonly changed: readonly string[];
 }
 
-/** A clip's adjustments and look, as copied, pasted and applied to all (RULE-08). */
+/** A clip's adjustments, colour tools and look, as copied, pasted and applied to all (RULE-08, RULE-24). */
 export interface Grade {
   readonly adjustments: Adjustments;
   readonly look: Look;
+  /** RULE-24 (absent: every colour tool at default). */
+  readonly colourTools?: ColourTools;
 }
 
 export type NextId = () => string;
@@ -604,9 +615,11 @@ export function resetAdjustment(p: Project, id: string, name: AdjustmentName): E
   });
 }
 
-/** Implements: RULE-08 Reset all. */
+/** Implements: RULE-08 Reset all; RULE-24 it also returns every colour tool to default; the look is kept. */
 export function resetAdjustments(p: Project, id: string): EditResult {
-  return updateClip(p, id, (c) => (Object.keys(c.adjustments).length ? { ...c, adjustments: {} } : c));
+  return updateClip(p, id, (c) =>
+    Object.keys(c.adjustments).length || c.colourTools ? withColourTools({ ...c, adjustments: {} }, undefined) : c,
+  );
 }
 
 /** Implements: RULE-09 choosing a look (or None) keeps the adjustments; intensity 0–100. */
@@ -617,18 +630,28 @@ export function setLook(p: Project, id: string, look: Look): EditResult {
   });
 }
 
-export const gradeOf = (clip: Clip): Grade => ({ adjustments: clip.adjustments, look: clip.look });
+/** Implements: RULE-08 / RULE-24 copy — adjustments, look and colour tools (when any is set). */
+export const gradeOf = (clip: Clip): Grade =>
+  clip.colourTools
+    ? { adjustments: clip.adjustments, look: clip.look, colourTools: clip.colourTools }
+    : { adjustments: clip.adjustments, look: clip.look };
 
-/** Implements: RULE-08 paste. */
+/** Implements: RULE-08 paste; RULE-24 the colour tools come with it. */
 export function pasteGrade(p: Project, id: string, grade: Grade): EditResult {
   return updateClip(p, id, (c) =>
     sameJson(gradeOf(c), grade)
       ? c
-      : { ...c, adjustments: clampAdjustments(grade.adjustments), look: clampLook(grade.look) },
+      : withColourTools(
+          { ...c, adjustments: clampAdjustments(grade.adjustments), look: clampLook(grade.look) },
+          grade.colourTools,
+        ),
   );
 }
 
-/** Implements: RULE-08 Apply to all — the clip's adjustments and look onto every other clip, one step. */
+/**
+ * Implements: RULE-08 Apply to all — the clip's adjustments and look onto every other clip, one step;
+ * RULE-24 with its colour tools.
+ */
 export function applyToAll(p: Project, id: string): EditResult {
   const source = p.clips.find((c) => c.id === id);
   if (!source) return same(p);
@@ -637,9 +660,128 @@ export function applyToAll(p: Project, id: string): EditResult {
   const clips = p.clips.map((c) => {
     if (c.id === id || sameJson(gradeOf(c), grade)) return c;
     changed.push(c.id);
-    return { ...c, adjustments: grade.adjustments, look: grade.look };
+    return withColourTools({ ...c, adjustments: grade.adjustments, look: grade.look }, grade.colourTools);
   });
   return changed.length ? result(p, { ...p, clips }, changed) : same(p);
+}
+
+// ── colour tools (F-024, F-025, F-026, F-027; RULE-24, D-053) ──────────────────────────────────────
+// Each operation is one RULE-13 step (a slider drag through a gesture, a choice, a swap, a reset). Values
+// are normalised (MOD-Core `normaliseColourTools`): defaults are dropped, so a reset tool leaves no trace and
+// a drag back to where it began leaves the same document (no step). Which mixer range is shown is UI state,
+// never stored (RULE-24 *History*). Colour replace (RULE-25, F-028, 1.3.0) is carried, not edited here.
+
+/** The clip with these colour tools, normalised; the field is absent when every tool is at default. */
+function withColourTools(c: Clip, tools: ColourTools | undefined): Clip {
+  const next = normaliseColourTools(tools);
+  if (sameJson(next, c.colourTools)) return c;
+  if (next) return { ...c, colourTools: next };
+  if (!c.colourTools) return c;
+  const out: { -readonly [K in keyof Clip]: Clip[K] } = { ...c };
+  delete out.colourTools;
+  return out;
+}
+
+/** The tools without one of them (it returns to its defaults). */
+function without(t: ColourTools, tool: keyof ColourTools): ColourTools {
+  const out: { -readonly [K in keyof ColourTools]: ColourTools[K] } = { ...t };
+  delete out[tool];
+  return out;
+}
+
+function updateTools(p: Project, id: string, change: (t: ColourTools) => ColourTools): EditResult {
+  return updateClip(p, id, (c) => withColourTools(c, change(c.colourTools ?? {})));
+}
+
+/** Implements: F-024.R1/R4, RULE-24 *Colour mixer* — set (or reset to 0) a range's Hue, Saturation, Lightness. */
+export function setMixer(p: Project, id: string, range: ColourRangeName, change: Partial<MixerRange>): EditResult {
+  return updateTools(p, id, (t) => ({
+    ...t,
+    mixer: { ...t.mixer, [range]: { ...t.mixer?.[range], ...change } },
+  }));
+}
+
+/** Implements: F-024.R4 — the colour mixer's Reset: all 24 values to 0. */
+export function resetMixer(p: Project, id: string): EditResult {
+  return updateTools(p, id, (t) => without(t, 'mixer'));
+}
+
+/**
+ * Implements: F-025.R1/R4, RULE-24 *Colour pop* — the kept colour (null: None, which keeps Range and Amount),
+ * Range and Amount (resetting a value sets its default: Range 50, Amount 100).
+ */
+export function setPop(p: Project, id: string, change: Partial<Pop>): EditResult {
+  return updateTools(p, id, (t) => ({ ...t, pop: { ...t.pop, ...change } }));
+}
+
+/** Implements: F-025.R4 — colour pop's Reset: None, Range 50, Amount 100. */
+export function resetPop(p: Project, id: string): EditResult {
+  return updateTools(p, id, (t) => without(t, 'pop'));
+}
+
+/** Implements: F-026.R1/R4, RULE-24 *Split toning* — hues (0–359°), strengths, Balance. */
+export function setSplitToning(p: Project, id: string, change: Partial<SplitToning>): EditResult {
+  return updateTools(p, id, (t) => ({ ...t, splitToning: { ...t.splitToning, ...change } }));
+}
+
+/** Implements: F-026.R4 — split toning's Reset: strengths 0, hues 210° and 35°, Balance 0. */
+export function resetSplitToning(p: Project, id: string): EditResult {
+  return updateTools(p, id, (t) => without(t, 'splitToning'));
+}
+
+/**
+ * Implements: F-027.R1/R3, RULE-24 *Duotone* choosing — a built-in pair (its colours), Custom (the colours
+ * shown last on this clip, else Midnight & Peach's) or None (null: off, the colours kept for Custom).
+ * Choosing a pair or Custom starts Strength at 100.
+ */
+export function chooseDuotone(p: Project, id: string, choice: DuotoneChoice | null): EditResult {
+  return updateTools(p, id, (t) => {
+    const cur = t.duotone;
+    if (choice === null) return cur?.on ? { ...t, duotone: { ...cur, on: false } } : t;
+    if (cur?.on && cur.pair === choice) return t;
+    return { ...t, duotone: { on: true, pair: choice, ...duotoneStart(choice, cur), strength: 100 } };
+  });
+}
+
+/**
+ * Implements: F-027.R1/R3/R5 — Strength (Reset: 100) and, in Custom, the shadows and highlights colours
+ * (#RRGGBB; anything else is ignored). A built-in pair's colours are its own, so they change only in Custom.
+ */
+export function setDuotone(
+  p: Project,
+  id: string,
+  change: { readonly strength?: number; readonly shadows?: string; readonly highlights?: string },
+): EditResult {
+  return updateTools(p, id, (t) => {
+    const cur = t.duotone;
+    if (!cur?.on) return t;
+    const custom = cur.pair === 'custom';
+    const shadows = change.shadows !== undefined && custom ? normaliseHex(change.shadows) : null;
+    const highlights = change.highlights !== undefined && custom ? normaliseHex(change.highlights) : null;
+    return {
+      ...t,
+      duotone: {
+        ...cur,
+        strength: change.strength ?? cur.strength,
+        shadows: shadows ?? cur.shadows,
+        highlights: highlights ?? cur.highlights,
+      },
+    };
+  });
+}
+
+/** Implements: F-027.R3 — Swap exchanges Custom's two colours (one step). */
+export function swapDuotone(p: Project, id: string): EditResult {
+  return updateTools(p, id, (t) => {
+    const cur = t.duotone;
+    if (!cur?.on || cur.pair !== 'custom') return t;
+    return { ...t, duotone: { ...cur, shadows: cur.highlights, highlights: cur.shadows } };
+  });
+}
+
+/** Implements: F-027.R5, RULE-24 — duotone's Reset: None, and the remembered colours are forgotten. */
+export function resetDuotone(p: Project, id: string): EditResult {
+  return updateTools(p, id, (t) => without(t, 'duotone'));
 }
 
 // ── sound (F-011, RULE-12) ─────────────────────────────────────────────────────────────────────

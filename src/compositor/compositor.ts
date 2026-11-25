@@ -8,12 +8,14 @@
 // Implements: F-002.R1/R6, F-006 (drawing), F-007.R1/R2/R5/R7, F-008.R3/R4/R6, F-009 (picture),
 // F-010.R5 (drawing), F-012.R3 (background), F-015.R4; RULE-04, RULE-07, RULE-08, RULE-09, RULE-10;
 // INV-02, INV-05, INV-07; NFR-08.
-import type { Overlay, TextBitmap } from '../core';
+// Implements: RULE-24 (D-053, ADR-0017 §1, §3, §6): the colour stages' uniforms and each clip's hue table, a
+// 1,024 × 1 RGBA16F texture uploaded only when its settings change and re-created after a context loss.
+import { HUE_TABLE_SIZE, type Overlay, type TextBitmap } from '../core';
 import type { FramePlan } from '../plan';
 import { drawList, type DrawList, type DrawOptions, type Quad, type Rotation, type SourceSize } from './draw';
-import type { GradeUniforms } from './grade';
+import { colourStages, type GradeUniforms } from './grade';
 import { identityTable, LUT_N, type LookTable } from './lut';
-import { FS_BLUR, FS_DOWN, FS_GRADE, FS_MIX, FS_PLACE, FS_SOLID, FS_TEX, VS } from './shaders';
+import { FS_BLUR, FS_DOWN, FS_MIX, FS_PLACE, FS_SOLID, FS_TEX, fsGrade, VS } from './shaders';
 
 /** A decoded picture handed to paint: a VideoFrame (closed by its owner) or an ImageBitmap. */
 export interface PaintFrame {
@@ -90,10 +92,15 @@ interface Resources {
   readonly vao: WebGLVertexArrayObject;
   readonly posBuf: WebGLBuffer;
   readonly texBuf: WebGLBuffer;
-  readonly prog: Record<'tex' | 'grade' | 'place' | 'down' | 'blur' | 'mix' | 'solid', Program>;
+  readonly prog: Record<'tex' | 'place' | 'down' | 'blur' | 'mix' | 'solid', Program>;
+  /** Grade programs by set of colour stages (ADR-0017 §9). */
+  readonly grades: Map<number, Program>;
   readonly src: [WebGLTexture, WebGLTexture];
   readonly identity: WebGLTexture;
   readonly luts: Map<string, WebGLTexture>;
+  /** RULE-24 hue tables by settings key, oldest first (ADR-0017 §3); `noHue` is bound when none is on. */
+  readonly hues: Map<string, WebGLTexture>;
+  readonly noHue: WebGLTexture;
   readonly inter: [Fbo | null, Fbo | null];
   layers: Fbo[];
   blurBufs: Fbo[];
@@ -186,6 +193,23 @@ function makeLut(gl: Gl, rgba: Uint8Array): WebGLTexture {
   return t;
 }
 
+/** Hue tables kept on the GPU (two layers draw at once; a few more spare re-uploads while scrubbing). */
+const HUE_TEXTURES = 6;
+
+/** ADR-0017 §3: a hue table as a 1,024 × 1 RGBA16F texture, linear filtering, wrapping around in hue. */
+function makeHue(gl: Gl, table: Float32Array): WebGLTexture {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, HUE_TABLE_SIZE, 1, 0, gl.RGBA, gl.FLOAT, table);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  return t;
+}
+
 class GlCompositor implements Compositor {
   private gl: Gl;
   private r: Resources | null = null;
@@ -257,7 +281,6 @@ class GlCompositor implements Compositor {
       })();
     const prog = {
       tex: compile(gl, FS_TEX),
-      grade: compile(gl, FS_GRADE),
       place: compile(gl, FS_PLACE),
       down: compile(gl, FS_DOWN),
       blur: compile(gl, FS_BLUR),
@@ -284,6 +307,9 @@ class GlCompositor implements Compositor {
       src: [makeTex(gl), makeTex(gl)],
       identity: makeLut(gl, identityTable()),
       luts,
+      grades: new Map([[0, compile(gl, fsGrade(0))]]),
+      hues: new Map(),
+      noHue: makeHue(gl, new Float32Array(HUE_TABLE_SIZE * 4)),
       inter: [null, null],
       layers: [],
       blurBufs: [],
@@ -393,7 +419,57 @@ class GlCompositor implements Compositor {
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_3D, lut ?? r.identity);
     gl.uniform1i(p.u('uLut'), 2);
+    // RULE-24 colour stages (ADR-0017): compiled into the program chosen for this set (`gradeProgram`).
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, u.hue ? this.hueTexture(r, u.hue.key, u.hue.table) : r.noHue);
+    gl.uniform1i(p.u('uHue'), 3);
+    if (u.split) {
+      gl.uniform2f(p.u('uSplitSh'), u.split.shadows[0], u.split.shadows[1]);
+      gl.uniform2f(p.u('uSplitHi'), u.split.highlights[0], u.split.highlights[1]);
+      gl.uniform1f(p.u('uSplitX'), u.split.crossover);
+    }
+    if (u.duotone) {
+      const [s, h] = [u.duotone.shadows, u.duotone.highlights];
+      gl.uniform3f(p.u('uDuoSh'), s[0], s[1], s[2]);
+      gl.uniform3f(p.u('uDuoHi'), h[0], h[1], h[2]);
+      gl.uniform1f(p.u('uDuoStr'), u.duotone.strength);
+    }
     gl.activeTexture(gl.TEXTURE0);
+  }
+
+  /**
+   * ADR-0017 §9 fallback (SP-colour-tools): the grade program for this set of colour stages, compiled on first
+   * use and kept (at most 16; set 0 — no colour tools — is compiled at start-up).
+   */
+  private gradeProgram(r: Resources, u: GradeUniforms): Program {
+    const stages = colourStages(u);
+    let p = r.grades.get(stages);
+    if (!p) {
+      p = compile(this.gl, fsGrade(stages));
+      r.grades.set(stages, p);
+    }
+    return p;
+  }
+
+  /** ADR-0017 §3: the clip's hue table, uploaded only when its settings are new; the oldest is dropped. */
+  private hueTexture(r: Resources, key: string, table: Float32Array): WebGLTexture {
+    const cur = r.hues.get(key);
+    if (cur) {
+      r.hues.delete(key); // most recent last
+      r.hues.set(key, cur);
+      return cur;
+    }
+    const gl = this.gl;
+    const active = gl.getParameter(gl.ACTIVE_TEXTURE) as number;
+    const t = makeHue(gl, table);
+    gl.activeTexture(active);
+    r.hues.set(key, t);
+    if (r.hues.size > HUE_TEXTURES) {
+      const [oldKey, old] = r.hues.entries().next().value!;
+      gl.deleteTexture(old);
+      r.hues.delete(oldKey);
+    }
+    return t;
   }
 
   private intermediate(slot: 0 | 1, w: number, h: number): Fbo {
@@ -459,7 +535,7 @@ class GlCompositor implements Compositor {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, frame.image);
       // 2. Grade into the intermediate.
       this.target(it);
-      const pg = r.prog.grade;
+      const pg = this.gradeProgram(r, L.grade);
       gl.useProgram(pg.p);
       this.setGrade(pg, L.grade);
       gl.uniform1i(pg.u('uSrc'), 0);
