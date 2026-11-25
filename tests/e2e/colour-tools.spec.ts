@@ -168,6 +168,9 @@ test.describe('SP-colour-tools grade-pass cost (ADR-0017 §9)', () => {
   test('ADR-0017 §9 @realtime 1080p paint with every colour tool on vs off: median of 7 runs of 60 frames (BENCH_RUNS, BENCH_FRAMES override, e.g. for software GL)', async ({
     page,
   }) => {
+    // A measurement, not a gate (it asserts no budget): under software GL 7 × 60 frames outlast any timeout,
+    // so it runs only on request (BENCH=1). Results: .build-my-app/reports/spike-colour-tools.md.
+    test.skip(!process.env['BENCH'], 'measurement only; run with BENCH=1');
     test.setTimeout(300_000);
     await page.goto(HARNESS);
     await expect(page.locator('#out')).toHaveText('ready');
