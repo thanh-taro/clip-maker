@@ -1,7 +1,7 @@
 # Design production brief (shared by all design agents)
 
 Project: Clip Maker, a local-only browser video editor. Project root:
-`/Users/er_lap_mam3_016/Documents/personals/taro-kit-tools/media-tools/clip-maker`.
+`<project root>`.
 
 **Inputs you must read first**
 - `adapters/design.md`: naming, tokens, copy and viewport conventions.
@@ -41,7 +41,7 @@ Project: Clip Maker, a local-only browser video editor. Project root:
 ## Publishing (exact)
 After writing EACH file, publish it immediately with the Artifact tool:
 - `url`: `https://claude.ai/artifact/Uiv6jfy9jrWhTLx7NaNmkh`
-- `root`: `/Users/er_lap_mam3_016/Documents/personals/taro-kit-tools/media-tools/clip-maker/design/canvas`
+- `root`: `<project root>/design/canvas`
 - `file_path`: the absolute path of that one file
 
 Write one file, send it, then write the next. NEVER send or edit `project/canvas.json` (the board list and sizes are already fixed). Never send `index.html`, `SKILL.md` or anything under `artifact-type/`. Do not read the canvas back to verify, screenshot it or render it. If a publish is refused because someone saved meanwhile, re-read only that file with the Artifact read action, redo the edit and publish again.

@@ -1,6 +1,6 @@
 # Owner device checklist (phase 3 spikes)
 
-Worktrees live under `/Users/er_lap_mam3_016/Documents/personals/taro-kit-tools/media-tools/clip-maker/.claude/worktrees/`. The Mac's LAN address is `192.168.1.15`.
+Worktrees live under `<project root>/.claude/worktrees/`. The Mac's LAN address is shown by `pnpm preview:lan`.
 
 **Run one server at a time** (Ctrl+C before starting the next). On the iPhone, keep the screen on and Auto-Lock off.
 

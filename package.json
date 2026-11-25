@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "A light, local-only video editor in the TaroKit media tools: clips, text, music, looks and watermark-free MP4/GIF/audio export. Nothing leaves the device.",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "packageManager": "pnpm@11.25.0",
   "engines": {
     "node": ">=24"

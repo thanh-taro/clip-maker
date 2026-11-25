@@ -1,6 +1,6 @@
 # Design fix round 1: shared brief
 
-Project root: `/Users/er_lap_mam3_016/Documents/personals/taro-kit-tools/media-tools/clip-maker`.
+Project root: `<project root>`.
 Board files: `design/canvas/project/*.dc.html`.
 
 ## Read first
