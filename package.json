@@ -1,6 +1,6 @@
 {
   "name": "clip-maker",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "A light, local-only video editor in the TaroKit media tools: clips, text, music, looks and watermark-free MP4/GIF/audio export. Nothing leaves the device.",
