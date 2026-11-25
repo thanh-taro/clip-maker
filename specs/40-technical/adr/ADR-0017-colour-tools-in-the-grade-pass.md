@@ -25,8 +25,11 @@ grade pass.
    `colourTools` in `project.schema.json`, absent = defaults); preview, look thumbnails (RULE-09),
    video and GIF export all call the same `paint`. No extra render pass or intermediate, so the
    8-bit fallback intermediate quantises once, as today.
-2. **Perceptual space: OKLab / OKLCh.** RULE-24 *Measures* (lightness, chroma, hue) are OKLab L,
-   OKLCh C and h, computed from the linearised working-space values in 32-bit float
+2. **Perceptual space: OKLab / OKLCh.** RULE-24's *working perceptual colour space* is OKLab: its
+   lightness scale 0–100 is OKLab L × 100, chroma is OKLCh C and hue is OKLCh h. *Lightness kept*
+   and *hue reached* are judged there (L within 0.005, h within 1°); ΔE00, C* and the grey test
+   stay in CIELAB. The hue ring fixture is built at CIELAB L* 60 and C* 30 for each integer OKLCh
+   hue. Values are computed from the linearised working-space values in 32-bit float
    (`highp`) and converted back to sRGB encoding at the end of each colour stage that uses them
    (stages that run back to back share one conversion). OKLab is chosen for hue uniformity (blue
    does not drift to purple as in CIELAB) and smooth two-colour gradients for duotone. Out-of-gamut
@@ -37,21 +40,24 @@ grade pass.
    C* < 2 gets weight 0; a property test over the sRGB cube checks this.
 3. **Colour mixer and colour pop: one per-clip hue table.** MOD-Plan bakes the mixer's 24 values
    and colour pop's choice, Range and Amount into a 1-D table of 1,024 entries over hue (RGBA16F:
-   hue shift, chroma factor, lightness move, pop keep weight), built with RULE-24's weights (raised
-   cosine between neighbouring centres, which sums to 1) and uploaded only when those settings
+   hue shift, chroma factor, lightness move, pop keep weight), built with RULE-24's weights (a smoothstep between neighbouring
+   centres and its complement, which sum to 1) and uploaded only when those settings
    change. The shader reads it with linear filtering and wrap-around, applies the grey gate, then
    the values. One fetch replaces eight range evaluations; the table is computed by the same code
    that the CPU reference uses, so the oracle and the GPU agree by construction. Range centres are
    the OKLCh hues of RULE-24's reference colours, computed at build time.
 4. **Split toning and duotone: analytic.** Split toning adds an OKLab (a, b) tint vector of each
    hue (the hue wheel colour's OKLCh hue) scaled by strength (C ≈ 0.05 at 100, about C* 20) and by
-   smooth tone weights over L around the balance crossover, fading to zero below L 0.03 and above
-   0.97; L is untouched. Duotone maps the incoming OKLab L through the input's own range [0, 1] to
+   tone weights over L: smoothstep from full at 0.15 inside the crossover (0.50 at Balance 0, 0.80
+   at −100, 0.20 at +100) to none 0.15 past it, times smoothsteps to none within 0.05 of L 0 and
+   L 1; L is untouched, and the result is brought into gamut by §2's chroma reduction. Duotone maps the incoming OKLab L through the input's own range [0, 1] to
    an OKLab mix of the two colours (straight line in OKLab), then mixes with the input by strength
    in sRGB encoding (as look intensity does, ADR-0007 §3).
 5. **Colour replace: up to three analytic matches.** Each replacement's weight is a smoothstep on
-   OKLCh hue distance (full within the Range angle, fading over the Softness angle) times a chroma
-   floor (C ≥ ¼ of From's, smoothed) times the grey gate. Weights are computed on the stage input;
+   OKLCh hue distance (full within the Range angle, fading over the Softness angle) times a
+   smoothstep on chroma from ¼ to ½ of From's times the grey gate. All weights (ranges, pop,
+   replace, tone) are smoothsteps, whose steepest slope is 1.5 ÷ width, meeting RULE-24's
+   per-step bound. Weights are computed on the stage input;
    changes apply in list order: target h, C × C_to/C_from, L kept, then gamut reduction (§2).
    Parameters arrive as uniforms; unused replacements cost nothing (`count` uniform).
 6. **Skipping work.** Each tool has an *enabled* uniform derived from "not at defaults"; branches

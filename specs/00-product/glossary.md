@@ -27,6 +27,9 @@ Use only these terms in specs, copy, code names and tests.
 | **Duotone** | Recolours the picture with a gradient between two colours, by lightness (RULE-24). | gradient map |
 | **Colour replace** | Changes one colour of a clip to another, keeping its lightness and shading; matches colour, not objects (RULE-25). | colour key, chroma key |
 | **Eyedropper** | Picking a colour by clicking or tapping a point of the preview, or moving a marker with the keyboard (RULE-25). | colour sampler |
+| **Hue wheel** | The hues named in degrees by the sRGB colour at full saturation (0° red, 120° green, 240° blue), used by hue sliders and the colour picker (RULE-24). | colour wheel |
+| **Hue ring** | The test fixture of 360 colours around the hue at fixed lightness and chroma (RULE-24). | |
+| **Pick mode** | The state in which the next click, tap or keyboard pick on the preview sets a colour (RULE-25). | |
 | **Colour picker** | The control for choosing any colour: preset swatches, hue, saturation and lightness, or a hex code. | |
 | **Fade** | A gradual change from or to the background (picture) or silence (sound) at a clip's start or end (RULE-10). | |
 | **Cross-fade** | A blend between two adjacent clips on the main track (RULE-10). | transition |

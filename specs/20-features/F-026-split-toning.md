@@ -30,13 +30,13 @@ A cool tint in the shadows and a warm one in the highlights gives footage a fini
 
 ## Acceptance criteria
 - **AC1** Given a clip, when the user raises Shadows strength to 60, then the preview's dark areas take a tint of the Shadows hue (210° by default) during the drag. (R1)
-- **AC2** Given the grey ramp, Shadows hue 210° and strength 100, Highlights strength 0 and Balance 0, when rendered, then the step at L* 20 has C* of at least 10 and a hue angle within 10° of the hue of the hue wheel's 210° colour, the steps above L* 60 change by less than ΔE00 1, every step's L* is within 2 of its input, and the steps at L* 0 and L* 100 change by less than ΔE00 0.5. (R2)
-- **AC3** Given Shadows and Highlights strength 100, when Balance goes from −100 to +100, then the lightness at which the ramp turns from the shadows tint to the highlights tint rises from about L* 20 to about L* 80 (within 5), and in the full-precision result lightness stays in order and no two adjacent steps differ by more than four times the largest adjacent difference at default. (R2)
+- **AC2** Given the grey ramp, Shadows hue 210° and strength 100, Highlights strength 0 and Balance 0, when rendered, then the step at lightness 20 has C* of at least 10 and is at the working-space hue of the hue wheel's 210° colour (hue reached, RULE-24 *Measures*), the steps above lightness 65 change by less than ΔE00 0.5, every step keeps its lightness, and the steps within 1 of black and white change by less than ΔE00 0.5. (R2)
+- **AC3** Given Shadows and Highlights strength 100, when Balance goes from −100 to +100, then the lightness at which the ramp turns from the shadows tint to the highlights tint falls from 80 to 20 (within 2), and in the full-precision result lightness stays in order, the tone weights change by no more than RULE-24's per-step bound, and no two adjacent steps differ by more than four times the largest adjacent difference at default. (R2)
 - **AC4** Given the look Black & White Classic at 100 and Highlights strength 60, when rendered, then the light tones show the highlights tint, because split toning applies after the look. (R3)
-- **AC5** Given a 1080p clip with split toning on with every other tool and adjustment of the release on, when it plays on the reference phone, then it meets NFR-03, and its export matches the preview within NFR-08. (R3)
+- **AC5** Given a 1080p clip with split toning on with every other colour tool the build has and every adjustment on, when it plays on the reference phone, then it meets NFR-03, and its export matches the preview within NFR-08. (R3)
 - **AC6** Given Shadows strength 50 and Balance 30, when the user resets Balance, then only it returns to 0; when the user resets split toning, then both strengths return to 0, the hues to 210° and 35°, and Balance to 0; Reset all does the same. (R4)
 - **AC7** Given clip 1 with split toning, when the user picks Apply to all, copies and pastes, or holds compare, then the other clips get the same values as one undo step, the pasted clip matches, and compare shows clip 1 without it. (R4)
-- **AC8** Given keyboard focus on Highlights hue, when the user presses Up, then the hue rises by 1°, and assistive technology reads the value with COPY-colour_tools.hue_value (for example "36°, Orange"); at 359° Up changes nothing. (R5)
+- **AC8** Given keyboard focus on Highlights hue, when the user presses Up, then the hue rises by 1°, and assistive technology reads the value with COPY-colour_tools.hue_value (for example "36°, Orange"; at the default 210°, "210°, Blue"); at 359° Up changes nothing. (R5)
 
 ## UX notes
 In CMP-Inspector's Adjust section, the collapsible group COPY-colour_tools.group_split with COPY-colour_tools.reset_tool and COPY-colour_tools.changed. Rows: COPY-split.shadows with COPY-split.hue and COPY-split.strength, COPY-split.highlights with the same, and COPY-split.balance, whose value reads COPY-split.balance_shadows, COPY-split.balance_even or COPY-split.balance_highlights. Hue sliders show the hue wheel on their track and use COPY-colour_tools.hue_value; their accessible names are COPY-split.shadows_hue and COPY-split.highlights_hue, and the strengths' are COPY-split.shadows_strength and COPY-split.highlights_strength.
@@ -47,4 +47,4 @@ In CMP-Inspector's Adjust section, the collapsible group COPY-colour_tools.group
 - A photo → same as a video clip.
 
 ## Open questions
-- [x] Q3: default hues 210° (blue) for shadows and 35° (orange) for highlights, so raising a strength gives the familiar teal-and-orange at once (recommended). Owner to confirm (D-053 Q3).
+- [x] Q3: default hues 210° (blue) for shadows and 35° (orange) for highlights, so raising a strength gives the familiar teal-and-orange at once. Confirmed by owner (D-053 Q3).

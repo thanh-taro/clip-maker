@@ -350,7 +350,7 @@ Rules for every string:
 | **COPY-colour_tools.group_replace** | Colour replace | Thay màu | Group title (RULE-25, from 1.3.0) |
 | **COPY-colour_tools.reset_tool** | Reset {tool} | Đặt lại {tool} | Accessible name of a group's Reset; the visible text is COPY-action.reset |
 | **COPY-colour_tools.changed** | Changed | Đã chỉnh | State of a group or range whose values differ from default |
-| **COPY-colour_tools.hue_value** | {degrees}°, {range} | {degrees}°, {range} | Value text of a hue slider; {range} is the nearest colour range's name |
+| **COPY-colour_tools.hue_value** | {degrees}°, {range} | {degrees}°, {range} | Value text of a hue slider; {range} names the nearest range centre on the hue wheel (RULE-24) |
 | **COPY-range.red** | Red | Đỏ | Colour range |
 | **COPY-range.orange** | Orange | Cam | |
 | **COPY-range.yellow** | Yellow | Vàng | |
@@ -366,7 +366,7 @@ Rules for every string:
 | **COPY-mixer.slider_name** | {range} {control} | {control} {range} | Accessible name, e.g. "Red hue" / "Sắc độ Đỏ" |
 | **COPY-mixer.range_changed** | {range}, changed | {range}, đã chỉnh | |
 | **COPY-pop.colour** | Keep colour | Màu giữ lại | |
-| **COPY-pop.none** | Off | Tắt | |
+| **COPY-pop.none** | Off | Tắt | Visible label for colour pop's None (RULE-24) |
 | **COPY-pop.range** | Range | Phạm vi | |
 | **COPY-pop.amount** | Amount | Mức độ | |
 | **COPY-pop.help** | Keeps one colour. Everything else turns grey. | Giữ lại một màu. Mọi màu khác chuyển sang xám. | |
@@ -383,7 +383,7 @@ Rules for every string:
 | **COPY-split.balance_even** | Even | Đều | Value text at 0 |
 | **COPY-split.balance_highlights** | {value} toward highlights | {value} nghiêng về vùng sáng | Value text above 0 |
 | **COPY-duotone.pairs** | Colour pairs | Cặp màu | Name of the choice |
-| **COPY-duotone.none** | Off | Tắt | |
+| **COPY-duotone.none** | Off | Tắt | Visible label for duotone's None (RULE-24) |
 | **COPY-duotone.pair_midnight_peach** | Midnight & Peach | Đêm & Đào | looks.md |
 | **COPY-duotone.pair_plum_gold** | Plum & Gold | Mận & Vàng | |
 | **COPY-duotone.pair_teal_cream** | Teal & Cream | Xanh két & Kem | |
@@ -401,7 +401,7 @@ Rules for every string:
 | **COPY-picker.saturation** | Saturation | Độ bão hoà | |
 | **COPY-picker.lightness** | Lightness | Độ sáng | |
 | **COPY-picker.hex** | Hex code | Mã hex | |
-| **COPY-picker.hex_invalid** | Use six hex digits, like #3A7BD5. | Dùng sáu chữ số hex, ví dụ #3A7BD5. | |
+| **COPY-picker.hex_invalid** | Use a hex code like #3A7BD5 or #39F. | Dùng mã hex như #3A7BD5 hoặc #39F. | |
 | **COPY-picker.current** | {name}: {hex} | {name}: {hex} | Value of a colour button; {name} is the control's label |
 | **COPY-picker.done** | Done | Xong | |
 | **COPY-replace.add** | Add colour to replace | Thêm màu cần thay | Starts pick mode |

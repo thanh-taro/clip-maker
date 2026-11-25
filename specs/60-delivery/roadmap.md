@@ -7,7 +7,7 @@ The whole M-1 feature set in `20-features/_index.md`, on desktop and phone, in E
 - zero network requests during a full session (NFR-01).
 
 ### M-4 — Colour tools (release 1.2.0, D-053)
-F-024 Colour mixer, F-025 Colour pop, F-026 Split toning and F-027 Duotone (RULE-24), with CMP-ColourPicker, in the Adjust panel on desktop and phone, in both languages. Ships before the M-2 and M-3 candidates. Success bar:
+F-024 Colour mixer, F-025 Colour pop, F-026 Split toning and F-027 Duotone (RULE-24), with CMP-ColourPicker, in the Adjust panel on desktop and phone, in both languages. Ships before the M-2 and M-3 candidates. Building starts once ADR-0017 is accepted after spike SP-colour-tools. Success bar:
 - every RULE-24 *Quality* bar passes on the chart, grey-ramp and hue-ring fixtures, in the preview and the export (NFR-08);
 - the NFR-03 playback bar holds at 1080p with every colour tool of the release on (ADR-0017);
 - projects without colour tools look and export exactly as in 1.1.0.

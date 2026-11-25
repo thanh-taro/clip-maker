@@ -36,11 +36,11 @@ Turning a red jacket blue or a dull sky teal is a common wish that usually needs
 - **AC3** Given pick mode on a phone, when the user presses on the preview and drags, then a magnifier shows the colour under the finger, and lifting the finger picks it. (R2)
 - **AC4** Given pick mode started by keyboard, when the user presses Right twice with Shift and then Enter, then the marker moves 20 % of the frame to the right of the clip's centre and From is set to the colour there; when the user presses Esc instead, then pick mode ends and nothing changes. (R2)
 - **AC5** Given the playhead outside the selected clip, when the user starts pick mode, then playback pauses and the playhead moves to the clip's first frame, without an undo step. (R2)
-- **AC6** Given a red ball on a grey floor, From red and To #0050FF at Range 30 and Softness 50, when rendered, then the ball turns blue in lit and shaded parts alike, each pixel's L* is within 2 of its input, and the floor changes by less than ΔE00 0.5. (R3)
-- **AC7** Given the hue ring and one replacement, when Range and Softness are each set from 0 to 100, then the hue span that changes grows as RULE-25 states (within 3°), and in the full-precision result no two adjacent steps differ by more than four times the largest adjacent difference at default. (R3)
+- **AC6** Given a red ball on a grey floor, From red and To #0050FF at Range 30 and Softness 50, when rendered, then the ball turns blue in lit and shaded parts alike, its pixels reach the To colour's hue and keep their lightness (RULE-24 *Measures*), and the floor changes by less than ΔE00 0.5. (R3)
+- **AC7** Given the hue ring and one replacement, when Range and Softness are each set from 0 to 100, then the hue span matched in full and the fade grow as RULE-25 states (within 1°), and in the full-precision result the match weight changes continuously and by at most 1.5 ÷ (the fade's width in steps) per step. (R3)
 - **AC8** Given pick mode, when the user clicks a grey wall, then From is not changed and COPY-notice.replace_grey is shown. (R4)
 - **AC9** Given From red and To blue, when the user sets Temperature +50, then the same areas are still replaced, because colour replace applies first. (R5)
-- **AC10** Given a 1080p clip with three replacements with every other tool and adjustment on, when it plays on the reference phone, then it meets NFR-03, and its export matches the preview within NFR-08. (R5)
+- **AC10** Given a 1080p clip with three replacements with every other colour tool and every adjustment on, when it plays on the reference phone, then it meets NFR-03, and its export matches the preview within NFR-08. (R5)
 - **AC11** Given two replacements, when the user resets the first one's Range, then only it returns to 30; when the user resets colour replace or picks Reset all, then both replacements are removed; Apply to all, Copy and Paste carry them, and holding compare shows the clip without them. (R6)
 - **AC12** Given the colour replace group open, when the user reads it, then COPY-replace.help is shown, in both languages. (R7)
 
@@ -55,6 +55,6 @@ In CMP-Inspector's Adjust section, the collapsible group COPY-colour_tools.group
 - Pick mode and a selection change, New project or export start → pick mode ends without a change.
 
 ## Open questions
-- [ ] Q5: the eyedropper samples the source picture before every adjustment, colour tool and look, because colour replace is the first step (recommended). The colour the user sees on a graded preview may differ from the From swatch; the swatch shows the sampled source colour. Confirm, or sample the graded preview instead (then From would not match the colours colour replace compares).
-- [ ] Q6: a new replacement starts with To equal to From (no change until To is set) (recommended), or with To set to the From hue turned 180°, which shows an effect at once.
-- [ ] Q7: Range default 30 (hue within about 21°) and Softness default 50 — to be tuned on the reference clips during design.
+- [x] Q5: the eyedropper samples the source picture before every adjustment, colour tool and look, because colour replace is the first step; the From swatch shows the sampled source colour. Confirmed by owner (D-053 Q5).
+- [x] Q6: a new replacement starts with To equal to From, so nothing changes until To is set. Confirmed by owner (D-053 Q6).
+- [x] Q7: Range default 30 and Softness default 50, tunable on the reference clips during design. Confirmed by owner (D-053 Q7).

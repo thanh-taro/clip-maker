@@ -19,7 +19,7 @@ Keeping one colour and turning everything else grey is a popular, eye-catching s
 
 ## Scope
 - In: colour pop of RULE-24 per video or photo clip: the kept colour range, Range and Amount; resetting; Apply to all, Copy, Paste and Compare.
-- Out: keeping a hue picked from the preview (open question Q2); keeping more than one range; masks.
+- Out: keeping a hue picked from the preview (D-053 Q2); keeping more than one range; masks.
 
 ## Requirements
 - **R1** The user can choose one colour range to keep, or None, and set Range and Amount; the preview shows the result as the value changes.
@@ -30,17 +30,17 @@ Keeping one colour and turning everything else grey is a popular, eye-catching s
 
 ## Acceptance criteria
 - **AC1** Given a clip and colour pop at None, when the user chooses Red, then the preview shows red colours kept and the rest grey, as one undo step; Range shows 50 and Amount 100. (R1)
-- **AC2** Given the hue ring with Red kept, Range 0 and Amount 100, when it is rendered, then the step at the Red centre keeps its colour within ΔE00 1, the steps at the Yellow to Magenta centres end with C* below 2, and every step's L* is within 2 of its input. (R2)
-- **AC3** Given Red kept, when Range goes from 0 to 100, then more of the ring around Red keeps its colour, and at every Range and Amount, in the full-precision result, no two adjacent ring steps differ by more than four times the largest adjacent difference at default. (R2)
-- **AC4** Given Red kept with Amount 50, when rendered, then pixels far from Red keep half their chroma (C* within 10 % of half the input's). (R2)
-- **AC5** Given the hue ring with Red kept, Range 0 and Amount 100, when the user sets Orange Hue to −100 in the colour mixer, then the ring's step at the Orange centre, now at the Red centre's hue, keeps its colour (C* within 10 % of the mixed colour's), because colour pop applies after the mixer. (R3)
-- **AC6** Given a 1080p clip with colour pop on with every other tool and adjustment of the release on, when it plays on the reference phone, then it meets NFR-03, and its export matches the preview within NFR-08. (R3)
+- **AC2** Given the hue ring with Red kept, Range 0 and Amount 100, when it is rendered, then the Red centre step keeps its colour within ΔE00 1, the Yellow to Magenta centre steps end with C* below 2, and every step keeps its lightness (RULE-24 *Measures*). (R2)
+- **AC3** Given Red kept, when Range goes from 0 to 100, then the kept span of the hue ring grows, and at every Range and Amount colour pop's keep weight on the ring changes continuously and by at most 1.5 ÷ (its fade width in steps) per step, in the full-precision result. (R2)
+- **AC4** Given Red kept with Amount 50, when rendered, then hue-ring steps outside the kept span and its fade keep half their chroma (C* within 10 % of half the input's) and keep their lightness. (R2)
+- **AC5** Given the hue ring with Red kept, Range 0 and Amount 100, when the user sets Orange Hue to −100 in the colour mixer, then the Orange centre step, now at the Red centre's hue, keeps its colour (C* within 10 % of the mixed colour's), because colour pop applies after the mixer. (R3)
+- **AC6** Given a 1080p clip with colour pop on with every other colour tool the build has and every adjustment on, when it plays on the reference phone, then it meets NFR-03, and its export matches the preview within NFR-08. (R3)
 - **AC7** Given colour pop on Blue with Range 70, when the user resets Range, then it returns to 50 and Blue stays; when the user resets colour pop, then it returns to None with its defaults; when the user picks Reset all, then it returns to None. (R4)
 - **AC8** Given clip 1 with colour pop, when the user picks Apply to all, copies and pastes, or holds compare, then the other clips get the same colour pop as one undo step, the pasted clip matches, and compare shows clip 1 without it. (R4)
 - **AC9** Given keyboard focus on the kept colour choice, when the user presses the arrow keys, then the choice moves between None and the eight ranges; given focus on Amount, when the user types 40, then Amount is 40. (R5)
 
 ## UX notes
-In CMP-Inspector's Adjust section, the collapsible group COPY-colour_tools.group_pop with COPY-colour_tools.reset_tool and COPY-colour_tools.changed. The choice COPY-pop.colour offers COPY-pop.none and the eight range names (COPY-range.red … COPY-range.magenta); then COPY-pop.range and COPY-pop.amount, unavailable while None is chosen. COPY-pop.help explains the effect under the choice.
+In CMP-Inspector's Adjust section, the collapsible group COPY-colour_tools.group_pop with COPY-colour_tools.reset_tool and COPY-colour_tools.changed. The choice COPY-pop.colour offers None (shown as COPY-pop.none) and the eight range names (COPY-range.red … COPY-range.magenta); then COPY-pop.range and COPY-pop.amount, unavailable while None is chosen. COPY-pop.help explains the effect under the choice.
 
 ## Edge cases
 - A clip with no colour near the kept range → the whole picture turns grey (by Amount).
@@ -48,4 +48,4 @@ In CMP-Inspector's Adjust section, the collapsible group COPY-colour_tools.group
 - A black and white look after colour pop → the kept colour turns grey too; the look applies after colour pop (RULE-24).
 
 ## Open questions
-- [x] Q2: the kept colour is one of the eight colour ranges, not a hue picked from the preview (recommended: a radio choice works on phones and with a keyboard with no eyedropper in 1.2.0, and uses the same ranges as the colour mixer; the eyedropper arrives with F-028 in 1.3.0 and could be added here later). Owner to confirm (D-053 Q2).
+- [x] Q2: the kept colour is one of the eight colour ranges, not a hue picked from the preview (a radio choice works on phones and with a keyboard with no eyedropper in 1.2.0, and uses the same ranges as the colour mixer; the eyedropper arrives with F-028 in 1.3.0 and could be added here later). Confirmed by owner (D-053 Q2).

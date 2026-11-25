@@ -15,9 +15,9 @@ A colour button (swatch plus its label, value COPY-picker.current) opens the pic
 | Variant / state | Description |
 |---|---|
 | wide | A popover anchored to its colour button, inside the inspector's width. |
-| narrow | Opens inside the Adjust sheet in place of the sheet's body, with COPY-picker.done at the top as the way back; the sheet keeps its height and scrolls. All rows at touch size, label above control, so it fits at 320 px. |
+| narrow | Opens inside the Adjust sheet in place of the sheet's body, with COPY-picker.done at the top as the way back. A fixed top part holds the before/after swatch pair and the hex field; below it the presets are one horizontally scrolling row of ten, then the three sliders, which scroll within the sheet. All rows at touch size, label above control, so it fits at 320 px. |
 | hex invalid | The field is marked invalid with COPY-picker.hex_invalid under it; the colour keeps its last valid value. |
-| refused (colour replace From) | When a grey From colour is set, COPY-notice.replace_grey shows under the field and the colour reverts (RULE-25). |
+| refused (colour replace From) | For a From colour (RULE-25), a Saturation drag stops at the lowest value that is not grey, with COPY-notice.replace_grey under the field; a typed or preset grey is refused with the same notice, and the colour reverts to its last value. |
 
 ## Behavior
 - Changes apply live to the preview; each slider movement, preset tap or confirmed hex entry is one undo step (RULE-13). Closing the picker changes nothing.

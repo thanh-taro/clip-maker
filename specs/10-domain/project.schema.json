@@ -295,8 +295,9 @@
             "object",
             "null"
           ],
-          "description": "RULE-24 Duotone; null or absent = None",
+          "description": "RULE-24 Duotone; null or absent = None and never set on this clip. The object is kept while off (on: false) so Custom can start from the last colours. For a built-in pair, shadows and highlights are that pair's colours (looks.md).",
           "required": [
+            "on",
             "pair",
             "shadows",
             "highlights",
@@ -304,9 +305,19 @@
           ],
           "additionalProperties": false,
           "properties": {
+            "on": {
+              "type": "boolean"
+            },
             "pair": {
-              "type": "string",
-              "description": "a built-in pair id (looks.md Duotone pairs) or \"custom\""
+              "enum": [
+                "midnight-peach",
+                "plum-gold",
+                "teal-cream",
+                "indigo-pink",
+                "forest-lime",
+                "ink-coral",
+                "custom"
+              ]
             },
             "shadows": {
               "$ref": "#/$defs/hex"

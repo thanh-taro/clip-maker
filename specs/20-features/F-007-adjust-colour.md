@@ -6,7 +6,7 @@ milestone: M-1
 priority: P0
 personas: [PER-02, PER-03, PER-04]
 entities: [ENT-Clip]
-rules: [RULE-08, RULE-13, RULE-20]
+rules: [RULE-08, RULE-13, RULE-20, RULE-24]
 screens: [SCR-Editor]
 components: [CMP-Inspector, CMP-Preview]
 nfr: [NFR-03, NFR-08, NFR-06]
@@ -28,7 +28,7 @@ Phone footage is often too dark, flat or blue. Strong, precise colour and light 
 - **R4** The user can apply the selected clip's adjustments and look to every clip (Apply to all) as one undo step, or copy them and paste them onto another clip.
 - **R5** Changing an adjustment keeps preview playback smooth (NFR-03), and the export matches the preview's colours (NFR-08).
 - **R6** Every adjustment can be set precisely with a keyboard or a number field, not only by dragging (NFR-06).
-- **R7** Holding the compare control, by pointer, touch or its key (RULE-20), shows the selected clip without its adjustments and look; releasing it restores them. It is not an undo step.
+- **R7** Holding the compare control, by pointer, touch or its key (RULE-20), shows the selected clip without its adjustments and look (and colour tools, RULE-24); releasing it restores them. It is not an undo step.
 
 ## Acceptance criteria
 - **AC1** Given a dark clip, when the user raises Brightness to +40 while paused, then the preview updates continuously during the drag and settles at +40. (R1)
@@ -42,7 +42,7 @@ Phone footage is often too dark, flat or blue. Strong, precise colour and light 
 - **AC9** Given a clip with a look and Brightness +50, when the user holds compare, then the preview shows the clip without them; on release they return, and no undo step exists. (R7)
 
 ## UX notes
-In CMP-Inspector, the adjust section uses COPY-inspector.adjust and the adjustment labels COPY-adjust.brightness, COPY-adjust.contrast, COPY-adjust.highlights, COPY-adjust.shadows, COPY-adjust.saturation, COPY-adjust.vibrance, COPY-adjust.temperature, COPY-adjust.tint, COPY-adjust.sharpen, COPY-adjust.vignette, COPY-adjust.grain and COPY-adjust.fade, plus COPY-action.reset, COPY-action.reset_all, COPY-action.apply_all, COPY-action.copy_look and COPY-action.paste_look. A before/after hold control (COPY-action.compare) shows the clip without adjustments and look while held.
+In CMP-Inspector, the adjust section uses COPY-inspector.adjust and the adjustment labels COPY-adjust.brightness, COPY-adjust.contrast, COPY-adjust.highlights, COPY-adjust.shadows, COPY-adjust.saturation, COPY-adjust.vibrance, COPY-adjust.temperature, COPY-adjust.tint, COPY-adjust.sharpen, COPY-adjust.vignette, COPY-adjust.grain and COPY-adjust.fade, plus COPY-action.reset, COPY-action.reset_all, COPY-action.apply_all, COPY-action.copy_look and COPY-action.paste_look. A before/after hold control (COPY-action.compare) shows the clip without adjustments and look (and colour tools, RULE-24) while held.
 
 ## Edge cases
 - Adjusting a photo → same as a video clip.
