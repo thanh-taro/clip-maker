@@ -1,9 +1,9 @@
 // MOD-Build — offline support in the build (ADR-0015). Adapted from the sibling image-annotator:
 // emits src/host/sw.ts as the stable, unhashed /sw.js (headers: scripts/gen-headers.mjs) and checks it
 // is a classic script, and writes `asset-manifest.json`: every file the tool can need, for the
-// service worker's precache and MOD-Assets' fetch allow-list (ADR-0015 "Decision"). Looks and music
-// join the manifest when they are packed (ADR-0013). The manifest's `version` (a hash of its file list)
-// is stamped into /sw.js, so every build that changes any file changes the worker's bytes, and the
+// service worker's precache and MOD-Assets' fetch allow-list (ADR-0015 "Decision"). Looks join the
+// manifest (ADR-0013); the tool ships no music (D-052, ADR-0015 amendment). The manifest's `version` (a
+// hash of its file list) is stamped into /sw.js, so every build that changes any file changes the worker's bytes, and the
 // browser installs the new worker on the next open (F-021.R3).
 import crypto from 'node:crypto';
 import fs from 'node:fs';

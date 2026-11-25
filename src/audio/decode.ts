@@ -1,5 +1,5 @@
 // MOD-Audio — windowed decoding of the sources' sound (ADR-0008 §2/§6 and outcome item 5), shared by the
-// audio worker (preview) and the export-audio worker (exports), and ready for bundled music (F-011).
+// audio worker (preview) and the export-audio worker (exports).
 // Encoded packets arrive in pieces over the sound feed (MOD-Core; read by MOD-Container in the worker
 // that has the reader), are decoded with `AudioDecoder` (MOD-Codec), mapped to stereo by fixed rules
 // and resampled to 48 kHz. The mixer says which source ranges it will read (`soundDemand`); `want`

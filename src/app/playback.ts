@@ -12,7 +12,6 @@ import { computed, effect, signal, untracked, type ReadonlySignal, type Signal }
 import { Playback, WORKLET_URL, type ToAudioWorker } from '../audio';
 import type { EngineMedia, FrameRate, Micros, Project, Source, ToEngine } from '../core';
 import { resolveKey, scopeOf, type Action, type FocusInfo } from '../keys';
-import { musicBlob } from '../assets';
 import { BUDGETS, deviceClass, platformHints } from '../engine';
 import { registry } from '../media';
 import { fullscreen, mountPreview, type Fullscreen, type PreviewController } from '../preview';
@@ -21,7 +20,6 @@ import { t } from '../copy';
 import { announce } from './announce';
 import { watchSlow } from './device';
 import { dragging } from './MediaInput';
-import { showNotice } from './notice-stack';
 import { editorLocked } from './lock';
 import { editingText } from './text';
 import { workers } from './workers';
@@ -33,9 +31,6 @@ export const playback = signal<{
   /** MOD-Audio's clock (the picture follows it). */
   readonly clock: Playback;
 } | null>(null);
-
-/** F-011.R1: the bundled track the music picker is auditioning (MOD-Audio `Playback.audition`), or null. */
-export const auditionTrack = signal<string | null>(null);
 
 /**
  * Binds the controller to MOD-Project's playhead both ways and follows its slow-device signal. The
@@ -115,26 +110,8 @@ export interface WorkerFeed {
   readonly audio: { postMessage(m: ToAudioWorker): void };
   /** What the engine draws for a source (a video's file, a photo's bitmap); null for none. */
   readonly media: (source: Source) => Promise<EngineMedia | null>;
-  /** A bundled track's packaged file (MOD-Assets), read for its sound like an audio source (F-011). */
-  readonly music?: (trackId: string) => Promise<Blob>;
-  /** The bundled track the music picker is auditioning (its file must reach the engine too). */
-  readonly audition?: ReadonlySignal<string | null>;
-  /** A bundled track's file could not be read (F-011.R7); it is read again on the next `retry` change. */
-  readonly onMusicFailed?: (trackId: string) => void;
-  /** Each change reads again the files still wanted and not sent (Play: a failed track read retries). */
+  /** Each change reads again the files still wanted and not sent (Play: a failed read retries). */
   readonly retry?: ReadonlySignal<unknown>;
-}
-
-/**
- * The bundled tracks whose files the sound feed must serve: those the project's audio clips play (an audio
- * clip's source that is not one of the project's sources is a bundled track, ENT-MusicTrack) and the one
- * being auditioned. Implements: F-011.R5 (bundled music in the preview's mix), ADR-0008 §7.
- */
-export function musicIds(p: Project, auditioned: string | null): string[] {
-  const known = new Set(p.sources.map((s) => s.id));
-  const ids = new Set(p.audioClips.map((a) => a.sourceId).filter((id) => !known.has(id)));
-  if (auditioned) ids.add(auditioned);
-  return [...ids];
 }
 
 /**
@@ -142,9 +119,8 @@ export function musicIds(p: Project, auditioned: string | null): string[] {
  * INV-02), and the engine the changes of the project's sources by id (ADR-0009 §7): a new source's file
  * or bitmap once, a removed source's id. Sources that stay are never sent again, so the engine keeps
  * their decoders (a source id's file never changes within a session). Audio sources go to the engine
- * too: it serves every source's encoded sound to the audio worker (the sound feed, ADR-0008 §6), and so
- * do the bundled tracks that audio clips play or the picker auditions (F-011, Q87: the packaged file
- * through the same SoundBank). The project itself reaches the engine through MOD-Preview.
+ * too: it serves every source's encoded sound to the audio worker (the sound feed, ADR-0008 §6). Every
+ * audio clip plays a source (D-052). The project itself reaches the engine through MOD-Preview.
  */
 export function feedWorkers(feed: WorkerFeed): () => void {
   /** Ids the engine has. */
@@ -156,7 +132,7 @@ export function feedWorkers(feed: WorkerFeed): () => void {
   const post = (add: EngineMedia[], remove: string[]): void => {
     if (live && (add.length || remove.length)) feed.engine.postMessage({ type: 'engine:mediaChanges', add, remove });
   };
-  type Item = { id: string; music: boolean; get: () => Promise<EngineMedia | null> };
+  type Item = { id: string; get: () => Promise<EngineMedia | null> };
   /** The items of the latest project (what `retry` looks up again). */
   let items: readonly Item[] = [];
   /** Looks up `items` once each and sends those still wanted. */
@@ -164,15 +140,12 @@ export function feedWorkers(feed: WorkerFeed): () => void {
     const fresh = list.filter((x) => !sent.has(x.id) && !looking.has(x.id));
     if (!fresh.length) return;
     for (const x of fresh) looking.add(x.id);
-    // Each item travels when it is ready: a slow source never holds back a track the picker auditions.
+    // Each item travels when it is ready: a slow source never holds back another; a failed read is tried
+    // again on the next `retry`.
     for (const x of fresh)
       void x
         .get()
-        .catch(() => {
-          // A failed track read is reported (F-011.R7); the next `retry` reads it again.
-          if (x.music && live && wanted.has(x.id)) feed.onMusicFailed?.(x.id);
-          return null;
-        })
+        .catch(() => null)
         .then((m) => {
           looking.delete(x.id);
           if (m === null || !wanted.has(m.id) || sent.has(m.id)) return;
@@ -182,27 +155,15 @@ export function feedWorkers(feed: WorkerFeed): () => void {
   };
   const stop = effect(() => {
     const p = feed.project.value;
-    const auditioned = feed.audition?.value ?? null;
     feed.audio.postMessage({ type: 'audio:setProject', project: p });
-    const music = feed.music ? musicIds(p, auditioned) : [];
-    wanted = new Set([...p.sources.map((s) => s.id), ...music]);
+    wanted = new Set(p.sources.map((s) => s.id));
     const removed = [...sent].filter((id) => !wanted.has(id));
     for (const id of removed) sent.delete(id);
     post([], removed);
-    const read = feed.music;
-    items = [
-      ...p.sources.map((s) => ({ id: s.id, music: false, get: () => feed.media(s) })),
-      ...(read
-        ? music.map((id) => ({
-            id,
-            music: true,
-            get: async (): Promise<EngineMedia> => ({ id, kind: 'audio', file: await read(id) }),
-          }))
-        : []),
-    ];
+    items = p.sources.map((s) => ({ id: s.id, get: () => feed.media(s) }));
     lookUp(items);
   });
-  // Implements: F-011.R5 — music whose read failed is read again on Play (the items not yet sent).
+  // A source whose read failed is read again on Play (the items not yet sent).
   const again = effect(() => {
     void feed.retry?.value;
     untracked(() => lookUp(items));
@@ -212,19 +173,6 @@ export function feedWorkers(feed: WorkerFeed): () => void {
     stop();
     again();
   };
-}
-
-/**
- * A bundled track's file could not be read (F-011.R7): an audition of it stops (the picker shows it
- * stopped) and COPY-notice.music_unavailable shows; a project's track is read again on Play (build
- * question 120).
- */
-export function musicFailed(trackId: string): void {
-  if (auditionTrack.peek() === trackId) {
-    playback.peek()?.clock.stopAudition();
-    auditionTrack.value = null;
-  }
-  showNotice({ kind: 'warning', tag: 'music_unavailable', text: () => t('notice.music_unavailable') });
 }
 
 /** The registry's file or bitmap for a source (pictures freed by ADR-0009 §7 are rebuilt first). */
@@ -261,16 +209,11 @@ export function mountPlayback(frame: HTMLElement, stage: HTMLElement): () => voi
       engine,
       audio,
       media: registryMedia,
-      music: musicBlob,
-      audition: auditionTrack,
-      onMusicFailed: musicFailed,
       retry: computed(() => ctl.state.value === 'playing'),
     }),
   ];
-  clock.onAuditionEnded = () => (auditionTrack.value = null);
   playback.value = { ctl, fs, clock };
   return () => {
-    clock.stopAudition();
     for (const s of stops) s();
     playback.value = null;
     void fs.exit();

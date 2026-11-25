@@ -11,10 +11,10 @@ import { expect, test, type Dialog, type Download, type Locator, type Page } fro
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
-import { BUNDLED_MUSIC } from '../../src/core/music.gen';
 import type { AudioRead, ClipSummary, GifRead } from '../harness/app';
 import type { ToneSpec } from '../harness/sound';
 import { deRgb, type Rgb } from '../support/colour';
+import { wavTone, type AudioPayload } from './support/audio-files';
 import { MEDIA_HARNESS_PORT } from './support/ports';
 
 const APP = `http://localhost:${MEDIA_HARNESS_PORT}/app.html`;
@@ -28,8 +28,6 @@ const pattern = (lang: Language, id: CopyId): RegExp =>
   );
 const SHOTS = fileURLToPath(new URL('../../.build-my-app/reports/screens/F-016/', import.meta.url));
 const S = 1_000_000;
-/** A bundled track of the shipped pack (read from the generated manifest). */
-const TRACK = BUNDLED_MUSIC[0]!.id;
 
 interface Harness {
   appHarness: {
@@ -104,6 +102,21 @@ const unexported = (page: Page) => page.evaluate(() => (window as unknown as Har
 const scratchNames = (page: Page) => page.evaluate(() => (window as unknown as Harness).appHarness.scratchNames());
 const setPlayhead = (page: Page, s: number) =>
   page.evaluate((x) => (window as unknown as Harness).appHarness.setPlayhead(x), s);
+
+/** F-011.R1 (D-052): the user's own audio file chosen with the toolbar's Music, placed at the playhead. */
+async function music(page: Page, file: AudioPayload, lang: Language = 'en-US'): Promise<void> {
+  const before = (JSON.parse(await stateOf(page)) as Json).audioClips.length;
+  const chooser = page.waitForEvent('filechooser');
+  await page
+    .getByRole('toolbar', { name: text(lang, 'toolbar.label') })
+    .getByRole('button', { name: text(lang, 'action.music') })
+    .click();
+  await (await chooser).setFiles([file]);
+  await expect
+    .poll(async () => (JSON.parse(await stateOf(page)) as Json).audioClips.length, { timeout: 30_000 })
+    .toBe(before + 1);
+  for (const close of await page.locator('.tk-notice__close').all()) await close.click().catch(() => undefined);
+}
 
 /** A project of one flat 4:3 photo lasting `seconds`. */
 async function longPhoto(page: Page, seconds: number, lang: Language = 'en-US'): Promise<void> {
@@ -402,22 +415,19 @@ test.describe('F-016 GIF through the panel', () => {
 
 // ── Audio only ────────────────────────────────────────────────────────────────────────────────────
 
-/** A 3 s frame-coded clip with a 440 Hz tone from 0.5 s, and a bundled track from 1.5 s at 50 %. */
+/** A 3 s frame-coded clip with a 440 Hz tone from 0.5 s, and the user's own 1.5 s song from 1.5 s at 50 %. */
 async function soundProject(page: Page): Promise<void> {
   const tone: ToneSpec = { seconds: 3, onset: 0.5, freq: 440, amp: 0.4, codec: 'aac', sampleRate: 48_000, coded: true };
   await add(page, [await toned(page, 'tone.mp4', tone)]);
+  await setPlayhead(page, 1.5);
+  await music(page, wavTone('song.wav', 1.5, 220, 0.4));
   await change(page, (p) => {
-    p.audioClips.push({
-      id: 'music-1',
-      sourceId: TRACK,
-      start: 1.5 * S,
-      in: 0,
-      out: 1.5 * S,
-      volume: 50,
-      muted: false,
-      fadeIn: 0,
-      fadeOut: 0,
-    });
+    p.audioClips[0]!.volume = 50;
+  });
+  expect((JSON.parse(await stateOf(page)) as Json).audioClips[0]).toMatchObject({
+    start: 1.5 * S,
+    in: 0,
+    out: 1.5 * S,
   });
 }
 

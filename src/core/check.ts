@@ -4,13 +4,13 @@
 // Deliberately recomputes lengths and boundaries from the raw fields instead of reusing the layout
 // code it checks (review E1 #9).
 import type { Project } from './project.gen';
-import { MUSIC_TRACKS, sourceEnd, type MusicTrack } from './music';
+import { sourceEnd } from './source-end';
 import { layoutOf } from './timing';
 
 const US = 1_000_000;
 
 /** Every broken invariant, as short messages; empty when the project is consistent. */
-export function invariantViolations(project: Project, tracks: readonly MusicTrack[] = MUSIC_TRACKS): string[] {
+export function invariantViolations(project: Project): string[] {
   const out: string[] = [];
   const rate = project.frame.frameRate;
   // Independent frame maths: frame k starts at floor(k·1e6/rate); n frames ⇔ round(d·rate/1e6).
@@ -40,7 +40,7 @@ export function invariantViolations(project: Project, tracks: readonly MusicTrac
     if (clip.kind === 'video') {
       const inPoint = clip.in ?? -1;
       const outPoint = clip.out ?? -1;
-      const srcEnd = sourceEnd(project, clip.sourceId, tracks);
+      const srcEnd = sourceEnd(project, clip.sourceId);
       if (inPoint < 0 || outPoint <= inPoint) out.push(`RULE-05 clip ${clip.id} range`);
       if (srcEnd === undefined || outPoint > srcEnd) out.push(`RULE-05 clip ${clip.id} extends beyond its source`);
       const sp = clip.speedPct ?? 0;
@@ -75,7 +75,7 @@ export function invariantViolations(project: Project, tracks: readonly MusicTrac
 
   for (const a of project.audioClips) {
     const len = a.out - a.in;
-    const srcEnd = sourceEnd(project, a.sourceId, tracks);
+    const srcEnd = sourceEnd(project, a.sourceId);
     if (!isFrameStart(a.start)) out.push(`frame times: audio ${a.id}`);
     if (len < minUs) out.push(`RULE-05 audio ${a.id} too short`);
     if (a.in < 0) out.push(`RULE-12 audio ${a.id} starts before its source`);

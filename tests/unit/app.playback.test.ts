@@ -4,22 +4,12 @@
 // session notice (F-023.AC7, build question 62).
 import { computed, signal, type ReadonlySignal } from '@preact/signals';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  auditionTrack,
-  connectPreview,
-  feedWorkers,
-  musicFailed,
-  musicIds,
-  overlayOpen,
-  runAction,
-} from '../../src/app/playback';
-import { notices, resetNotices } from '../../src/app/notice-stack';
+import { connectPreview, feedWorkers, overlayOpen, runAction } from '../../src/app/playback';
 import { dragging } from '../../src/app/MediaInput';
 import { resetDeviceSession, slowNotice } from '../../src/app/device';
 import type { ToAudioWorker } from '../../src/audio';
 import {
   frameStart,
-  MUSIC_TRACKS,
   projectEnd,
   type EngineMedia,
   type Micros,
@@ -65,9 +55,6 @@ function fakeController(project: ReadonlySignal<Project>) {
     },
   };
 }
-
-// Two bundled tracks of the shipped pack (read from the generated manifest, not hard-coded).
-const [CHORDS, PAD] = MUSIC_TRACKS.map((t) => t.id) as [string, string];
 
 afterEach(() => resetDeviceSession());
 
@@ -220,94 +207,29 @@ describe('MOD-App worker feed (F-002.R1/R2)', () => {
     stop();
   });
 
-  it('F-011.R5 Q87 the bundled tracks audio clips play, and the one auditioned, reach the engine as audio files once', async () => {
-    const track = PAD;
-    // A bundled track is not one of the project's sources (ENT-MusicTrack).
-    const base = proj({ clips: [video('a', 4)], audioClips: [audio('m', 0, 2, { sourceId: track })] });
-    const project = signal({ ...base, sources: base.sources.filter((s) => s.id !== track) });
-    const audition = signal<string | null>(null);
-    const engine: ToEngine[] = [];
-    const read: string[] = [];
-    const music = async (id: string) => {
-      read.push(id);
-      return file;
-    };
-    expect(musicIds(project.value, CHORDS)).toEqual([track, CHORDS]);
-    const stop = feedWorkers({
-      project,
-      engine: { postMessage: (m) => engine.push(m) },
-      audio: { postMessage: () => undefined },
-      media,
-      music,
-      audition,
-    });
-    await flush();
-    expect(changes(engine).flatMap((m) => m.add)).toEqual([
-      { id: 'src-a', kind: 'video', file },
-      { id: track, kind: 'audio', file },
-    ]);
-    audition.value = CHORDS;
-    await flush();
-    expect(changes(engine).at(-1)).toEqual({
-      type: 'engine:mediaChanges',
-      add: [{ id: CHORDS, kind: 'audio', file }],
-      remove: [],
-    });
-    audition.value = null;
-    await flush();
-    expect(changes(engine).at(-1)).toEqual({ type: 'engine:mediaChanges', add: [], remove: [CHORDS] });
-    expect(read).toEqual([track, CHORDS]);
-    stop();
-  });
-
-  it('F-011.R7 a bundled track whose read fails is reported, and read again on Play (retry)', async () => {
-    const track = PAD;
-    const project = signal(proj({ clips: [video('a', 4)] }));
-    const audition = signal<string | null>(null);
+  it('F-011.R5 D-052 a source whose read fails reaches the engine when it is read again on Play (retry)', async () => {
+    const project = signal(proj({ clips: [video('a', 4)], audioClips: [audio('m', 0, 2)] }));
     const retry = signal(false);
     const engine: ToEngine[] = [];
-    const failed: string[] = [];
     let fail = true;
-    const music = async (id: string) => {
-      if (fail) throw new Error('NetworkError');
-      return new Blob([id]);
-    };
     const stop = feedWorkers({
       project,
       engine: { postMessage: (m) => engine.push(m) },
       audio: { postMessage: () => undefined },
-      media,
-      music,
-      audition,
-      onMusicFailed: (id) => failed.push(id),
+      media: async (src) => {
+        if (src.kind === 'audio' && fail) throw new Error('NotReadableError');
+        return media(src);
+      },
       retry,
     });
-    audition.value = track;
     await flush();
-    expect(failed).toEqual([track]);
     expect(changes(engine).flatMap((m) => m.add.map((x) => x.id))).toEqual(['src-a']);
-    // Play: the read is tried again and the track reaches the engine.
+    // Play: the read is tried again and the user's audio reaches the engine.
     fail = false;
     retry.value = true;
     await flush();
-    expect(changes(engine).flatMap((m) => m.add.map((x) => x.id))).toEqual(['src-a', track]);
-    expect(failed).toEqual([track]);
+    expect(changes(engine).flatMap((m) => m.add.map((x) => x.id))).toEqual(['src-a', 'src-m']);
     stop();
-  });
-
-  it('F-011.R1 an auditioned track whose read fails stops its preview and shows COPY-notice.music_unavailable', () => {
-    resetNotices();
-    auditionTrack.value = PAD;
-    musicFailed(PAD);
-    expect(auditionTrack.value).toBeNull();
-    expect(notices.value.map((n) => [n.kind, n.tag])).toEqual([['warning', 'music_unavailable']]);
-    expect(notices.value[0]!.text()).toBe("This track couldn't be loaded. Try again.");
-    // A project's track failing leaves another audition alone.
-    auditionTrack.value = CHORDS;
-    musicFailed(PAD);
-    expect(auditionTrack.value).toBe(CHORDS);
-    auditionTrack.value = null;
-    resetNotices();
   });
 
   it('F-002.R2 every project change reaches the audio worker, whose mix the preview plays', async () => {

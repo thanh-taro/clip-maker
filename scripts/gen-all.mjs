@@ -3,7 +3,6 @@
 import { genCopy } from './gen-copy.mjs';
 import { genHeaders } from './gen-headers.mjs';
 import { genLooks } from './gen-looks.mjs';
-import { genMusicManifest } from './gen-music-manifest.mjs';
 import { genNotices } from './gen-notices.mjs';
 import { genTokens } from './gen-tokens.mjs';
 import { genTypes } from './gen-types.mjs';
@@ -14,7 +13,6 @@ const results = [
   genTypes({ check }),
   genCopy({ check }),
   genLooks({ check }),
-  genMusicManifest({ check }),
   genNotices({ check }),
   genHeaders({ check }),
 ];

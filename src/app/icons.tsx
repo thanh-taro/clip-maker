@@ -60,7 +60,6 @@ import {
   TextAlignEnd,
   TextAlignStart,
   SlidersVertical,
-  Square,
   Trash2,
   TriangleAlert,
   Type,
@@ -119,8 +118,7 @@ const SOURCES = {
   moveLater: ArrowRight,
   duplicate: Copy,
   edit: Scissors,
-  // F-011: the music picker, the audio lane and the sound section
-  stop: Square,
+  // F-011: Music, the audio lane and the sound section
   audio: AudioLines,
   volume: Volume2,
   // F-004: Split, Start here and End here (boards CMP-Timeline, SCR-Editor selected narrow)

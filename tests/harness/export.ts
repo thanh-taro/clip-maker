@@ -2,8 +2,8 @@
 // A frame-coded clip is made in the page (tests/harness/video.ts) and its sound is generated, so nothing
 // is added to git. Exports run through MOD-Export's main-thread side and its two real workers; results
 // are read back with MOD-Container and compared with the compositor's paint (the preview's picture).
-import { endSampleOf, pcmSource, truePeak, TruePeakMeter, type SoundSource } from '../../src/audio';
-import { looks as readLooks, musicBlob } from '../../src/assets';
+import { encodeWav, endSampleOf, pcmSource, truePeak, TruePeakMeter, type SoundSource } from '../../src/audio';
+import { looks as readLooks } from '../../src/assets';
 import {
   chooseAudioFormat,
   chooseVideoFormat,
@@ -681,13 +681,16 @@ async function runTone(
   return { result, tone: heard, container, decodedSeconds: L.length / 48_000, fileSeconds, tailDb };
 }
 
-/** F-011: the sound settings of runMix's one tone clip, and an optional bundled track over it. */
+/** F-011: the sound settings of runMix's one tone clip, and optionally the user's own audio file over it. */
 export interface MixSpec {
   /** The video clip's volume (RULE-12, %), and whether it is muted. */
   readonly volume?: number;
   readonly muted?: boolean;
-  /** A bundled track (ENT-MusicTrack id) placed at 0 for the whole project, at this volume. */
-  readonly music?: { readonly id: string; readonly volume: number };
+  /**
+   * The user's own audio file (D-052: a WAV of a 220 Hz tone at amplitude 0.4, an ENT-Source) placed at 0
+   * for the whole project, at this volume.
+   */
+  readonly music?: { readonly volume: number };
 }
 
 export interface MixReport {
@@ -700,8 +703,8 @@ export interface MixReport {
 
 /**
  * F-011.AC3/AC5/AC10 (export half): the tone clip of tests/harness/sound.ts exported with its RULE-12
- * volume or mute, and optionally a bundled track (read by MOD-Assets from its packaged file and decoded
- * like any source, Q87), through the real export workers; the file is decoded back and measured.
+ * volume or mute, and optionally the user's own audio file (a source, decoded through the sound feed like
+ * any other, D-052), through the real export workers; the file is decoded back and measured.
  */
 async function runMix(
   settings: ExportSettings,
@@ -714,7 +717,21 @@ async function runMix(
   const length = Math.round(spec.seconds * 1e6);
   const project: Project = {
     ...coded,
-    sources: coded.sources.map((s) => ({ ...s, hasSound: true, duration: length })),
+    sources: [
+      ...coded.sources.map((s) => ({ ...s, hasSound: true, duration: length })),
+      ...(mix.music
+        ? [
+            {
+              id: 'src-song',
+              kind: 'audio' as const,
+              name: 'song.wav',
+              bytes: 1,
+              duration: length + 1e6,
+              hasSound: true,
+            },
+          ]
+        : []),
+    ],
     clips: coded.clips.map((c) => ({
       ...c,
       ...(mix.volume !== undefined ? { volume: mix.volume } : {}),
@@ -724,7 +741,7 @@ async function runMix(
       ? [
           {
             id: 'music-1',
-            sourceId: mix.music.id,
+            sourceId: 'src-song',
             start: 0,
             in: 0,
             out: length,
@@ -737,7 +754,12 @@ async function runMix(
       : [],
   };
   const media: EngineMedia[] = [{ id: 'src-a', kind: 'video', file }];
-  if (mix.music) media.push({ id: mix.music.id, kind: 'audio', file: await musicBlob(mix.music.id) });
+  if (mix.music) {
+    const n = Math.ceil((spec.seconds + 1) * 48_000);
+    const L = Float32Array.from({ length: n }, (_, i) => 0.4 * Math.sin((2 * Math.PI * 220 * i) / 48_000));
+    const wav = new Blob([encodeWav(L, L.slice()) as BlobPart], { type: 'audio/wav' });
+    media.push({ id: 'src-song', kind: 'audio', file: new File([wav], 'song.wav', { type: 'audio/wav' }) });
+  }
   workers ??= new ExportWorkers();
   let saved: Blob | null = null;
   const handle = await start(project, settings, {

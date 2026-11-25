@@ -1,16 +1,16 @@
 // FLOW-01 "Make a short vertical clip" end to end through the real UI on the app harness (tests/harness/app.html: the
-// real `main()`, workers, compositor, looks and bundled music): open, add three videos, 9:16, trim the starts and
-// split out a dull middle, a look + Brightness + Apply to all, a title, bundled music, play, export at 1080, and the
+// real `main()`, workers, compositor and looks): open, add three videos, 9:16, trim the starts and split out a dull
+// middle, a look + Brightness + Apply to all, a title, the user's own music file (D-052), play, export at 1080, and the
 // file read back (9:16 at 1080 × 1920, the length of the edited timeline, sound). Exits: the leave-page warning while
 // changes are unexported, and a failed export that leaves the project as it was. Media is the small fixture under
-// tests/fixtures/media (nothing is added to git).
+// tests/fixtures/media, and a WAV made by the test (./support/audio-files.ts; nothing is added to git).
 // Implements: FLOW-01.
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
-import { BUNDLED_MUSIC } from '../../src/core/music.gen';
 import type { ClipSummary, ExportRead, ProjectSummary } from '../harness/app';
+import { wavTone } from './support/audio-files';
 import { MEDIA_HARNESS_PORT } from './support/ports';
 
 const APP = `http://localhost:${MEDIA_HARNESS_PORT}/app.html`;
@@ -239,25 +239,22 @@ test.describe('FLOW-01 make a short vertical clip', () => {
     const layer = (await docOf(page)).textLayers[0]!;
     expect(layer.start).toBe(0);
 
-    // 7. Add bundled music (F-011.R1): placed on the audio track from the playhead (0).
+    // 7. Add the user's own music file (F-011.R1, D-052): Music opens the file picker for audio files; the
+    // song is listed as a source and placed on the audio track from the playhead (0), selected.
     await at(page, 0);
+    const chooser = page.waitForEvent('filechooser');
     await toolbar(page)
       .getByRole('button', { name: text('en-US', 'action.music') })
       .click();
-    const picker = page.getByRole('dialog', { name: text('en-US', 'music.title') });
-    await expect(picker).toBeVisible();
-    const track = BUNDLED_MUSIC[0]!;
-    await picker
-      .getByRole('listitem')
-      .filter({ hasText: track.title })
-      .getByRole('button', { name: text('en-US', 'music.add') })
-      .click();
-    await page.keyboard.press('Escape');
-    await expect(picker).toHaveCount(0);
+    const picker = await chooser;
+    expect(picker.isMultiple()).toBe(true);
+    expect(await picker.element().getAttribute('accept')).toMatch(/^audio\/\*/);
+    await picker.setFiles([wavTone('song.wav', 6, 220, 0.25)]);
+    await expect.poll(async () => (await projectOf(page)).audio.length, { timeout: 20_000 }).toBe(1);
     const audio = (await projectOf(page)).audio;
-    expect(audio).toHaveLength(1);
-    expect(audio[0]!.start).toBe(0);
-    expect((await docOf(page)).audioClips[0]!.sourceId).toBe(track.id);
+    expect(audio[0]).toMatchObject({ source: 'song.wav', start: 0 });
+    expect((await projectOf(page)).sources.map((s) => s.name)).toContain('song.wav');
+    await expect(page.locator('.tk-aclip').first()).toHaveAttribute('aria-pressed', 'true');
 
     // 8. Watch it (F-002.R2): play from 0 with picture and sound; it stops at the project end.
     await at(page, 0);

@@ -12,7 +12,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
-import { BUNDLED_MUSIC } from '../../src/core/music.gen';
+import { songSource } from './support/audio-files';
 import type { ClipSetup, ClipSummary, ProjectSummary } from '../harness/app';
 import { MEDIA_HARNESS_PORT } from './support/ports';
 
@@ -95,16 +95,18 @@ async function photos(page: Page, a: number, b: number, lang: Language = 'en-US'
   await setClip(page, 1, { seconds: b });
 }
 
-/** Puts audio clips (of a bundled track) and text layers at [start, end] seconds in place, as one step. */
+/** Puts audio clips (of the user's own 60 s audio file, D-052) and text layers at [start, end] s, as one step. */
 async function place(
   page: Page,
   audio: readonly (readonly [number, number])[],
   texts: readonly (readonly [number, number])[] = [],
 ): Promise<void> {
-  const state = JSON.parse(await page.evaluate(() => (window as unknown as Harness).appHarness.state())) as object;
+  const state = JSON.parse(await page.evaluate(() => (window as unknown as Harness).appHarness.state())) as {
+    sources: object[];
+  };
   const audioClips = audio.map(([a, b], i) => ({
     id: `music-${i}`,
-    sourceId: BUNDLED_MUSIC[0]!.id,
+    sourceId: songSource().id,
     start: a * S,
     in: 0,
     out: (b - a) * S,
@@ -129,7 +131,7 @@ async function place(
   }));
   await h(page)(
     (json) => (window as unknown as Harness).appHarness.load(json),
-    JSON.stringify({ ...state, audioClips, textLayers }),
+    JSON.stringify({ ...state, sources: [...state.sources, songSource()], audioClips, textLayers }),
   );
 }
 

@@ -1,6 +1,6 @@
 // MOD-App — CMP-Toolbar, empty-project state (specs/30-experience/components/CMP-Toolbar.md).
-// The buttons and their labels in both languages. Wired so far: Add media (F-001), Music (F-011: opens
-// CMP-MusicPicker as a popover under it), Undo and Redo (F-014: unavailable when there is nothing to undo
+// The buttons and their labels in both languages. Wired so far: Add media (F-001), Music (F-011.R1, D-052:
+// opens the system file picker for audio files; the chosen files are added and placed at the playhead), Undo and Redo (F-014: unavailable when there is nothing to undo
 // or redo, and the RULE-20 history keys), Add text (F-010.R1: a layer at the playhead with CMP-TextEditor open on
 // it; while editing, the narrow top bar collapses to Undo, Redo and Done), Export (F-015: opens CMP-ExportPanel), New
 // project (F-018.R2: CMP-ConfirmDialog asks first with unexported changes) and the narrow More menu (./MoreMenu.tsx,
@@ -20,24 +20,13 @@ import { closePanel, openPanel, panelOpen as exportPanelOpen, setExportOpener } 
 import { editorLocked } from './lock';
 import { bindHistoryKeys, historyAvailable, redoEdit, undoEdit } from './history';
 import { Icon, type IconName } from './icons';
-import { addMedia } from './MediaInput';
-import { MusicPopover } from './MusicPicker';
-import { closePicker, openPicker, pickerOpen } from './sound';
+import { addMedia, pickMusic } from './MediaInput';
 import { addTextAndEdit, editingText } from './text';
 import { DoneButton } from './TextEditor';
 import { MoreButton } from './MoreMenu';
 import { requestNewProject } from './new-project';
 import { bindRovingToolbar } from './roving';
 import { bindShortcutKeys, openHelp } from './shortcuts';
-
-/** Toolbar's Music button (the picker's anchor; Esc and Close return focus to it). */
-let musicButton: HTMLButtonElement | null = null;
-
-/** F-011 / CMP-Toolbar: Music opens CMP-MusicPicker; activating it again closes it. */
-function toggleMusic(): void {
-  if (pickerOpen.peek()) closePicker();
-  else openPicker();
-}
 
 interface Item {
   readonly id: string;
@@ -74,14 +63,14 @@ function ToolButton({ item }: { item: Item }) {
   const name = t(item.label);
   const history = HISTORY[item.id];
   const unavailable = history ? !history.available() : false;
-  const music = item.id === 'music';
   const shortcuts = item.id === 'shortcuts';
   const onClick = history
     ? () => void history.run()
     : item.id === 'add-media'
       ? addMedia
-      : music
-        ? toggleMusic
+      : item.id === 'music'
+        ? // F-011.R1 / CMP-Toolbar: Music opens the system file picker for audio files.
+          pickMusic
         : item.id === 'add-text'
           ? // F-010.R1: Add text adds a layer at the playhead and opens CMP-TextEditor on it.
             () => void addTextAndEdit()
@@ -94,11 +83,7 @@ function ToolButton({ item }: { item: Item }) {
               : undefined;
   return (
     <button
-      ref={(el: HTMLButtonElement | null) => {
-        if (music) musicButton = el;
-      }}
-      aria-haspopup={music || shortcuts ? 'dialog' : undefined}
-      aria-expanded={music ? (pickerOpen.value ? 'true' : 'false') : undefined}
+      aria-haspopup={shortcuts ? 'dialog' : undefined}
       type="button"
       class={[
         'tk-tool',
@@ -140,7 +125,6 @@ export function Toolbar() {
         <ExportButton />
       </div>
       {needsClip.value ? <NeedsClip narrow /> : null}
-      <MusicPopover anchor={() => musicButton} />
     </header>
   );
 }

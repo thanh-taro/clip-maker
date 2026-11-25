@@ -11,8 +11,8 @@ import { noticeSections } from './notices';
 export const SOURCE_URL = 'https://github.com/thanh-taro/clip-maker';
 
 /**
- * CMP-MusicPicker's link to COPY-privacy.notices opens the same in-tool notices view (F-020.R4); each
- * request bumps this counter. Closing the view returns focus to the badge.
+ * The More menu's COPY-privacy.notices opens the same in-tool notices view (F-020.R4); each request
+ * bumps this counter. Closing the view returns focus to the badge.
  */
 export const noticesRequest = signal(0);
 

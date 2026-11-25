@@ -4,7 +4,7 @@
 // panel and the dialog through the real UI in tests/e2e/export-ui.spec.ts.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Capabilities, GridCell, VideoFormat } from '../../src/codec';
-import { MUSIC_TRACKS, type ExportSettings, type Project } from '../../src/core';
+import type { ExportSettings, Project } from '../../src/core';
 import type { ExportCaps, ExportContext, ExportHandle, ExportResult, ProgressView } from '../../src/export';
 import { edit, newProject, project, setAdjustments, unexported } from '../../src/project';
 import { capabilities } from '../../src/app/device';
@@ -26,8 +26,6 @@ import {
   run,
   sessionCaps,
   capsSound,
-  mediaOf,
-  MusicUnavailable,
   setExportDeps,
   settingsOf,
   shareExport,
@@ -40,12 +38,9 @@ import { videoFormatLine } from '../../src/app/export-format';
 import { editorLocked } from '../../src/app/lock';
 import { historyAvailable, redoEdit, undoEdit } from '../../src/app/history';
 import { focusInfo } from '../../src/app/playback';
-import { S, proj, video, videoSource } from '../support/project';
+import { proj, video, videoSource } from '../support/project';
 import { addFiles } from '../../src/app/adding';
 import { notices } from '../../src/app/notice-stack';
-
-// A bundled track of the shipped pack (read from the generated manifest, not hard-coded).
-const PAD = MUSIC_TRACKS[1]!.id;
 
 const grid = (ok: (short: number, rate: number) => boolean): GridCell[] =>
   [480, 720, 1080, 1440, 2160].flatMap((short) =>
@@ -555,35 +550,6 @@ describe('F-015 review fixes', () => {
     expect(canExport.value).toBe(false);
     capsSound.value = true;
     expect(canExport.value).toBe(true);
-  });
-
-  it('F-011.R7 Q120 a bundled track that can’t be read stops the export: COPY-notice.music_unavailable, never exported without it', async () => {
-    setExportDeps({ music: async () => Promise.reject(new Error('NetworkError')) });
-    const withMusic = proj({
-      clips: [video('A', 4)],
-      audioClips: [
-        {
-          id: 'm1',
-          sourceId: PAD,
-          start: 0,
-          in: 0,
-          out: S,
-          volume: 100,
-          muted: false,
-          fadeIn: 0,
-          fadeOut: 0,
-        },
-      ],
-    });
-    // The track is not one of the project's sources (ENT-MusicTrack).
-    const p = { ...withMusic, sources: withMusic.sources.filter((src) => src.id !== PAD) };
-    await expect(mediaOf(p)).rejects.toBeInstanceOf(MusicUnavailable);
-    expect(notices.value.some((n) => n.tag === 'music_unavailable')).toBe(true);
-    // Through the run: the failed state names the reason.
-    fakeExport();
-    setExportDeps({ context: async () => Promise.reject(new MusicUnavailable(PAD)) });
-    await startVideoExport();
-    expect(run.value).toEqual({ phase: 'failed', reason: 'music', kind: 'video' });
   });
 
   it('SCR-Editor exporting files dropped or pasted during an export are refused with COPY-notice.busy_exporting', async () => {

@@ -284,7 +284,7 @@ test('F-020.AC3 with an edited project, opening the source link leaves the proje
   await expect(page.getByRole('complementary').getByRole('listitem').filter({ hasText: 'clip.mp4' })).toBeVisible();
 });
 
-test('F-020.AC4 in a host frame that blocks new tabs and offline, COPY-privacy.notices opens COPY-privacy.notices_title inside the tool, listing every typeface, dependency, asset and music track', async ({
+test('F-020.AC4 in a host frame that blocks new tabs and offline, COPY-privacy.notices opens COPY-privacy.notices_title inside the tool, listing every typeface, dependency and asset, and no music (D-052)', async ({
   browser,
 }) => {
   // F-019's host harness: the stub portal page frames the tool with the portal's sandbox (no
@@ -329,7 +329,7 @@ test('F-020.AC4 in a host frame that blocks new tabs and offline, COPY-privacy.n
     await expect(notices).toBeVisible();
     await expect(notices.getByRole('heading', { name: text('en-US', 'privacy.notices_title') })).toBeVisible();
 
-    // Three tables with real headers: typefaces, code, music; each row is title, source, licence.
+    // Two tables with real headers: typefaces and code; each row is title, source, licence.
     for (const [heading, rows] of [
       [text('en-US', 'notices.fonts'), NOTICE_FONTS],
       [text('en-US', 'notices.code'), NOTICE_CODE],
@@ -346,7 +346,8 @@ test('F-020.AC4 in a host frame that blocks new tabs and offline, COPY-privacy.n
         await expect(body.nth(i).getByRole('cell')).toHaveText([r.title, r.source, r.licence]);
       }
     }
-    await expect(notices.getByRole('table', { name: text('en-US', 'music.title') })).toBeVisible();
+    // D-052: the tool ships no music, so there is no music table.
+    await expect(notices.getByRole('table')).toHaveCount(2);
     // The notices a licence requires to be shown (DEP-11's Feather MIT notice), in full.
     for (const n of NOTICE_TEXTS) {
       await expect(notices.getByText(n.title, { exact: true })).toBeVisible();

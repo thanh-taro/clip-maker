@@ -38,7 +38,6 @@ scope.onmessage = (e: MessageEvent<ToExportAudio>) => {
   // Strict: a codec this device can't decode fails the export like a decode error (question 33).
   const decoded = new SoundBank(portFeed(m.feed ?? new MessageChannel().port1), undefined, undefined, true);
   // Without a feed nothing can be decoded: such sources are heard as silence (an export always has one).
-  // Bundled music is decoded the same way from its packaged file (F-011.R5, ADR-0008 §7).
   decoded.setSources(m.feed ? soundSourceIds(m.project).filter((id) => !sources.has(id)) : []);
   const heard = all.filter((v) => !sources.has(v.sourceId));
   // The whole project, to its end (INV-07): the same length as the video's sound (NFR-08).

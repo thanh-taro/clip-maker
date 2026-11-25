@@ -12,17 +12,17 @@
 | F-008 | Apply a look | M-1 | P0 | shipped |
 | F-009 | Fade and cross-fade | M-1 | P1 | shipped |
 | F-010 | Add text | M-1 | P0 | shipped |
-| F-011 | Add music and set sound | M-1 | P0 | ready |
+| F-011 | Add music and set sound | M-1 | P0 | building |
 | F-012 | Set the frame | M-1 | P0 | shipped |
 | F-013 | Navigate the timeline | M-1 | P1 | shipped |
 | F-014 | Undo and redo | M-1 | P0 | shipped |
-| F-015 | Export video | M-1 | P0 | ready |
+| F-015 | Export video | M-1 | P0 | building |
 | F-016 | Export an animated image or audio | M-1 | P2 | shipped |
 | F-017 | Control by keyboard and touch | M-1 | P1 | shipped |
 | F-018 | Warn before losing work | M-1 | P1 | shipped |
 | F-019 | Fit into the host portal | M-1 | P0 | shipped |
-| F-020 | Show the privacy guarantee | M-1 | P1 | ready |
-| F-021 | Work offline | M-1 | P2 | ready |
+| F-020 | Show the privacy guarantee | M-1 | P1 | building |
+| F-021 | Work offline | M-1 | P2 | building |
 | F-022 | Use the portal's language | M-1 | P1 | shipped |
 | F-023 | Check device support | M-1 | P0 | shipped |
 

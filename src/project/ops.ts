@@ -4,7 +4,6 @@
 // changed (selected after undo or redo, RULE-13).
 import {
   DEFAULT_PLACEMENT,
-  MUSIC_TRACKS,
   RULE_04,
   RULE_05,
   RULE_06,
@@ -60,7 +59,6 @@ import {
   type FrameRate,
   type Look,
   type Micros,
-  type MusicTrack,
   type Notice,
   type Placement,
   type Project,
@@ -217,13 +215,7 @@ function placeOne(p: Project, source: Source, playhead: Micros, nextId: NextId):
  * (RULE-01) and placed: video and photo at the end of the main track, audio per RULE-12. Until the
  * user chooses a rate, the first video at 50 fps or more sets 60 fps (RULE-04).
  */
-export function addMedia(
-  p: Project,
-  sources: readonly Source[],
-  playhead: Micros,
-  nextId: NextId,
-  tracks: readonly MusicTrack[] = MUSIC_TRACKS,
-): EditResult {
+export function addMedia(p: Project, sources: readonly Source[], playhead: Micros, nextId: NextId): EditResult {
   let cur = p;
   const notices: Notice[] = [];
   const changed: string[] = [];
@@ -245,7 +237,7 @@ export function addMedia(
       (source.frameRate ?? 0) >= RULE_04.detectHighRateFrom &&
       cur.frame.frameRate !== 60
     ) {
-      const r = retime(cur, 60, false, tracks);
+      const r = retime(cur, 60, false);
       cur = r.project;
       notices.push(...r.notices);
     }
@@ -261,18 +253,6 @@ export function addMedia(
 export function placeSource(p: Project, sourceId: string, playhead: Micros, nextId: NextId): EditResult {
   const source = p.sources.find((s) => s.id === sourceId);
   return source ? placeOne(p, source, playhead, nextId) : same(p);
-}
-
-/** Implements: F-011.R1 — place a bundled music track (ENT-MusicTrack, not a source) from the catalog. */
-export function addMusic(
-  p: Project,
-  trackId: string,
-  playhead: Micros,
-  nextId: NextId,
-  tracks: readonly MusicTrack[] = MUSIC_TRACKS,
-): EditResult {
-  const track = tracks.find((t) => t.id === trackId);
-  return track ? placeAudio(p, track.id, track.duration, playhead, nextId) : same(p);
 }
 
 /** Implements: F-001.R4 — removing a source also removes its clips (RULE-05 delete rules). */
@@ -391,16 +371,9 @@ export function setPhotoDuration(p: Project, id: string, duration: Micros): Edit
 
 /**
  * Implements: F-004.R6 (start here / end here) and edge drags — trim the item's start or end to the
- * timeline time `t` (a clip, text layer or audio clip). An audio clip stays within its source or
- * bundled track (`tracks`, MOD-Core's catalog by default).
+ * timeline time `t` (a clip, text layer or audio clip). An audio clip stays within its source.
  */
-export function trimTo(
-  p: Project,
-  id: string,
-  edge: 'start' | 'end',
-  t: Micros,
-  tracks: readonly MusicTrack[] = MUSIC_TRACKS,
-): EditResult {
+export function trimTo(p: Project, id: string, edge: 'start' | 'end', t: Micros): EditResult {
   const rate = rateOf(p);
   const k = nearestFrame(Math.max(0, t), rate);
   const i = clipIndex(p, id);
@@ -429,7 +402,7 @@ export function trimTo(
   const a = p.audioClips.find((x) => x.id === id);
   if (a) {
     const others = p.audioClips.filter((x) => x.id !== a.id);
-    const next = trimAudioClip(a, others, edge, frameStart(k, rate), sourceEnd(p, a.sourceId, tracks), rate);
+    const next = trimAudioClip(a, others, edge, frameStart(k, rate), sourceEnd(p, a.sourceId), rate);
     if (next === a) return same(p);
     return result(p, { ...p, audioClips: p.audioClips.map((x) => (x.id === a.id ? next : x)) }, [a.id]);
   }
@@ -890,8 +863,8 @@ export function setBackground(p: Project, background: Frame['background']): Edit
 }
 
 /** Implements: RULE-04 the user chooses the frame rate (detection stops); every time is re-timed. */
-export function setFrameRate(p: Project, rate: FrameRate, tracks: readonly MusicTrack[] = MUSIC_TRACKS): EditResult {
-  return retime(p, rate, true, tracks);
+export function setFrameRate(p: Project, rate: FrameRate): EditResult {
+  return retime(p, rate, true);
 }
 
 /**
@@ -899,7 +872,7 @@ export function setFrameRate(p: Project, rate: FrameRate, tracks: readonly Music
  * cross-fade goes below its minimum; RULE-03 — the last clip is shortened at its end to fit, with
  * COPY-notice.length_limited.
  */
-function retime(p: Project, rate: FrameRate, chosen: boolean, tracks: readonly MusicTrack[]): EditResult {
+function retime(p: Project, rate: FrameRate, chosen: boolean): EditResult {
   const frame: Frame = chosen
     ? { ...p.frame, frameRate: rate, frameRateChosen: true }
     : { ...p.frame, frameRate: rate };
@@ -925,7 +898,7 @@ function retime(p: Project, rate: FrameRate, chosen: boolean, tracks: readonly M
     const e = Math.max(nearestFrame(t.end, rate), s + min);
     return { ...t, start: frameStart(s, rate), end: frameStart(e, rate) };
   });
-  const audioClips = retimeAudio(p.audioClips, rate, (id) => sourceEnd(p, id, tracks));
+  const audioClips = retimeAudio(p.audioClips, rate, (id) => sourceEnd(p, id));
   // RULE-05 / RULE-03: an audio clip that can't reach its minimum at the new rate because its source's
   // end is unknown refuses the change, with COPY-notice.length_full (F-012.R4).
   if (!audioClips) return same(p, ['notice.length_full']);

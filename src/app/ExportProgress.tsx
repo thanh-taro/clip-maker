@@ -176,15 +176,7 @@ function Done({ view }: { view: Extract<RunView, { phase: 'done' }> }) {
   );
 }
 
-function Ended({
-  phase,
-  music = false,
-  kind,
-}: {
-  phase: keyof typeof ERRORS;
-  music?: boolean;
-  kind?: ExportKind | undefined;
-}) {
+function Ended({ phase, kind }: { phase: keyof typeof ERRORS; kind?: ExportKind | undefined }) {
   const e = ERRORS[phase];
   // F-016.R3 (build question 201): a failed GIF or audio export names its own remedy.
   const text = phase === 'failed' ? failedTextId(kind) : e.text;
@@ -197,8 +189,7 @@ function Ended({
         </h2>
       </div>
       <p id={TEXT_ID} class="tk-run__text">
-        {/* A bundled track that couldn't be read is named as the reason (build question 120). */}
-        {music ? t('notice.music_unavailable') : t(text)}
+        {t(text)}
       </p>
       <div class="tk-run__actions">
         <button type="button" class="tk-run__button" data-action="close-export" onClick={closeRun}>
@@ -270,11 +261,7 @@ export function ExportProgress() {
       ) : view.phase === 'done' ? (
         <Done view={view} />
       ) : (
-        <Ended
-          phase={view.phase}
-          music={view.phase === 'failed' && view.reason === 'music'}
-          kind={view.phase === 'failed' ? view.kind : undefined}
-        />
+        <Ended phase={view.phase} kind={view.phase === 'failed' ? view.kind : undefined} />
       )}
     </dialog>
   );

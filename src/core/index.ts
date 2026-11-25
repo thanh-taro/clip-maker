@@ -16,7 +16,7 @@ export * from './timing';
 export * from './audio';
 export * from './text';
 export * from './visual';
-export * from './music';
+export * from './source-end';
 export * from './edits';
 export * from './check';
 export * from './media';

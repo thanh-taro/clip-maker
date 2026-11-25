@@ -4,20 +4,12 @@ import {
   type AudioClip,
   type Clip,
   type FrameRate,
-  type MusicTrack,
   type Project,
   type Source,
   type TextLayer,
 } from '../../src/core';
 
 export const S = 1_000_000;
-
-/** A test catalog of bundled music tracks (ENT-MusicTrack). */
-export const TRACKS: readonly MusicTrack[] = [
-  { id: 'music-1', title: 'One', source: 'test', licence: 'CC0', duration: 60 * S },
-  { id: 'm', title: 'M', source: 'test', licence: 'CC0', duration: 60 * S },
-  { id: 'short', title: 'Short', source: 'test', licence: 'CC0', duration: 5 * S },
-];
 
 export function videoSource(id: string, seconds: number, extra: Partial<Source> = {}): Source {
   return {

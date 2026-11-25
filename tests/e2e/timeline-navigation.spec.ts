@@ -11,7 +11,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
-import { BUNDLED_MUSIC } from '../../src/core/music.gen';
+import { songSource } from './support/audio-files';
 import type { ClipSetup, ClipSummary } from '../harness/app';
 import { MEDIA_HARNESS_PORT } from './support/ports';
 
@@ -277,10 +277,12 @@ test.describe('F-013 timeline navigation with a pointer (app harness)', () => {
     await open(page);
     await photos(page, 20);
     await at(page, 10);
-    const doc = await stateOf<object>(page);
+    const state = await stateOf<{ sources: object[] }>(page);
+    // D-052: the user's own audio file (a source) on the audio track.
+    const doc = { ...state, sources: [...state.sources, songSource()] };
     const music = (start: number, end: number) => ({
       id: 'music-0',
-      sourceId: BUNDLED_MUSIC[0]!.id,
+      sourceId: songSource().id,
       start: start * S,
       in: 0,
       out: (end - start) * S,

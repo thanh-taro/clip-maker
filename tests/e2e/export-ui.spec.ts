@@ -11,10 +11,10 @@ import { expect, test, type Download, type Locator, type Page } from '@playwrigh
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CATALOG, type Language } from '../../src/copy/messages.gen';
-import { BUNDLED_MUSIC } from '../../src/core/music.gen';
 import type { ClipSummary, ExportRead, ProjectSummary } from '../harness/app';
 import type { ToneSpec } from '../harness/sound';
 import { deRgb, type Rgb } from '../support/colour';
+import { wavTone, type AudioPayload } from './support/audio-files';
 import { MEDIA_HARNESS_PORT } from './support/ports';
 
 const APP = `http://localhost:${MEDIA_HARNESS_PORT}/app.html`;
@@ -248,8 +248,6 @@ test.describe('F-015 privacy', () => {
 // ── Shared steps ───────────────────────────────────────────────────────────────────────────────────
 
 const S = 1_000_000;
-/** A bundled track of the shipped pack (read from the generated manifest). */
-const TRACK = BUNDLED_MUSIC[0]!.id;
 type Json = Record<string, unknown> & {
   frame: Record<string, unknown>;
   clips: Record<string, unknown>[];
@@ -263,6 +261,22 @@ async function change(page: Page, f: (p: Json) => void): Promise<void> {
   await page.evaluate((j) => (window as unknown as Harness).appHarness.load(j), JSON.stringify(p));
 }
 const stateOf = (page: Page) => page.evaluate(() => (window as unknown as Harness).appHarness.state());
+
+/** F-011.R1 (D-052): the user's own audio file chosen with the toolbar's Music, placed at `seconds`. */
+async function music(page: Page, file: AudioPayload, seconds: number): Promise<void> {
+  await page.evaluate((s) => (window as unknown as Harness).appHarness.setPlayhead(s), seconds);
+  const before = (JSON.parse(await stateOf(page)) as Json).audioClips.length;
+  const chooser = page.waitForEvent('filechooser');
+  await page
+    .getByRole('toolbar', { name: text('en-US', 'toolbar.label') })
+    .getByRole('button', { name: text('en-US', 'action.music') })
+    .click();
+  await (await chooser).setFiles([file]);
+  await expect
+    .poll(async () => (JSON.parse(await stateOf(page)) as Json).audioClips.length, { timeout: 30_000 })
+    .toBe(before + 1);
+  for (const close of await page.locator('.tk-notice__close').all()) await close.click().catch(() => undefined);
+}
 const scratchNames = (page: Page) => page.evaluate(() => (window as unknown as Harness).appHarness.scratchNames());
 
 /** A project of one flat photo lasting `seconds` (a long export without a long file). */
@@ -336,8 +350,9 @@ test.describe('F-015 the exported file matches the preview', () => {
       await photo(page, 'family-photo.png', [150, 110, 90]),
     ]);
     // The edits, made through MOD-Project as their controls make them (F-005 speed, F-006 placement, F-007
-    // adjustments, F-008 look, F-009 cross-fade, F-011 music): 2× speed on the clip, a 0.5 s cross-fade, the
-    // photo 2 s long at 60 % with a look and brightness, and a bundled track from 2.6 s.
+    // adjustments, F-008 look, F-009 cross-fade): 2× speed on the clip, a 0.5 s cross-fade, the photo 2 s long
+    // at 60 % with a look and brightness; then (F-011.R1, D-052) the user's own 0.9 s song chosen with Music at
+    // 2.6 s.
     await change(page, (p) => {
       const [clip, pic] = p.clips as [Record<string, unknown>, Record<string, unknown>];
       clip['speedPct'] = 200;
@@ -346,17 +361,12 @@ test.describe('F-015 the exported file matches the preview', () => {
       pic['placement'] = { ...(pic['placement'] as object), scale: 60 };
       pic['adjustments'] = { brightness: 20 };
       pic['look'] = { id: 'natural-warm', intensity: 100 };
-      p.audioClips.push({
-        id: 'music-1',
-        sourceId: TRACK,
-        start: 2.6 * S,
-        in: 0,
-        out: 0.9 * S,
-        volume: 100,
-        muted: false,
-        fadeIn: 0,
-        fadeOut: 0,
-      });
+    });
+    await music(page, wavTone('song.wav', 0.9, 220, 0.25), 2.6);
+    expect((JSON.parse(await stateOf(page)) as Json).audioClips[0]).toMatchObject({
+      start: 2.6 * S,
+      in: 0,
+      out: 0.9 * S,
     });
     // F-010: a text layer typed in one editing session from 0 s (3 s long), at 80 % height (below the frame code).
     await page.evaluate(() => (window as unknown as Harness).appHarness.typeText(0, 'Đà Lạt'));

@@ -1,7 +1,8 @@
 // MOD-App — the three ways files come in (F-001.R1; MOD-App "pick/drop/paste wiring"):
 //   - the system file picker for video, photo and audio, opened by every Add media (CMP-Toolbar,
 //     CMP-EmptyState, CMP-MediaPanel). A wide Add media outside the panel also opens the panel's left
-//     drawer (style.md "Layouts"; build-spec-questions 71);
+//     drawer (style.md "Layouts"; build-spec-questions 71). Music (F-011.R1, D-052) opens the same picker
+//     offering audio files, and its pick goes through the same intake as a music pick (./adding.ts);
 //   - dropping files anywhere on the tool, embedded or standalone, with CMP-DropOverlay while files (not
 //     text or links) are dragged over it; it disappears on drop, on leaving the tool, or on Esc;
 //   - the `paste` event (no clipboard permission): pasted files are added, text and links are ignored and
@@ -17,18 +18,31 @@ import { carriesFiles, filesFromPaste, itemsFromDrop, pasteTargetsField, pastes 
 
 let input: HTMLInputElement | null = null;
 const ACCEPT_ALL = 'video/*,image/*,audio/*';
+/**
+ * F-011.R1 / CMP-Toolbar: the audio types RULE-01 accepts (MP3, AAC/M4A, WAV, Ogg/Opus, FLAC, WebM audio).
+ * Only a hint to the picker: every file is still checked by its contents (RULE-01).
+ */
+export const ACCEPT_AUDIO = 'audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.weba';
+/** The open picker was opened by Music: its files are a music pick (F-011.R1). */
+let musicPick = false;
 
 /** Implements: F-001.R1 — opens the system file picker (several files at once). */
 export function pickFiles(): void {
   if (!input) return;
   input.accept = ACCEPT_ALL;
+  musicPick = false;
   input.click();
 }
 
-/** CMP-MusicPicker "Your audio": the same picker, offering audio files (F-001; the check is by content). */
-export function pickAudio(): void {
+/**
+ * Implements: F-011.R1, CMP-Toolbar — Music opens the system file picker for audio files (several at
+ * once). The chosen files go through the F-001 intake and are placed at the playhead (`addFiles` with
+ * `music`); cancelling changes nothing.
+ */
+export function pickMusic(): void {
   if (!input) return;
-  input.accept = 'audio/*';
+  input.accept = ACCEPT_AUDIO;
+  musicPick = true;
   input.click();
 }
 
@@ -55,14 +69,17 @@ export function FilePicker() {
       onChange={(e) => {
         const el = e.currentTarget;
         const files = Array.from(el.files ?? []);
+        const music = musicPick;
+        musicPick = false;
         el.value = '';
         el.accept = ACCEPT_ALL;
         pickerClosed.value++;
-        if (files.length) void addFiles(files);
+        if (files.length) void addFiles(files, { music });
       }}
-      // The picker was dismissed without a choice.
+      // The picker was dismissed without a choice (F-011.AC12: nothing changes).
       onCancel={(e) => {
         e.currentTarget.accept = ACCEPT_ALL;
+        musicPick = false;
         pickerClosed.value++;
       }}
     />

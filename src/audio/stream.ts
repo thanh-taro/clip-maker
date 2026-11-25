@@ -43,31 +43,6 @@ export function endSampleOf(project: Project): number {
   return (layoutOf(project).frames * SAMPLE_RATE) / project.frame.frameRate;
 }
 
-/** The audition voice's id (never an item id: those come from MOD-Project's id source). */
-export const AUDITION_ID = 'audition';
-
-/**
- * ADR-0008 §7 / F-011.R1: the picker's preview of bundled track `trackId` as a one-voice plan — the whole
- * track (`length` 48 kHz samples) from sample 0 at 100 %, through the same mixer and limiter as the mix.
- */
-export function auditionVoice(trackId: string, length: number): Voice {
-  return {
-    kind: 'audio',
-    id: AUDITION_ID,
-    sourceId: trackId,
-    startSample: 0,
-    endSample: length,
-    naturalEndSample: length,
-    sourceIn: 0,
-    speed: 1,
-    gain: 1,
-    fadeInSamples: 0,
-    fadeOutSamples: 0,
-    crossInSamples: 0,
-    crossOutSamples: 0,
-  };
-}
-
 /** The part of a MessagePort the streamer uses. */
 export interface PortLike {
   postMessage(message: ToWorklet, transfer?: Transferable[]): void;
@@ -91,8 +66,6 @@ export class Streamer {
   private forced = false;
   /** The mix range a block waits for. */
   private waitingFor: [number, number] = [0, 0];
-  /** While the picker auditions a track: the project's plan, kept until the audition stops (F-011.R1). */
-  private saved: { voices: readonly Voice[]; endSample: number } | null = null;
   /** Blocks rendered (instrumentation). */
   blocks = 0;
   /** Times a block waited for decoding, and blocks rendered after STALL_MS without it (instrumentation). */
@@ -123,52 +96,9 @@ export class Streamer {
   }
 
   setProject(project: Project): void {
-    const plan = { voices: voices(project), endSample: endSampleOf(project) };
-    // An edit during an audition updates the kept plan; the audition plays on undisturbed.
-    if (this.saved) {
-      this.saved = plan;
-      return;
-    }
-    this.voices = plan.voices;
-    this.endSample = plan.endSample;
+    this.voices = voices(project);
+    this.endSample = endSampleOf(project);
     this.remix();
-  }
-
-  /** Whether the picker's audition is playing instead of the project (F-011.R1). */
-  get auditioning(): boolean {
-    return this.saved !== null;
-  }
-
-  /**
-   * F-011.R1, ADR-0008 §7: plays bundled track `trackId` (`length` samples) from its start as a one-voice
-   * plan through the same mixer; the project's plan is kept meanwhile. Its end posts `end` like the
-   * project's (the worklet reports it to the main thread).
-   */
-  audition(trackId: string, length: number, gen: number): void {
-    this.saved ??= { voices: this.voices, endSample: this.endSample };
-    this.voices = [auditionVoice(trackId, length)];
-    this.endSample = length;
-    this.start(0, gen);
-  }
-
-  /** The audition stops: the project's plan is back, paused at project time `t` (decoded ahead, prewarm). */
-  stopAudition(t: Micros, gen: number): void {
-    this.restore();
-    this.gen = gen;
-    this.playing = false;
-    this.mixer = null;
-    this.unstall();
-    this.from = sampleAt(t);
-    this.produced = this.consumed = 0;
-    this.port?.postMessage({ type: 'flush', gen, from: this.from });
-    this.prewarm();
-  }
-
-  private restore(): void {
-    if (!this.saved) return;
-    this.voices = this.saved.voices;
-    this.endSample = this.saved.endSample;
-    this.saved = null;
   }
 
   /** New decoded sound given whole (`audio:pcm`): the samples not yet queued are rendered with it. */
@@ -182,12 +112,6 @@ export class Streamer {
   }
 
   play(t: Micros, gen: number): void {
-    // Playing the project ends any audition.
-    this.restore();
-    this.start(t, gen);
-  }
-
-  private start(t: Micros, gen: number): void {
     this.unstall();
     this.sound?.retry?.();
     this.gen = gen;
@@ -213,7 +137,6 @@ export class Streamer {
   }
 
   seek(t: Micros, gen: number): void {
-    if (this.saved) return; // the audition plays on; the project resumes where stopAudition says
     if (this.playing) this.play(t, gen);
     else {
       this.gen = gen;

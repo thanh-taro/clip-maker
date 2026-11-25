@@ -128,7 +128,7 @@ export type TextLayer = {
 /** ENT-AudioClip */
 export type AudioClip = {
   readonly id: Id;
-  /** an ENT-Source id or an ENT-MusicTrack id */
+  /** an ENT-Source id */
   readonly sourceId: Id;
   readonly start: Us;
   readonly in: Us;
