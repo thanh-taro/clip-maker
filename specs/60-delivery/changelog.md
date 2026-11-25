@@ -2,6 +2,9 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-25 — Released 1.2.0 to production (D-053)
+- `v1.2.0` (the `v1.2.0-rc.1` build) is live at `https://clip-maker.tarokit.app` with the colour mixer, colour pop, split toning and duotone; Clip Maker is also listed in the TaroKit portal (portal 1.5.4). Report: `.build-my-app/reports/release-1.2.0.md`.
+
 ## 2026-11-25 — Release candidate 1.2.0 (D-053 colour tools)
 - F-024 colour mixer, F-025 colour pop, F-026 split toning and F-027 duotone built (engine and UI, two review rounds each) and `shipped`. Version 1.2.0, candidate `v1.2.0-rc.1`; verification in `.build-my-app/reports/release-1.2.0.md`. F-028 colour replace stays `draft` for 1.3.0 (M-5).
 
