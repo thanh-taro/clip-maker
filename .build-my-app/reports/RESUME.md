@@ -1,13 +1,11 @@
-# Resume point — 2026-11-25, release candidate approved
+# Resume point — 2026-11-25, 1.0.0 live
 
-**State:** phase 6 (release) gate G6 **passed** with the owner's approval. Candidate `v1.0.0-rc.1` (local tag, commit ea464b7); artifact `release/1.0.0/` (rebuild: `pnpm release:build v1.0.0-rc.1`), checksums and verification in `.build-my-app/reports/release-1.0.0.md`. Next: phase 7 (deploy), only when the owner is ready.
+**State:** all phases done. Gate G7 passed: the owner confirmed `v1.0.0` live at `https://clip-maker.tarokit.app` (`.build-my-app/reports/deploy-1.0.0.md`). No staging host (D-051).
 
-## Phase 7 needs the owner first (hard stops)
-- Cloudflare account, `tarokit.app` zone, wrangler login; approve installing wrangler (DEP-31).
-- Portal staging origin (or none: standalone-only staging).
-- Legal review of `docs/legal/*` drafts; support URL, operator details, effective dates.
-- Follow `docs/deploy/runbook.md` (staging S1–S12, production P1–P8, rollback). Production uploads exactly `release/1.0.0/` (without `*.map` unless decided otherwise).
-- Any code change now needs `v1.0.0-rc.2`, re-verified.
+## Next
+- Changes or new features: `/build-my-app:change` (spec first, then a new candidate `1.0.1`/`1.1.0`, re-verified, deployed with `pnpm dlx wrangler@4.157.0 deploy --env="" --assets release/<version>`).
+- Owner to-do: fill `CONTACT_EMAIL` and the effective date in `docs/legal/*`, publish them (e.g. on the portal); optional lawyer review; optional listen to the 9 music tracks.
+- Waived device checks (QA-5) remain in `qa-owner-checklist.md` for a later pass.
 
 ## Machine rules (the PC crashed twice from test memory)
 - The budget is 1 test worker, 1 heavy run and 1 builder (`bma_state.py resources`). Configs default to 1 worker.
