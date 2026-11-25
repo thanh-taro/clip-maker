@@ -509,7 +509,7 @@
           },
           "sourceId": {
             "$ref": "#/$defs/id",
-            "description": "an ENT-Source id or an ENT-MusicTrack id"
+            "description": "an ENT-Source id"
           },
           "start": {
             "$ref": "#/$defs/us"

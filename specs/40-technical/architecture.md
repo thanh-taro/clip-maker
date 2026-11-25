@@ -24,7 +24,7 @@ an export worker plus an export-audio worker that stream into a **scratch file o
 (ADR-0010). Work is split
 over four dedicated workers and a worklet **without** shared memory or cross-origin isolation, so
 the portal's frame contract does not change (ADR-0003). One deliberate header difference from the
-suite: `connect-src 'self'` so the tool can read its own look and music files (ADR-0014).
+suite: `connect-src 'self'` so the tool can read its own look files (ADR-0014; no music since D-052).
 
 ## Assumptions
 - A1. Reference devices for the NFRs (D-037): **laptop** — the owner's MacBook (Apple M3, 8 cores,
@@ -87,7 +87,7 @@ flowchart LR
     SW[sw.js offline cache]
     OPFS[(scratch dir: export only)]
   end
-  CDN[(Static host: HTML, hashed JS/CSS, workers, worklet, fonts, looks, music, _headers)]
+  CDN[(Static host: HTML, hashed JS/CSS, workers, worklet, fonts, looks, _headers)]
   HF -- "?theme&lang, settings messages" --> HO
   HO -- "ready (only message out)" --> HF
   CDN -- "first visit only" --> SW
@@ -114,14 +114,14 @@ update check while opening (INV-08, NFR-01).
 | MOD-Audio | audio + export workers, main | Mixer, resample, WSOLA, limiter, worklet, clock | F-002, F-005, F-009, F-011, F-016 |
 | MOD-Export | export worker + main | Video/GIF/audio export, sinks, rate control, progress, cancel | F-015, F-016, F-019 |
 | MOD-Scratch | export worker + main | The only on-device storage, export-time only, sweeps | F-015, F-019 |
-| MOD-Assets | main | Manifest, looks and music from own origin (only `fetch`) | F-008, F-011, F-021 |
+| MOD-Assets | main | Manifest and looks from own origin (only `fetch`) | F-008, F-021 |
 | MOD-Timeline | main | Timeline canvas, pointer + touch (fixed centre playhead) | F-002, F-003, F-004, F-009, F-010, F-011, F-013, F-017 |
 | MOD-Preview | main | Preview surface, on-preview gestures, compare, full screen, text raster + field | F-002, F-006, F-007, F-010, F-017 |
 | MOD-App | main | Shell, panels, dialogs, notices, live regions, layout, leave-page | F-001, F-007, F-008, F-011, F-015, F-018, F-020, F-023 |
 | MOD-Keys | main (pure core) | RULE-20 key map with scopes | F-017 |
 | MOD-Host | boot + main + sw.js | Theme/language, origin-checked messages, ready, offline registration | F-019, F-021, F-022 |
 | MOD-Copy | main + build | Generated catalog, formatting | F-022 |
-| MOD-Build | build | Codegen, looks/music packing, headers, manifests, notices, gates | F-020, F-021 |
+| MOD-Build | build | Codegen, looks packing, headers, manifests, notices, gates | F-020, F-021 |
 
 **Dependency rules (lint-enforced import boundaries, ADR-0002):** MOD-Core and MOD-Plan import no
 DOM, worker, codec or GPU API; MOD-Project imports only MOD-Core; MOD-Compositor never reads
@@ -236,7 +236,6 @@ WebKit).
 | **Code and styles total** (every bundle counted, so code shared by two workers counts twice) | **≤ 560 KB** |
 | Fonts (5 packages, latin + vietnamese) | ≈ 200 KB |
 | Look tables (16 × 33³ 8-bit PNG, ≤ 30 KB each; measured 4–15 KB) | ≤ 0.5 MB (fonts + looks ≤ 1.5 MB) |
-| Music pack | ≤ 10 MB, fetched after the editor is usable |
 Budgets are per bundle: the build bundles each module worker on its own (no shared chunks between
 workers), so a worker's budget includes every module it imports. All code loads at start-up (no lazy
 chunks); one export worker is created idle at start so a first export makes no request.
@@ -273,7 +272,7 @@ iPhone 14 Pro, Safari 27.0.1. Android not measured (D-037).
 8. **Embedded Share** depends on the portal adding `share` — download-only until then.
 9. **Size-target floors** pending the owner's visual check; Safari's realtime-mode rate accuracy to
    re-check in QA.
-10. **Music curation** (8+ CC0 tracks) — owner task with audit (D-034).
+10. **Music curation** — retired: the tool ships no music (D-052, 2026-11-25).
 Retired by the spikes: codec matrix (SP-codec), licence (D-042), phone GPU frame rate and colour
 fidelity (SP-compositor, SP-gpu-color), time-stretch quality (SP-timestretch), hidden page and
 downloads on iOS (SP-ios), scratch deletion (SP-storage), size estimate (SP-size-target), HDR

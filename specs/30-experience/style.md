@@ -64,7 +64,7 @@ Breakpoints are measured on the tool's own width (the iframe when embedded):
   - **Preview**, then the **timeline** with the centre-fixed playhead (RULE-14, D-013).
   - **Bottom tab bar** (`size.tabBar`): Edit, Audio, Text, Looks, Adjust.
     - *Edit* holds Add media, Frame (when nothing is selected), and the selection's actions: split, start/end here, delete, duplicate, move earlier/later, cross-fade, speed, fades, position and nudge.
-    - *Audio* holds Music (CMP-MusicPicker), add your own audio, and the selection's sound: while a video or audio clip is selected, its sound section sits at the top of the Audio sheet.
+    - *Audio* holds Music, which opens the file picker for the user's own audio files (F-011.R1), and the selection's sound: while a video or audio clip is selected, its sound section sits at the top of the Audio sheet.
     - *Text* holds Add text and the text style.
     - *Adjust* holds the 12 adjustments, Hold to compare, Apply to all, and copy/paste colour.
     Each tab opens its tools as a bottom sheet above the tab bar. With a keyboard the tab bar is one Tab stop; Left, Right, Home and End move between the tabs and Enter or Space opens one (moving alone opens nothing). The transport (44 px) and a timeline peek (ruler + main track, 76 px) always stay visible above an open sheet; no sheet is open by default. A sheet takes at most 40 % of the height (60 % when the tool is under 640 px tall). Its body scrolls, including any message above a sticky footer, and the export panel follows the same rule.

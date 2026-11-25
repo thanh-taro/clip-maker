@@ -43,7 +43,7 @@ Rules for every string:
 | **COPY-action.snapping** | Snapping | Hít cạnh | Toggle |
 | **COPY-action.unmute_all** | Unmute original sound | Bật lại tiếng gốc | |
 | **COPY-action.shortcuts** | Keyboard shortcuts | Phím tắt | Opens CMP-ShortcutHelp |
-| **COPY-action.music** | Music | Nhạc | Opens CMP-MusicPicker |
+| **COPY-action.music** | Music | Nhạc | Opens the file picker for audio files (F-011.R1) |
 | **COPY-action.time_earlier** | Earlier | Sớm hơn | Moves a text layer or audio clip in time |
 | **COPY-action.time_later** | Later | Muộn hơn | |
 | **COPY-action.use_target** | Use {size} MB | Dùng {size} MB | Smallest reachable size target |
@@ -113,13 +113,6 @@ Rules for every string:
 | **COPY-looks.group_cinematic** | Cinematic | Điện ảnh | |
 | **COPY-looks.group_bw** | Black & White | Đen trắng | |
 
-## Music
-| ID | en-US | vi-VN | Notes |
-|---|---|---|---|
-| **COPY-music.title** | Music | Nhạc | |
-| **COPY-music.preview** | Play preview | Nghe thử | |
-| **COPY-music.add** | Add at playhead | Thêm tại vị trí phát | |
-
 ## Export
 | ID | en-US | vi-VN | Notes |
 |---|---|---|---|
@@ -153,7 +146,6 @@ Rules for every string:
 | **COPY-notice.split_too_close** | Move the playhead further from the clip's edge to split. | Hãy dời vị trí phát xa mép clip hơn để tách. | |
 | **COPY-notice.text_limit** | You've reached 50 text layers. | Đã đạt tối đa 50 lớp chữ. | |
 | **COPY-notice.no_audio_room** | No free room on the audio track here. | Không còn chỗ trống trên rãnh âm thanh tại đây. | |
-| **COPY-notice.music_unavailable** | This track couldn't be loaded. Try again. | Không tải được bản nhạc này. Hãy thử lại. | F-011: a bundled track's file could not be read (build question 120) |
 | **COPY-notice.speed_limited** | Speed stopped here so the clip stays at least 0.1 s long. | Tốc độ dừng ở đây để clip dài ít nhất 0,1 giây. | |
 | **COPY-notice.crossfade_too_short** | These clips are too short for a cross-fade. | Các clip này quá ngắn để chuyển mờ. | |
 | **COPY-notice.no_sound_to_export** | This project has no sound to export. | Dự án không có âm thanh để xuất. | |
@@ -181,7 +173,7 @@ Rules for every string:
 | ID | en-US | vi-VN | Notes |
 |---|---|---|---|
 | **COPY-privacy.badge** | Your media never leaves this device | Tệp của bạn không bao giờ rời khỏi máy này | |
-| **COPY-privacy.details** | Clip Maker edits and exports entirely in your browser. Nothing is uploaded and your project isn't kept after you close the page. The first visit downloads the tool's looks, fonts and music (about 12 MB) so it works offline. During an export it may use temporary space on your device. That space is deleted when the export ends, or the next time you open Clip Maker if the page closed during an export. | Clip Maker chỉnh sửa và xuất hoàn toàn trong trình duyệt. Không có gì được tải lên và không có gì được giữ lại sau khi bạn đóng trang. Lần đầu mở, công cụ tải sẵn bộ lọc màu, phông chữ và nhạc (khoảng 12 MB) để dùng ngoại tuyến. Khi xuất, công cụ có thể dùng tạm dung lượng trên máy; phần này sẽ bị xoá khi quá trình xuất kết thúc, hoặc khi bạn mở lại Clip Maker nếu trang bị đóng giữa chừng. | |
+| **COPY-privacy.details** | Clip Maker edits and exports entirely in your browser. Nothing is uploaded and your project isn't kept after you close the page. The first visit downloads the tool's looks and fonts so it works offline. During an export it may use temporary space on your device. That space is deleted when the export ends, or the next time you open Clip Maker if the page closed during an export. | Clip Maker chỉnh sửa và xuất hoàn toàn trong trình duyệt. Không có gì được tải lên và không có gì được giữ lại sau khi bạn đóng trang. Lần đầu mở, công cụ tải sẵn bộ lọc màu và phông chữ để dùng ngoại tuyến. Khi xuất, công cụ có thể dùng tạm dung lượng trên máy; phần này sẽ bị xoá khi quá trình xuất kết thúc, hoặc khi bạn mở lại Clip Maker nếu trang bị đóng giữa chừng. | |
 | **COPY-privacy.source_label** | Source code on GitHub | Mã nguồn trên GitHub | |
 | **COPY-privacy.notices** | Licences and credits | Giấy phép và ghi công | |
 | **COPY-unsupported.title** | This browser can't edit video | Trình duyệt này không chỉnh sửa video được | |
@@ -320,14 +312,11 @@ Rules for every string:
 | **COPY-colour.purple** | Purple | Tím | |
 | **COPY-colour.pink** | Pink | Hồng | |
 
-## Looks and music (more)
+## Looks (more)
 | ID | en-US | vi-VN | Notes |
 |---|---|---|---|
 | **COPY-looks.groups** | Look groups | Nhóm bộ lọc | |
 | **COPY-looks.previewing** | Previewing {look} | Đang xem thử {look} | |
-| **COPY-music.your_audio** | Your audio | Âm thanh của bạn | |
-| **COPY-music.your_audio_hint** | Bundled tracks are free to use. Or add your own: | Nhạc có sẵn được dùng miễn phí. Hoặc thêm của bạn: | |
-| **COPY-music.stop** | Stop preview | Dừng nghe thử | |
 
 ## Export (more)
 | ID | en-US | vi-VN | Notes |
@@ -424,3 +413,15 @@ Polite status messages for screen readers (F-017.R7, F-017.R8). `{action}` is th
 | **COPY-announce.playing** | Playing | Đang phát | |
 | **COPY-announce.kept** | Not a valid value. Kept {value}. | Giá trị không hợp lệ. Giữ nguyên {value}. | A typed value that can't be read |
 | **COPY-announce.limited** | Limited to {value}. | Đã giới hạn ở {value}. | A typed value outside the range |
+
+## Retired (D-052)
+Kept so the IDs are never reused; not shown in the tool and not generated. They belonged to the
+music shipped with the tool, removed on 2026-11-25 (CMP-MusicPicker, deprecated).
+
+- **COPY-music.title** — was "Music" / "Nhạc", the picker's title.
+- **COPY-music.preview** — was "Play preview" / "Nghe thử".
+- **COPY-music.add** — was "Add at playhead" / "Thêm tại vị trí phát".
+- **COPY-music.your_audio** — was "Your audio" / "Âm thanh của bạn".
+- **COPY-music.your_audio_hint** — was the picker's hint for adding the user's own audio.
+- **COPY-music.stop** — was "Stop preview" / "Dừng nghe thử".
+- **COPY-notice.music_unavailable** — was the notice for a shipped track whose file could not be read.

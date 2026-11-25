@@ -17,7 +17,7 @@ Privacy badge (COPY-privacy.badge); source link (COPY-privacy.source_label); pro
 | wide | Status-bar height row: privacy badge button (success dot and COPY-privacy.badge), the source link COPY-privacy.source_label with an external-link icon, and COPY-status.facts (aspect, frame rate, length as m:ss) in mono on the right. |
 | narrow | The one-line status row under the tab bar (D-038), status-bar height: shield icon and COPY-privacy.badge at the smallest type size, kept fully visible down to the minimum width (F-020.AC1, also in vi-VN), and an icon-only source link named COPY-privacy.source_label. Both targets extend their hit area to touch size into the bottom safe area. Project facts are hidden (the length is in the transport). |
 | privacy details open | Popover above the badge, at most the popover width: heading COPY-privacy.badge, COPY-privacy.details, the outlined action COPY-privacy.notices and close; the badge shows as pressed. |
-| licence notices view | In-tool dialog COPY-privacy.notices_title with back (COPY-action.back) and close; sections COPY-notices.fonts, COPY-notices.code and COPY-music.title, each a table of COPY-notices.col_title, COPY-notices.col_source and COPY-notices.col_licence, listing every shipped dependency, typeface and bundled music track. |
+| licence notices view | In-tool dialog COPY-privacy.notices_title with back (COPY-action.back) and close; sections COPY-notices.fonts and COPY-notices.code, each a table of COPY-notices.col_title, COPY-notices.col_source and COPY-notices.col_licence, listing every shipped dependency and typeface (no music, D-052). |
 
 ## Behavior
 - The badge is always visible (F-020.R1) and opens the privacy details; Esc, close or a click outside dismiss them (F-020.AC2).

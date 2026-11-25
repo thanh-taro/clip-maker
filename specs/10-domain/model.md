@@ -11,7 +11,6 @@ classDiagram
   Project "1" *-- "*" AudioClip : audio track
   Clip --> Source
   AudioClip --> Source
-  AudioClip --> MusicTrack
 ```
 
 ### ENT-Project — Project
@@ -39,10 +38,9 @@ and fade on/off (RULE-11). Later layers draw on top of earlier ones.
 A range of an audio source (in, out) placed at a start time on the audio track, with volume, mute,
 fade in and fade out (RULE-12).
 
-### ENT-MusicTrack — Bundled music track
-A public-domain track shipped with the tool (RULE-12): id, title, source (the track's page), the source's name, licence and duration.
-Not a source: it isn't listed in the media panel and doesn't count toward RULE-02's limit. An audio
-clip refers to either a source or a bundled music track.
+### ENT-MusicTrack — Music track (deprecated)
+Removed by D-052 (2026-11-25): the tool ships no music, and an audio clip always refers to a source.
+Kept for history so the ID is never reused; nothing may refer to it.
 
 ### ENT-ExportSettings — Export settings
 What the next export produces: kind (video, animated image, audio), and for each kind its choices

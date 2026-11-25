@@ -1,7 +1,7 @@
 ---
 id: F-021
 title: Work offline
-status: shipped
+status: ready
 milestone: M-1
 priority: P2
 personas: [PER-01, PER-03]
@@ -22,13 +22,13 @@ The tool needs nothing from a server once loaded, so it should work without a co
 - Out: background updates.
 
 ## Requirements
-- **R1** During the first online visit the tool fetches every file it can need, including looks, typefaces and bundled music (NFR-01). After one visit long enough to cache them, made the same way (embedded or standalone), the tool opens and every M-1 feature works with no connection.
+- **R1** During the first online visit the tool fetches every file it can need, including looks and typefaces (NFR-01). After one visit long enough to cache them, made the same way (embedded or standalone), the tool opens and every M-1 feature works with no connection.
 - **R2** The tool makes no network requests of its own while open; it checks for a new version only while the page is being opened. The browser may re-check for an update by itself in a long session, and nothing ever reloads.
 - **R3** A new version is used from the next open. An open session is never reloaded.
 
 ## Acceptance criteria
-- **AC1** Given one earlier online visit long enough to cache all files, made the same way (embedded or standalone), when the tool opens offline, then the user can add a video, apply a look, add text and bundled music, and export. (R1)
-- **AC2** Given a first online visit, when the network log is inspected, then every request is for the tool's own files, all of them fetched during that visit; and given a later session, using looks, typefaces, music and export for the first time causes no request. (R1, R2)
+- **AC1** Given one earlier online visit long enough to cache all files, made the same way (embedded or standalone), when the tool opens offline, then the user can add a video, apply a look, add text and their own audio file, and export. (R1)
+- **AC2** Given a first online visit, when the network log is inspected, then every request is for the tool's own files, all of them fetched during that visit; and given a later session, using looks, typefaces and export for the first time causes no request. (R1, R2)
 - **AC3** Given a new version is published while the tool is open, when the user keeps working, then nothing reloads; when the user opens it again online and then once more, then the new version is used. (R3)
 
 ## UX notes

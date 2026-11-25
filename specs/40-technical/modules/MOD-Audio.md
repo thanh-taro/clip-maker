@@ -11,7 +11,7 @@ windowed decode per voice, stereo mapping, 48 kHz resampling, own WSOLA time-str
 sync points (pitch kept, RULE-06), linear volume and mute, fade curves (straight lines; equal power
 in cross-fades), summing and the true-peak limiter (RULE-12). On the main thread side: the
 `AudioContext` created in the Play gesture, the worklet node, the playback clock that the preview
-follows, seeking and flushing, and bundled-music audition in the picker.
+follows, seeking and flushing. (Audition of shipped music was withdrawn by D-052.)
 
 ### Rules from the spikes (2026-11-04)
 Evidence: SP-audio, SP-timestretch, SP-speed, SP-frame, SP-ios (ADR-0008 outcome).
@@ -49,4 +49,4 @@ Evidence: SP-audio, SP-timestretch, SP-speed, SP-frame, SP-ios (ADR-0008 outcome
 - Main thread: `clock.now()` → project time; `onEnded`.
 
 ## Implements
-F-002.R2 (sound with picture), F-005.R3, F-009 (sound), F-011.R3/R5/R7, F-016.R2 (mix); RULE-06, RULE-10 sound, RULE-12 Mix and Volume; INV-02; NFR-08. Decided by ADR-0008.
+F-002.R2 (sound with picture), F-005.R3, F-009 (sound), F-011.R3/R5, F-016.R2 (mix); RULE-06, RULE-10 sound, RULE-12 Mix and Volume; INV-02; NFR-08. Decided by ADR-0008.

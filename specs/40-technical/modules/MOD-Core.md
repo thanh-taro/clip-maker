@@ -21,7 +21,7 @@ protocol between threads.
 - Holding state or history (MOD-Project), any DOM, worker, codec or GPU API.
 
 ## Public surface
-- Types: `Project`, `Source`, `Clip`, `TextLayer`, `AudioClip`, `MusicTrack`, `ExportSettings`, `Micros`.
+- Types: `Project`, `Source`, `Clip`, `TextLayer`, `AudioClip`, `ExportSettings`, `Micros`.
 - Time: `frameStart(k, rate)`, `snapToFrame(t, rate)`, `framesOf(d, rate)`, `minDuration(rate)`.
 - Trusted Types (ADR-0014 amendment, QA-3): `scriptUrl(url)` — a worker or service-worker script URL of the tool's own origin through the one policy `clip-maker` (a plain checked string where the engine has no Trusted Types); `ownScriptUrl(url, base)`.
 - Rule functions named after their rules, returning new values plus the notice to show (e.g. `length_limited`).

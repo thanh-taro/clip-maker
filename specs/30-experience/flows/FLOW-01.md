@@ -22,7 +22,7 @@ flowchart LR
 4. Trim the starts and split out a dull middle — F-004.R1, F-004.R2, F-003.R3
 5. Choose a look and raise Brightness, then Apply to all — F-008.R2, F-007.R1, F-007.R4
 6. Add a title — F-010.R1, F-010.R2
-7. Add bundled music — F-011.R1
+7. Add the user's own music file — F-011.R1
 8. Watch it — F-002.R2
 9. Export at 1080p — F-015.R1, F-015.R5
 

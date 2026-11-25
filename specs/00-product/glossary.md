@@ -11,9 +11,8 @@ Use only these terms in specs, copy, code names and tests.
 | **Main track** | The track of clips that make up the picture. Clips sit end to end with no gaps (INV-03). | video track |
 | **Clip** | A video or photo segment on the main track (ENT-Clip). A video clip uses a range of its source. | segment |
 | **Text layer** | A piece of text shown over the picture between a start and an end time (ENT-TextLayer). | caption, title (titles are text layers) |
-| **Audio track** | The track holding audio clips: music from the user's files or the bundled music. | music track |
+| **Audio track** | The track holding audio clips: music and other sound from the user's audio files. | music track |
 | **Audio clip** | A range of an audio source placed on the audio track (ENT-AudioClip). | |
-| **Bundled music** | The tracks shipped with the tool, all public domain (ENT-MusicTrack, RULE-12). Not sources. | stock music |
 | **Playhead** | The current time in the project, shown in the preview and on the timeline. | cursor |
 | **Preview** | The picture of the project at the playhead, played or paused. | viewer, monitor |
 | **Frame** (of the project) | The output picture's shape and timing: its aspect ratio, frame rate and background (RULE-04). Resolution is chosen at export (RULE-15). | canvas, crop |

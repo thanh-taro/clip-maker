@@ -1,7 +1,7 @@
 ---
 id: F-015
 title: Export video
-status: shipped
+status: ready
 milestone: M-1
 priority: P0
 personas: [PER-01, PER-02, PER-03, PER-04]
@@ -56,7 +56,6 @@ CMP-ExportPanel with COPY-export.title, COPY-export.resolution, COPY-export.qual
 - The page is hidden or the phone locks during export → the export pauses or continues, as the device allows. If it can't continue, it fails cleanly per R6 with COPY-error.export_interrupted.
 - Editing during export → the editor is locked while the export runs.
 - Not enough free storage for scratch space → refused before starting, with COPY-error.no_space.
-- A bundled music track the project uses can't be read when the export starts → the export fails per R6, its text COPY-notice.music_unavailable instead of COPY-error.export_failed; it is never made without the track, and the project is unchanged (F-011).
 - A size target that the panel offered turns out larger than allowed after the one corrective pass → the file is not saved, and the export fails per R6 with COPY-error.export_failed (RULE-15 never allows a file above the target).
 
 ## Open questions

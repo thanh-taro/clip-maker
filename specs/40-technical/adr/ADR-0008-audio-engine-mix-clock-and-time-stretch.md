@@ -158,3 +158,8 @@ SP-frame, SP-ios (iPhone 14 Pro Safari 27.0.1), SP-gpu-color (iOS gesture findin
    ADR-0010). Never serially before the video.
 10. **Determinism**: WSOLA output hashes are identical across engines and become golden test oracles
     (ADR-0016).
+
+## Amendment (D-052, 2026-11-25)
+Owner decision D-052 removes the music shipped with the tool (ADR-0013 amendment), so item 7, the
+picker audition of shipped tracks, is withdrawn. Every audio clip is a user source and plays through
+the same path as before; nothing else in this ADR changes.

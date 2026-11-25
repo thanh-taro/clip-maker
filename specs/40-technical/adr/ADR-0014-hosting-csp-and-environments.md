@@ -142,3 +142,7 @@ install, no foreign requests) run there right after the upload; on a failure the
 restored with wrangler's rollback. The `env.staging` block in `wrangler.jsonc` stays unused, and the
 staging `X-Robots-Tag: noindex` rule now applies only to local and test builds.
 
+## Amendment (D-052, 2026-11-25)
+Owner decision D-052 removes the music shipped with the tool (ADR-0013 amendment). The tool's own
+binary assets are now the look tables only; `connect-src 'self'` stays for them. The dist scan's
+allow-list (QA amendment above) no longer includes the bundled tracks' pages.

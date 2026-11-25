@@ -72,3 +72,11 @@ Evidence: SP-gpu-color, SP-codec.
   owner's local encoder produces. No change.
 - Curation follows D-034 (Claude shortlists ~15 CC0 candidates with licence records; the owner keeps
   8–10); not part of the spikes.
+
+## Amendment (D-052, 2026-11-25)
+Owner decision D-052: the **music part of this ADR is withdrawn**; the looks part (§1, §5 for looks,
+and the looks outcome) is unchanged. The tool ships no music, so there is no music format, candidate
+list, per-track registry rows or music loading (§2–§4 and the music half of §5 no longer apply).
+Reason: no risk of a content-ID claim from shipped tracks. Music now comes only from the user's own
+audio files through the normal intake (F-011.R1); F-011.R6 and F-011.R7 are retired. The music
+registry rows are `removed` (dependencies.md, DEP-14).

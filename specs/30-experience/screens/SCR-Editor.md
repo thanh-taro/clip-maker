@@ -3,7 +3,7 @@ id: SCR-Editor
 title: Editor
 status: ready
 features: [F-001, F-002, F-003, F-004, F-005, F-006, F-007, F-008, F-009, F-010, F-011, F-012, F-013, F-014, F-015, F-016, F-017, F-018, F-019, F-020, F-021, F-022, F-023]
-components: [CMP-Toolbar, CMP-Preview, CMP-Timeline, CMP-MediaPanel, CMP-Inspector, CMP-LookGallery, CMP-TextEditor, CMP-MusicPicker, CMP-ExportPanel, CMP-ExportProgress, CMP-EmptyState, CMP-DropOverlay, CMP-Notice, CMP-ConfirmDialog, CMP-ShortcutHelp, CMP-StatusBar]
+components: [CMP-Toolbar, CMP-Preview, CMP-Timeline, CMP-MediaPanel, CMP-Inspector, CMP-LookGallery, CMP-TextEditor, CMP-ExportPanel, CMP-ExportProgress, CMP-EmptyState, CMP-DropOverlay, CMP-Notice, CMP-ConfirmDialog, CMP-ShortcutHelp, CMP-StatusBar]
 ---
 
 ## Purpose
@@ -17,7 +17,7 @@ The only working screen. The user adds media, edits on the timeline, and exports
 5. CMP-MediaPanel, opened from the toolbar on narrow widths.
 6. CMP-StatusBar.
 
-Overlays: CMP-LookGallery, CMP-MusicPicker, CMP-ExportPanel, CMP-ExportProgress, CMP-DropOverlay, CMP-Notice, CMP-ConfirmDialog and CMP-ShortcutHelp.
+Overlays: CMP-LookGallery, CMP-ExportPanel, CMP-ExportProgress, CMP-DropOverlay, CMP-Notice, CMP-ConfirmDialog and CMP-ShortcutHelp.
 
 The desktop and phone layouts are designed in phase 2 (PRN-06, NFR-07).
 

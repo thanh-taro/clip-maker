@@ -1,12 +1,16 @@
 ---
 id: CMP-MusicPicker
 title: Music picker
-status: ready
+status: deprecated
 tokens: [font.family.body, font.family.mono, font.weight.medium, font.weight.semibold, border.width.hairline, border.width.focus, motion.duration.fast, color.dark.accent, color.light.accent, color.dark.bg, color.light.bg, color.dark.fg, color.light.fg, color.dark.focus, color.light.focus, color.dark.line, color.light.line, color.dark.lineStrong, color.light.lineStrong, color.dark.muted, color.light.muted, color.dark.onAccent, color.light.onAccent, color.dark.selection, color.light.selection, color.dark.surface, color.light.surface, color.dark.surface2, color.light.surface2, space.5, space.3, space.1_5, space.2_5, radius.sm, space.3_5, font.size.xs, space.1, radius.md, font.size.md, font.size.sm, space.2, radius.pill, font.size.input, font.size.lg, space.4, space.0_5, font.size.base, size.popover, size.toolButton, size.touchTarget, size.targetMin, size.icon.sm, size.icon.md, motion.duration.base]
 ---
 
+> **Deprecated by D-052 (2026-11-25).** The tool ships no music, so there is no picker: Music opens
+> the file picker for the user's own audio files (F-011.R1; CMP-Toolbar, CMP-Inspector "narrow
+> sheets"). This file is kept for history only; do not design or build from it.
+
 ## Purpose
-Browse and preview the bundled music, then add a track at the playhead.
+Browse and preview the music shipped with the tool, then add a track at the playhead.
 
 ## Anatomy
 Header (COPY-music.title) with Close (COPY-action.close); "your audio" row (COPY-music.your_audio_hint, COPY-music.your_audio); track list with Play preview (COPY-music.preview), title, length in m:ss, licence, the source's name as a link to the track's page (opens in a new tab), and Add at playhead (COPY-music.add); a link to COPY-privacy.notices.

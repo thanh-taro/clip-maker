@@ -19,7 +19,7 @@ Every edit starts with getting footage, photos and sound in. That must take one 
 
 ## Scope
 - In: picking files, dropping files, and pasting files; video, photo and audio sources; several files at once; checking each file; placing new media on the timeline; the media panel listing sources; removing a source.
-- Out: recording from a camera or microphone (M-2); links or web media, which are never fetched (NFR-01); bundled music (F-011).
+- Out: recording from a camera or microphone (M-2); links or web media, which are never fetched (NFR-01). The Music action uses this intake for audio files only (F-011).
 
 ## Requirements
 - **R1** The user can add one or more files by picking them, dropping them on the tool, or pasting them.

@@ -37,3 +37,8 @@ cache. The tool shows nothing about this; a failed precache is retried on the ne
 - Embedded and standalone keep separate caches (partitioned storage), as F-021.R1 already says.
 
 <!-- Accepted ADRs are immutable. Write a new ADR to change a decision. -->
+
+## Amendment (D-052, 2026-11-25)
+Owner decision D-052 removes the music shipped with the tool (ADR-0013 amendment). The asset manifest
+and the precache no longer hold music, and MOD-Assets reads only looks through these URLs. The first
+visit's background download shrinks by the music pack's ≈ 9 MB; the rest of the decision is unchanged.
