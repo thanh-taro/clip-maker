@@ -1,10 +1,10 @@
-# Resume point — 2026-11-25, 1.0.0 live
+# Resume point — 2026-11-25, 1.1.0 live (D-052: no bundled music)
 
-**State:** all phases done. Gate G7 passed: the owner confirmed `v1.0.0` live at `https://clip-maker.tarokit.app` (`.build-my-app/reports/deploy-1.0.0.md`). No staging host (D-051).
+**State:** all phases done. 1.1.0 deployed 2026-11-25 (`deploy-1.1.0.md`; rollback target 1.0.0 `3d9c129d`). Gate G7 for 1.0.0 passed: the owner confirmed `v1.0.0` live at `https://clip-maker.tarokit.app` (`.build-my-app/reports/deploy-1.0.0.md`). No staging host (D-051).
 
 ## Next
 - Changes or new features: `/build-my-app:change` (spec first, then a new candidate `1.0.1`/`1.1.0`, re-verified, deployed with `pnpm dlx wrangler@4.157.0 deploy --env="" --assets release/<version>`).
-- Owner to-do: fill `CONTACT_EMAIL` and the effective date in `docs/legal/*`, publish them (e.g. on the portal); optional lawyer review; optional listen to the 9 music tracks.
+- Owner to-do: fill `CONTACT_EMAIL` and the effective date in `docs/legal/*`, publish them (e.g. on the portal); optional lawyer review.
 - Waived device checks (QA-5) remain in `qa-owner-checklist.md` for a later pass.
 
 ## Machine rules (the PC crashed twice from test memory)

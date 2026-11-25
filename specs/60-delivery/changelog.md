@@ -2,6 +2,9 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-25 — Released 1.1.0 to production (D-052)
+- `v1.1.0` (the `v1.1.0-rc.1` build, unchanged) is live at `https://clip-maker.tarokit.app`, replacing 1.0.0; no music ships. Checks: `.build-my-app/reports/deploy-1.1.0.md`.
+
 ## 2026-11-25 — Release candidate 1.1.0 (D-052)
 - F-011, F-015, F-020 and F-021 rebuilt for D-052 and `shipped`. Version 1.1.0, candidate `v1.1.0-rc.1` (local tag); verification in `.build-my-app/reports/release-1.1.0.md`.
 
