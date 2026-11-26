@@ -5,7 +5,8 @@
 // wall-clock time, so it runs alone: `pnpm exec playwright test colour-tools --project=webkit-realtime --no-deps`).
 import { expect, test, type Page } from '@playwright/test';
 import { reference } from '../../src/compositor';
-import type { Adjustments, ColourTools } from '../../src/core';
+import { rgbHex, type Adjustments, type ColourTools } from '../../src/core';
+import { hueRing } from '../support/hue-ring';
 import { deRgb, type Rgb } from '../support/colour';
 import { MEDIA_HARNESS_PORT } from './support/ports';
 
@@ -40,6 +41,8 @@ interface Harness {
     };
   };
 }
+/** The hex of hue-ring step k (as a pick stores it). */
+const ringHex = (k: number): string => rgbHex(hueRing()[k]!);
 const rgb = (c: readonly number[]): Rgb => [c[0]! / 255, c[1]! / 255, c[2]! / 255];
 
 /** Every colour tool on (the build has four in 1.2.0), as in NFR-03's load. */
@@ -132,6 +135,17 @@ test.describe('RULE-24 colour tools on the GPU (media harness)', () => {
     ['2 replacements', { replace: REPLACE.slice(0, 2) }],
     ['3 replacements', { replace: REPLACE }],
     ['3 replacements with every other tool', { ...ALL_TOOLS, replace: REPLACE }],
+    // F-028.AC14's overlapping pair (ring steps 30° → 210° and 50° → 150°, Range 100): pixels both match, so the
+    // shader's shares (1 − Σ earlier) and their combination are compared with the CPU oracle (code review M2).
+    [
+      'AC14 overlapping pair',
+      {
+        replace: [
+          { from: ringHex(30), to: ringHex(210), range: 100, softness: 50 },
+          { from: ringHex(50), to: ringHex(150), range: 100, softness: 50 },
+        ],
+      },
+    ],
   ];
   for (const [name, tools] of REPLACE_SETS)
     for (const chart of ['ring', 'ramp', 'colours'] as const)

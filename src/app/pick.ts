@@ -10,7 +10,7 @@
 // Implements: F-028.R1/R2/R4/R8, RULE-25 *Pick mode*, *Picking*, RULE-13 (one step per pick).
 import { computed, effect, signal } from '@preact/signals';
 import { t } from '../copy';
-import { frameIndexAt, frameStart, layoutOf, pickStartFrame, type Notice } from '../core';
+import { frameIndexAt, frameStart, layoutOf, pickStartFrame, REPLACE_MAX, type Notice } from '../core';
 import { addReplacement, edit, playhead, project, setReplacement } from '../project';
 import { announce } from './announce';
 import { selectedClip } from './arrange';
@@ -77,6 +77,7 @@ const notice = (n: Notice): void => {
 export function commitPick(hex: string): void {
   const m = pickMode.peek();
   if (!m) return;
+  const before = project.peek();
   const notices = edit((p) =>
     m.target.kind === 'add'
       ? addReplacement(p, m.clipId, hex)
@@ -86,9 +87,13 @@ export function commitPick(hex: string): void {
     notice('notice.replace_grey');
     return;
   }
-  announce(t('replace.picked', { hex }));
+  // Announced only when the pick changed the clip (the replacement may have gone meanwhile, by undo).
+  if (project.peek() !== before) announce(t('replace.picked', { hex }));
   for (const n of notices) notice(n);
   endPick(true);
+  // The third Add leaves Add unavailable: focus goes to the new card's Pick from preview instead.
+  const count = project.peek().clips.find((c) => c.id === m.clipId)?.colourTools?.replace?.length ?? 0;
+  if (m.target.kind === 'add' && count >= REPLACE_MAX) pickReturn.value = count - 1;
 }
 
 /**

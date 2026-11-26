@@ -6,7 +6,7 @@
 // uniforms; sharpen radius and grain cell relative to s), RULE-10 (fade opacity, cross-fade weights),
 // F-010.R5 (text bitmaps drawn at the output scale), F-007.R7 (compare: one clip without grade or look),
 // F-008.R2 (a look previewed on one clip, preview only); RULE-24 (the clip's colour tools; compare drops them).
-import { PALETTE_HEX, placedRect, type Frame, type Look, type Placement } from '../core';
+import { linearToSrgb, PALETTE_HEX, placedRect, srgbToLinear, type Frame, type Look, type Placement } from '../core';
 import type { FramePlan } from '../plan';
 import { clipHash, gradeUniforms, grainCell, NEUTRAL, type GradeUniforms, type Rgb } from './grade';
 
@@ -262,11 +262,8 @@ export function discMean(
   r: number,
   rect: { x0: number; y0: number; x1: number; y1: number },
 ): Rgb | null {
-  const lin = (v: number): number => {
-    const c = v / 255;
-    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  };
-  const enc = (l: number): number => (l <= 0.0031308 ? l * 12.92 : 1.055 * Math.pow(l, 1 / 2.4) - 0.055);
+  const lin = (v: number): number => srgbToLinear(v / 255);
+  const enc = linearToSrgb;
   const sum = [0, 0, 0];
   let n = 0;
   for (let j = 0; j < side; j++)

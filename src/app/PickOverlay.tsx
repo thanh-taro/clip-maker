@@ -1,7 +1,7 @@
 // MOD-App — CMP-Preview "picking a colour" (RULE-25 pick mode, F-028): over the preview canvas while pick mode is on,
 // a layer that takes every pointer, so drags and pinches never move or scale the clip (the placement and text
 // overlays are under it and hidden); a crosshair over the clip's picture and the normal pointer elsewhere; the quiet
-// pill COPY-replace.picking (or COPY-replace.picking_keys) with Cancel (COPY-replace.pick_cancel) in the top-left
+// pill COPY-replace.picking (or COPY-replace.picking_keys) and COPY-replace.original with Cancel (COPY-replace.pick_cancel) in the top-left
 // corner. A mouse picks on release; on touch, pressing shows a round magnifier (an enlarged view of the picture
 // around the finger with a centre ring in the colour a lift would pick; above the finger, or below it near the
 // preview's top edge) and lifting picks. Started by keyboard, a marker (COPY-replace.marker, value
@@ -61,6 +61,23 @@ export function PickOverlay({ stage }: { readonly stage: RefObject<HTMLElement> 
   const [mark, setMark] = useState<{ x: number; y: number } | null>(null);
   const [markHex, setMarkHex] = useState<string | null>(null);
   const part = box ? visiblePart(box) : null;
+  // Under 400 px the pill sits just below the playback row (CMP-Preview): its top follows that row's bottom.
+  const [barTop, setBarTop] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!mode) return undefined;
+    const narrow = window.matchMedia('(width < 400px)');
+    const place = (): void => {
+      const row = document.querySelector('.tk-transport');
+      setBarTop(narrow.matches && row ? row.getBoundingClientRect().bottom + 4 : null);
+    };
+    place();
+    window.addEventListener('resize', place);
+    narrow.addEventListener('change', place);
+    return () => {
+      window.removeEventListener('resize', place);
+      narrow.removeEventListener('change', place);
+    };
+  }, [mode]);
   // Follow the clip's placement (the crosshair area and the marker's bounds).
   void placementTarget.value;
 
@@ -143,7 +160,11 @@ export function PickOverlay({ stage }: { readonly stage: RefObject<HTMLElement> 
           if (!c || !g) return;
           c.width = s.side;
           c.height = s.side;
-          g.putImageData(new ImageData(new Uint8ClampedArray(s.rgba), s.side, s.side), 0, 0);
+          // Near the frame's edge the block read is kept inside the frame: shift it so the finger's point is
+          // under the centre ring (the uncovered part stays clear).
+          g.clearRect(0, 0, s.side, s.side);
+          const img = new ImageData(new Uint8ClampedArray(s.rgba), s.side, s.side);
+          g.putImageData(img, Math.round(s.side / 2 - s.x), Math.round(s.side / 2 - s.y));
         });
     };
     const onDown = (e: PointerEvent): void => {
@@ -224,6 +245,8 @@ export function PickOverlay({ stage }: { readonly stage: RefObject<HTMLElement> 
     // Kept within the clip's visible picture.
     x = Math.min(p.x1 / box.width, Math.max(p.x0 / box.width, x));
     y = Math.min(p.y1 / box.height, Math.max(p.y0 / box.height, y));
+    // The colour under the new spot is read again; until then the value text reads "…", never the old colour.
+    setMarkHex(null);
     setMark({ x: Math.round(x * 1e6) / 1e6, y: Math.round(y * 1e6) / 1e6 });
   };
 
@@ -282,10 +305,13 @@ export function PickOverlay({ stage }: { readonly stage: RefObject<HTMLElement> 
         ) : null}
       </div>
       {/* CMP-Preview "picking a colour": the quiet pill with Cancel, top-left (the same pill recipe as compare). */}
-      <div class="tk-pick-pill" data-section="pick-mode">
+      <div class="tk-pick-pill" data-section="pick-mode" style={barTop === null ? undefined : { top: `${barTop}px` }}>
         <span class="tk-pick-pill__text" role="status">
           <Icon name="eyedropper" size={14} />
-          {mode.keys ? t('replace.picking_keys') : t('replace.picking')}
+          <span class="tk-pick-pill__lines">
+            <span>{mode.keys ? t('replace.picking_keys') : t('replace.picking')}</span>
+            <span class="tk-pick-pill__note">{t('replace.original')}</span>
+          </span>
         </span>
         <button type="button" class="tk-pick-pill__cancel" data-action="pick-cancel" onClick={() => endPick(true)}>
           {t('replace.pick_cancel')}

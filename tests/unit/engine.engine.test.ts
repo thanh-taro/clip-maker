@@ -331,9 +331,13 @@ describe('MOD-Engine messages', () => {
     expect(picked.layers).toEqual([{ clipId: 'b', look: null }]);
     expect(picked.texts).toBe(0);
     expect(r.comp.overlays).toBe(overlays);
+    // A look previewed in the gallery never grades the pick picture (review minor 6).
+    await r.send({ type: 'engine:previewLook', clipId: 'b', look: { id: 'cine-moody', intensity: 100 } });
+    expect(r.comp.paints.at(-1)!.lookPreview).toBeNull();
     await r.send({ type: 'engine:pick', clipId: null });
     expect(r.comp.paints.at(-1)!.layers.map((l) => l.clipId)).toEqual(['a', 'b']);
     expect(r.comp.paints.at(-1)!.texts).toBe(1);
+    expect(r.comp.paints.at(-1)!.lookPreview).toMatchObject({ clipId: 'b' });
   });
 
   it('RULE-25 ADR-0017 §7 the eyedropper answers with the disc’s colour after the next exact paint, null outside the clip’s picture', async () => {

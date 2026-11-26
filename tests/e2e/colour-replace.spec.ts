@@ -41,6 +41,7 @@ const ORANGE = [220, 140, 40];
 const GREEN = [46, 158, 58];
 const BLUE = [40, 80, 220];
 const GREY = [128, 128, 128];
+const WHITE = [255, 255, 255];
 const FAINT = [154, 138, 138]; // C* about 8: faint (RULE-25)
 const PATCHES = [RED, ORANGE, GREEN, BLUE, GREY];
 const rgbOf = (s: string): number[] => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16));
@@ -117,7 +118,20 @@ async function at(page: Page, [x, y]: Point): Promise<Point> {
   return [b.x + x * b.width, b.y + y * b.height];
 }
 
+/** Under 400 px the picture makes room for the pick pill: wait until the frame and the pick layer agree. */
+async function settled(page: Page): Promise<void> {
+  await expect
+    .poll(async () => {
+      const a = await canvas(page).boundingBox();
+      const b = await page.locator('.tk-pick-layer').boundingBox();
+      if (!a || !b) return true;
+      return Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1 && Math.abs(a.width - b.width) < 1;
+    })
+    .toBe(true);
+}
+
 async function clickFrame(page: Page, p: Point): Promise<void> {
+  await settled(page);
   const [x, y] = await at(page, p);
   await page.mouse.click(x, y);
 }
@@ -211,6 +225,8 @@ test.describe('F-028 colour replace (app harness)', () => {
     const g = group(panel);
     await expect(g.locator('[data-replacement]')).toHaveCount(3);
     await expect(addButton(panel)).toBeDisabled();
+    // Add is unavailable now: focus went to the new card's Pick from preview, not to the page.
+    await expect(card(g, 2).locator('[data-action="replace-pick-2"]')).toBeFocused();
     await expect(g.locator('[data-notice="replace_limit"]')).toHaveText(text('en-US', 'replace.limit'));
     await expect(addButton(panel)).toHaveAttribute(
       'aria-describedby',
@@ -250,6 +266,11 @@ test.describe('F-028 colour replace (app harness)', () => {
     await page.keyboard.press('Enter');
     await expect(marker).toBeFocused();
     await page.keyboard.press('Shift+ArrowRight');
+    // Moved: the old spot's colour is never read with the new position.
+    await expect(marker).not.toHaveAttribute(
+      'aria-valuetext',
+      new RegExp(`^${(await marker.getAttribute('data-hex'))!}, 60 %`),
+    );
     await page.keyboard.press('Shift+ArrowRight');
     await expect(marker).toHaveAttribute('aria-valuenow', '70');
     await expect(marker).toHaveAttribute('aria-valuetext', new RegExp(`, 70 %, 50 %$`));
@@ -401,7 +422,7 @@ test.describe('F-028 colour replace (app harness)', () => {
     expect(await replaceOf(page)).toEqual([]);
   });
 
-  test('F-028.AC11 F-028.R6 the first one’s Range Reset returns only it to 30; the group Reset removes every replacement; the group shows Changed with one at To = From', async ({
+  test('F-028.AC11 F-028.R6 the first one’s Range Reset returns only it to 30; the group Reset removes every replacement; with To = From the group has its Reset, the To button reads COPY-replace.to_unset, and Changed shows once a To differs', async ({
     page,
   }) => {
     const panel = await setUp(page);
@@ -409,6 +430,22 @@ test.describe('F-028 colour replace (app harness)', () => {
     await addByPick(page, panel, [0.5, 0.5]);
     const g = group(panel);
     const toggleName = `${text('en-US', 'colour_tools.group_replace')} ${text('en-US', 'colour_tools.changed')}`;
+    // To still equals From: no Changed mark yet, but the group Reset is there; To reads "Choose a colour", dashed.
+    await expect(
+      panel.getByRole('button', { name: text('en-US', 'colour_tools.group_replace'), exact: true }),
+    ).toBeVisible();
+    await expect(panel.locator('[data-action="reset-replace"]')).toBeVisible();
+    const to0 = card(g, 0).locator('[data-action="colour-replace-0-to"]');
+    await expect(to0).toHaveClass(/tk-colour-button--unset/);
+    await expect(to0).toContainText(text('en-US', 'replace.to_unset'));
+    await to0.click();
+    const hexField = card(g, 0).getByRole('textbox', { name: text('en-US', 'picker.hex') });
+    await hexField.fill('#0050FF');
+    await hexField.press('Enter');
+    await card(g, 0)
+      .getByRole('button', { name: text('en-US', 'picker.done') })
+      .click();
+    await expect(to0).not.toHaveClass(/tk-colour-button--unset/);
     await expect(panel.getByRole('button', { name: toggleName, exact: true })).toBeVisible();
     for (const [i, v] of [
       [0, '70'],
@@ -449,10 +486,12 @@ test.describe('F-028 colour replace (app harness)', () => {
     page,
     browserName,
   }) => {
-    const panel = await setUp(page);
+    const panel = await setUp(page, [[RED, WHITE, GREEN, BLUE, GREY]]);
     const placement = (await clipsOf(page))[0]!.placement;
     await addButton(panel).click();
     const [ax, ay] = await at(page, [0.1, 0.6]);
+    const [wx] = await at(page, [0.3, 0.6]);
+    const [ex] = await at(page, [0.2, 0.6]);
     const [bx] = await at(page, [0.7, 0.6]);
     const layer = page.locator('.tk-pick-layer');
     const touch = (type: string, x: number, target: 'layer' | 'window') =>
@@ -475,6 +514,15 @@ test.describe('F-028 colour replace (app harness)', () => {
     const lens = page.locator('.tk-pick-lens');
     await expect(lens).toBeVisible();
     await expect.poll(async () => close((await lens.getAttribute('data-hex')) ?? '#000000', RED)).toBe(true);
+    // The rims read over a white picture, and over an edge (red | white) the ring sits on the finger's point.
+    await page.waitForTimeout(60);
+    await touch('pointermove', wx, 'window');
+    await expect.poll(async () => close((await lens.getAttribute('data-hex')) ?? '#000000', WHITE)).toBe(true);
+    if (browserName === 'chromium') await page.screenshot({ path: `${SHOTS}magnifier-white-wide-en-US.png` });
+    await page.waitForTimeout(60);
+    await touch('pointermove', ex, 'window');
+    await page.waitForTimeout(150);
+    if (browserName === 'chromium') await page.screenshot({ path: `${SHOTS}magnifier-edge-wide-en-US.png` });
     for (let i = 1; i <= 6; i++) {
       await touch('pointermove', ax + ((bx - ax) * i) / 6, 'window');
       await page.waitForTimeout(60);
@@ -506,8 +554,21 @@ test.describe('F-028 colour replace (app harness)', () => {
       await shot(page, `inspector-replace-wide-${lang}`, browserName);
       await axe(page);
       // Pick mode by pointer, then by keyboard (the marker).
+      // A graded clip: pick mode shows the original colours, and the pill says so.
+      for (const [name, v] of [
+        ['brightness', '50'],
+        ['contrast', '60'],
+        ['saturation', '-70'],
+      ] as const) {
+        const fld = panel.locator(`[data-control="adjust-${name}-field"]`);
+        await fld.fill(v);
+        await fld.press('Enter');
+      }
+      await shot(page, `graded-before-pick-wide-${lang}`, browserName);
       await card(g, 0).locator('[data-action="replace-pick-0"]').click();
       await expect(pill(page)).toBeVisible();
+      await expect(pill(page)).toContainText(text(lang, 'replace.original'));
+      await expectPreview(page, [[0.1, 0.5]], ([c]) => near(c!, RED, 6));
       await shot(page, `pick-mode-wide-${lang}`, browserName);
       await axe(page);
       await page.keyboard.press('Escape');
@@ -519,6 +580,13 @@ test.describe('F-028 colour replace (app harness)', () => {
       await shot(page, `pick-keys-wide-${lang}`, browserName);
       await axe(page);
       await page.keyboard.press('Escape');
+      // The limit: three cards, Add unavailable with COPY-replace.limit under it.
+      await addByPick(page, panel, [0.3, 0.5]);
+      await expect(addButton(panel)).toBeDisabled();
+      await g.locator('.tk-replace__add').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      for (const x of await page.locator('.tk-notice__close').all()) await x.click();
+      await shot(page, `inspector-replace-limit-wide-${lang}`, browserName);
+      await axe(page);
     });
 
     test(`F-028 CMP-Inspector "colour replace (1.3.0)" narrow RULE-21 NFR-07 the phone Adjust sheet: cards at 320 px (From → To on one row, Pick full width, Remove an icon button), pick mode with the sheet open, no sideways scroll, axe (${lang})`, async ({
@@ -550,8 +618,10 @@ test.describe('F-028 colour replace (app harness)', () => {
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
       const [sw, cw] = await sheet.locator('.tk-sheet__body').evaluate((el) => [el.scrollWidth, el.clientWidth]);
       expect(sw).toBeLessThanOrEqual(cw!);
-      await c.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      // The group header and the help text show above the card.
+      await sheet.locator('[data-action="toggle-replace"]').evaluate((el) => el.scrollIntoView({ block: 'start' }));
       for (const x of await page.locator('.tk-notice__close').all()) await x.click();
+      await expect(g.locator('.tk-ctool__help').first()).toBeInViewport();
       await shot(page, `sheet-replace-narrow-${lang}`, browserName);
       await axe(page);
       // Pick mode: the sheet stays open and the preview above takes the pick.
@@ -560,10 +630,26 @@ test.describe('F-028 colour replace (app harness)', () => {
       await expect(sheet).toBeVisible();
       const pb2 = (await pill(page).boundingBox())!;
       expect(pb2.x + pb2.width).toBeLessThanOrEqual(320);
+      // Under 400 px the pill sits below the playback row: it covers neither the picture nor the transport.
+      const cv = (await canvas(page).boundingBox())!;
+      const row = (await page.locator('.tk-transport').boundingBox())!;
+      expect(pb2.y).toBeGreaterThanOrEqual(cv.y + cv.height);
+      expect(pb2.y).toBeGreaterThanOrEqual(row.y + row.height);
+      const cancel = (await page.locator('[data-action="pick-cancel"]').boundingBox())!;
+      expect(cancel.height).toBeGreaterThanOrEqual(44);
+      await expect(page.locator('[data-action="next-frame"]').first()).toBeVisible();
       await shot(page, `pick-mode-narrow-${lang}`, browserName);
       await axe(page);
       await clickFrame(page, [0.5, 0.5]);
       await expect.poll(async () => close((await replaceOf(page))[0]!.from, GREEN)).toBe(true);
+      // The limit at 320 px.
+      await addByPick(page, sheet, [0.1, 0.5]);
+      await addByPick(page, sheet, [0.7, 0.5]);
+      await expect(addButton(sheet)).toBeDisabled();
+      await g.locator('.tk-replace__add').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      for (const x of await page.locator('.tk-notice__close').all()) await x.click();
+      await shot(page, `sheet-replace-limit-narrow-${lang}`, browserName);
+      await axe(page);
     });
   }
 });

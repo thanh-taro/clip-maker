@@ -136,7 +136,11 @@ Refines §5 and §7 for colour replace (RULE-25); the decision is unchanged.
   on To's hue at w = 1 and changes by at most about 0.24° per 0.01° of input at the defaults (a
   per-pixel shorter way would jump 77° for From 30° → To 185°). With a grey To colour h is kept.
   C' = C × ((1 − w) + w × C_to ÷ C_from); L kept; then §2's gamut reduction. Effective weights:
-  w_k × (1 − Σ earlier effective weights), so the total never exceeds 1.
+  w_k × (1 − Σ earlier effective weights), so the total never exceeds 1. Several replacements combine as
+  shares of the pixel (build review M1, 2026-11-26): h' = h + Σ w_k (Δ_k − d_k), C' = C × (1 + Σ w_k (r_k − 1)),
+  r_k = C_to ÷ C_from (0 for a grey To, whose hue term is 0), then one gamut reduction. Shader variants: one
+  CT_REP bit with a fixed loop of three (unused slots weigh 0), so the grade has at most 32 programs (5 stage
+  bits) and editing the count compiles nothing new.
 - **§7 eyedropper.** The read region is sized to the disc, 2⌈r⌉ + 1 pixels square, not a fixed
   33 × 33; the disc is averaged in linear light, then encoded and rounded to #RRGGBB. In pick mode
   the preview paints a plan with only the selected clip's source stage over the background (a Blur

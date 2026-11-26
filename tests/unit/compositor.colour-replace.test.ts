@@ -4,6 +4,7 @@
 // GPU and export halves are in tests/e2e/colour-tools.spec.ts; the UI halves in tests/e2e/colour-replace.spec.ts.
 import { describe, expect, it } from 'vitest';
 import { discMean, discSide, gradeUniforms, NEUTRAL, reference } from '../../src/compositor';
+import { colourDefines, colourStages, CT_REP } from '../../src/compositor/grade';
 import {
   fromLch,
   fromStatus,
@@ -101,6 +102,37 @@ describe('RULE-25 colour replace — settings and identity (CPU reference)', () 
     expect(fromStatus(faint)).toBe('faint');
     // A stored grey From (a file may hold one) changes nothing.
     expect(replaceParams({ from: '#808080', to: BLUE, range: 30, softness: 50 })).toBeNull();
+  });
+
+  it('RULE-25 *Several replacements* the shares combine as h + Σ w(Δ − d) and C × (1 + Σ w(ratio − 1)): two grey To colours at 0.5 each leave the pixel grey', () => {
+    // Two replacements with the same From (so the first takes half where its weight is 0.5) and grey To colours.
+    const from = ringHex(30);
+    const t: ColourTools = {
+      replace: [
+        { from, to: '#808080', range: 30, softness: 50 },
+        { from, to: '#606060', range: 30, softness: 50 },
+      ],
+    };
+    const ps = params(t);
+    RING.forEach((c) => {
+      const w = replaceWeights(srgbToOklab(c), ps);
+      const [L, C] = ok(c);
+      const [L2, C2] = ok(reference.grade(c, {}, null, null, t) as Rgb);
+      expect(Math.abs(L2 - L)).toBeLessThan(0.005);
+      // Shares: C × (1 − w1 − w2), never the product (1 − w1)(1 − w2).
+      expect(C2).toBeCloseTo(C * (1 - w[0]! - w[1]!), 3);
+    });
+  });
+
+  it('ADR-0017 §9 and its 2026-11-26 Amendment colour replace adds one shader bit: 1, 2 and 3 replacements share one program, at most 32 grade programs', () => {
+    const r = (n: number): ColourTools => ({
+      replace: Array.from({ length: n }, (_, i) => ({ from: ringHex(40 * i), to: BLUE, range: 30, softness: 50 })),
+    });
+    const sets = [1, 2, 3].map((n) => colourStages(gradeUniforms({}, null, r(n))));
+    expect(new Set(sets)).toEqual(new Set([CT_REP]));
+    expect(colourStages(gradeUniforms({}, null, {}))).toBe(0);
+    expect(colourDefines(CT_REP)).toContain('#define CT_REP 1');
+    expect(CT_REP * 2).toBe(32);
   });
 
   it('RULE-24 *Quality* RULE-25 colour replace never changes a grey pixel by ΔE00 0.5 or more, at any setting', () => {

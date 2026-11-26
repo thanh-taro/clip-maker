@@ -19,6 +19,7 @@ import {
   RULE_24,
   COLOUR_RANGES,
   REPLACE_RANGE,
+  rgbHex,
   REPLACE_SOFTNESS,
   fromStatus,
   hueWheelRgb,
@@ -33,7 +34,6 @@ import {
   type Notice,
   type Project,
   type SplitToning,
-  type Vec3,
 } from '../core';
 import {
   beginGesture,
@@ -101,7 +101,7 @@ const toolsOf = (p: Project, id: string): ColourTools | undefined => p.clips.fin
  * CMP-Inspector: a group shows "changed" and its Reset while the tool is on and changes the picture: any mixer
  * or split toning value away from default, colour pop with a colour kept, duotone with a pair or Custom chosen.
  * Colour pop's Range and Amount at None, and duotone's remembered colours, are kept but not shown as changed. Colour
- * replace shows changed with at least one replacement, even with To equal to From, so its Reset is reachable.
+ * replace shows changed once a replacement's To differs from its From (its Reset shows with any replacement).
  */
 export function toolChanged(tools: ColourTools | undefined, tool: ToolName): boolean {
   switch (tool) {
@@ -114,9 +114,13 @@ export function toolChanged(tools: ColourTools | undefined, tool: ToolName): boo
     case 'duotone':
       return tools?.duotone?.on === true;
     case 'replace':
-      return (tools?.replace?.length ?? 0) > 0;
+      return (tools?.replace ?? []).some((r) => r.to !== r.from);
   }
 }
+
+/** CMP-Inspector: a group's Reset shows while it is changed, and colour replace's while any replacement exists. */
+export const toolResettable = (tools: ColourTools | undefined, tool: ToolName): boolean =>
+  toolChanged(tools, tool) || (tool === 'replace' && (tools?.replace?.length ?? 0) > 0);
 
 /** F-024.R5: a range with a changed value is marked as changed. */
 export const rangeChanged = (tools: ColourTools | undefined, range: ColourRangeName): boolean =>
@@ -431,11 +435,8 @@ export function parseHex(input: string): string | null {
   return /^[0-9a-f]{6}$/i.test(s) ? `#${s}`.toUpperCase() : null;
 }
 
-const byte = (x: number): string =>
-  Math.round(Math.min(1, Math.max(0, x)) * 255)
-    .toString(16)
-    .padStart(2, '0');
-export const rgbHex = ([r, g, b]: Vec3): string => `#${byte(r)}${byte(g)}${byte(b)}`.toUpperCase();
+/** sRGB values → #RRGGBB (MOD-Core). */
+export { rgbHex };
 
 export interface Hsl {
   readonly h: number;

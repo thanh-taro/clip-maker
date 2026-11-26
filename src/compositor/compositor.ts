@@ -432,8 +432,10 @@ class GlCompositor implements Compositor {
     gl.uniform1i(p.u('uHue'), 3);
     // RULE-25 colour replace (ADR-0017 §5): the replacements' parameters, in list order.
     if (u.replace) {
-      const a = new Float32Array(12);
-      const b = new Float32Array(12);
+      // Unused slots weigh 0: their chroma fade (smoothstep from 1e9 to 2e9) is never reached.
+      // (Fade 1, so no smoothstep has equal edges.)
+      const a = new Float32Array([0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0]);
+      const b = new Float32Array([0, 0, 0, 0, 1e9, 2e9, 1, 0, 1e9, 2e9, 1, 0]);
       u.replace.params.forEach((r, k) => {
         a.set([r.fromH, r.full, r.fade, r.delta], k * 4);
         b.set([r.cLo, r.cHi, r.ratio, r.toGrey ? 1 : 0], k * 4);
@@ -457,7 +459,7 @@ class GlCompositor implements Compositor {
 
   /**
    * ADR-0017 §9 fallback (SP-colour-tools): the grade program for this set of colour stages, compiled on first
-   * use and kept (at most 16; set 0 — no colour tools — is compiled at start-up).
+   * use and kept (at most 32, one per set of the five stage bits; set 0 — no colour tools — is compiled at start-up).
    */
   private gradeProgram(r: Resources, u: GradeUniforms): Program {
     const stages = colourStages(u);

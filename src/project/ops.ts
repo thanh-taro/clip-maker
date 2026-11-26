@@ -834,7 +834,9 @@ export function setReplacement(p: Project, id: string, index: number, change: Pa
     if (!list[index]) return t;
     return { ...t, replace: list.map((x, i) => (i === index ? { ...x, ...change } : x)) };
   });
-  return r.project !== p && notices.length ? { ...r, notices } : r;
+  // RULE-25: the faint hint is shown once per pick or entry, also when From was that colour already.
+  const exists = !!p.clips.find((c) => c.id === id)?.colourTools?.replace?.[index];
+  return exists && notices.length ? { ...r, notices } : r;
 }
 
 /** Implements: RULE-25 *Each replacement*, F-028.R1 — a replacement removed (one step, RULE-24 *History*). */

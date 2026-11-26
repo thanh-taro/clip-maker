@@ -91,6 +91,13 @@ export function oklabToSrgb(lab: Vec3): Vec3 {
   return [linearToSrgb(clamp01(l[0])), linearToSrgb(clamp01(l[1])), linearToSrgb(clamp01(l[2]))];
 }
 
+const byteHex = (x: number): string =>
+  Math.round(Math.min(1, Math.max(0, x)) * 255)
+    .toString(16)
+    .padStart(2, '0');
+/** sRGB values in [0, 1] → upper-case "#RRGGBB" (rounded; RULE-25 picks, CMP-ColourPicker). */
+export const rgbHex = ([r, g, b]: Vec3): string => `#${byteHex(r)}${byteHex(g)}${byteHex(b)}`.toUpperCase();
+
 /** "#RRGGBB" → sRGB values in [0, 1]. */
 export function hexRgb(hex: string): Vec3 {
   const n = parseInt(hex.slice(1), 16);
@@ -488,8 +495,8 @@ export function replaceWeights(lab: Vec3, ps: readonly ReplaceParams[]): number[
 
 /**
  * Implements: RULE-25 *Change* and *Several replacements* (ADR-0017 §5 Amendment) on one OKLab colour, the CPU
- * reference of the shader's `replaceC`. Each replacement acts on its own share of the pixel (its effective weight w,
- * in list order): the hue turns by w × (Δ − d), d the signed angle From → h counted on the pixel's side of From, so
+ * reference of the shader's `replaceC`. Each replacement changes its own share of the pixel (its effective weight w):
+ * h + Σ w(Δ − d), C × (1 + Σ w(ratio − 1)); the hue turns by w × (Δ − d), d the signed angle From → h counted on the pixel's side of From, so
  * full matches land exactly on To's hue and neighbours turn by nearly the same angle (not at all for a grey To);
  * chroma × ((1 − Σw) + Σ w × ratio); lightness kept; the result brought into gamut at constant L and h (§2).
  */
@@ -504,7 +511,7 @@ export function replaceLab(lab: Vec3, ps: readonly ReplaceParams[]): Vec3 {
   let dc = 0;
   for (const p of ps) {
     const d = hueDelta(h, p.fromH);
-    const w = (1 - smoothstep(p.full, p.full + p.fade, Math.abs(d))) * smoothstep(p.cLo, p.cHi, C) * g * (1 - sum);
+    const w = replaceOwnWeight(p, C, h, g) * (1 - sum);
     sum += w;
     if (!p.toGrey) dh += w * (p.delta - d);
     dc += w * (p.ratio - 1);

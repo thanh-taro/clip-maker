@@ -103,6 +103,10 @@ describe('F-028 colour replace operations', () => {
     const r2 = setReplacement(q, 'A', 0, { from: FAINT });
     expect(list(r2.project)[0]!.from).toBe(FAINT);
     expect(r2.notices).toEqual(['notice.replace_faint']);
+    // Once per pick: picking the same faint colour again shows the hint again, though nothing changes.
+    const r3 = setReplacement(r2.project, 'A', 0, { from: FAINT });
+    expect(r3.project).toBe(r2.project);
+    expect(r3.notices).toEqual(['notice.replace_faint']);
   });
 
   it('F-028.AC17 (project) picking again sets From only; To stays, as one undo step', () => {

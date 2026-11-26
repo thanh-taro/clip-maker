@@ -139,6 +139,7 @@
 
   .tk-ctool__help {
     margin: 0;
+    text-wrap: pretty;
     color: var(--tk-color-muted);
     font-size: var(--tk-font-size-xs);
     line-height: var(--tk-font-line-height-tight);
@@ -609,16 +610,41 @@
     font-weight: var(--tk-font-weight-semibold);
   }
 
-  .tk-replace__remove {
+  /* Remove: a quiet ghost button (muted icon and text, danger on hover), lighter than the card's actions. */
+  .tk-ctool .tk-replace__remove {
     gap: var(--tk-space-1);
-    color: var(--tk-color-fg);
+    min-block-size: var(--tk-size-control);
+    border-color: transparent;
+    background: transparent;
+    color: var(--tk-color-muted);
     font-size: var(--tk-font-size-sm);
+  }
+
+  @media (hover: hover) {
+    .tk-ctool .tk-replace__remove:hover {
+      color: var(--tk-color-danger);
+    }
+  }
+
+  /* To still equals From: dashed, reading COPY-replace.to_unset in muted text in place of its hex. */
+  .tk-colour-button--unset {
+    border-style: dashed;
+    border-color: var(--tk-color-line-strong);
+  }
+
+  .tk-colour-button--unset .tk-colour-button__hex {
+    font-family: var(--tk-font-family-body);
+  }
+
+  /* The prompt wraps rather than being cut off in half the inspector's width. */
+  .tk-replace__colours .tk-colour-button--unset .tk-colour-button__hex {
+    white-space: normal;
   }
 
   /* From, the arrow and To on one row (both layouts; the buttons share the width). */
   .tk-replace__colours {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     gap: var(--tk-space-1);
   }
 
@@ -646,6 +672,7 @@
 
   .tk-replace__arrow {
     flex: none;
+    align-self: center;
     color: var(--tk-color-muted);
   }
 
@@ -660,8 +687,9 @@
     color: var(--tk-color-fg);
   }
 
-  .tk-replace__pick[aria-pressed='true'],
-  .tk-replace__add-button[aria-pressed='true'] {
+  /* One pressed recipe on every layout: `selection` fill with an accent border. */
+  .tk-ctool .tk-button.tk-replace__pick[aria-pressed='true'],
+  .tk-ctool .tk-button.tk-replace__add-button[aria-pressed='true'] {
     border-color: var(--tk-color-accent);
     background: var(--tk-color-selection);
     color: var(--tk-color-fg);
@@ -681,7 +709,7 @@
     min-block-size: var(--tk-size-touch-target);
   }
 
-  .tk-adjust--touch .tk-replace__remove {
+  .tk-adjust--touch .tk-ctool .tk-replace__remove {
     inline-size: var(--tk-size-touch-target);
     block-size: var(--tk-size-touch-target);
   }
@@ -732,14 +760,26 @@
     line-height: var(--tk-font-line-height-tight);
   }
 
+  .tk-pick-pill__lines {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+  }
+
+  .tk-pick-pill__note {
+    color: var(--tk-color-muted);
+  }
+
   .tk-pick-pill__cancel {
+    position: relative;
     flex: none;
     min-block-size: var(--tk-size-target-min);
+    margin-inline-start: var(--tk-space-2);
     padding-inline: var(--tk-space-2-5);
     border: 0;
     border-radius: var(--tk-radius-pill);
     background: transparent;
-    color: var(--tk-color-fg);
+    color: var(--tk-color-accent);
     font: inherit;
     font-weight: var(--tk-font-weight-semibold);
     cursor: pointer;
@@ -749,28 +789,41 @@
     outline: var(--tk-border-width-focus) solid var(--tk-color-focus);
   }
 
-  /* Under 400 px of width the pill's text wraps to two lines (its width is capped by the stage). */
+  /* Under 400 px of width the pill sits just below the playback row, over the top of the timeline (its top is set
+     from the playback row's bottom), so it never covers the picture and the transport stays available. */
   @media (width < 400px) {
     .tk-pick-pill {
+      position: fixed;
+      z-index: 20;
+      inset-inline: var(--tk-space-2);
+      max-inline-size: none;
+      min-block-size: var(--tk-size-touch-target);
       border-radius: var(--tk-radius-md);
+    }
+    .tk-pick-pill__text {
+      flex: 1;
     }
   }
 
-  @media (pointer: coarse) {
+  /* Cancel: a touch-size hit area on touch and narrow layouts. */
+  @media (pointer: coarse), (width < 400px) {
     .tk-pick-pill__cancel {
       min-block-size: var(--tk-size-touch-target);
+      min-inline-size: var(--tk-size-touch-target);
     }
   }
 
   /* The keyboard marker: a ring on the picked point, with the violet focus ring when focused. */
   .tk-pick-marker {
     position: absolute;
-    inline-size: var(--tk-space-5);
-    block-size: var(--tk-space-5);
+    inline-size: var(--tk-size-target-min);
+    block-size: var(--tk-size-target-min);
     box-sizing: border-box;
     border: var(--tk-border-width-focus) solid var(--tk-color-preview-handle);
     border-radius: 50%;
-    box-shadow: 0 0 0 var(--tk-border-width-hairline) var(--tk-color-preview-outline);
+    box-shadow:
+      0 0 0 var(--tk-border-width-hairline) var(--tk-color-fg),
+      inset 0 0 0 var(--tk-border-width-hairline) var(--tk-color-fg);
     transform: translate(-50%, -50%);
   }
 
@@ -786,9 +839,13 @@
     inline-size: var(--pick-lens);
     block-size: var(--pick-lens);
     overflow: hidden;
-    border: var(--tk-border-width-focus) solid var(--tk-color-preview-handle);
+    border: calc(var(--tk-border-width-focus) + var(--tk-border-width-hairline)) solid var(--tk-color-preview-handle);
     border-radius: 50%;
-    box-shadow: 0 0 0 var(--tk-border-width-hairline) var(--tk-color-line-strong);
+    background: var(--tk-color-work-area);
+    /* Readable on pale and dark pictures: a dark hairline outside the white rim, and a soft shadow. */
+    box-shadow:
+      0 0 0 var(--tk-border-width-hairline) var(--tk-color-fg),
+      0 var(--tk-space-1) var(--tk-space-3) var(--tk-color-scrim);
     transform: translate(-50%, -50%);
     pointer-events: none;
   }
@@ -806,7 +863,12 @@
     block-size: var(--tk-space-6);
     border: var(--tk-space-1) solid var(--pick-ring);
     border-radius: 50%;
-    box-shadow: 0 0 0 var(--tk-border-width-hairline) var(--tk-color-preview-handle);
+    /* The ring in the colour a lift picks, with white and dark hairlines inside and outside. */
+    box-shadow:
+      0 0 0 var(--tk-border-width-hairline) var(--tk-color-preview-handle),
+      0 0 0 calc(var(--tk-border-width-hairline) * 2) var(--tk-color-fg),
+      inset 0 0 0 var(--tk-border-width-hairline) var(--tk-color-preview-handle),
+      inset 0 0 0 calc(var(--tk-border-width-hairline) * 2) var(--tk-color-fg);
     transform: translate(-50%, -50%);
   }
 

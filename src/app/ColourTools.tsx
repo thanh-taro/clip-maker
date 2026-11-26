@@ -61,6 +61,7 @@ import {
   swapColours,
   toggleTool,
   toolChanged,
+  toolResettable,
   toolValueNow,
   type PickerFor,
   type ToolName,
@@ -300,7 +301,20 @@ function SplitBody({
 // ── F-027 duotone ──────────────────────────────────────────────────────────────────────────────
 
 /** CMP-ColourPicker's colour button: swatch, label and hex; named by its label and reading its value. */
-function ColourButton({ clipId, which, hex, open }: { clipId: string; which: PickerFor; hex: string; open: boolean }) {
+function ColourButton({
+  clipId,
+  which,
+  hex,
+  open,
+  unset = false,
+}: {
+  clipId: string;
+  which: PickerFor;
+  hex: string;
+  open: boolean;
+  /** F-028: To still equals From — dashed, reading COPY-replace.to_unset in place of its hex. */
+  unset?: boolean;
+}) {
   const ref = useRef<HTMLButtonElement>(null);
   const back = pickerReturn.value === which;
   useEffect(() => {
@@ -313,8 +327,8 @@ function ColourButton({ clipId, which, hex, open }: { clipId: string; which: Pic
     <button
       ref={ref}
       type="button"
-      class="tk-colour-button"
-      aria-label={t('picker.current', { name: label, hex })}
+      class={unset ? 'tk-colour-button tk-colour-button--unset' : 'tk-colour-button'}
+      aria-label={t('picker.current', { name: label, hex: unset ? t('replace.to_unset') : hex })}
       aria-haspopup="dialog"
       aria-expanded={open ? 'true' : 'false'}
       data-action={`colour-${which}`}
@@ -322,7 +336,7 @@ function ColourButton({ clipId, which, hex, open }: { clipId: string; which: Pic
     >
       <span class="tk-colour-button__swatch" aria-hidden="true" style={{ '--ctool-swatch': hex }} />
       <span class="tk-colour-button__label">{label}</span>
-      <span class="tk-colour-button__hex">{hex}</span>
+      <span class="tk-colour-button__hex">{unset ? t('replace.to_unset') : hex}</span>
     </button>
   );
 }
@@ -523,6 +537,7 @@ function ReplaceCard({
               which={which}
               hex={pickerHex(tools, which)}
               open={openEnd === end}
+              unset={end === 'to' && pickerHex(tools, which) === pickerHex(tools, replacePicker(index, 'from'))}
             />,
           ];
         })}
@@ -640,7 +655,7 @@ function ToolGroup({
             ) : null}
           </button>
         </Head>
-        {changed ? (
+        {toolResettable(tools, tool) ? (
           <button
             type="button"
             class="tk-adjust__reset-all tk-ctool__reset"

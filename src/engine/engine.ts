@@ -10,6 +10,7 @@
 // WebGL context loss), F-008.R1 (look thumbnails, RULE-09) and F-008.R2 (a look previewed on the selected
 // clip without an undo step); RULE-25 pick mode and the eyedropper's sample (F-028.R2/R8, ADR-0017 §7).
 import {
+  rgbHex,
   frameAspect,
   frameIndexAt,
   LOOK_IDS,
@@ -592,9 +593,10 @@ export class Engine {
     if (!comp || comp.lost) return;
     // RULE-25 pick mode: the picked clip's source picture alone, without text or overlay (MOD-Plan `pickPlan`).
     const picking = this.pick !== null;
+    // A look previewed in the gallery never grades the pick picture or the sample (RULE-25 *Pick mode*).
     const list = comp.paint(plan, frames, picking ? new Map() : this.texts, {
       compare: this.compare,
-      lookPreview: this.lookPreview,
+      lookPreview: picking ? null : this.lookPreview,
     });
     if (this.overlay && !picking) comp.paintOverlay(this.overlay);
     const req = this.sampleReq;
@@ -626,15 +628,7 @@ export class Engine {
     const layer = this.pick ? list.layers?.find((l) => l.clipId === this.pick && !l.blank) : undefined;
     const rect = layer ? quadRect(layer.quad, W, H) : null;
     const mean = rect ? discMean(region.rgba, region.side, region.bx, region.by, x, y, r, rect) : null;
-    const hex = mean
-      ? `#${mean
-          .map((v) =>
-            Math.round(Math.min(1, Math.max(0, v)) * 255)
-              .toString(16)
-              .padStart(2, '0'),
-          )
-          .join('')}`.toUpperCase()
-      : null;
+    const hex = mean ? rgbHex(mean) : null;
     return {
       type: 'engine:sampled',
       ticket: req.ticket,

@@ -411,7 +411,7 @@ vec3 mixPop(vec3 c){
 #endif
 }
 #endif
-#if CT_REP > 0
+#if CT_REP
 // RULE-25 colour replace (ADR-0017 §5 and its Amendment): per replacement uRepA = (From's OK hue in degrees, full
 // distance, fade distance, turn Δ), uRepB = (chroma fade ¼ and ½ of From's OK C, chroma ratio, 1 when To is grey).
 // Weights on the stage's input; each later one acts on the share the earlier ones left; h + w(Δ − d), C × ((1 − Σw)
@@ -426,7 +426,7 @@ vec3 replaceC(vec3 c){
   float C = length(lab.yz);
   float h = degrees(atan(lab.z, lab.y));
   float sum = 0.0, dh = 0.0, dc = 0.0;
-  for (int k = 0; k < CT_REP; k++) {
+  for (int k = 0; k < 3; k++) {
     vec4 a = uRepA[k];
     vec4 b = uRepB[k];
     float d = hueDelta(h, a.x);
@@ -469,8 +469,11 @@ export const CT_MIX = 1;
 export const CT_POP = 2;
 export const CT_SPLIT = 4;
 export const CT_DUO = 8;
-/** RULE-25: the number of replacements (0–3) in bits 4–5, so each count has its own program (an unrolled loop). */
-export const CT_REP_SHIFT = 4;
+/**
+ * RULE-25 colour replace: one bit and a fixed loop of three (unused slots weigh 0), so editing the number of
+ * replacements compiles no new program; with five stage bits the grade has at most 32 programs.
+ */
+export const CT_REP = 16;
 
 /** Implements: ADR-0017 §6, §9 — which colour stages a clip's grade needs (0: the 1.1.0 grade). */
 export const colourStages = (u: GradeUniforms): number =>
@@ -478,13 +481,13 @@ export const colourStages = (u: GradeUniforms): number =>
   (u.hue?.pop ? CT_POP : 0) |
   (u.split ? CT_SPLIT : 0) |
   (u.duotone ? CT_DUO : 0) |
-  ((u.replace?.params.length ?? 0) << CT_REP_SHIFT);
+  (u.replace ? CT_REP : 0);
 
 /** The preprocessor lines that select the stages (after `#version`). */
 export const colourDefines = (stages: number): string =>
   `#define CT_MIX ${stages & CT_MIX ? 1 : 0}\n#define CT_POP ${stages & CT_POP ? 1 : 0}\n` +
   `#define CT_SPLIT ${stages & CT_SPLIT ? 1 : 0}\n#define CT_DUO ${stages & CT_DUO ? 1 : 0}\n` +
-  `#define CT_REP ${(stages >> CT_REP_SHIFT) & 3}\n`;
+  `#define CT_REP ${stages & CT_REP ? 1 : 0}\n`;
 
 export const GLSL_GRADE = `
 uniform bool uWBOn; uniform vec3 uWB; uniform float uBright, uContrast, uHi, uSh, uSat, uVib, uLookMix, uFade;
@@ -492,7 +495,7 @@ uniform mediump sampler3D uLut;
 vec3 grade(vec3 c){
   c = clamp(c, 0.0, 1.0);
   // 1. Colour replace (RULE-25, F-028), before Temperature and Tint.
-#if CT_REP > 0
+#if CT_REP
   c = replaceC(c);
 #endif
   if (uWBOn) c = clamp(toSrgb(clamp(toLin(c) * uWB, 0.0, 1.0)), 0.0, 1.0);
