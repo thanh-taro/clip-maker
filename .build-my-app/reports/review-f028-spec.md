@@ -75,3 +75,74 @@ Read: F-028, RULE-24/25, RULE-08/13/20/21, ADR-0017 (+ outcome), CMP-ColourPicke
 - **m13** AC9 `F-028:42` "the same areas are still replaced" → "every pixel's match weight equals its weight without Temperature" (exact, oracle-checkable). AC10 needs the reference phone; record as waived per owner policy, not passed.
 
 Status: fixes
+
+---
+
+# Round 2 (commit c35fe0c)
+
+Lint: **1022 IDs, 4265 references, 0 errors, 0 warnings.** Scratch checks rerun (OKLab/OKLCh, smoothstep weights, sRGB gamut) in a throwaway script; numbers below.
+
+## Round-1 findings
+| ID | Result | Evidence |
+|---|---|---|
+| B1 blend | **Partly resolved, but the fix adds a hard edge (N1).** The blend is now defined (hue moved w of the way, chroma × (1 − w) + w × ratio). The *direction* is chosen per pixel, which is discontinuous. | rules.md:46 *Change*; F-028:48 AC13; ADR-0017:66 |
+| M1 overlap | **Resolved.** Effective weight w_k × (1 − Σ earlier) caps the total at 1; a full first match takes only the first's change. The rewritten AC14 claim ("swapping the two changes only steps that both match") is **correct**: if either weight is 0, both effective weights and the order of the changes that apply are the same after a swap (this also holds with three replacements). "Both match" must mean both weights above 0, fades included. | rules.md:46; F-028 AC14 |
+| M2 mappings | **Resolved.** Linear formulas are in RULE-25, ADR and AC7. "Within 1°" is reachable on a 1° ring: floor(full + fade) − floor(full) is within 1 of fade. The ring's OK C varies under 2× across hue, so every step stays at chroma weight 1 against From at 30°. | rules.md:46; F-028 AC7 |
+| M3 faint | **Resolved.** C* 2–12 is accepted with COPY-notice.replace_faint (copy exists in en/vi). It agrees with the grey gate. AC15 is exact: a C* 8 patch picked as its own From has weight smoothstep(0.6) = 0.648. | rules.md:46; F-028 AC15; CMP-ColourPicker:20 |
+| M4 ungraded pick preview | **Resolved.** | rules.md:46 *Pick mode*; CMP-Preview:26; ADR amendment |
+| M5 gestures and Play | **Resolved** (AC16). | |
+| M6 grey/outside keeps pick mode | **Resolved** (AC8, RULE-25 *Picking*). | |
+| M7 frame after fade in or cross-fade | **Resolved** (AC5). See n2 for one edge. | |
+| M8 fixtures | **AC7 and flat patches resolved. The ball fixture can't be built (N2).** | F-028:35 |
+| m1–m13 | Spot-checked; all resolved (R6, changed mark, Lightness drag, marker axis/bounds/value text, outside/Blur/text/full screen, linear-light average, magnifier, undo of removal and re-pick, ADR read region, pop/mixer and paste edge cases, 320 px card, chroma-fade unit, AC9 by weights, AC10 waived). | |
+
+## New findings
+
+### N1 (blocker). Choosing the "shorter way" per pixel makes a hard edge whenever To is roughly opposite From
+- `specs/10-domain/rules.md:46` (*Change*: "moved *w* of the way to the To colour's hue along the shorter way round the hue circle (the way of increasing hue when the two are exactly opposite)"); `F-028-colour-replace.md:48` (AC13: "each fade side turns the shorter way from its own hue"); `ADR-0017:66` amendment.
+- Problem: the shorter way flips for the input hue exactly opposite To's. When that hue falls in the fade (0 < w < 1), neighbouring pixels turn opposite ways. At the **defaults** (Range 30, Softness 50), From 30° and To 185° (red jacket to cyan) give a jump of **77° in output hue between inputs 0.01° apart** (at input hue 5°, w 0.79). On the 1° ring the jump is 97°, which is ΔE00 in the tens at C* 30. From 30° and To 250° at Range 30, Softness 100 jumps 27°. The weight bound still passes, because it bounds weights, not output, so no AC catches this. RULE-24's "no hard edges" is broken in the output. The tie rule only covers the exact-opposite case. That case happens to be safe, because there the flip point is From's own hue, where w = 1.
+- Fix: take the direction once per replacement, from From to To, and unwrap each pixel against From. RULE-25 *Change*: "a pixel with match weight *w* has its hue turned *w* of the way to the To colour's hue, going round the same way as from the From colour's hue to the To colour's by the shorter way (increasing hue when they are exactly opposite); a pixel's own distance from From's hue is counted on its side of From, so pixels near From turn by nearly the same angle." Formula for the ADR: h' = h + w × (Δ − d), where Δ = the shorter signed angle From → To (+180° on a tie) and d = the signed angle From → h (|d| ≤ 120° wherever w > 0). At w = 1 this gives To's hue exactly. At the same defaults the largest jump at 0.01° sampling is **0.24°**, so the output is continuous. AC13: "... every fade step's hue turns from its own hue in the direction From → To (decreasing for To 250°; increasing for To 210°, exactly opposite), and between adjacent fade steps the output hue changes by at most (Δ − d) × the weight bound + 1°." Add a case that would have caught this: "From the ring step at 30°, To the step at 185°, Range 30, Softness 50: no two adjacent ring steps differ in output hue by more than 25°." The per-replacement rule gives at most 23.7° there; the per-pixel rule gives 97°.
+
+### N2 (major). The ball fixture is outside sRGB for most of its lightness span
+- `F-028-colour-replace.md:35` ("lightness from 25 to 85 and chroma at least ¾ of #C8281E's"); AC6 (`:41`).
+- Problem: #C8281E is OKLCh (0.541, 0.197, 29.1°), so ¾ of its chroma is OK C 0.148. Within ±3° of its hue, the most sRGB can show is C 0.095 at lightness 25, 0.132 at 35, 0.114 at 80 and 0.082 at 85. The fixture holds only from about **lightness 40 to 75**.
+- Fix: "lightness from 40 to 75 (working space)". If the shaded part should go darker, use "lightness 25 to 85, and chroma at least ¾ of #C8281E's or the most sRGB can show at that lightness and hue, whichever is less, but never below ½ of #C8281E's". That second option still fails below about 30 and above about 82, so 40–75 is the simple choice.
+
+### n1 (minor). ADR-0017 is accepted and marked immutable, yet it was amended in place
+- `ADR-0017:66`, `:82`. This follows the file's own precedent ("Outcome", "Where the code differs"), but the footer says "Write a new ADR to change a decision." Either accept it as the project's addendum convention (record that in specs/README) or move the two amendments to a short ADR-0018 that refines ADR-0017 §5/§7.
+
+### n2 (minor). The start frame can fall past the clip's end
+- `rules.md:46` *Pick mode* ("the clip's first frame at or after the end of its fade in and of any cross-fade into it"). A fade in plus an incoming cross-fade can cover the whole clip. Add: "or the clip's last frame if that is later".
+
+### n3 (minor). The Blur background in pick mode is undefined
+- `rules.md:46`, `CMP-Preview.md:26` ("over the background"). Blur normally shows the clip's adjustments and look (RULE-04). Say "over the background, a Blur background also ungraded" (or "graded as usual").
+
+## Verdicts after round 2
+| Item | Verdict |
+|---|---|
+| F-028 | **not ready** (N1 blocker, N2). Its front matter already says `status: ready` (`F-028:4`); set it back to `draft` or fix N1/N2 before building |
+| RULE-25 | not ready (N1); ready once the direction wording changes |
+| CMP-Preview / CMP-Inspector / CMP-ColourPicker / copy | ready (n3 is wording) |
+| ADR-0017 amendments | fix the formula with N1; settle n1 |
+
+Status: fixes
+
+---
+
+# Round 3 (commit 764cad7), narrow: N1, N2, n1–n3
+
+Lint: **1022 IDs, 4270 references, 0 errors, 0 warnings.**
+
+| ID | Result |
+|---|---|
+| N1 | **Resolved.** RULE-25 *Change* (`rules.md:46`) now uses one turning direction per replacement. "Its own distance from From's hue being counted on its side of From" is h' = h + w × (Δ − d), as in the ADR-0017 Amendment. Full matches land on To. The tie goes to increasing hue. |
+| AC13 bound (25°) | **Right and tight, not loose.** Scratch rerun on the 1° ring (From 30°, To 185°, Range 30, Softness 50): the fixed-direction formula's largest adjacent-step output-hue difference is **23.75°** (steps 2°→3°, on the far side of From where Δ − d ≈ 182°). The per-pixel rule gives **97.05°**. The analytic peak slope is 1 − w + 1.5 × (Δ − d) ÷ fade ≈ 0.5 + 1.5 × 182.4 ÷ 11.75 = **23.8° per 1°**. My round-2 "0.24°" was per 0.01° of input, the same slope. 25° leaves about 5 % margin over the correct result and is about 4× below the bug. Keep 25°; no change needed. |
+| N2 | **Resolved.** The ball is now lightness 40 to 75 (`F-028:35`, ADR Amendment), the span where C ≥ 0.148 fits within ±3° of #C8281E's hue. |
+| n1 | **Accepted.** The changes are now one labelled "Amendment" section that refines §5/§7 without changing the decision, following the file's own Outcome precedent. |
+| n2 | **Resolved** ("or to the clip's last frame if that is earlier"). |
+| n3 | **Resolved.** A Blur background is built from the ungraded source (RULE-25, CMP-Preview, ADR). |
+
+## Verdict
+F-028: **ready**. RULE-25: **ready**. No remaining findings.
+
+Status: pass
