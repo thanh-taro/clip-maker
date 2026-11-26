@@ -465,6 +465,24 @@ test.describe('F-028 colour replace (app harness)', () => {
     await expect(panel.locator('[data-action="toggle-replace"]')).toBeFocused();
   });
 
+  test('CMP-ColourPicker "Behavior" a hex typed and left with Done, without Enter, is applied (Safari does not blur the field on a button click)', async ({
+    page,
+  }) => {
+    const panel = await setUp(page);
+    await addByPick(page, panel, [0.1, 0.5]);
+    const g = group(panel);
+    const to0 = card(g, 0).locator('[data-action="colour-replace-0-to"]');
+    await to0.click();
+    await card(g, 0)
+      .getByRole('textbox', { name: text('en-US', 'picker.hex') })
+      .fill('#0050FF');
+    await card(g, 0)
+      .getByRole('button', { name: text('en-US', 'picker.done') })
+      .click();
+    await expect.poll(async () => (await replaceOf(page))[0]!.to).toBe('#0050FF');
+    await expect(to0).not.toHaveClass(/tk-colour-button--unset/);
+  });
+
   test('F-028.R4 CMP-ColourPicker "refused (colour replace From)" a typed grey From is refused with COPY-notice.replace_grey under the field and the colour reverts', async ({
     page,
   }) => {

@@ -117,19 +117,28 @@ export function ColourPicker({
   const hexId = `${id}-hex`;
   const errorId = `${id}-hex-error`;
   /** The typed text while it differs from the colour (kept when invalid, CMP-ColourPicker "hex invalid"). */
-  const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraftState] = useState<string | null>(null);
+  // The typed text is read from a ref: an Enter (or Done) right after typing can arrive before the re-render.
+  const draftRef = useRef<string | null>(null);
+  const setDraft = (v: string | null): void => {
+    draftRef.current = v;
+    setDraftState(v);
+  };
   const [invalid, setInvalid] = useState(false);
-  const commitHex = (): void => {
-    if (draft === null) return;
-    const parsed = parseHex(draft);
+  /** Commits the typed hex; false when it is invalid (and stays shown with its error). */
+  const commitHex = (): boolean => {
+    const typed = draftRef.current;
+    if (typed === null) return true;
+    const parsed = parseHex(typed);
     if (!parsed) {
       setInvalid(true);
       announce(t('picker.hex_invalid'));
-      return;
+      return false;
     }
     setDraft(null);
     setInvalid(false);
     if (parsed !== hex) setOnce(parsed);
+    return true;
   };
 
   /** The sliders' colour with one part set; for a From colour a grey result is refused and the last one kept. */
@@ -186,7 +195,15 @@ export function ColourPicker({
 
   const preset = (Object.keys(PALETTE_HEX) as PaletteName[]).find((n) => PALETTE_HEX[n] === hex) ?? null;
   const done = (
-    <button type="button" class="tk-button tk-picker__done" data-action="picker-done" onClick={() => closePicker(true)}>
+    <button
+      type="button"
+      class="tk-button tk-picker__done"
+      data-action="picker-done"
+      // Safari does not focus a clicked button, so the field never blurs: Done commits the typed hex itself.
+      onClick={() => {
+        if (commitHex()) closePicker(true);
+      }}
+    >
       {t('picker.done')}
     </button>
   );
@@ -253,7 +270,7 @@ export function ColourPicker({
                 commitHex();
               }
             }}
-            onBlur={commitHex}
+            onBlur={() => void commitHex()}
           />
         </div>
         {invalid ? (
