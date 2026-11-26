@@ -1,4 +1,4 @@
-// RULE-24 colour tools on the GPU (media harness, tests/harness/export.ts `gradePaint`, `gradeExport`,
+// RULE-24 and RULE-25 colour tools on the GPU (media harness, tests/harness/export.ts `gradePaint`, `gradeExport`,
 // `colourToolsBench`; ADR-0017 §8–§9): the compositor's paint of the hue ring, the grey ramp and the 24-patch
 // chart against the CPU reference, and the exported file against the paint (INV-02, NFR-08). The panels'
 // halves of F-024…F-027 come with the UI. The benchmark is SP-colour-tools (tagged @realtime: it measures
@@ -119,6 +119,50 @@ test.describe('RULE-24 colour tools on the GPU (media harness)', () => {
         test.info().annotations.push({ type: 'GPU vs CPU', description: `max ΔE00 ${worst.toFixed(3)}` });
         expect(worst).toBeLessThanOrEqual(1);
       });
+
+  // F-028 colour replace (RULE-25): 1, 2 and 3 replacements alone, and three with every other tool on (ADR-0017 §5,
+  // §8: one program per replacement count).
+  const REPLACE: NonNullable<ColourTools['replace']> = [
+    { from: '#C8281E', to: '#0050FF', range: 30, softness: 50 },
+    { from: '#2E9E3A', to: '#E0A000', range: 60, softness: 80 },
+    { from: '#3050C0', to: '#C040A0', range: 10, softness: 20 },
+  ];
+  const REPLACE_SETS: readonly (readonly [string, ColourTools])[] = [
+    ['1 replacement', { replace: REPLACE.slice(0, 1) }],
+    ['2 replacements', { replace: REPLACE.slice(0, 2) }],
+    ['3 replacements', { replace: REPLACE }],
+    ['3 replacements with every other tool', { ...ALL_TOOLS, replace: REPLACE }],
+  ];
+  for (const [name, tools] of REPLACE_SETS)
+    for (const chart of ['ring', 'ramp', 'colours'] as const)
+      test(`F-028.R5 RULE-25 ADR-0017 §8 colour replace, ${name}: the 8-bit paint stays within ΔE00 1 of the full-precision CPU result (${chart})`, async ({
+        page,
+      }) => {
+        const r = await paint(page, ADJ, chart, tools);
+        let worst = 0;
+        r.input.forEach((c, i) => {
+          const want = reference.grade(rgb(c), ADJ, null, null, tools) as Rgb;
+          worst = Math.max(worst, deRgb(rgb(r.painted[i]!), want));
+        });
+        test.info().annotations.push({ type: 'GPU vs CPU', description: `max ΔE00 ${worst.toFixed(3)}` });
+        expect(worst).toBeLessThanOrEqual(1);
+      });
+
+  test('F-028.AC10 NFR-08 INV-02 (export half) with three replacements, every other colour tool and every adjustment on, the exported 24-patch chart matches the preview (mean ΔE00 < 2, max < 4)', async ({
+    page,
+  }) => {
+    const r = await exportChart(page, ADJ, 'colours', { ...ALL_TOOLS, replace: REPLACE });
+    expect(r.ok).toBe(true);
+    const de = r.painted.map((p, i) => deRgb(rgb(p), rgb(r.exported[i]!)));
+    const mean = de.reduce((s, x) => s + x, 0) / de.length;
+    const max = Math.max(...de);
+    test.info().annotations.push({
+      type: 'export vs preview',
+      description: `mean ΔE00 ${mean.toFixed(3)}, max ${max.toFixed(3)}`,
+    });
+    expect(mean).toBeLessThan(2);
+    expect(max).toBeLessThan(4);
+  });
 
   test('RULE-24 ADR-0017 §6 with every colour tool at default, the paint is identical to a clip without colour tools (ring)', async ({
     page,

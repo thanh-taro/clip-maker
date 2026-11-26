@@ -575,6 +575,252 @@
     font-size: var(--tk-font-size-input);
   }
 
+  /* ── F-028 colour replace: the replacement cards (CMP-Inspector "colour replace (1.3.0)") ── */
+  .tk-picker__hint {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--tk-color-muted);
+    font-size: var(--tk-font-size-xs);
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  .tk-replace {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1-5);
+    padding: var(--tk-space-2);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-color-surface);
+  }
+
+  .tk-replace__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--tk-space-2);
+    min-block-size: var(--tk-size-target-min);
+  }
+
+  .tk-replace__title {
+    margin: 0;
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+    font-weight: var(--tk-font-weight-semibold);
+  }
+
+  .tk-replace__remove {
+    gap: var(--tk-space-1);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  /* From, the arrow and To on one row (both layouts; the buttons share the width). */
+  .tk-replace__colours {
+    display: flex;
+    align-items: center;
+    gap: var(--tk-space-1);
+  }
+
+  /* Swatch, then the label above the hex code, so both fit half the inspector's width. */
+  .tk-replace__colours .tk-colour-button {
+    display: grid;
+    flex: 1;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--tk-space-1-5);
+    min-inline-size: 0;
+    padding-inline: var(--tk-space-1-5);
+  }
+
+  .tk-replace__colours .tk-colour-button__swatch {
+    grid-row: span 2;
+  }
+
+  .tk-replace__colours .tk-colour-button__label,
+  .tk-replace__colours .tk-colour-button__hex {
+    overflow: hidden;
+    line-height: var(--tk-font-line-height-tight);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tk-replace__arrow {
+    flex: none;
+    color: var(--tk-color-muted);
+  }
+
+  .tk-replace__pick,
+  .tk-replace__add-button {
+    align-self: flex-start;
+    gap: var(--tk-space-1-5);
+    font-size: var(--tk-font-size-sm);
+  }
+
+  .tk-replace__pick {
+    color: var(--tk-color-fg);
+  }
+
+  .tk-replace__pick[aria-pressed='true'],
+  .tk-replace__add-button[aria-pressed='true'] {
+    border-color: var(--tk-color-accent);
+    background: var(--tk-color-selection);
+    color: var(--tk-color-fg);
+  }
+
+  .tk-replace__add {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tk-space-1);
+  }
+
+  /* Narrow and the phone sheet: Pick from preview full width, touch size; Remove an icon button. */
+  .tk-adjust--touch .tk-replace__pick,
+  .tk-adjust--touch .tk-replace__add-button {
+    align-self: stretch;
+    justify-content: center;
+    min-block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-adjust--touch .tk-replace__remove {
+    inline-size: var(--tk-size-touch-target);
+    block-size: var(--tk-size-touch-target);
+  }
+
+  .tk-adjust--touch .tk-replace__head {
+    min-block-size: var(--tk-size-touch-target);
+  }
+
+  /* ── F-028 pick mode on the preview (CMP-Preview "picking a colour") ── */
+  .tk-pick-layer {
+    position: absolute;
+    z-index: 3;
+    cursor: default;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .tk-pick-layer__clip {
+    position: absolute;
+    cursor: crosshair;
+  }
+
+  .tk-pick-pill {
+    position: absolute;
+    z-index: 4;
+    inset-block-start: var(--tk-space-2);
+    inset-inline-start: var(--tk-space-2);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tk-space-1-5);
+    max-inline-size: calc(100% - var(--tk-space-4));
+    min-block-size: var(--tk-size-target-min);
+    padding-inline: var(--tk-space-2) var(--tk-space-0-5);
+    border: var(--tk-border-width-hairline) solid var(--tk-color-line);
+    border-radius: var(--tk-radius-pill);
+    background: var(--tk-color-chrome);
+    color: var(--tk-color-fg);
+    font-size: var(--tk-font-size-xs);
+  }
+
+  .tk-pick-pill__text {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tk-space-1-5);
+    min-inline-size: 0;
+    line-height: var(--tk-font-line-height-tight);
+  }
+
+  .tk-pick-pill__cancel {
+    flex: none;
+    min-block-size: var(--tk-size-target-min);
+    padding-inline: var(--tk-space-2-5);
+    border: 0;
+    border-radius: var(--tk-radius-pill);
+    background: transparent;
+    color: var(--tk-color-fg);
+    font: inherit;
+    font-weight: var(--tk-font-weight-semibold);
+    cursor: pointer;
+  }
+
+  .tk-pick-pill__cancel:focus-visible {
+    outline: var(--tk-border-width-focus) solid var(--tk-color-focus);
+  }
+
+  /* Under 400 px of width the pill's text wraps to two lines (its width is capped by the stage). */
+  @media (width < 400px) {
+    .tk-pick-pill {
+      border-radius: var(--tk-radius-md);
+    }
+  }
+
+  @media (pointer: coarse) {
+    .tk-pick-pill__cancel {
+      min-block-size: var(--tk-size-touch-target);
+    }
+  }
+
+  /* The keyboard marker: a ring on the picked point, with the violet focus ring when focused. */
+  .tk-pick-marker {
+    position: absolute;
+    inline-size: var(--tk-space-5);
+    block-size: var(--tk-space-5);
+    box-sizing: border-box;
+    border: var(--tk-border-width-focus) solid var(--tk-color-preview-handle);
+    border-radius: 50%;
+    box-shadow: 0 0 0 var(--tk-border-width-hairline) var(--tk-color-preview-outline);
+    transform: translate(-50%, -50%);
+  }
+
+  .tk-pick-marker:focus-visible {
+    outline: var(--tk-border-width-focus) solid var(--tk-color-focus);
+    outline-offset: var(--tk-border-width-focus);
+  }
+
+  /* The touch magnifier: the picture around the finger enlarged, a centre ring in the colour a lift picks. */
+  .tk-pick-lens {
+    --pick-lens: calc(var(--tk-space-16) * 1.5);
+    position: absolute;
+    inline-size: var(--pick-lens);
+    block-size: var(--pick-lens);
+    overflow: hidden;
+    border: var(--tk-border-width-focus) solid var(--tk-color-preview-handle);
+    border-radius: 50%;
+    box-shadow: 0 0 0 var(--tk-border-width-hairline) var(--tk-color-line-strong);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .tk-pick-lens__view {
+    inline-size: 100%;
+    block-size: 100%;
+    image-rendering: pixelated;
+  }
+
+  .tk-pick-lens__ring {
+    position: absolute;
+    inset: 50% auto auto 50%;
+    inline-size: var(--tk-space-6);
+    block-size: var(--tk-space-6);
+    border: var(--tk-space-1) solid var(--pick-ring);
+    border-radius: 50%;
+    box-shadow: 0 0 0 var(--tk-border-width-hairline) var(--tk-color-preview-handle);
+    transform: translate(-50%, -50%);
+  }
+
+  @media (forced-colors: active) {
+    .tk-replace__pick[aria-pressed='true'],
+    .tk-replace__add-button[aria-pressed='true'],
+    .tk-pick-pill {
+      border-color: Highlight;
+    }
+    .tk-pick-lens__ring {
+      forced-color-adjust: none;
+    }
+  }
+
   @media (forced-colors: active) {
     .tk-ctool__radio[aria-checked='true'],
     .tk-colour-button[aria-expanded='true'] {

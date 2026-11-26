@@ -14,7 +14,8 @@
 // F-007.R7, F-007.AC9, RULE-08 *Compare*, RULE-20. F-008: a look previewed in the gallery is drawn on the
 // selected clip (MOD-Preview `setLookPreview`; F-008.R2, RULE-09). F-010: the text layers' hit areas, the
 // selected text's outline, handles and move guides (./TextOverlay.tsx), and CMP-TextEditor over the frame while
-// a text layer is edited (./TextEditor.tsx).
+// a text layer is edited (./TextEditor.tsx). F-028: colour replace's pick mode over the frame (./PickOverlay.tsx;
+// F-028.R2/R8, RULE-25 *Pick mode*).
 import { computed, effect } from '@preact/signals';
 import type { Ref } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
@@ -26,6 +27,7 @@ import { EmptyState } from './EmptyState';
 import { previewing } from './looks';
 import { Icon, type IconName } from './icons';
 import { Notices } from './NoticeStack';
+import { PickOverlay } from './PickOverlay';
 import { PlacementOverlay } from './PlacementOverlay';
 import { TextEditor } from './TextEditor';
 import { TextOverlay } from './TextOverlay';
@@ -285,6 +287,8 @@ export function PreviewArea({ addRef }: { addRef: (el: HTMLButtonElement | null)
         {empty ? null : <PlacementOverlay stage={stageRef} />}
         {empty ? null : <TextOverlay stage={stageRef} />}
         {empty ? null : <TextEditor stage={stageRef} />}
+        {/* F-028: colour replace's pick mode (CMP-Preview "picking a colour"), over the other overlays. */}
+        {empty ? null : <PickOverlay stage={stageRef} />}
         {/* CMP-Preview "holding compare": a quiet pill, a status message (CMP-Preview "Accessibility"). */}
         <p class="tk-preview-pill" role="status" data-shown={holding ? '' : undefined}>
           {holding ? (

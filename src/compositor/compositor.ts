@@ -9,7 +9,8 @@
 // F-010.R5 (drawing), F-012.R3 (background), F-015.R4; RULE-04, RULE-07, RULE-08, RULE-09, RULE-10;
 // INV-02, INV-05, INV-07; NFR-08.
 // Implements: RULE-24 (D-053, ADR-0017 §1, §3, §6): the colour stages' uniforms and each clip's hue table, a
-// 1,024 × 1 RGBA16F texture uploaded only when its settings change and re-created after a context loss.
+// 1,024 × 1 RGBA16F texture uploaded only when its settings change and re-created after a context loss; RULE-25
+// colour replace's uniforms (F-028.R5).
 import { HUE_TABLE_SIZE, type Overlay, type TextBitmap } from '../core';
 import type { FramePlan } from '../plan';
 import { drawList, type DrawList, type DrawOptions, type Quad, type Rotation, type SourceSize } from './draw';
@@ -68,6 +69,12 @@ export interface Compositor {
   sync(): void;
   /** The drawn frame as RGBA rows from the top (tests and the effects check only; never for exports). */
   readPixels(): Uint8Array;
+  /**
+   * RULE-25 eyedropper (ADR-0017 §7): a `side`-pixel square of the frame just drawn, centred on (`x`, `y`) (pixels,
+   * top-left origin) and kept inside the target, as RGBA rows from the top with its top-left pixel (`bx`, `by`). Read
+   * right after `paint`, a few KB, once per pick (never per frame).
+   */
+  readRegion(x: number, y: number, side: number): { rgba: Uint8Array; bx: number; by: number; side: number };
   /** Text textures held (tests: removed layers free theirs). */
   readonly textTextures: number;
   dispose(): void;
@@ -423,6 +430,17 @@ class GlCompositor implements Compositor {
     gl.activeTexture(gl.TEXTURE3);
     gl.bindTexture(gl.TEXTURE_2D, u.hue ? this.hueTexture(r, u.hue.key, u.hue.table) : r.noHue);
     gl.uniform1i(p.u('uHue'), 3);
+    // RULE-25 colour replace (ADR-0017 §5): the replacements' parameters, in list order.
+    if (u.replace) {
+      const a = new Float32Array(12);
+      const b = new Float32Array(12);
+      u.replace.params.forEach((r, k) => {
+        a.set([r.fromH, r.full, r.fade, r.delta], k * 4);
+        b.set([r.cLo, r.cHi, r.ratio, r.toGrey ? 1 : 0], k * 4);
+      });
+      gl.uniform4fv(p.u('uRepA'), a);
+      gl.uniform4fv(p.u('uRepB'), b);
+    }
     if (u.split) {
       gl.uniform2f(p.u('uSplitSh'), u.split.shadows[0], u.split.shadows[1]);
       gl.uniform2f(p.u('uSplitHi'), u.split.highlights[0], u.split.highlights[1]);
@@ -684,6 +702,22 @@ class GlCompositor implements Compositor {
     const row = W * 4;
     for (let y = 0; y < H; y++) out.set(buf.subarray((H - 1 - y) * row, (H - y) * row), y * row);
     return out;
+  }
+
+  readRegion(x: number, y: number, side: number): { rgba: Uint8Array; bx: number; by: number; side: number } {
+    const gl = this.gl;
+    const [W, H] = this.size;
+    const n = Math.max(1, Math.min(side, W, H));
+    const bx = Math.min(W - n, Math.max(0, Math.round(x - n / 2)));
+    const by = Math.min(H - n, Math.max(0, Math.round(y - n / 2)));
+    const buf = new Uint8Array(n * n * 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // GL rows are bottom-up: the block's bottom row is at H − (by + n).
+    gl.readPixels(bx, H - by - n, n, n, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    const rgba = new Uint8Array(buf.length);
+    const row = n * 4;
+    for (let j = 0; j < n; j++) rgba.set(buf.subarray((n - 1 - j) * row, (n - j) * row), j * row);
+    return { rgba, bx, by, side: n };
   }
 
   dispose(): void {

@@ -12,22 +12,28 @@
 // `#RRGGBB`, with or without `#`, on Enter or leaving the field, shown in upper case; Esc or Done closes and
 // returns focus to the colour button) and "Accessibility" (a dialog named COPY-picker.title, focus starts on
 // the hue slider; presets are a radio group with colour names; sliders have value text and paired number
-// fields), F-027.AC4.
+// fields), F-027.AC4. F-028: it also edits a colour replacement's From and To; for From (RULE-25) a Saturation or
+// Lightness drag stops at the last value that is not grey and a typed or preset grey is refused, with
+// COPY-notice.replace_grey under the field (the colour reverts to its last value); a faint From is accepted with
+// COPY-notice.replace_faint under the field, once per entry (CMP-ColourPicker "refused (colour replace From)").
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { t } from '../copy';
-import { PALETTE, PALETTE_HEX, type PaletteName } from '../core';
+import { fromStatus, PALETTE, PALETTE_HEX, type Notice, type PaletteName } from '../core';
 import { announce } from './announce';
 import {
   HUE_WHEEL_TRACK,
   beginColourDrag,
   closePicker,
-  duotoneHex,
   hexHsl,
   hslHex,
   hueText,
+  isGreyFrom,
   lightnessTrack,
   parseHex,
+  pickerHex,
+  pickerLabel,
   pickerOpen,
+  refusesGrey,
   saturationTrack,
   setColourOnce,
   toolsTarget,
@@ -50,8 +56,27 @@ export function ColourPicker({
   readonly which: PickerFor;
   readonly touch: boolean;
 }) {
-  const hex = duotoneHex(toolsTarget.value?.tools, which);
+  const hex = pickerHex(toolsTarget.value?.tools, which);
   const id = `tk-picker-${touch ? 'sheet' : 'pop'}-${which}`;
+  /** RULE-25: the From colour's refusal or faint hint under the field (null: none). */
+  const [fromNote, setFromNote] = useState<'notice.replace_grey' | 'notice.replace_faint' | null>(null);
+  const faintShown = useRef(false);
+  const noteFrom = (notices: readonly Notice[]): void => {
+    if (notices.includes('notice.replace_grey')) {
+      setFromNote('notice.replace_grey');
+      announce(t('notice.replace_grey'));
+    } else if (notices.includes('notice.replace_faint')) {
+      // Once per entry: announced when the colour becomes faint, and kept under the field while it stays faint.
+      if (!faintShown.current) announce(t('notice.replace_faint'));
+      faintShown.current = true;
+      setFromNote('notice.replace_faint');
+    } else {
+      faintShown.current = false;
+      setFromNote(null);
+    }
+  };
+  /** A colour entered or picked here: applied, or refused (grey From). */
+  const setOnce = (next: string): void => noteFrom(setColourOnce(clipId, which, next));
   const dialog = useRef<HTMLDivElement>(null);
   const [before] = useState(hex);
   // The sliders' own values: a hue survives a grey colour, and whole steps survive the trip through hex.
@@ -104,14 +129,24 @@ export function ColourPicker({
     }
     setDraft(null);
     setInvalid(false);
-    if (parsed !== hex) setColourOnce(clipId, which, parsed);
+    if (parsed !== hex) setOnce(parsed);
   };
 
+  /** The sliders' colour with one part set; for a From colour a grey result is refused and the last one kept. */
   const apply = (part: Part, v: number): Hsl => {
     const next = { ...hslRef.current, [part]: Math.min(LIMITS[part], Math.max(0, Math.round(v))) };
+    if (isGreyFrom(which, hslHex(next))) {
+      // RULE-25: a Saturation or Lightness drag stops at the last value that is not grey.
+      if (fromNote !== 'notice.replace_grey') noteFrom(['notice.replace_grey']);
+      return hslRef.current;
+    }
     setHsl(next);
     hslRef.current = next;
     return next;
+  };
+  const faintNote = (h: string): void => {
+    if (refusesGrey(which) && fromStatus(h) === 'faint') noteFrom(['notice.replace_faint']);
+    else if (fromNote === 'notice.replace_grey') setFromNote(null);
   };
   const row = (part: Part, label: string, track: string, text: (v: number) => string) => (
     <ToolSlider
@@ -130,17 +165,20 @@ export function ColourPicker({
         const drag = beginColourDrag(clipId, which);
         return {
           set: (v) => drag.set(hslHex(apply(part, v))),
-          end: () => drag.end(),
+          end: () => {
+            drag.end();
+            faintNote(hslHex(hslRef.current));
+          },
           get active() {
             return drag.active;
           },
         };
       }}
-      step={(v) => setColourOnce(clipId, which, hslHex(apply(part, v)))}
-      shown={() => undefined}
+      step={(v) => setOnce(hslHex(apply(part, v)))}
+      shown={() => hslRef.current[part]}
       commit={(v) => {
         const next = apply(part, v);
-        setColourOnce(clipId, which, hslHex(next));
+        setOnce(hslHex(next));
         return next[part];
       }}
     />
@@ -170,7 +208,7 @@ export function ColourPicker({
             {t('picker.title')}
           </Title>
           <p class="tk-picker__for" id={`${id}-for`}>
-            {t('picker.editing', { name: t(`duotone.${which}`) })}
+            {t('picker.editing', { name: pickerLabel(which) })}
           </p>
         </div>
         {touch ? done : null}
@@ -202,8 +240,8 @@ export function ColourPicker({
             spellcheck={false}
             maxLength={7}
             value={draft ?? hex}
-            aria-invalid={invalid ? 'true' : undefined}
-            aria-describedby={invalid ? errorId : undefined}
+            aria-invalid={invalid || fromNote === 'notice.replace_grey' ? 'true' : undefined}
+            aria-describedby={invalid ? errorId : fromNote ? `${id}-from-note` : undefined}
             data-control="picker-hex"
             onInput={(e) => {
               setDraft(e.currentTarget.value);
@@ -222,6 +260,14 @@ export function ColourPicker({
           <p class="tk-picker__error" id={errorId}>
             {t('picker.hex_invalid')}
           </p>
+        ) : fromNote ? (
+          <p
+            class={fromNote === 'notice.replace_grey' ? 'tk-picker__error' : 'tk-picker__hint'}
+            id={`${id}-from-note`}
+            data-notice={fromNote.slice('notice.'.length)}
+          >
+            {t(fromNote)}
+          </p>
         ) : null}
       </div>
       <div class="tk-picker__presets">
@@ -235,7 +281,7 @@ export function ColourPicker({
           variant="swatches"
           value={preset}
           onChoose={(n) => {
-            if (n && PALETTE_HEX[n] !== hex) setColourOnce(clipId, which, PALETTE_HEX[n]);
+            if (n && PALETTE_HEX[n] !== hex) setOnce(PALETTE_HEX[n]);
           }}
           options={PALETTE.map((n) => ({ value: n, key: n, label: t(`colour.${n}`), swatch: true }))}
         />

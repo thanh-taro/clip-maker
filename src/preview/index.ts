@@ -11,6 +11,7 @@ export {
   type EnginePort,
   type PlayState,
   type PreviewClock,
+  type PickSample,
   type PreviewController,
   type PreviewDeps,
   type PreviewEnv,

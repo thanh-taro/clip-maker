@@ -172,6 +172,11 @@ const SOURCES = {
   // F-024…F-027: the colour-tool groups' disclosure chevron and duotone's Swap colours (CMP-Inspector)
   disclosure: ChevronDown,
   swap: ArrowLeftRight,
+  // F-028: colour replace's Pick from preview (the eyedropper), Add colour to replace, the From → To arrow and Remove
+  eyedropper: Pipette,
+  add: Plus,
+  toward: ArrowRight,
+  remove: Trash2,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

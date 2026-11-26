@@ -311,6 +311,47 @@ describe('MOD-Engine messages', () => {
     expect(r.comp.overlays).toBeGreaterThan(0);
   });
 
+  it('F-028.R8 RULE-25 pick mode paints only the clip, ungraded, without text or overlay; its end restores the preview', async () => {
+    const tools = { replace: [{ from: '#C8281E', to: '#0050FF', range: 30, softness: 50 }] };
+    const p = proj({
+      clips: [
+        video('a', 5, { crossFadeNext: S, adjustments: { contrast: 30 } }),
+        video('b', 5, { colourTools: tools }),
+      ],
+    });
+    const r = rig(p);
+    const bitmap = { width: 10, height: 10, close: () => undefined } as unknown as ImageBitmap;
+    await r.send({ type: 'engine:setTextBitmaps', bitmaps: { t1: { bitmap, s: 360 } } });
+    await r.send({ type: 'engine:overlay', overlay: { lines: [] } });
+    await r.send({ type: 'engine:seek', t: ts30(130) }); // inside the cross-fade
+    expect(r.comp.paints.at(-1)!.layers.map((l) => l.clipId)).toEqual(['a', 'b']);
+    const overlays = r.comp.overlays;
+    await r.send({ type: 'engine:pick', clipId: 'b' });
+    const picked = r.comp.paints.at(-1)!;
+    expect(picked.layers).toEqual([{ clipId: 'b', look: null }]);
+    expect(picked.texts).toBe(0);
+    expect(r.comp.overlays).toBe(overlays);
+    await r.send({ type: 'engine:pick', clipId: null });
+    expect(r.comp.paints.at(-1)!.layers.map((l) => l.clipId)).toEqual(['a', 'b']);
+    expect(r.comp.paints.at(-1)!.texts).toBe(1);
+  });
+
+  it('RULE-25 ADR-0017 §7 the eyedropper answers with the disc’s colour after the next exact paint, null outside the clip’s picture', async () => {
+    const r = rig(twoClips());
+    await r.send({ type: 'engine:seek', t: ts30(10) });
+    await r.send({ type: 'engine:pick', clipId: 'a' });
+    await r.send({ type: 'engine:sample', ticket: 7, x: 0.5, y: 0.5 });
+    const got = r.events.filter((e) => e.type === 'engine:sampled');
+    expect(got).toHaveLength(1);
+    expect(got[0]).toMatchObject({ ticket: 7, hex: '#C8281E' });
+    // The read region is sized to the disc: radius 1 % of s (360 → 3.6 px), side 2⌈r⌉ + 1 = 9.
+    expect(r.comp.regions.at(-1)).toEqual({ x: 320, y: 180, side: 9 });
+    // Not picking: nothing counts.
+    await r.send({ type: 'engine:pick', clipId: null });
+    await r.send({ type: 'engine:sample', ticket: 8, x: 0.5, y: 0.5 });
+    expect(r.events.filter((e) => e.type === 'engine:sampled').at(-1)).toMatchObject({ ticket: 8, hex: null });
+  });
+
   it('F-010 ADR-0012 §3 text bitmaps: kept ids keep theirs, replaced and dropped ones are closed', async () => {
     const r = rig(twoClips());
     const made = (label: string) => {

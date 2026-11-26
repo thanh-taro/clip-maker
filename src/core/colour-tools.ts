@@ -1,9 +1,16 @@
 // MOD-Core — the colour tools' settings (RULE-24, D-053; `colourTools` in project.schema.json): ranges and
 // defaults, normalisation (every value at its default is dropped, so a clip whose tools are all at default
 // has no `colourTools` and renders exactly as before, ADR-0017 §6), and the "on" tests the grade uses.
-// Colour replace (RULE-25, F-028) is `draft` for 1.3.0: its list is carried unchanged.
-// Implements: RULE-24 ranges and defaults, *Duotone* remembered colours.
-import { COLOUR_RANGES, type ColourRangeName } from './colour';
+// Colour replace (RULE-25, F-028, 1.3.0): up to three replacements, each kept with all four values.
+// Implements: RULE-24 ranges and defaults, *Duotone* remembered colours; RULE-25 *Count*, *Each replacement*.
+import {
+  COLOUR_RANGES,
+  REPLACE_MAX,
+  REPLACE_RANGE,
+  REPLACE_SOFTNESS,
+  type ColourRangeName,
+  type ReplacementValues,
+} from './colour';
 import { DUOTONE_PAIR_COLOURS, type DuotonePairId } from './looks.gen';
 import type { ColourTools, MixerRange } from './project.gen';
 
@@ -30,6 +37,7 @@ export type Mixer = NonNullable<ColourTools['mixer']>;
 export type Pop = NonNullable<ColourTools['pop']>;
 export type SplitToning = NonNullable<ColourTools['splitToning']>;
 export type Duotone = NonNullable<ColourTools['duotone']>;
+export type Replacement = NonNullable<ColourTools['replace']>[number];
 export type DuotoneChoice = DuotonePairId | 'custom';
 export const MIXER_VALUES = ['hue', 'saturation', 'lightness'] as const;
 export type MixerValueName = (typeof MIXER_VALUES)[number];
@@ -102,6 +110,28 @@ function normaliseDuotone(d: Duotone | null | undefined): Duotone | undefined {
 }
 
 /**
+ * Implements: RULE-25 *Count* and *Each replacement* — at most three, From and To as upper-case #RRGGBB (one that is
+ * not a colour is dropped), Range and Softness whole steps from 0 to 100. Each keeps all four values (the schema
+ * requires them), so a replacement at its defaults still exists until removed.
+ */
+function normaliseReplace(list: readonly Partial<ReplacementValues>[] | undefined): Replacement[] | undefined {
+  if (!list?.length) return undefined;
+  const out: Replacement[] = [];
+  for (const r of list) {
+    const from = normaliseHex(r.from ?? '');
+    const to = normaliseHex(r.to ?? '');
+    if (!from || !to || out.length === REPLACE_MAX) continue;
+    out.push({
+      from,
+      to,
+      range: clampInt(r.range ?? REPLACE_RANGE, RULE_24.strengthMin, RULE_24.strengthMax),
+      softness: clampInt(r.softness ?? REPLACE_SOFTNESS, RULE_24.strengthMin, RULE_24.strengthMax),
+    } as Replacement);
+  }
+  return out.length ? out : undefined;
+}
+
+/**
  * Implements: RULE-24 ranges (whole steps, clamped) and defaults. Values at their default are dropped and an
  * empty result is `undefined`, so "absent" and "all at default" are the same document (ADR-0017 §6). A
  * duotone object is kept while off (it remembers the colours for Custom); `null` means never set.
@@ -113,11 +143,12 @@ export function normaliseColourTools(t: ColourTools | undefined): ColourTools | 
   const pop = normalisePop(t.pop);
   const splitToning = normaliseSplit(t.splitToning);
   const duotone = normaliseDuotone(t.duotone);
+  const replace = normaliseReplace(t.replace);
+  if (replace) out.replace = replace;
   if (mixer) out.mixer = mixer;
   if (pop) out.pop = pop;
   if (splitToning) out.splitToning = splitToning;
   if (duotone) out.duotone = duotone;
-  if (t.replace?.length) out.replace = t.replace; // RULE-25 (F-028, 1.3.0): carried, not edited here
   return Object.keys(out).length ? out : undefined;
 }
 

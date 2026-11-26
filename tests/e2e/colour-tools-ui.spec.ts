@@ -172,7 +172,7 @@ const thumbX = (s: Locator, knob: number) =>
   }, knob);
 
 test.describe('F-024…F-027 colour tools in the Adjust panel (app harness)', () => {
-  test('CMP-Inspector "clip Adjust · colour tools" four groups after Effects start collapsed; opening one is not an undo step and is kept for the session; a changed group shows Changed in its name and a Reset named for the tool', async ({
+  test('CMP-Inspector "clip Adjust · colour tools" five groups after Effects start collapsed; opening one is not an undo step and is kept for the session; a changed group shows Changed in its name and a Reset named for the tool', async ({
     page,
   }) => {
     const panel = await setUp(page, [[MID], [MID]]);
@@ -182,6 +182,7 @@ test.describe('F-024…F-027 colour tools in the Adjust panel (app harness)', ()
       text('en-US', 'colour_tools.group_pop'),
       text('en-US', 'colour_tools.group_split'),
       text('en-US', 'colour_tools.group_duotone'),
+      text('en-US', 'colour_tools.group_replace'),
     ]);
     // After the Effects group (Light, Colour and Effects stay at the top).
     const order = await panel.evaluate((el) => {
