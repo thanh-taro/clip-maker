@@ -63,12 +63,6 @@ grade pass.
    replace, tone) are smoothsteps, whose steepest slope is 1.5 ÷ width, meeting RULE-24's
    per-step bound. Weights are computed on the stage input;
    changes apply in list order: target h, C × C_to/C_from, L kept, then gamut reduction (§2).
-   *(Amended 2026-11-26, F-028 spec review:* Range and Softness map linearly to angles, full =
-   5° + 0.55° × Range and fade = 2° + (full − 2°) × Softness ÷ 100; the chroma fade is a
-   smoothstep from ¼ to ½ of From's OKLCh C and the grey fade is RULE-24's C* 2 → 12 gate. A
-   pixel with weight w turns its hue w of the way along the shorter arc to To's (increasing hue
-   when exactly opposite; not at all when To is grey) and scales C by (1 − w) + w × C_to/C_from.
-   Effective weights: w_k × (1 − Σ earlier effective weights), so the total never exceeds 1.)
    Parameters arrive as uniforms; unused replacements cost nothing (`count` uniform).
 6. **Skipping work.** Each tool has an *enabled* uniform derived from "not at defaults"; branches
    on uniforms are coherent and skip the OKLab round trip when no colour tool is on, so 1.1.0
@@ -79,11 +73,6 @@ grade pass.
    averages a disc of radius 1 % of `s`, ignoring pixels outside the clip. Read-back is a few KB
    once per pick, never per frame. The keyboard marker and the touch magnifier use the same call
    (magnifier refreshed at most every 50 ms).
-   *(Amended 2026-11-26, F-028 spec review:* the read region is sized to the disc, 2⌈r⌉ + 1
-   pixels square, not a fixed 33 × 33; the disc is averaged in linear light, then encoded and
-   rounded to #RRGGBB. In pick mode the preview paints a plan with only the selected clip's source
-   stage over the background (no grade, fades, other clip or text), so what is shown is what is
-   sampled. ADR-0016's fixtures gain the ball fixture of F-028.)
 8. **Precision.** The grade intermediate stays RGBA16F where renderable; all colour-tool maths is
    float32 in the shader. The CPU reference (ADR-0006 §6) gains the five tools and is the oracle
    for RULE-24 *Quality* on the chart, the grey ramp and a new 360-step hue-ring fixture
@@ -136,3 +125,20 @@ skip the OKLab round trip and black never meets `atan(0, 0)`. §2's OK-chroma ga
 - Projects without `colourTools` are unchanged (§6), so 1.1.0 fidelity results stay valid.
 
 <!-- Accepted ADRs are immutable. Write a new ADR to change a decision. -->
+
+## Amendment (2026-11-26, F-028 spec review)
+Refines §5 and §7 for colour replace (RULE-25); the decision is unchanged.
+- **§5 matching and change.** Range and Softness map linearly to angles: full = 5° + 0.55° × Range,
+  fade = 2° + (full − 2°) × Softness ÷ 100. The chroma fade is a smoothstep from ¼ to ½ of From's
+  OKLCh C; the grey fade is RULE-24's C* 2 → 12 gate. Each replacement has one turning direction:
+  Δ = the shorter signed angle From → To (+180° when exactly opposite). With d = the signed angle
+  From → h (|d| ≤ 120° wherever w > 0), a pixel becomes h' = h + w × (Δ − d), which lands exactly
+  on To's hue at w = 1 and changes by at most about 0.24° per 0.01° of input at the defaults (a
+  per-pixel shorter way would jump 77° for From 30° → To 185°). With a grey To colour h is kept.
+  C' = C × ((1 − w) + w × C_to ÷ C_from); L kept; then §2's gamut reduction. Effective weights:
+  w_k × (1 − Σ earlier effective weights), so the total never exceeds 1.
+- **§7 eyedropper.** The read region is sized to the disc, 2⌈r⌉ + 1 pixels square, not a fixed
+  33 × 33; the disc is averaged in linear light, then encoded and rounded to #RRGGBB. In pick mode
+  the preview paints a plan with only the selected clip's source stage over the background (a Blur
+  background built from that ungraded source), with no grade, fades, other clip or text, so what is
+  shown is what is sampled. ADR-0016's fixtures gain F-028's ball fixture (lightness 40 to 75).
