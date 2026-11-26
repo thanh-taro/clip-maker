@@ -29,7 +29,7 @@
 | F-025 | Keep one colour (colour pop) | M-4 | P1 | shipped |
 | F-026 | Tint shadows and highlights (split toning) | M-4 | P2 | shipped |
 | F-027 | Recolour in two colours (duotone) | M-4 | P2 | shipped |
-| F-028 | Replace a colour | M-5 | P2 | building |
+| F-028 | Replace a colour | M-5 | P2 | shipped |
 
 ```mermaid
 graph LR

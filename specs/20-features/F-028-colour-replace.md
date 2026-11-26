@@ -1,7 +1,7 @@
 ---
 id: F-028
 title: Replace a colour
-status: building
+status: shipped
 milestone: M-5
 priority: P2
 personas: [PER-02, PER-03, PER-04]
