@@ -63,6 +63,12 @@ grade pass.
    replace, tone) are smoothsteps, whose steepest slope is 1.5 ÷ width, meeting RULE-24's
    per-step bound. Weights are computed on the stage input;
    changes apply in list order: target h, C × C_to/C_from, L kept, then gamut reduction (§2).
+   *(Amended 2026-11-26, F-028 spec review:* Range and Softness map linearly to angles, full =
+   5° + 0.55° × Range and fade = 2° + (full − 2°) × Softness ÷ 100; the chroma fade is a
+   smoothstep from ¼ to ½ of From's OKLCh C and the grey fade is RULE-24's C* 2 → 12 gate. A
+   pixel with weight w turns its hue w of the way along the shorter arc to To's (increasing hue
+   when exactly opposite; not at all when To is grey) and scales C by (1 − w) + w × C_to/C_from.
+   Effective weights: w_k × (1 − Σ earlier effective weights), so the total never exceeds 1.)
    Parameters arrive as uniforms; unused replacements cost nothing (`count` uniform).
 6. **Skipping work.** Each tool has an *enabled* uniform derived from "not at defaults"; branches
    on uniforms are coherent and skip the OKLab round trip when no colour tool is on, so 1.1.0
@@ -73,6 +79,11 @@ grade pass.
    averages a disc of radius 1 % of `s`, ignoring pixels outside the clip. Read-back is a few KB
    once per pick, never per frame. The keyboard marker and the touch magnifier use the same call
    (magnifier refreshed at most every 50 ms).
+   *(Amended 2026-11-26, F-028 spec review:* the read region is sized to the disc, 2⌈r⌉ + 1
+   pixels square, not a fixed 33 × 33; the disc is averaged in linear light, then encoded and
+   rounded to #RRGGBB. In pick mode the preview paints a plan with only the selected clip's source
+   stage over the background (no grade, fades, other clip or text), so what is shown is what is
+   sampled. ADR-0016's fixtures gain the ball fixture of F-028.)
 8. **Precision.** The grade intermediate stays RGBA16F where renderable; all colour-tool maths is
    float32 in the shader. The CPU reference (ADR-0006 §6) gains the five tools and is the oracle
    for RULE-24 *Quality* on the chart, the grey ramp and a new 360-step hue-ring fixture

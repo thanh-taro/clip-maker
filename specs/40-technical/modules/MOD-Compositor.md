@@ -15,7 +15,8 @@ are separate draws. Includes the CPU reference implementation used as the test o
 timed effects check for RULE-22. From 1.2.0 the grade also runs the colour tools of RULE-24 and
 RULE-25 in their order, in OKLab, with a per-clip hue table that it derives from the clip's `colourTools`
 while drawing (one grade program per set of tools on), and samples the source stage for the
-eyedropper (ADR-0017).
+eyedropper (ADR-0017), reading back a region sized to the pick disc (2⌈r⌉ + 1 pixels square), and
+paints the pick-mode plan (the selected clip's source stage only).
 
 ### Rules from the spikes (2026-11-04)
 Evidence: SP-gpu-color, SP-hdr, SP-mem-phone, SP-ios, SP-speed (ADR-0006 / ADR-0007 outcomes).

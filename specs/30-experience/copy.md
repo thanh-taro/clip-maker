@@ -423,6 +423,8 @@ Rules for every string:
 | **COPY-replace.marker** | Colour marker | Điểm lấy màu | Accessible name of the keyboard marker |
 | **COPY-replace.picked** | Picked {hex} | Đã lấy màu {hex} | Announced after a pick |
 | **COPY-notice.replace_grey** | That spot is almost grey. Pick a more colourful spot. | Chỗ này gần như màu xám. Hãy chọn chỗ có màu rõ hơn. | RULE-25 |
+| **COPY-notice.replace_faint** | This colour is faint, so only part of it changes. | Màu này khá nhạt nên chỉ thay đổi được một phần. | RULE-25: From with C* 2 to 12; once per pick or entry |
+| **COPY-replace.marker_value** | {hex}, {x} %, {y} % | {hex}, {x} %, {y} % | Value text of the keyboard marker: the colour under it and its position across and down the frame |
 
 ## Licence notices
 | ID | en-US | vi-VN | Notes |
