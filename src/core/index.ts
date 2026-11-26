@@ -29,6 +29,8 @@ export * from './visual';
 export * from './colour';
 export * from './colour-tools';
 export * from './source-end';
+// Colour replace's pick mode start frame (RULE-25, F-028).
+export * from './pick';
 export * from './edits';
 export * from './check';
 export * from './media';

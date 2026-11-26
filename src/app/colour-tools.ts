@@ -5,9 +5,12 @@
 // and the export alike. Each control is one RULE-13 step; one slider movement is one step (F-014
 // `beginGesture`), measured from where it began. Which groups are open, which mixer range is shown and
 // whether the colour picker is open are session UI state, never undo steps (RULE-24 *History*).
-// Implements: F-024.R1/R4/R5, F-025.R1/R4/R5, F-026.R1/R4/R5, F-027.R1/R3/R5, RULE-24 *Reset, copy and
-// compare* (per-row Reset, each tool's Reset, the drag detent of bipolar sliders) and *History*,
-// CMP-Inspector "clip Adjust · colour tools", CMP-ColourPicker "Behavior".
+// F-028 colour replace (RULE-25): the replacements' Range and Softness rows, Remove, and the colour picker for
+// From and To (a grey From refused, a faint one accepted with a hint); pick mode is ./pick.ts.
+// Implements: F-024.R1/R4/R5, F-025.R1/R4/R5, F-026.R1/R4/R5, F-027.R1/R3/R5, F-028.R1/R2/R4/R6, RULE-24 *Reset,
+// copy and compare* (per-row Reset, each tool's Reset, the drag detent of bipolar sliders) and *History*,
+// RULE-25 *Each replacement*, *Grey and faint From colours*, CMP-Inspector "clip Adjust · colour tools",
+// CMP-ColourPicker "Behavior" and "refused (colour replace From)".
 import { computed, effect, signal } from '@preact/signals';
 import { t } from '../copy';
 import {
@@ -15,6 +18,10 @@ import {
   RULE_08,
   RULE_24,
   COLOUR_RANGES,
+  REPLACE_RANGE,
+  rgbHex,
+  REPLACE_SOFTNESS,
+  fromStatus,
   hueWheelRgb,
   mixerValue,
   nearestRange,
@@ -24,22 +31,25 @@ import {
   type ColourTools,
   type DuotoneChoice,
   type MixerValueName,
+  type Notice,
   type Project,
   type SplitToning,
-  type Vec3,
 } from '../core';
 import {
   beginGesture,
   chooseDuotone,
   edit,
   project,
+  removeReplacement,
   resetDuotone,
   resetMixer,
   resetPop,
+  resetReplace,
   resetSplitToning,
   setDuotone,
   setMixer,
   setPop,
+  setReplacement,
   setSplitToning,
   swapDuotone,
   type EditResult,
@@ -48,7 +58,7 @@ import { selectedClip } from './arrange';
 import type { SliderDrag } from './slider-gesture';
 
 /** CMP-Inspector "clip Adjust · colour tools": the groups, in RULE-24 order of use (colour replace from 1.3.0). */
-export const TOOLS = ['mixer', 'pop', 'split', 'duotone'] as const;
+export const TOOLS = ['mixer', 'pop', 'split', 'duotone', 'replace'] as const;
 export type ToolName = (typeof TOOLS)[number];
 
 /** The group title of each tool (COPY-colour_tools.group_*). */
@@ -57,6 +67,7 @@ export const TOOL_TITLE = {
   pop: 'colour_tools.group_pop',
   split: 'colour_tools.group_split',
   duotone: 'colour_tools.group_duotone',
+  replace: 'colour_tools.group_replace',
 } as const satisfies Record<ToolName, string>;
 
 // ── session UI state (not undo steps, RULE-24 *History*) ─────────────────────────────────────────
@@ -68,8 +79,9 @@ export function toggleTool(tool: ToolName): void {
   const next = new Set(openTools.peek());
   if (next.has(tool)) {
     next.delete(tool);
-    // CMP-ColourPicker: collapsing Duotone closes its picker, changing nothing.
-    if (tool === 'duotone') closePicker(false);
+    // CMP-ColourPicker: collapsing Duotone or Colour replace closes its picker, changing nothing.
+    const open = pickerOpen.peek();
+    if (open && toolOfPicker(open.which) === tool) closePicker(false);
   } else next.add(tool);
   openTools.value = next;
 }
@@ -88,7 +100,8 @@ const toolsOf = (p: Project, id: string): ColourTools | undefined => p.clips.fin
 /**
  * CMP-Inspector: a group shows "changed" and its Reset while the tool is on and changes the picture: any mixer
  * or split toning value away from default, colour pop with a colour kept, duotone with a pair or Custom chosen.
- * Colour pop's Range and Amount at None, and duotone's remembered colours, are kept but not shown as changed.
+ * Colour pop's Range and Amount at None, and duotone's remembered colours, are kept but not shown as changed. Colour
+ * replace shows changed once a replacement's To differs from its From (its Reset shows with any replacement).
  */
 export function toolChanged(tools: ColourTools | undefined, tool: ToolName): boolean {
   switch (tool) {
@@ -100,8 +113,14 @@ export function toolChanged(tools: ColourTools | undefined, tool: ToolName): boo
       return tools?.splitToning !== undefined;
     case 'duotone':
       return tools?.duotone?.on === true;
+    case 'replace':
+      return (tools?.replace ?? []).some((r) => r.to !== r.from);
   }
 }
+
+/** CMP-Inspector: a group's Reset shows while it is changed, and colour replace's while any replacement exists. */
+export const toolResettable = (tools: ColourTools | undefined, tool: ToolName): boolean =>
+  toolChanged(tools, tool) || (tool === 'replace' && (tools?.replace?.length ?? 0) > 0);
 
 /** F-024.R5: a range with a changed value is marked as changed. */
 export const rangeChanged = (tools: ColourTools | undefined, range: ColourRangeName): boolean =>
@@ -116,7 +135,9 @@ export function resetTool(id: string, tool: ToolName): void {
         ? resetPop(p, id)
         : tool === 'split'
           ? resetSplitToning(p, id)
-          : resetDuotone(p, id),
+          : tool === 'duotone'
+            ? resetDuotone(p, id)
+            : resetReplace(p, id),
   );
 }
 
@@ -189,6 +210,25 @@ export const duotoneStrengthSpec: ToolValue = {
   read: (t) => t?.duotone?.strength ?? RULE_24.duotoneStrength,
   write: (p, id, v) => setDuotone(p, id, { strength: v }),
 };
+
+/** F-028: a replacement's Range (default 30) or Softness (default 50), 0 to 100. */
+export const replaceSpec = (index: number, name: 'range' | 'softness'): ToolValue => {
+  const def = name === 'range' ? REPLACE_RANGE : REPLACE_SOFTNESS;
+  return {
+    control: `replace-${index}-${name}`,
+    min: RULE_24.strengthMin,
+    max: RULE_24.strengthMax,
+    def,
+    bipolar: false,
+    read: (t) => t?.replace?.[index]?.[name] ?? def,
+    write: (p, id, v) => setReplacement(p, id, index, { [name]: v }),
+  };
+};
+
+/** F-028.R1: Remove a replacement; one step (RULE-24 *History*). */
+export function removeReplacementAt(id: string, index: number): void {
+  edit((p) => removeReplacement(p, id, index));
+}
 
 const clampTo = (spec: ToolValue, v: number): number => Math.min(spec.max, Math.max(spec.min, Math.round(v)));
 
@@ -279,9 +319,43 @@ export function signed(value: number): string {
 export const hueText = (deg: number): string =>
   t('colour_tools.hue_value', { degrees: deg, range: t(`range.${nearestRange(deg)}`) });
 
-// ── colour picker (CMP-ColourPicker, F-027.R3) ────────────────────────────────────────────────
+// ── colour picker (CMP-ColourPicker, F-027.R3, F-028.R2) ───────────────────────────────────────
 
-export type PickerFor = 'shadows' | 'highlights';
+/** Which end of a colour replacement a picker edits (F-028). */
+export type ReplaceEnd = 'from' | 'to';
+/** The colour a picker edits: duotone's Custom colours, or a replacement's From or To. */
+export type PickerFor = 'shadows' | 'highlights' | `replace-${number}-${ReplaceEnd}`;
+
+export const replacePicker = (index: number, end: ReplaceEnd): PickerFor => `replace-${index}-${end}`;
+
+/** A replacement's picker as its index and end; null for duotone's. */
+export function replaceOf(which: PickerFor): { readonly index: number; readonly end: ReplaceEnd } | null {
+  const m = /^replace-(\d+)-(from|to)$/.exec(which);
+  return m ? { index: Number(m[1]), end: m[2] as ReplaceEnd } : null;
+}
+
+const toolOfPicker = (which: PickerFor): ToolName => (replaceOf(which) ? 'replace' : 'duotone');
+
+/** RULE-25: the From colour's picker refuses grey (CMP-ColourPicker "refused (colour replace From)"). */
+export const refusesGrey = (which: PickerFor): boolean => replaceOf(which)?.end === 'from';
+
+/** The colour button's label, which the picker's subtitle names (COPY-picker.editing). */
+export function pickerLabel(which: PickerFor): string {
+  const r = replaceOf(which);
+  return r ? t(`replace.${r.end}`) : t(`duotone.${which as 'shadows' | 'highlights'}`);
+}
+
+/** The colour a picker edits now (#RRGGBB). */
+export function pickerHex(tools: ColourTools | undefined, which: PickerFor): string {
+  const r = replaceOf(which);
+  if (!r) return duotoneHex(tools, which as 'shadows' | 'highlights');
+  return tools?.replace?.[r.index]?.[r.end] ?? '#000000';
+}
+
+function writeColour(p: Project, id: string, which: PickerFor, hex: string): EditResult {
+  const r = replaceOf(which);
+  return r ? setReplacement(p, id, r.index, { [r.end]: hex }) : setDuotone(p, id, { [which]: hex });
+}
 
 /** The open picker (null: closed). Opening or closing it is not an undo step and changes nothing. */
 export const pickerOpen = signal<{ readonly clipId: string; readonly which: PickerFor } | null>(null);
@@ -298,24 +372,36 @@ export function closePicker(focusButton: boolean): void {
   if (open && focusButton) pickerReturn.value = open.which;
 }
 
-// The picker belongs to Custom on the selected clip: another selection, an undo or a choice that leaves
-// Custom closes it.
+// The picker belongs to Custom, or to one replacement, on the selected clip: another selection, an undo or a
+// choice that leaves Custom (or removes the replacement) closes it.
 effect(() => {
   const open = pickerOpen.value;
   if (!open) return;
   const target = toolsTarget.value;
-  const d = target?.id === open.clipId ? target.tools?.duotone : undefined;
+  const tools = target?.id === open.clipId ? target.tools : undefined;
+  const r = replaceOf(open.which);
+  if (r) {
+    if (!target || target.id !== open.clipId || !tools?.replace?.[r.index]) pickerOpen.value = null;
+    return;
+  }
+  const d = tools?.duotone;
   if (!d?.on || d.pair !== 'custom') pickerOpen.value = null;
 });
 
 /** Custom's colour for one end of the gradient (#RRGGBB). */
-export const duotoneHex = (tools: ColourTools | undefined, which: PickerFor): string =>
+export const duotoneHex = (tools: ColourTools | undefined, which: 'shadows' | 'highlights'): string =>
   tools?.duotone?.[which] ?? '#000000';
 
-/** A preset tap or a confirmed hex entry: one step. */
-export function setColourOnce(id: string, which: PickerFor, hex: string): void {
-  edit((p) => setDuotone(p, id, { [which]: hex }));
+/**
+ * A preset tap or a confirmed hex entry: one step. Returns the notices (RULE-25: a grey From is refused with
+ * COPY-notice.replace_grey and nothing changes; a faint one is accepted with COPY-notice.replace_faint).
+ */
+export function setColourOnce(id: string, which: PickerFor, hex: string): readonly Notice[] {
+  return edit((p) => writeColour(p, id, which, hex));
 }
+
+/** RULE-25: a From colour the picker would refuse (C* below 2). */
+export const isGreyFrom = (which: PickerFor, hex: string): boolean => refusesGrey(which) && fromStatus(hex) === 'grey';
 
 /** One picker slider movement: one step, measured from the colour when it began. */
 export function beginColourDrag(
@@ -323,9 +409,9 @@ export function beginColourDrag(
   which: PickerFor,
 ): { set(hex: string): void; end(): void; active: boolean } {
   const base = project.peek();
-  const origin = duotoneHex(toolsOf(base, id), which);
+  const origin = pickerHex(toolsOf(base, id), which);
   let hex = origin;
-  const inner = movement(base, () => (hex === origin ? null : setDuotone(base, id, { [which]: hex })));
+  const inner = movement(base, () => (hex === origin ? null : writeColour(base, id, which, hex)));
   return {
     set(next) {
       hex = next;
@@ -349,11 +435,8 @@ export function parseHex(input: string): string | null {
   return /^[0-9a-f]{6}$/i.test(s) ? `#${s}`.toUpperCase() : null;
 }
 
-const byte = (x: number): string =>
-  Math.round(Math.min(1, Math.max(0, x)) * 255)
-    .toString(16)
-    .padStart(2, '0');
-export const rgbHex = ([r, g, b]: Vec3): string => `#${byte(r)}${byte(g)}${byte(b)}`.toUpperCase();
+/** sRGB values → #RRGGBB (MOD-Core). */
+export { rgbHex };
 
 export interface Hsl {
   readonly h: number;

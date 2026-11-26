@@ -6,7 +6,7 @@
 // uniforms; sharpen radius and grain cell relative to s), RULE-10 (fade opacity, cross-fade weights),
 // F-010.R5 (text bitmaps drawn at the output scale), F-007.R7 (compare: one clip without grade or look),
 // F-008.R2 (a look previewed on one clip, preview only); RULE-24 (the clip's colour tools; compare drops them).
-import { PALETTE_HEX, placedRect, type Frame, type Look, type Placement } from '../core';
+import { linearToSrgb, PALETTE_HEX, placedRect, srgbToLinear, type Frame, type Look, type Placement } from '../core';
 import type { FramePlan } from '../plan';
 import { clipHash, gradeUniforms, grainCell, NEUTRAL, type GradeUniforms, type Rgb } from './grade';
 
@@ -233,6 +233,51 @@ export function drawList(
     });
   }
   return { width: W, height: H, s, background, fadeTo: background, grainCell: grainCell(s), layers, texts };
+}
+
+/** A layer's placed picture as a pixel rectangle of the target (top-left origin; quads are axis-aligned, RULE-07). */
+export function quadRect(q: Quad, W: number, H: number): { x0: number; y0: number; x1: number; y1: number } | null {
+  if (q.pos.length < 8) return null;
+  const xs = [q.pos[0]!, q.pos[2]!, q.pos[4]!, q.pos[6]!].map((x) => ((x + 1) / 2) * W);
+  const ys = [q.pos[1]!, q.pos[3]!, q.pos[5]!, q.pos[7]!].map((y) => ((1 - y) / 2) * H);
+  return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+}
+
+/** The pick disc's side: 2⌈r⌉ + 1 pixels (ADR-0017 §7 Amendment). */
+export const discSide = (r: number): number => 2 * Math.ceil(r) + 1;
+
+/**
+ * Implements: RULE-25 *Picking*, ADR-0017 §7 Amendment — the mean colour of a disc of radius `r` (pixels) around
+ * (`cx`, `cy`) in a block of RGBA rows read top-down whose top-left pixel is (`bx`, `by`) and side `side`, averaged in
+ * linear light over the pixels whose centres lie in the disc and inside the clip's picture `rect` (pixels outside it,
+ * the background, never count), then encoded. Null when no pixel counts (the point is outside the clip's picture).
+ */
+export function discMean(
+  rgba: ArrayLike<number>,
+  side: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  r: number,
+  rect: { x0: number; y0: number; x1: number; y1: number },
+): Rgb | null {
+  const lin = (v: number): number => srgbToLinear(v / 255);
+  const enc = linearToSrgb;
+  const sum = [0, 0, 0];
+  let n = 0;
+  for (let j = 0; j < side; j++)
+    for (let i = 0; i < side; i++) {
+      const px = bx + i + 0.5;
+      const py = by + j + 0.5;
+      if ((px - cx) ** 2 + (py - cy) ** 2 > r * r) continue;
+      if (px < rect.x0 || px > rect.x1 || py < rect.y0 || py > rect.y1) continue;
+      const o = (j * side + i) * 4;
+      for (let c = 0; c < 3; c++) sum[c]! += lin(rgba[o + c]!);
+      n++;
+    }
+  if (n === 0) return null;
+  return [enc(sum[0]! / n), enc(sum[1]! / n), enc(sum[2]! / n)];
 }
 
 /**

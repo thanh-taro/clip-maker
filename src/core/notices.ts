@@ -9,6 +9,8 @@ export type Notice =
   | 'notice.no_audio_room'
   | 'notice.crossfade_too_short'
   | 'notice.speed_limited'
+  | 'notice.replace_grey'
+  | 'notice.replace_faint'
   | 'reason.too_many'
   | 'reason.too_short';
 
@@ -20,6 +22,8 @@ export const NOTICES: readonly Notice[] = /* @__PURE__ */ Object.freeze([
   'notice.no_audio_room',
   'notice.crossfade_too_short',
   'notice.speed_limited',
+  'notice.replace_grey',
+  'notice.replace_faint',
   'reason.too_many',
   'reason.too_short',
 ]);

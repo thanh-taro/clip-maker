@@ -238,6 +238,21 @@ export function gifFramePlan(project: Project, settings: GifTiming, i: number): 
 }
 
 /**
+ * Implements: RULE-25 *Pick mode*, F-028.R8 — what pick mode shows (ADR-0017 §7 Amendment): the selected clip alone
+ * at frame `k`, its source picture placed in the frame over the background, without adjustments, colour tools,
+ * look, fades, the other clip of a cross-fade or text layers (a Blur background is so made from the same ungraded
+ * picture): exactly the picture the eyedropper samples. Null when the clip is not shown at `k`.
+ */
+export function pickPlan(project: Project, clipId: string, k: number): FramePlan | null {
+  const plan = framePlan(project, k);
+  const layer = plan.layers.find((l) => l.clip.id === clipId);
+  if (!layer) return null;
+  const { colourTools: _tools, ...rest } = layer.clip;
+  const clip: Clip = { ...rest, adjustments: {}, look: null };
+  return { ...plan, layers: [{ ...layer, clip, weight: 1, opacity: 1 }], texts: [] };
+}
+
+/**
  * Implements: RULE-09 *Thumbnails*, F-008.R1 — the recipe of a look-gallery thumbnail: the selected clip
  * alone (no other clip, no text; fully shown, as no cross-fade or fade dims it) at the playhead frame when
  * the playhead is inside the clip, otherwise at the clip's first frame; with the clip's adjustments and

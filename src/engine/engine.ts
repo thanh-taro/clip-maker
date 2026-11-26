@@ -8,8 +8,9 @@
 // the newest frame is shown while sound plays on), NFR-03 (coarse-then-exact seeks), NFR-05 (bounded
 // decoders, frames and coarse copies), ADR-0006 outcome rule 6 (the preview always recovers from a
 // WebGL context loss), F-008.R1 (look thumbnails, RULE-09) and F-008.R2 (a look previewed on the selected
-// clip without an undo step).
+// clip without an undo step); RULE-25 pick mode and the eyedropper's sample (F-028.R2/R8, ADR-0017 §7).
 import {
+  rgbHex,
   frameAspect,
   frameIndexAt,
   LOOK_IDS,
@@ -26,8 +27,19 @@ import {
   type TextBitmap,
   type ToEngine,
 } from '../core';
-import { framePlan, thumbnailPlan, type FramePlan } from '../plan';
-import type { Compositor, CompositorOptions, EffectsResult, LookTable, PaintFrame, Rotation } from '../compositor';
+import { framePlan, pickPlan, thumbnailPlan, type FramePlan } from '../plan';
+import {
+  discMean,
+  discSide,
+  quadRect,
+  type Compositor,
+  type CompositorOptions,
+  type DrawList,
+  type EffectsResult,
+  type LookTable,
+  type PaintFrame,
+  type Rotation,
+} from '../compositor';
 import type { Budget } from './budget';
 import { CoarseCache, keepsCoarse } from './coarse';
 import type { FrameResult, SlotOptions } from './decoder';
@@ -145,6 +157,10 @@ export class Engine {
   private coarse = new Map<string, CoarseCache<CoarseBitmap>>();
   private texts = new Map<string, TextBitmap>();
   private compare: string | null = null;
+  /** RULE-25 pick mode: the clip shown alone and ungraded (null: off). */
+  private pick: string | null = null;
+  /** RULE-25: the eyedropper request answered after the next exact paint. */
+  private sampleReq: Extract<ToEngine, { type: 'engine:sample' }> | null = null;
   private lookPreview: { readonly clipId: string; readonly look: Look } | null = null;
   private overlay: Overlay | null = null;
   /** The latest look-thumbnail request not yet drawn, or paused for a preview render (latest wins). */
@@ -218,6 +234,13 @@ export class Engine {
         return this.repaint();
       case 'engine:overlay':
         this.overlay = m.overlay;
+        return this.repaint();
+      case 'engine:pick':
+        this.pick = m.clipId;
+        if (!m.clipId) this.sampleReq = null;
+        return this.repaint();
+      case 'engine:sample':
+        this.sampleReq = m;
         return this.repaint();
       case 'engine:effectsCheck':
         // RULE-22 (F-023): "drawn" decides the opening screen; the timed result only the slow notice.
@@ -568,10 +591,53 @@ export class Engine {
   private paint(plan: FramePlan, frames: readonly (PaintFrame | null)[], exact: boolean): void {
     const comp = this.comp;
     if (!comp || comp.lost) return;
-    comp.paint(plan, frames, this.texts, { compare: this.compare, lookPreview: this.lookPreview });
-    if (this.overlay) comp.paintOverlay(this.overlay);
+    // RULE-25 pick mode: the picked clip's source picture alone, without text or overlay (MOD-Plan `pickPlan`).
+    const picking = this.pick !== null;
+    // A look previewed in the gallery never grades the pick picture or the sample (RULE-25 *Pick mode*).
+    const list = comp.paint(plan, frames, picking ? new Map() : this.texts, {
+      compare: this.compare,
+      lookPreview: picking ? null : this.lookPreview,
+    });
+    if (this.overlay && !picking) comp.paintOverlay(this.overlay);
+    const req = this.sampleReq;
+    if (req && exact) {
+      this.sampleReq = null;
+      const sampled = this.sampleOf(comp, list, req);
+      this.deps.post(sampled, [sampled.rgba.buffer]);
+    }
     this.counts.painted++;
     this.deps.post({ type: 'engine:frameShown', t: plan.time, frameIndex: plan.frameIndex, exact });
+  }
+
+  /**
+   * Implements: RULE-25 *Picking*, ADR-0017 §7 and its Amendment — the pick-mode picture just painted (the clip's
+   * ungraded source, placed) read around the point, the disc of radius 1 % of `s` averaged in linear light over the
+   * clip's own picture only, rounded to #RRGGBB; null outside the clip's picture or when not picking.
+   */
+  private sampleOf(
+    comp: Compositor,
+    list: DrawList,
+    req: Extract<ToEngine, { type: 'engine:sample' }>,
+  ): Extract<FromEngine, { type: 'engine:sampled' }> {
+    const W = comp.width;
+    const H = comp.height;
+    const x = req.x * W;
+    const y = req.y * H;
+    const r = 0.01 * Math.min(W, H);
+    const region = comp.readRegion(x, y, Math.max(discSide(r), req.view ?? 0));
+    const layer = this.pick ? list.layers?.find((l) => l.clipId === this.pick && !l.blank) : undefined;
+    const rect = layer ? quadRect(layer.quad, W, H) : null;
+    const mean = rect ? discMean(region.rgba, region.side, region.bx, region.by, x, y, r, rect) : null;
+    const hex = mean ? rgbHex(mean) : null;
+    return {
+      type: 'engine:sampled',
+      ticket: req.ticket,
+      hex,
+      rgba: region.rgba,
+      side: region.side,
+      x: x - region.bx,
+      y: y - region.by,
+    };
   }
 
   private async render(req: Request): Promise<void> {
@@ -588,7 +654,8 @@ export class Engine {
     if (total > 0 && k >= total) k = total - 1;
     if (this.paintedVersion === version && k === this.lastK && this.lastExact) return;
     this.lastT = req.t;
-    const plan = framePlan(project, k);
+    // RULE-25 pick mode: the selected clip alone and ungraded (ADR-0017 §7 Amendment).
+    const plan = (this.pick ? pickPlan(project, this.pick, k) : null) ?? framePlan(project, k);
     const mode: FrameMode = req.playing ? 'play' : 'exact';
     const slots = await this.slotsFor(project, plan.layers);
     const rotations = await Promise.all(

@@ -7,7 +7,8 @@
 // end; pause keeps the playhead), F-002.R3 (scrub → seeks, latest wins), F-002.R4 (step, start, end),
 // F-002 edge cases (play at the end starts from 0; frames are skipped to keep sound in sync), RULE-22
 // (slow device signal), NFR-03. F-008: a look previewed on a clip (`setLookPreview`, RULE-09) and the
-// look-gallery thumbnails (`lookThumbnails`, F-008.R1).
+// look-gallery thumbnails (`lookThumbnails`, F-008.R1). F-028: pick mode and the eyedropper's sample (RULE-25
+// *Pick mode*, *Picking*; `setPick`, `sample`).
 import { computed, effect, signal, type ReadonlySignal } from '@preact/signals';
 import {
   frameAspect,
@@ -108,6 +109,14 @@ export interface PreviewController {
   toEnd(): void;
   /** RULE-08 compare hold on a clip (null releases it). */
   setCompare(clipId: string | null): void;
+  /** RULE-25 pick mode: only this clip's ungraded source picture is shown (null ends it and restores the preview). */
+  setPick(clipId: string | null): void;
+  /**
+   * RULE-25 *Picking*: the colour of the pick-mode picture at (`x`, `y`), fractions of the frame from its top-left;
+   * `view` asks for a larger block around it (the touch magnifier). A newer request supersedes an older one, which
+   * resolves with null.
+   */
+  sample(x: number, y: number, view?: number): Promise<PickSample | null>;
   /** RULE-09 look preview: the clip drawn with `look` (null: None) without changing the project; null clipId ends it. */
   setLookPreview(clipId: string | null, look: Look): void;
   /**
@@ -127,6 +136,15 @@ export interface PreviewController {
   /** Engine statistics (NFR-03 measurement and tests). */
   stats(): Promise<EngineStats>;
   dispose(): void;
+}
+
+/** RULE-25: a sampled colour (null outside the clip's picture) and the block of picture read around it. */
+export interface PickSample {
+  readonly hex: string | null;
+  readonly rgba: Uint8Array;
+  readonly side: number;
+  readonly x: number;
+  readonly y: number;
 }
 
 export interface PreviewDeps {
@@ -158,6 +176,8 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
   let thumbTicket = 0;
   let onThumb: ((lookId: string, bitmap: ImageBitmap) => void) | null = null;
   let onThumbsDone: ((complete: boolean) => void) | null = null;
+  let sampleTicket = 0;
+  let onSample: { ticket: number; resolve: (s: PickSample | null) => void } | null = null;
 
   const onMessage = (e: MessageEvent<FromEngine>): void => {
     const m = e.data;
@@ -190,6 +210,13 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
         return;
       case 'engine:lookThumbnailsDone':
         if (m.ticket === thumbTicket) onThumbsDone?.(m.complete);
+        return;
+      case 'engine:sampled':
+        if (onSample?.ticket === m.ticket) {
+          const { resolve } = onSample;
+          onSample = null;
+          resolve({ hex: m.hex, rgba: m.rgba, side: m.side, x: m.x, y: m.y });
+        }
         return;
       default:
         return;
@@ -368,6 +395,21 @@ export function mountPreview(element: HTMLElement, signals: PreviewSignals, deps
     toEnd: () => seekTo(duration.peek()),
     setCompare(clipId) {
       engine.postMessage({ type: 'engine:compare', clipId });
+    },
+    setPick(clipId) {
+      engine.postMessage({ type: 'engine:pick', clipId });
+      if (!clipId && onSample) {
+        onSample.resolve(null);
+        onSample = null;
+      }
+    },
+    sample(x, y, view) {
+      onSample?.resolve(null);
+      const ticket = ++sampleTicket;
+      return new Promise((resolve) => {
+        onSample = { ticket, resolve };
+        engine.postMessage({ type: 'engine:sample', ticket, x, y, ...(view ? { view } : {}) });
+      });
     },
     setLookPreview(clipId, look) {
       engine.postMessage({ type: 'engine:previewLook', clipId, look });

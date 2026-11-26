@@ -54,6 +54,11 @@ import {
   normaliseColourTools,
   normaliseHex,
   duotoneStart,
+  fromStatus,
+  REPLACE_MAX,
+  REPLACE_RANGE,
+  REPLACE_SOFTNESS,
+  type ReplacementValues,
   type Adjustments,
   type AdjustmentName,
   type AudioClip,
@@ -669,7 +674,7 @@ export function applyToAll(p: Project, id: string): EditResult {
 // Each operation is one RULE-13 step (a slider drag through a gesture, a choice, a swap, a reset). Values
 // are normalised (MOD-Core `normaliseColourTools`): defaults are dropped, so a reset tool leaves no trace and
 // a drag back to where it began leaves the same document (no step). Which mixer range is shown is UI state,
-// never stored (RULE-24 *History*). Colour replace (RULE-25, F-028, 1.3.0) is carried, not edited here.
+// never stored (RULE-24 *History*). Colour replace (RULE-25, F-028): add, edit, remove and reset replacements.
 
 /** The clip with these colour tools, normalised; the field is absent when every tool is at default. */
 function withColourTools(c: Clip, tools: ColourTools | undefined): Clip {
@@ -782,6 +787,70 @@ export function swapDuotone(p: Project, id: string): EditResult {
 /** Implements: F-027.R5, RULE-24 — duotone's Reset: None, and the remembered colours are forgotten. */
 export function resetDuotone(p: Project, id: string): EditResult {
   return updateTools(p, id, (t) => without(t, 'duotone'));
+}
+
+/**
+ * Implements: RULE-25 *Each replacement*, *Grey and faint From colours*, F-028.R1/R4 — a successful pick adds a
+ * replacement with From and To both the picked colour, Range 30 and Softness 50 (one step). Refused, changing
+ * nothing: a grey colour (COPY-notice.replace_grey) and a fourth replacement (RULE-25 *Count*). A faint colour is
+ * added with COPY-notice.replace_faint.
+ */
+export function addReplacement(p: Project, id: string, hex: string): EditResult {
+  const colour = normaliseHex(hex);
+  if (!colour) return same(p);
+  const status = fromStatus(colour);
+  if (status === 'grey') return same(p, ['notice.replace_grey']);
+  const r = updateTools(p, id, (t) =>
+    (t.replace?.length ?? 0) >= REPLACE_MAX
+      ? t
+      : {
+          ...t,
+          replace: [
+            ...(t.replace ?? []),
+            { from: colour, to: colour, range: REPLACE_RANGE, softness: REPLACE_SOFTNESS },
+          ],
+        },
+  );
+  return status === 'faint' && r.project !== p ? { ...r, notices: ['notice.replace_faint'] } : r;
+}
+
+/**
+ * Implements: RULE-25 *Each replacement*, F-028.R2/R4/R6 — one replacement's From, To, Range or Softness (Range and
+ * Softness reset to 30 and 50 by setting them). Picking again or entering a From colour sets From only; To is kept. A
+ * grey From is refused (COPY-notice.replace_grey) and From stays as it was; a faint one is accepted with
+ * COPY-notice.replace_faint.
+ */
+export function setReplacement(p: Project, id: string, index: number, change: Partial<ReplacementValues>): EditResult {
+  let notices: Notice[] = [];
+  if (change.from !== undefined) {
+    const from = normaliseHex(change.from);
+    const status = from ? fromStatus(from) : 'grey';
+    if (!from || status === 'grey') return same(p, from ? ['notice.replace_grey'] : []);
+    if (status === 'faint') notices = ['notice.replace_faint'];
+  }
+  if (change.to !== undefined && !normaliseHex(change.to)) return same(p);
+  const r = updateTools(p, id, (t) => {
+    const list = t.replace ?? [];
+    if (!list[index]) return t;
+    return { ...t, replace: list.map((x, i) => (i === index ? { ...x, ...change } : x)) };
+  });
+  // RULE-25: the faint hint is shown once per pick or entry, also when From was that colour already.
+  const exists = !!p.clips.find((c) => c.id === id)?.colourTools?.replace?.[index];
+  return exists && notices.length ? { ...r, notices } : r;
+}
+
+/** Implements: RULE-25 *Each replacement*, F-028.R1 — a replacement removed (one step, RULE-24 *History*). */
+export function removeReplacement(p: Project, id: string, index: number): EditResult {
+  return updateTools(p, id, (t) => {
+    const list = t.replace ?? [];
+    if (!list[index]) return t;
+    return { ...t, replace: list.filter((_, i) => i !== index) };
+  });
+}
+
+/** Implements: F-028.R6, RULE-24 — colour replace's Reset: every replacement removed (one step). */
+export function resetReplace(p: Project, id: string): EditResult {
+  return updateTools(p, id, (t) => without(t, 'replace'));
 }
 
 // ── sound (F-011, RULE-12) ─────────────────────────────────────────────────────────────────────

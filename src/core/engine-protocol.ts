@@ -71,6 +71,23 @@ export type ToEngine =
     }
   /** Compare hold (RULE-08): the clip drawn without adjustments and look; null ends it. */
   | { readonly type: 'engine:compare'; readonly clipId: string | null }
+  /**
+   * RULE-25 pick mode (F-028.R8): the preview shows only this clip's ungraded source picture over the background
+   * (MOD-Plan `pickPlan`), no text and no overlay; null ends it and the preview is restored.
+   */
+  | { readonly type: 'engine:pick'; readonly clipId: string | null }
+  /**
+   * RULE-25 *Picking* (ADR-0017 §7): the colour of the pick-mode picture at (`x`, `y`) (fractions of the frame from
+   * its top-left), averaged over a disc of radius 1 % of `s`; `view` asks for a larger block (the touch magnifier).
+   * Answered by `engine:sampled` after the next exact paint.
+   */
+  | {
+      readonly type: 'engine:sample';
+      readonly ticket: number;
+      readonly x: number;
+      readonly y: number;
+      readonly view?: number;
+    }
   | { readonly type: 'engine:overlay'; readonly overlay: Overlay | null }
   /** RULE-22 effects check, run in this worker (platform-mapping "Start-up check"). */
   | { readonly type: 'engine:effectsCheck' }
@@ -150,4 +167,17 @@ export type FromEngine =
    * picture yet, a source failed, or what the thumbnails show changed), so the gallery asks again.
    */
   | { readonly type: 'engine:lookThumbnailsDone'; readonly ticket: number; readonly complete: boolean }
+  /**
+   * RULE-25 *Picking*: the colour of request `ticket` (#RRGGBB; null when the point is outside the clip's picture), and
+   * the block of the picture read around it (RGBA rows from the top, `side` pixels; the point at `x`, `y` in it).
+   */
+  | {
+      readonly type: 'engine:sampled';
+      readonly ticket: number;
+      readonly hex: string | null;
+      readonly rgba: Uint8Array;
+      readonly side: number;
+      readonly x: number;
+      readonly y: number;
+    }
   | { readonly type: 'engine:error'; readonly message: string };

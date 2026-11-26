@@ -5,9 +5,8 @@
 // Implements: RULE-08 order — Temperature, Tint; Brightness, Contrast, Highlights, Shadows; Saturation,
 // Vibrance; the look (RULE-09, intensity); Fade; Sharpen; Vignette; Grain. ADR-0007 §1: grading on
 // encoded sRGB values in floating point; every stage clamps to [0, 1].
-// Implements: RULE-24 *Order applied* (D-053, ADR-0017 §1): [1. colour replace — RULE-25, F-028, 1.3.0: its
-// slot is the start of `grade`]; 2–4. the RULE-08 corrections; 5. colour mixer; 6. colour pop; 7. the look;
-// 8. split toning; 9. duotone; 10. Fade, then the finish. Colour stages work in OKLab (MOD-Core `colour.ts`)
+// Implements: RULE-24 *Order applied* (D-053, ADR-0017 §1): 1. colour replace (RULE-25, F-028); 2–4. the RULE-08
+// corrections; 5. colour mixer; 6. colour pop; 7. the look; 8. split toning; 9. duotone; 10. Fade, then the finish. Colour stages work in OKLab (MOD-Core `colour.ts`)
 // and are skipped by uniform when off, so a clip without colour tools renders bit-identically (§6).
 import {
   COLOUR_RANGES,
@@ -20,6 +19,8 @@ import {
   linearToSrgb,
   mixPopLab,
   oklabToLinear,
+  replaceLab,
+  replaceParams,
   splitCrossover,
   splitLab,
   srgbToOklab,
@@ -27,6 +28,7 @@ import {
   type Adjustments,
   type ColourTools,
   type Look,
+  type ReplaceParams,
   type Vec3,
 } from '../core';
 import { lutSample, type LookTable } from './lut';
@@ -66,6 +68,11 @@ export interface DuotoneStage {
   readonly strength: number;
 }
 
+/** Colour replace (RULE-25): the replacements that change the picture, in list order (at most 3). */
+export interface ReplaceStage {
+  readonly params: readonly ReplaceParams[];
+}
+
 /** The shader constants of one clip's grade and finish (slider values → curve gains). */
 export interface GradeUniforms {
   readonly wbOn: boolean;
@@ -84,6 +91,7 @@ export interface GradeUniforms {
   readonly vignette: number;
   readonly grain: number;
   /** RULE-24 colour tools; null when off (ADR-0017 §6: the stage is skipped). */
+  readonly replace: ReplaceStage | null;
   readonly hue: HueStage | null;
   readonly split: SplitStage | null;
   readonly duotone: DuotoneStage | null;
@@ -112,6 +120,18 @@ function hueStage(t: ColourTools | undefined): HueStage | null {
     if (tables.size > TABLE_MEMO) tables.delete(tables.keys().next().value!);
   }
   return { key, table, mix: mixOn, pop: popValues !== null };
+}
+
+/**
+ * Implements: RULE-25 colour replace as uniforms (ADR-0017 §5), or null when no replacement changes the picture (none,
+ * or each with To equal to From: "it changes nothing until To is changed").
+ */
+function replaceStage(t: ColourTools | undefined): ReplaceStage | null {
+  const params = (t?.replace ?? [])
+    .slice(0, 3)
+    .map(replaceParams)
+    .filter((p): p is ReplaceParams => p !== null);
+  return params.length ? { params } : null;
 }
 
 /** Implements: RULE-24 split toning as uniforms (ADR-0017 §4), or null when both strengths are 0. */
@@ -166,6 +186,7 @@ export function gradeUniforms(a: Adjustments, look: Look, colourTools?: ColourTo
     sharpen: (1.2 * (a.sharpen ?? 0)) / 100,
     vignette: (0.75 * (a.vignette ?? 0)) / 100,
     grain: (0.12 * (a.grain ?? 0)) / 100,
+    replace: replaceStage(colourTools),
     hue: hueStage(colourTools),
     split: splitStage(colourTools),
     duotone: duotoneStage(colourTools),
@@ -177,6 +198,11 @@ export const NEUTRAL: GradeUniforms = gradeUniforms({}, null);
 
 const lin3 = (c: Rgb): Vec3 => [toLinear(c[0]), toLinear(c[1]), toLinear(c[2])];
 const srgb3 = (l: Vec3): Rgb => [linearToSrgb(clamp01(l[0])), linearToSrgb(clamp01(l[1])), linearToSrgb(clamp01(l[2]))];
+
+/** RULE-24 step 1, RULE-25 (CPU reference of GLSL `replaceC`): one OKLab round trip. */
+function replaceRgb(c: Rgb, r: ReplaceStage): Rgb {
+  return srgb3(oklabToLinear(replaceLab(linearToOklab(lin3(c)), r.params)));
+}
 
 /** RULE-24 steps 5–6 (CPU reference of GLSL `mixPop`): one OKLab round trip. */
 function mixPop(c: Rgb, h: HueStage): Rgb {
@@ -200,8 +226,9 @@ function splitDuo(c: Rgb, s: SplitStage | null, d: DuotoneStage | null): Rgb {
 
 /** CPU reference of the grade pass (before the finish). `rgb` in [0, 1]. */
 function grade(rgb: Rgb, u: GradeUniforms, table: LookTable | null): Rgb {
-  // 1. Colour replace (RULE-25, F-028): its stage goes here, on the source's own colours (ADR-0017 §5).
+  // 1. Colour replace (RULE-25, F-028), on the source's own colours (ADR-0017 §5).
   let c = map3(rgb, clamp01);
+  if (u.replace) c = replaceRgb(c, u.replace);
   if (u.wbOn) c = map3(c, (x, i) => clamp01(toSrgb(clamp01(toLinear(x) * u.wb[i]!))));
   c = map3(c, (x) => clamp01(x + u.bright * x * (1 - x)));
   c = map3(c, (x) =>
@@ -306,7 +333,8 @@ uint pcg(uint v){ uint s = v * 747796405u + 2891336453u; uint w = ((s >> ((s >> 
  * RULE-24 colour stages in OKLab (ADR-0017 §2–§4), mirroring MOD-Core `colour.ts` line for line: the
  * conversions, the gamut reduction (8 halvings at constant L and h), the grey gate, the hue table (one
  * 1,024-entry RGBA16F texture: hue shift in turns, chroma factor, lightness move, pop loss) and the tints.
- * Which stages run is compiled in (CT_MIX, CT_POP, CT_SPLIT, CT_DUO: one program per set of tools on, the
+ * Colour replace (RULE-25) matches with up to three analytic weights (`replaceC`).
+ * Which stages run is compiled in (CT_REP, CT_MIX, CT_POP, CT_SPLIT, CT_DUO: one program per set of tools on, the
  * fallback of ADR-0017 §9 that SP-colour-tools chose), so a clip without colour tools runs the 1.1.0 grade.
  */
 export const GLSL_COLOUR = `
@@ -383,6 +411,37 @@ vec3 mixPop(vec3 c){
 #endif
 }
 #endif
+#if CT_REP
+// RULE-25 colour replace (ADR-0017 §5 and its Amendment): per replacement uRepA = (From's OK hue in degrees, full
+// distance, fade distance, turn Δ), uRepB = (chroma fade ¼ and ½ of From's OK C, chroma ratio, 1 when To is grey).
+// Weights on the stage's input; each later one acts on the share the earlier ones left; h + w(Δ − d), C × ((1 − Σw)
+// + Σw·ratio), L kept, then the gamut reduction. Mirrors MOD-Core replaceLab.
+uniform vec4 uRepA[3]; uniform vec4 uRepB[3];
+float hueDelta(float a, float b){ return mod(a - b + 180.0, 360.0) - 180.0; }
+vec3 replaceC(vec3 c){
+  vec3 lin = toLin(c);
+  float g = greyGate(lin);
+  if (g <= 0.0) return c;
+  vec3 lab = linToOklab(lin);
+  float C = length(lab.yz);
+  float h = degrees(atan(lab.z, lab.y));
+  float sum = 0.0, dh = 0.0, dc = 0.0;
+  for (int k = 0; k < 3; k++) {
+    vec4 a = uRepA[k];
+    vec4 b = uRepB[k];
+    float d = hueDelta(h, a.x);
+    float w = (1.0 - smoothstep(a.y, a.y + a.z, abs(d))) * smoothstep(b.x, b.y, C) * g * (1.0 - sum);
+    sum += w;
+    if (b.w < 0.5) dh += w * (a.w - d);
+    dc += w * (b.z - 1.0);
+  }
+  if (sum <= 0.0) return c;
+  C *= 1.0 + dc;
+  h = radians(h + dh);
+  lab = gamutLab(vec3(lab.x, C * cos(h), C * sin(h)));
+  return toSrgb(clamp(oklabToLin(lab), 0.0, 1.0));
+}
+#endif
 #if CT_SPLIT || CT_DUO
 vec3 splitDuo(vec3 c){
   vec3 lin = toLin(c);
@@ -410,22 +469,35 @@ export const CT_MIX = 1;
 export const CT_POP = 2;
 export const CT_SPLIT = 4;
 export const CT_DUO = 8;
+/**
+ * RULE-25 colour replace: one bit and a fixed loop of three (unused slots weigh 0), so editing the number of
+ * replacements compiles no new program; with five stage bits the grade has at most 32 programs.
+ */
+export const CT_REP = 16;
 
 /** Implements: ADR-0017 §6, §9 — which colour stages a clip's grade needs (0: the 1.1.0 grade). */
 export const colourStages = (u: GradeUniforms): number =>
-  (u.hue?.mix ? CT_MIX : 0) | (u.hue?.pop ? CT_POP : 0) | (u.split ? CT_SPLIT : 0) | (u.duotone ? CT_DUO : 0);
+  (u.hue?.mix ? CT_MIX : 0) |
+  (u.hue?.pop ? CT_POP : 0) |
+  (u.split ? CT_SPLIT : 0) |
+  (u.duotone ? CT_DUO : 0) |
+  (u.replace ? CT_REP : 0);
 
 /** The preprocessor lines that select the stages (after `#version`). */
 export const colourDefines = (stages: number): string =>
   `#define CT_MIX ${stages & CT_MIX ? 1 : 0}\n#define CT_POP ${stages & CT_POP ? 1 : 0}\n` +
-  `#define CT_SPLIT ${stages & CT_SPLIT ? 1 : 0}\n#define CT_DUO ${stages & CT_DUO ? 1 : 0}\n`;
+  `#define CT_SPLIT ${stages & CT_SPLIT ? 1 : 0}\n#define CT_DUO ${stages & CT_DUO ? 1 : 0}\n` +
+  `#define CT_REP ${stages & CT_REP ? 1 : 0}\n`;
 
 export const GLSL_GRADE = `
 uniform bool uWBOn; uniform vec3 uWB; uniform float uBright, uContrast, uHi, uSh, uSat, uVib, uLookMix, uFade;
 uniform mediump sampler3D uLut;
 vec3 grade(vec3 c){
-  // 1. Colour replace (RULE-25, F-028, 1.3.0): ADR-0017 §5's stage goes here, before Temperature and Tint.
   c = clamp(c, 0.0, 1.0);
+  // 1. Colour replace (RULE-25, F-028), before Temperature and Tint.
+#if CT_REP
+  c = replaceC(c);
+#endif
   if (uWBOn) c = clamp(toSrgb(clamp(toLin(c) * uWB, 0.0, 1.0)), 0.0, 1.0);
   c = clamp(c + uBright * c * (1.0 - c), 0.0, 1.0);
   c = clamp(uContrast >= 0.0 ? c + uContrast * (c * c * (3.0 - 2.0 * c) - c) : c + 0.5 * uContrast * (c - 0.5), 0.0, 1.0);

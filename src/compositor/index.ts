@@ -22,11 +22,14 @@ export {
 } from './effects';
 export {
   backgroundColour,
+  discMean,
+  discSide,
   drawList,
   hexToRgb,
   intermediateSize,
   mixPixel,
   placeQuad,
+  quadRect,
   type DrawList,
   type DrawOptions,
   type LayerDraw,
@@ -48,6 +51,7 @@ export {
   type DuotoneStage,
   type GradeUniforms,
   type HueStage,
+  type ReplaceStage,
   type SplitStage,
   type Rgb,
 } from './grade';

@@ -30,6 +30,7 @@ import {
   type Point,
   type Size,
 } from '../preview';
+import { pickMode } from './pick';
 import { beginPlacementDrag, placementShown, placementTarget, type PlacementDrag } from './placement';
 import { playback } from './playback';
 import { snapping } from './timeline-nav';
@@ -120,7 +121,9 @@ export function PlacementOverlay({ stage }: { readonly stage: RefObject<HTMLElem
   const box = useCanvasBox(stage);
   const target = placementTarget.value;
   const playing = playback.value?.ctl.state.value === 'playing';
-  const visible = box !== null && target !== null && target.picture !== null && placementShown.value && !playing;
+  // RULE-25 pick mode hides the handles; drags and pinches then never move or scale the clip.
+  const visible =
+    box !== null && target !== null && target.picture !== null && placementShown.value && !playing && !pickMode.value;
   const layer = useRef<HTMLDivElement>(null);
   const [guides, setGuides] = useState<{ x: boolean; y: boolean }>({ x: false, y: false });
   const drag = useRef<Drag | null>(null);

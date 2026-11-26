@@ -2,7 +2,7 @@
 // `gop`), a fake WebCodecs decoder (optionally holding frames back like WebKit, or slow), fake frames
 // that count how many are open, and a fake compositor that records paints.
 import type { FramePlan } from '../../src/plan';
-import type { Compositor, PaintFrame } from '../../src/compositor';
+import { drawList, type Compositor, type PaintFrame } from '../../src/compositor';
 import {
   DecoderSlot,
   type DecoderFactory,
@@ -218,7 +218,24 @@ export class FakeCompositor implements Compositor {
       layers: plan.layers.map((l) => ({ clipId: l.clip.id, look: l.clip.look?.id ?? null })),
       lookPreview: o?.lookPreview,
     });
-    return {} as ReturnType<Compositor['paint']>;
+    // The draw list (pure) so the eyedropper finds the clip's placed picture (RULE-25).
+    return drawList(
+      plan,
+      this.width,
+      this.height,
+      frames.map((f) => (f ? { width: f.width || 1920, height: f.height || 1080, rotation: 0 as const } : null)),
+      new Map(),
+      { compare: o?.compare ?? null },
+    );
+  }
+  /** RULE-25 eyedropper: every pixel of the region is `regionColour` (RGBA bytes). */
+  regionColour: readonly [number, number, number] = [200, 40, 30];
+  regions: { x: number; y: number; side: number }[] = [];
+  readRegion(x: number, y: number, side: number): { rgba: Uint8Array; bx: number; by: number; side: number } {
+    this.regions.push({ x, y, side });
+    const rgba = new Uint8Array(side * side * 4);
+    for (let i = 0; i < side * side; i++) rgba.set([...this.regionColour, 255], i * 4);
+    return { rgba, bx: Math.round(x - side / 2), by: Math.round(y - side / 2), side };
   }
   resize(w: number, h: number): void {
     this.width = w;

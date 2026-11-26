@@ -36,6 +36,7 @@ import { useCanvasBox } from './PlacementOverlay';
 import { playback } from './playback';
 import { snapping } from './timeline-nav';
 import { beginTextDrag, editingText, editLayer, selectText, selectedText, type TextDrag } from './text';
+import { pickMode } from './pick';
 
 // RULE-14 snapping: the F-013 toggle (./timeline-nav.ts), for the timeline and the preview (F-013.R3).
 
@@ -77,7 +78,8 @@ export function TextOverlay({ stage }: { readonly stage: RefObject<HTMLElement> 
   const editing = editingText.value;
   const shown = shownTexts.value;
   const selected = selectedText.value;
-  const visible = box !== null && !playing && editing === null && shown.length > 0;
+  // RULE-25 pick mode shows no text layers (the clip beneath is sampled).
+  const visible = box !== null && !playing && editing === null && shown.length > 0 && !pickMode.value;
   const layer = useRef<HTMLDivElement>(null);
   const [guides, setGuides] = useState<{ x: number | null; y: number | null; on: boolean }>({
     x: null,

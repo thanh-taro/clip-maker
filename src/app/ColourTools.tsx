@@ -5,7 +5,11 @@
 // and changes the picture) and, after it, the group Reset (COPY-action.reset, named
 // COPY-colour_tools.reset_tool) under the same rule. Groups start collapsed; which are open is kept for the
 // session (./colour-tools.ts `openTools`).
-// Implements: F-024.R1/R4/R5, F-025.R1/R4/R5, F-026.R1/R4/R5, F-027.R1/R3/R5, CMP-Inspector "Accessibility"
+// F-028 colour replace (CMP-Inspector "colour replace (1.3.0)"): COPY-replace.help, up to three cards (From → To
+// colour buttons, Pick from preview, Range, Softness, Remove), then Add colour to replace (unavailable with
+// COPY-replace.limit under it when three exist); the Add or Pick button shows as pressed while pick mode is on.
+// Implements: F-024.R1/R4/R5, F-025.R1/R4/R5, F-026.R1/R4/R5, F-027.R1/R3/R5, F-028.R1/R2/R6/R7, CMP-Inspector
+// "Accessibility"
 // (disclosure buttons with an expanded state and COPY-colour_tools.changed in their name; colour range,
 // colour pop and duotone choices are radio groups with names, never colour alone; hue sliders read
 // COPY-colour_tools.hue_value), RULE-20 (radio groups get the arrow keys, ./OptionGroup.tsx).
@@ -18,6 +22,7 @@ import {
   DUOTONE_PAIRS,
   RANGE_REFERENCE,
   MIXER_VALUES,
+  REPLACE_MAX,
   type ColourRangeName,
   type ColourTools,
   type DuotoneChoice,
@@ -39,10 +44,15 @@ import {
   openPicker,
   openTools,
   pickDuotone,
+  pickerHex,
+  pickerLabel,
   pickerOpen,
   pickerReturn,
   popSpec,
   rangeChanged,
+  removeReplacementAt,
+  replacePicker,
+  replaceSpec,
   resetTool,
   resetToolValue,
   setToolOnce,
@@ -51,6 +61,7 @@ import {
   swapColours,
   toggleTool,
   toolChanged,
+  toolResettable,
   toolValueNow,
   type PickerFor,
   type ToolName,
@@ -58,6 +69,7 @@ import {
 } from './colour-tools';
 import { Icon } from './icons';
 import { OptionGroup, type Option } from './OptionGroup';
+import { pickPressed, pickReturn, startPick, type PickTarget } from './pick';
 import { ToolSlider } from './ToolSlider';
 
 /** A slider row bound to one colour-tool value of the clip. */
@@ -289,7 +301,20 @@ function SplitBody({
 // ── F-027 duotone ──────────────────────────────────────────────────────────────────────────────
 
 /** CMP-ColourPicker's colour button: swatch, label and hex; named by its label and reading its value. */
-function ColourButton({ clipId, which, hex, open }: { clipId: string; which: PickerFor; hex: string; open: boolean }) {
+function ColourButton({
+  clipId,
+  which,
+  hex,
+  open,
+  unset = false,
+}: {
+  clipId: string;
+  which: PickerFor;
+  hex: string;
+  open: boolean;
+  /** F-028: To still equals From — dashed, reading COPY-replace.to_unset in place of its hex. */
+  unset?: boolean;
+}) {
   const ref = useRef<HTMLButtonElement>(null);
   const back = pickerReturn.value === which;
   useEffect(() => {
@@ -297,13 +322,13 @@ function ColourButton({ clipId, which, hex, open }: { clipId: string; which: Pic
     pickerReturn.value = null;
     ref.current?.focus();
   }, [back]);
-  const label = t(`duotone.${which}`);
+  const label = pickerLabel(which);
   return (
     <button
       ref={ref}
       type="button"
-      class="tk-colour-button"
-      aria-label={t('picker.current', { name: label, hex })}
+      class={unset ? 'tk-colour-button tk-colour-button--unset' : 'tk-colour-button'}
+      aria-label={t('picker.current', { name: label, hex: unset ? t('replace.to_unset') : hex })}
       aria-haspopup="dialog"
       aria-expanded={open ? 'true' : 'false'}
       data-action={`colour-${which}`}
@@ -311,7 +336,7 @@ function ColourButton({ clipId, which, hex, open }: { clipId: string; which: Pic
     >
       <span class="tk-colour-button__swatch" aria-hidden="true" style={{ '--ctool-swatch': hex }} />
       <span class="tk-colour-button__label">{label}</span>
-      <span class="tk-colour-button__hex">{hex}</span>
+      <span class="tk-colour-button__hex">{unset ? t('replace.to_unset') : hex}</span>
     </button>
   );
 }
@@ -360,7 +385,7 @@ function DuotoneBody({
     })),
     { value: 'custom', key: 'custom', label: pairName('custom'), chip: true },
   ];
-  const colour = (which: PickerFor) => {
+  const colour = (which: 'shadows' | 'highlights') => {
     const open = picker?.clipId === clipId && picker.which === which;
     return (
       <div class="tk-ctool__colour">
@@ -411,6 +436,180 @@ function DuotoneBody({
   );
 }
 
+// ── F-028 colour replace ────────────────────────────────────────────────────────────────────────
+
+/** A button that starts pick mode (Add colour to replace, Pick from preview): pressed while its pick mode is on. */
+function PickButton({
+  clipId,
+  target,
+  class: cls,
+  icon,
+  label,
+  disabled,
+  describedBy,
+}: {
+  clipId: string;
+  target: PickTarget;
+  class: string;
+  icon: 'add' | 'eyedropper';
+  label: string;
+  disabled?: boolean;
+  describedBy?: string;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const key = target.kind === 'add' ? 'add' : target.index;
+  const back = pickReturn.value === key;
+  useEffect(() => {
+    if (!back) return;
+    pickReturn.value = null;
+    ref.current?.focus();
+  }, [back]);
+  const pressed = pickPressed.value === key;
+  return (
+    <button
+      ref={ref}
+      type="button"
+      class={cls}
+      aria-pressed={pressed ? 'true' : 'false'}
+      aria-describedby={describedBy}
+      disabled={disabled}
+      data-action={target.kind === 'add' ? 'replace-add' : `replace-pick-${target.index}`}
+      // RULE-25: a pick started from the keyboard puts a marker on the preview (detail 0: no pointer click).
+      onClick={(e) => (pressed ? undefined : startPick(clipId, target, e.detail === 0))}
+    >
+      <Icon name={icon} size={16} />
+      {label}
+    </button>
+  );
+}
+
+function ReplaceCard({
+  id,
+  clipId,
+  tools,
+  index,
+  touch,
+  Title,
+}: {
+  id: string;
+  clipId: string;
+  tools: ColourTools | undefined;
+  index: number;
+  touch: boolean;
+  Title: 'h4' | 'h5';
+}) {
+  const picker = pickerOpen.value;
+  const titleId = `${id}-title`;
+  const title = t('replace.item', { n: index + 1 });
+  const ends = ['from', 'to'] as const;
+  const openEnd = ends.find((end) => picker?.clipId === clipId && picker.which === replacePicker(index, end));
+  return (
+    <div class="tk-replace" role="group" aria-labelledby={titleId} data-replacement={index}>
+      <div class="tk-replace__head">
+        <Title class="tk-replace__title" id={titleId}>
+          {title}
+        </Title>
+        <button
+          type="button"
+          class={touch ? 'tk-icon-button tk-replace__remove' : 'tk-button tk-button--ghost tk-replace__remove'}
+          aria-label={touch ? t('replace.remove') : undefined}
+          aria-describedby={titleId}
+          title={touch ? t('replace.remove') : undefined}
+          data-action={`replace-remove-${index}`}
+          onClick={() => {
+            // The card goes: focus moves to the group's header first.
+            document.querySelector<HTMLElement>(`[data-tool="replace"] .tk-ctool__toggle`)?.focus();
+            removeReplacementAt(clipId, index);
+          }}
+        >
+          <Icon name="remove" size={16} />
+          {touch ? null : t('replace.remove')}
+        </button>
+      </div>
+      <div class="tk-replace__colours">
+        {ends.map((end, k) => {
+          const which = replacePicker(index, end);
+          return [
+            k === 1 ? <Icon key="arrow" name="toward" size={16} class="tk-replace__arrow" /> : null,
+            <ColourButton
+              key={end}
+              clipId={clipId}
+              which={which}
+              hex={pickerHex(tools, which)}
+              open={openEnd === end}
+              unset={end === 'to' && pickerHex(tools, which) === pickerHex(tools, replacePicker(index, 'from'))}
+            />,
+          ];
+        })}
+      </div>
+      {/* Wide: the popover under the colours row. Narrow: it opens in place of the sheet's body. */}
+      {openEnd && !touch ? <ColourPicker clipId={clipId} which={replacePicker(index, openEnd)} touch={false} /> : null}
+      <PickButton
+        clipId={clipId}
+        target={{ kind: 'from', index }}
+        class="tk-button tk-button--ghost tk-replace__pick"
+        icon="eyedropper"
+        label={t('replace.pick')}
+      />
+      <ToolRow id={id} clipId={clipId} tools={tools} spec={replaceSpec(index, 'range')} label={t('replace.range')} />
+      <ToolRow
+        id={id}
+        clipId={clipId}
+        tools={tools}
+        spec={replaceSpec(index, 'softness')}
+        label={t('replace.softness')}
+      />
+    </div>
+  );
+}
+
+function ReplaceBody({
+  id,
+  clipId,
+  tools,
+  touch,
+  Sub,
+}: {
+  id: string;
+  clipId: string;
+  tools: ColourTools | undefined;
+  touch: boolean;
+  Sub: 'h4' | 'h5';
+}) {
+  const list = tools?.replace ?? [];
+  const full = list.length >= REPLACE_MAX;
+  const limitId = `${id}-limit`;
+  // Wide: the popover belongs to this group; it closes when the group goes (CMP-ColourPicker "Behavior").
+  useEffect(() => (touch ? undefined : () => closePicker(false)), [touch]);
+  return (
+    <>
+      {/* F-028.R7: the tool matches colour, not objects. */}
+      <p class="tk-ctool__help" id={`${id}-help`}>
+        {t('replace.help')}
+      </p>
+      {list.map((_, i) => (
+        <ReplaceCard key={i} id={`${id}-${i}`} clipId={clipId} tools={tools} index={i} touch={touch} Title={Sub} />
+      ))}
+      <div class="tk-replace__add">
+        <PickButton
+          clipId={clipId}
+          target={{ kind: 'add' }}
+          class="tk-button tk-replace__add-button"
+          icon="add"
+          label={t('replace.add')}
+          disabled={full}
+          {...(full ? { describedBy: limitId } : {})}
+        />
+        {full ? (
+          <p class="tk-ctool__help" id={limitId} data-notice="replace_limit">
+            {t('replace.limit')}
+          </p>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 // ── the groups ─────────────────────────────────────────────────────────────────────────────────
 
 function ToolGroup({
@@ -456,7 +655,7 @@ function ToolGroup({
             ) : null}
           </button>
         </Head>
-        {changed ? (
+        {toolResettable(tools, tool) ? (
           <button
             type="button"
             class="tk-adjust__reset-all tk-ctool__reset"
@@ -483,7 +682,7 @@ function ToolGroup({
 }
 
 /**
- * The four colour-tool groups, after Effects. `Head` is the level of the Adjust groups' titles (h4 in the
+ * The five colour-tool groups, after Effects. `Head` is the level of the Adjust groups' titles (h4 in the
  * inspector, h3 in the phone sheet); `touch`: the sheet's touch-size rows.
  */
 export function ColourToolGroups({
@@ -513,6 +712,9 @@ export function ColourToolGroups({
       </ToolGroup>
       <ToolGroup {...props('duotone')}>
         <DuotoneBody id={`${id}-duotone`} clipId={clipId} tools={tools} touch={touch} />
+      </ToolGroup>
+      <ToolGroup {...props('replace')}>
+        <ReplaceBody id={`${id}-replace`} clipId={clipId} tools={tools} touch={touch} Sub={Sub} />
       </ToolGroup>
     </div>
   );

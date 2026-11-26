@@ -3,10 +3,11 @@
 // constant lightness and hue, the per-clip hue table of the colour mixer and colour pop, split toning's tone
 // weights and duotone's gradient position. Shared by the CPU reference (the test oracle) and MOD-Compositor,
 // which mirrors it in GLSL, so the oracle and the GPU agree by construction (ADR-0017 §3).
-// Colour replace (RULE-25, F-028, 1.3.0) reuses `okLch`, `greyGate`, `smoothstep` and `gamutLab`. The grey gate is
-// on CIELAB C* (SP-colour-tools finding, see `greyGate`).
+// Colour replace (RULE-25, F-028, 1.3.0): match weights, the one turning direction and the shares of several
+// replacements (ADR-0017 §5 and its 2026-11-26 Amendment). The grey gate is on CIELAB C* (SP-colour-tools finding,
+// see `greyGate`).
 // Implements: RULE-24 *Measures*, *Hue wheel*, *Colour ranges*, *Colour mixer*, *Colour pop*, *Split toning*,
-// *Duotone*; ADR-0017 §2, §3, §4.
+// *Duotone*; RULE-25 *Matching*, *Change*, *Several replacements*, *Grey and faint From colours*; ADR-0017 §2–§5.
 
 export type Vec3 = readonly [number, number, number];
 
@@ -89,6 +90,13 @@ export function oklabToSrgb(lab: Vec3): Vec3 {
   const l = oklabToLinear(gamutLab(lab));
   return [linearToSrgb(clamp01(l[0])), linearToSrgb(clamp01(l[1])), linearToSrgb(clamp01(l[2]))];
 }
+
+const byteHex = (x: number): string =>
+  Math.round(Math.min(1, Math.max(0, x)) * 255)
+    .toString(16)
+    .padStart(2, '0');
+/** sRGB values in [0, 1] → upper-case "#RRGGBB" (rounded; RULE-25 picks, CMP-ColourPicker). */
+export const rgbHex = ([r, g, b]: Vec3): string => `#${byteHex(r)}${byteHex(g)}${byteHex(b)}`.toUpperCase();
 
 /** "#RRGGBB" → sRGB values in [0, 1]. */
 export function hexRgb(hex: string): Vec3 {
@@ -377,4 +385,137 @@ export function nearestRange(wheelDeg: number): ColourRangeName {
     }
   }
   return best;
+}
+
+// ── colour replace (RULE-25, F-028; ADR-0017 §5 and its 2026-11-26 Amendment) ───────────────────
+
+/** RULE-25: at most three replacements per clip; Range and Softness defaults. */
+export const REPLACE_MAX = 3;
+export const REPLACE_RANGE = 30;
+export const REPLACE_SOFTNESS = 50;
+
+/** One stored replacement (schema `colourTools.replace[]`): From and To as #RRGGBB, Range and Softness 0–100. */
+export interface ReplacementValues {
+  readonly from: string;
+  readonly to: string;
+  readonly range: number;
+  readonly softness: number;
+}
+
+/** RULE-25 *Matching*: the full distance either side of From's hue, 5° + 0.55° × Range (5° … 60°). */
+export const replaceFull = (range: number): number => 5 + 0.55 * range;
+/** RULE-25 *Matching*: the fade distance beyond it, 2° + (full − 2°) × Softness ÷ 100 (11.75° at the defaults). */
+export const replaceFade = (range: number, softness: number): number => 2 + ((replaceFull(range) - 2) * softness) / 100;
+
+/** Signed hue difference a − b in degrees, in (−180, 180] (the shader's form; equal wherever a weight is > 0). */
+export function hueDelta(a: number, b: number): number {
+  let d = wrap360(a - b);
+  if (d > 180) d -= 360;
+  return d;
+}
+
+/** CIELAB C* of an sRGB #RRGGBB colour (RULE-24's grey test; RULE-25's grey and faint From colours). */
+export const hexChroma = (hex: string): number => {
+  const [r, g, b] = hexRgb(hex);
+  return cieChroma([srgbToLinear(r), srgbToLinear(g), srgbToLinear(b)]);
+};
+
+/**
+ * Implements: RULE-25 *Grey and faint From colours* — a From colour with C* below 2 is `grey` (refused); from 2 to
+ * below 12 it is `faint` (accepted: its matches lie in RULE-24's grey fade, COPY-notice.replace_faint); else `ok`.
+ */
+export function fromStatus(hex: string): 'grey' | 'faint' | 'ok' {
+  const c = hexChroma(hex);
+  return c < GREY_GATE[0] ? 'grey' : c < GREY_GATE[1] ? 'faint' : 'ok';
+}
+
+/**
+ * One replacement as the grade uses it (ADR-0017 §5 Amendment): From's OKLCh hue, the full and fade distances, the
+ * one turning direction Δ (the shorter signed angle From → To, +180° when exactly opposite), the chroma fade's ends
+ * (¼ and ½ of From's OKLCh C), the chroma ratio To ÷ From, and whether To is grey (the hue is then not moved).
+ */
+export interface ReplaceParams {
+  readonly fromH: number;
+  readonly full: number;
+  readonly fade: number;
+  readonly delta: number;
+  readonly cLo: number;
+  readonly cHi: number;
+  readonly ratio: number;
+  readonly toGrey: boolean;
+}
+
+/**
+ * Implements: RULE-25 *Each replacement*, *Matching*, *Change* — the grade parameters of one replacement, or null when
+ * it changes nothing: To equal to From (RULE-25: "so it changes nothing until To is changed"), or a grey From colour
+ * (never stored by the editor; a file may hold one).
+ */
+export function replaceParams(r: ReplacementValues): ReplaceParams | null {
+  const from = r.from.toUpperCase();
+  const to = r.to.toUpperCase();
+  if (from === to || fromStatus(from) === 'grey') return null;
+  const [, cFrom, fromH] = okLch(srgbToOklab(hexRgb(from)));
+  const [, cTo, toH] = okLch(srgbToOklab(hexRgb(to)));
+  const toGrey = hexChroma(to) < GREY_GATE[0];
+  return {
+    fromH,
+    full: replaceFull(r.range),
+    fade: replaceFade(r.range, r.softness),
+    // RULE-25: the shorter way, increasing hue when exactly opposite (hueDelta is in (−180, 180]).
+    delta: toGrey ? 0 : hueDelta(toH, fromH),
+    cLo: cFrom / 4,
+    cHi: cFrom / 2,
+    // A grey To colour makes full matches grey (RULE-25 *Change*).
+    ratio: toGrey ? 0 : cTo / cFrom,
+    toGrey,
+  };
+}
+
+/** RULE-25 *Matching*: a replacement's own match weight for a pixel of OKLCh chroma `C`, hue `h` and grey gate `g`. */
+export function replaceOwnWeight(p: ReplaceParams, C: number, h: number, g: number): number {
+  const d = Math.abs(hueDelta(h, p.fromH));
+  return (1 - smoothstep(p.full, p.full + p.fade, d)) * smoothstep(p.cLo, p.cHi, C) * g;
+}
+
+/**
+ * Implements: RULE-25 *Several replacements* — every replacement's effective weight on one OKLab colour, all matched
+ * on the picture entering colour replace: own weight × (1 − the sum of the earlier effective weights).
+ */
+export function replaceWeights(lab: Vec3, ps: readonly ReplaceParams[]): number[] {
+  const g = greyGate(oklabToLinear(lab));
+  if (g <= 0) return ps.map(() => 0);
+  const [, C, h] = okLch(lab);
+  let sum = 0;
+  return ps.map((p) => {
+    const w = replaceOwnWeight(p, C, h, g) * (1 - sum);
+    sum += w;
+    return w;
+  });
+}
+
+/**
+ * Implements: RULE-25 *Change* and *Several replacements* (ADR-0017 §5 Amendment) on one OKLab colour, the CPU
+ * reference of the shader's `replaceC`. Each replacement changes its own share of the pixel (its effective weight w):
+ * h + Σ w(Δ − d), C × (1 + Σ w(ratio − 1)); the hue turns by w × (Δ − d), d the signed angle From → h counted on the pixel's side of From, so
+ * full matches land exactly on To's hue and neighbours turn by nearly the same angle (not at all for a grey To);
+ * chroma × ((1 − Σw) + Σ w × ratio); lightness kept; the result brought into gamut at constant L and h (§2).
+ */
+export function replaceLab(lab: Vec3, ps: readonly ReplaceParams[]): Vec3 {
+  if (ps.length === 0) return lab;
+  const g = greyGate(oklabToLinear(lab));
+  // A grey pixel (gate 0) is left exactly as it is, as in the shader, which so never takes atan(0, 0).
+  if (g <= 0) return lab;
+  const [L, C, h] = okLch(lab);
+  let sum = 0;
+  let dh = 0;
+  let dc = 0;
+  for (const p of ps) {
+    const d = hueDelta(h, p.fromH);
+    const w = replaceOwnWeight(p, C, h, g) * (1 - sum);
+    sum += w;
+    if (!p.toGrey) dh += w * (p.delta - d);
+    dc += w * (p.ratio - 1);
+  }
+  if (sum <= 0) return lab;
+  return gamutLab(fromLch(L, C * (1 + dc), h + dh));
 }
