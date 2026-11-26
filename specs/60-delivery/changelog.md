@@ -2,6 +2,9 @@
 
 Entries are needed only for items that are `building` or `shipped`.
 
+## 2026-11-26 — Released 1.3.0 to production (D-053)
+- `v1.3.0` (the `v1.3.0-rc.1` build) is live at `https://clip-maker.tarokit.app` with colour replace and the colour picker hex fix, replacing 1.2.0. Report: `.build-my-app/reports/release-1.3.0.md`.
+
 ## 2026-11-26 — Release candidate 1.3.0 (D-053 colour replace)
 - F-028 Replace a colour `building` → `shipped`. Version 1.3.0, candidate `v1.3.0-rc.1`; verification in `.build-my-app/reports/release-1.3.0.md`.
 - Bug fix (CMP-ColourPicker "Behavior", no spec change): a hex typed in the picker is now applied when Done is clicked without Enter (in one browser engine a clicked button takes no focus, so the field never lost focus and the typed colour was dropped) and when Enter follows the typing at once. Affects colour replace and duotone Custom. Test: the CMP-ColourPicker "Behavior" case in tests/e2e/colour-replace.spec.ts.
